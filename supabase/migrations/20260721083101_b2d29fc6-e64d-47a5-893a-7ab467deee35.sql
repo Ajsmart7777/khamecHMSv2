@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.write_audit_log(text, text, text, jsonb, text) FROM authenticated;

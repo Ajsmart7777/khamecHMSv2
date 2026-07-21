@@ -37,7 +37,6 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <PatientProvider>
-            <ShiftEnforcementProvider>
               <Routes>
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/" element={

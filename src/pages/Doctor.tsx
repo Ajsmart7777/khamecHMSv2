@@ -166,7 +166,23 @@ const Doctor = () => {
         <div className="lg:col-span-3">
           {selectedPatient ? (
             <div className="space-y-3">
-              <div className="flex justify-end">
+              <div className="flex flex-wrap justify-end gap-2">
+                <SnapClinicalOrder
+                  patientId={selectedPatient.id}
+                  sourceStation="doctor"
+                  defaultOrderType="lab"
+                  label="Snap Lab Request"
+                  variant="outline"
+                  size="sm"
+                />
+                <SnapClinicalOrder
+                  patientId={selectedPatient.id}
+                  sourceStation="doctor"
+                  defaultOrderType="prescription"
+                  label="Snap Rx"
+                  variant="outline"
+                  size="sm"
+                />
                 <SnapToCard patientId={selectedPatient.id} station="doctor" defaultLabel="Doctor Dx / Rx" />
               </div>
               <ConsultationView

@@ -1131,26 +1131,44 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
 
         {/* Conditional Insurance Fields */}
-        {showInsuranceFields && (
-          <div className="grid grid-cols-2 gap-4 mt-4 p-4 rounded-lg bg-info/5 border border-info/20 animate-fade-in">
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Insurance Provider</label>
-              <Input 
-                placeholder="Provider name" 
-                value={formData.insurance_provider}
-                onChange={(e) => setFormData({...formData, insurance_provider: e.target.value})}
-              />
+        {showInsuranceFields && (() => {
+          const planOptions: Record<string, string[]> = {
+            katchma: ['Katchma Basic', 'Katchma Standard'],
+            hmo: ['HMO Daily Claims', 'HMO Monthly Claims'],
+            nhis: ['NHIA Standard'],
+          };
+          const options = planOptions[formData.account_type] || [];
+          const providerLabel = formData.account_type === 'nhis' ? 'NHIA Office / Branch' : formData.account_type === 'katchma' ? 'Katchma Desk / Branch' : 'HMO Provider Name';
+          return (
+            <div className="grid grid-cols-2 gap-4 mt-4 p-4 rounded-lg bg-info/5 border border-info/20 animate-fade-in">
+              <div className="col-span-2">
+                <label className="text-sm font-medium mb-1.5 block">Plan *</label>
+                <Select value={formData.insurance_plan} onValueChange={(v) => setFormData({ ...formData, insurance_plan: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select plan" /></SelectTrigger>
+                  <SelectContent>
+                    {options.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">{providerLabel} *</label>
+                <Input
+                  placeholder="Provider name"
+                  value={formData.insurance_provider}
+                  onChange={(e) => setFormData({ ...formData, insurance_provider: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Member / Enrollee ID *</label>
+                <Input
+                  placeholder="Enrollee ID"
+                  value={formData.insurance_policy_number}
+                  onChange={(e) => setFormData({ ...formData, insurance_policy_number: e.target.value })}
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Policy Number</label>
-              <Input 
-                placeholder="Policy number" 
-                value={formData.insurance_policy_number}
-                onChange={(e) => setFormData({...formData, insurance_policy_number: e.target.value})}
-              />
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Conditional Corporate Fields */}
         {showCorporateFields && (

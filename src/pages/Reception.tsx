@@ -938,6 +938,11 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       setIsSubmitting(false);
       return;
     }
+    if ((formData.account_type === 'corporate' || formData.account_type === 'retainer') && !formData.corporate_id) {
+      toast.error(`Please select the ${formData.account_type === 'retainer' ? 'retainer sponsor' : 'corporate account'}.`);
+      setIsSubmitting(false);
+      return;
+    }
 
     if (formData.account_type === 'staff_family') {
       const { count } = await supabase

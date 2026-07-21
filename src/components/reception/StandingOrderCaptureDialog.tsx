@@ -1,15 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Camera, Upload, X, Loader2, Stethoscope } from 'lucide-react';
+import { Camera, X, Loader2, FileText } from 'lucide-react';
 import { usePatients } from '@/contexts/PatientContext';
-import { useExternalDoctors } from '@/hooks/useExternalDoctors';
 import { useStandingOrders } from '@/hooks/useStandingOrders';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface Props {
   open: boolean;
@@ -17,40 +17,49 @@ interface Props {
   presetPatientId?: string;
 }
 
+type OrderType = 'prescription' | 'lab' | 'both';
+
+const ORDER_TYPES: { value: OrderType; label: string }[] = [
+  { value: 'prescription', label: 'Prescription' },
+  { value: 'lab', label: 'Lab test' },
+  { value: 'both', label: 'Both' },
+];
+
 export function StandingOrderCaptureDialog({ open, onOpenChange, presetPatientId }: Props) {
   const { patients } = usePatients();
-  const { doctors } = useExternalDoctors();
   const { createOrder } = useStandingOrders();
 
   const [patientId, setPatientId] = useState<string>(presetPatientId || '');
-  const [doctorId, setDoctorId] = useState<string>('');
-  const [doctorNameFallback, setDoctorNameFallback] = useState('');
+  const [orderType, setOrderType] = useState<OrderType>('prescription');
+  const [doctorName, setDoctorName] = useState('');
   const [notes, setNotes] = useState('');
-  const [expiryDate, setExpiryDate] = useState('');
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
-  const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
       setPatientId(presetPatientId || '');
-      setDoctorId('');
-      setDoctorNameFallback('');
+      setOrderType('prescription');
+      setDoctorName('');
       setNotes('');
-      setExpiryDate('');
       setPhoto(null);
       setPreview(null);
       setSearch('');
     }
   }, [open, presetPatientId]);
 
+  const selectedPatient = useMemo(
+    () => patients.find(p => p.id === patientId) || null,
+    [patients, patientId]
+  );
+
   const handleFile = (file: File | null) => {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
+      toast.error('Please attach an image');
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -67,18 +76,18 @@ export function StandingOrderCaptureDialog({ open, onOpenChange, presetPatientId
     return `${p.first_name} ${p.last_name}`.toLowerCase().includes(q) || (p.card_number || '').toLowerCase().includes(q);
   }).slice(0, 20);
 
-  const canSave = patientId && photo && (doctorId || doctorNameFallback.trim());
+  const canSend = !!patientId && !!photo;
 
-  const handleSave = async () => {
-    if (!canSave || !photo) return;
+  const handleSend = async () => {
+    if (!canSend || !photo) return;
     setSaving(true);
     const result = await createOrder({
       patient_id: patientId,
-      external_doctor_id: doctorId || null,
-      external_doctor_name: doctorId ? null : doctorNameFallback.trim(),
+      external_doctor_id: null,
+      external_doctor_name: doctorName.trim() || null,
       photo,
-      notes: notes || null,
-      expiry_date: expiryDate || null,
+      notes: notes.trim() || null,
+      order_type: orderType,
     });
     setSaving(false);
     if (result) onOpenChange(false);
@@ -86,90 +95,102 @@ export function StandingOrderCaptureDialog({ open, onOpenChange, presetPatientId
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Stethoscope className="h-5 w-5 text-primary" />
-            Capture External Prescription
+            <FileText className="h-5 w-5 text-primary" />
+            Attach External Doctor Order
           </DialogTitle>
           <DialogDescription>
-            Snap or upload a photo of the prescription from an external doctor. It will be queued for pharmacy fulfillment.
+            Take a photo of the paper prescription or lab request written by the sponsor's doctor. It will be forwarded to Billing.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div>
-            <Label>Patient *</Label>
-            {!presetPatientId && (
+          {/* Patient */}
+          {selectedPatient ? (
+            <div className="rounded-lg border bg-muted/40 px-3 py-2">
+              <div className="font-medium">{selectedPatient.first_name} {selectedPatient.last_name}</div>
+              <div className="text-xs text-muted-foreground">{selectedPatient.card_number}</div>
+            </div>
+          ) : (
+            <div>
+              <Label>Patient *</Label>
               <Input
                 placeholder="Search by name or card number"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="mb-2"
               />
-            )}
-            <Select value={patientId} onValueChange={setPatientId} disabled={!!presetPatientId}>
-              <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
-              <SelectContent>
-                {filteredPatients.map(p => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.first_name} {p.last_name} — {p.card_number}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>External Doctor *</Label>
-            <Select value={doctorId} onValueChange={setDoctorId}>
-              <SelectTrigger><SelectValue placeholder="Select registered external doctor" /></SelectTrigger>
-              <SelectContent>
-                {doctors.filter(d => d.status === 'active').map(d => (
-                  <SelectItem key={d.id} value={d.id}>
-                    {d.name}{d.specialty ? ` — ${d.specialty}` : ''}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!doctorId && (
-              <Input
-                placeholder="Or type doctor's name (if not registered)"
-                value={doctorNameFallback}
-                onChange={(e) => setDoctorNameFallback(e.target.value)}
-                className="mt-2"
-              />
-            )}
-          </div>
-
-          <div>
-            <Label>Prescription Photo *</Label>
-            <div className="flex gap-2 mt-1">
-              <Button type="button" variant="outline" onClick={() => cameraRef.current?.click()} className="flex-1">
-                <Camera className="h-4 w-4 mr-1.5" /> Camera
-              </Button>
-              <Button type="button" variant="outline" onClick={() => fileRef.current?.click()} className="flex-1">
-                <Upload className="h-4 w-4 mr-1.5" /> Upload
-              </Button>
-              <input
-                ref={cameraRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => handleFile(e.target.files?.[0] || null)}
-              />
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => handleFile(e.target.files?.[0] || null)}
-              />
+              <Select value={patientId} onValueChange={setPatientId}>
+                <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
+                <SelectContent>
+                  {filteredPatients.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.first_name} {p.last_name} — {p.card_number}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            {preview && (
-              <div className="relative mt-2 rounded-lg border overflow-hidden bg-muted">
-                <img src={preview} alt="Prescription preview" className="w-full max-h-72 object-contain" />
+          )}
+
+          {/* Order type */}
+          <div>
+            <Label>Order type</Label>
+            <div className="grid grid-cols-3 gap-2 mt-1.5">
+              {ORDER_TYPES.map(opt => {
+                const active = orderType === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setOrderType(opt.value)}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm transition",
+                      active ? "border-primary bg-primary/5 text-foreground" : "border-input hover:bg-accent"
+                    )}
+                  >
+                    <span className={cn(
+                      "h-3.5 w-3.5 rounded-full border flex items-center justify-center",
+                      active ? "border-primary" : "border-muted-foreground/40"
+                    )}>
+                      {active && <span className="h-2 w-2 rounded-full bg-primary" />}
+                    </span>
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Doctor name */}
+          <div>
+            <Label htmlFor="ext-doctor-name">Doctor's name (optional)</Label>
+            <Input
+              id="ext-doctor-name"
+              placeholder="e.g. Dr. Aliyu (Katchma corporate)"
+              value={doctorName}
+              onChange={(e) => setDoctorName(e.target.value)}
+            />
+          </div>
+
+          {/* Photo */}
+          <div>
+            <Label>Order photo</Label>
+            {!preview ? (
+              <div
+                onClick={() => cameraRef.current?.click()}
+                className="mt-1.5 flex flex-col items-start gap-2 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 px-4 py-4 cursor-pointer hover:bg-muted/40 transition"
+              >
+                <p className="text-sm text-muted-foreground">Attach photo of the paper order</p>
+                <Button type="button" variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); cameraRef.current?.click(); }}>
+                  <Camera className="h-4 w-4 mr-1.5" /> Take photo
+                </Button>
+              </div>
+            ) : (
+              <div className="relative mt-1.5 rounded-lg border overflow-hidden bg-muted">
+                <img src={preview} alt="Order preview" className="w-full max-h-64 object-contain" />
                 <Button
                   type="button"
                   size="icon"
@@ -181,24 +202,33 @@ export function StandingOrderCaptureDialog({ open, onOpenChange, presetPatientId
                 </Button>
               </div>
             )}
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => handleFile(e.target.files?.[0] || null)}
+            />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Expiry date</Label>
-              <Input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
-            </div>
-            <div>
-              <Label>Notes</Label>
-              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
-            </div>
+          {/* Notes */}
+          <div>
+            <Label htmlFor="ext-notes">Notes (optional)</Label>
+            <Textarea
+              id="ext-notes"
+              placeholder="Anything Billing should know"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+            />
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSave} disabled={!canSave || saving}>
-            {saving ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Saving</> : 'Save standing order'}
+          <Button onClick={handleSend} disabled={!canSend || saving}>
+            {saving ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Sending</> : 'Send to Billing'}
           </Button>
         </DialogFooter>
       </DialogContent>

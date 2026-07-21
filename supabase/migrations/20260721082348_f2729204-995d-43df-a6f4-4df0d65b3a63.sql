@@ -1,0 +1,1 @@
+ALTER TABLE public.standing_orders ADD COLUMN IF NOT EXISTS order_type text NOT NULL DEFAULT 'prescription' CHECK (order_type IN ('prescription','lab','both'));

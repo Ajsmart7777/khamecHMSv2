@@ -1171,6 +1171,7 @@ export type Database = {
           fulfilled_by: string | null
           id: string
           notes: string | null
+          order_type: string
           patient_id: string
           photo_url: string
           status: string
@@ -1187,6 +1188,7 @@ export type Database = {
           fulfilled_by?: string | null
           id?: string
           notes?: string | null
+          order_type?: string
           patient_id: string
           photo_url: string
           status?: string
@@ -1203,6 +1205,7 @@ export type Database = {
           fulfilled_by?: string | null
           id?: string
           notes?: string | null
+          order_type?: string
           patient_id?: string
           photo_url?: string
           status?: string

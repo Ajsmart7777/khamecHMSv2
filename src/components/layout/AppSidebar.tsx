@@ -17,7 +17,8 @@ import {
   LogOut,
   Settings,
   Bell,
-  Download
+  Download,
+  FileText
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ const allMenuItems = [
   { id: 'reception', label: 'Reception', icon: Users, path: '/reception', color: 'text-module-reception', roles: ['receptionist', 'admin'] },
   { id: 'nurse', label: 'Nurse Station', icon: Activity, path: '/nurse', color: 'text-module-nurse', roles: ['nurse', 'admin'] },
   { id: 'doctor', label: 'Doctor', icon: Stethoscope, path: '/doctor', color: 'text-module-doctor', roles: ['doctor', 'doctor1', 'doctor2', 'admin'] },
+  { id: 'emr', label: 'EMR', icon: FileText, path: '/emr', color: 'text-primary', roles: ['doctor', 'doctor1', 'doctor2', 'nurse', 'lab_tech', 'pharmacist', 'admin'] },
   { id: 'lab', label: 'Laboratory', icon: FlaskConical, path: '/lab', color: 'text-module-lab', roles: ['lab_tech', 'admin'] },
   { id: 'billing', label: 'Billing', icon: Receipt, path: '/billing', color: 'text-module-billing', roles: ['billing', 'admin'] },
   { id: 'pharmacy', label: 'Pharmacy', icon: Pill, path: '/pharmacy', color: 'text-module-pharmacy', roles: ['pharmacist', 'admin'] },

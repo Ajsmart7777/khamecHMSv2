@@ -24,6 +24,7 @@ import Settings from "./pages/Settings";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import Claims from "./pages/Claims";
+import EMR from "./pages/EMR";
 
 const queryClient = new QueryClient();
 
@@ -92,6 +93,11 @@ const App = () => (
                 <Route path="/claims" element={
                   <ProtectedRoute allowedRoles={['claims_manager', 'admin']}>
                     <Claims />
+                  </ProtectedRoute>
+                } />
+                <Route path="/emr" element={
+                  <ProtectedRoute allowedRoles={['doctor', 'doctor1', 'doctor2', 'nurse', 'lab_tech', 'pharmacist', 'admin']}>
+                    <EMR />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin" element={

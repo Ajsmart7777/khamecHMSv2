@@ -408,10 +408,13 @@ const Billing = () => {
                   <p className="text-sm">No pending bills</p>
                 </div>
               )}
+            </div>
           </div>
 
           {/* Cashier Panel */}
           <CashierPanel />
+
+
 
 
 

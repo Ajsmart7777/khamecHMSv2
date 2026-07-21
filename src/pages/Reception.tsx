@@ -1150,6 +1150,44 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
             onChange={(v) => setFormData({...formData, corporate_id: v})}
           />
         )}
+
+        {/* Staff patient link */}
+        {showStaffSelector && (
+          <StaffSelector
+            label="Link to Staff Member"
+            helper="Staff patients are fully covered — no charges are billed."
+            value={formData.staff_link_id}
+            onChange={(id) => setFormData({ ...formData, staff_link_id: id })}
+          />
+        )}
+
+        {/* Staff family patient link */}
+        {showFamilyStaffSelector && (
+          <>
+            <StaffSelector
+              label="Belongs to Staff"
+              helper="Family members pay 50% — the rest is billed to the staff (deducted from salary if they consented)."
+              value={formData.family_staff_id}
+              onChange={(id, s) => setFormData({
+                ...formData,
+                family_staff_id: id,
+                family_staff_has_consent: s?.family_deduction_consent ?? false,
+              })}
+            />
+            {formData.family_staff_id && (
+              <div className={cn(
+                "mt-2 p-3 rounded-md text-xs border",
+                formData.family_staff_has_consent
+                  ? "bg-success/5 border-success/20 text-success-foreground"
+                  : "bg-warning/5 border-warning/20 text-warning-foreground"
+              )}>
+                {formData.family_staff_has_consent
+                  ? "✓ Staff consented to salary deduction — unpaid balance auto-queues for payroll."
+                  : "⚠ Staff has NOT consented to salary deduction — the 50% share must be collected at the cashier."}
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       <DialogFooter className="gap-2 sm:gap-0">

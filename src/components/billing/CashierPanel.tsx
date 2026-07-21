@@ -1,9 +1,10 @@
 import { useState, useMemo } from 'react';
-import { Wallet, Search, Banknote } from 'lucide-react';
+import { Wallet, Search, Banknote, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -23,14 +24,18 @@ import { toast } from 'sonner';
 import { useInvoices, Invoice } from '@/hooks/useInvoices';
 import { usePatients } from '@/contexts/PatientContext';
 import { paymentAuditLogger } from '@/lib/auditLogger';
+import { supabase } from '@/integrations/supabase/client';
+
+const DEBT_ELIGIBLE = new Set(['normal', 'staff', 'staff_family']);
 
 export function CashierPanel() {
-  const { getPendingInvoices, recordPayment } = useInvoices();
+  const { getPendingInvoices, recordPayment, refreshInvoices } = useInvoices();
   const { patients, updatePatientStatus } = usePatients();
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Invoice | null>(null);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<string>('cash');
+  const [markDebt, setMarkDebt] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const pending = getPendingInvoices();
@@ -53,49 +58,112 @@ export function CashierPanel() {
       });
   }, [pending, patients, query]);
 
+  const selectedPatient = selected
+    ? patients.find((p) => p.id === selected.patient_id)
+    : null;
+  const debtEligible =
+    !!selectedPatient && DEBT_ELIGIBLE.has(selectedPatient.account_type as string);
+  const outstanding = selected
+    ? Number(selected.total_amount) - Number(selected.paid_amount)
+    : 0;
+  const paying = Number(amount) || 0;
+  const shortfall = Math.max(outstanding - paying, 0);
+
   const openPayment = (inv: Invoice) => {
     setSelected(inv);
-    const outstanding = Number(inv.total_amount) - Number(inv.paid_amount);
-    setAmount(String(outstanding));
+    const out = Number(inv.total_amount) - Number(inv.paid_amount);
+    setAmount(String(out));
     setMethod('cash');
+    setMarkDebt(false);
   };
 
   const submit = async () => {
-    if (!selected) return;
+    if (!selected || !selectedPatient) return;
     const amt = Number(amount);
     if (!amt || amt <= 0) {
       toast.error('Enter a valid amount');
       return;
     }
-    const outstanding = Number(selected.total_amount) - Number(selected.paid_amount);
     if (amt > outstanding) {
       toast.error('Amount exceeds outstanding balance');
       return;
     }
+    const short = outstanding - amt;
+    if (short > 0 && !markDebt) {
+      toast.error('Short payment — tick "Mark remainder as debt" to proceed');
+      return;
+    }
+    if (short > 0 && !debtEligible) {
+      toast.error('This account type cannot carry debt');
+      return;
+    }
+
     setBusy(true);
+    // 1. Record the actual cash received
     const ok = await recordPayment(selected.id, amt, method);
-    setBusy(false);
     if (!ok) {
+      setBusy(false);
       toast.error('Failed to record payment');
       return;
     }
-    const patient = patients.find((p) => p.id === selected.patient_id);
+
+    // 2. If short-paid with debt approval: close invoice + push shortfall to patient debt
+    if (short > 0) {
+      const { error: closeErr } = await supabase
+        .from('invoices')
+        .update({
+          status: 'paid',
+          paid_at: new Date().toISOString(),
+          notes: `Short payment — ₦${short.toLocaleString()} moved to patient debt`,
+        })
+        .eq('id', selected.id);
+      if (closeErr) {
+        setBusy(false);
+        toast.error('Failed to close invoice');
+        return;
+      }
+
+      const { error: debtErr } = await supabase.rpc('adjust_patient_balance', {
+        _patient_id: selected.patient_id,
+        _delta: -short,
+        _transaction_type: 'debt_incurred',
+        _payment_method: method,
+        _related_invoice_id: selected.id,
+        _notes: `Shortfall on invoice ${selected.invoice_number}`,
+      });
+      if (debtErr) {
+        setBusy(false);
+        toast.error(`Failed to record debt: ${debtErr.message}`);
+        return;
+      }
+      await refreshInvoices();
+    }
+
+    setBusy(false);
     await paymentAuditLogger('payment_received', selected.invoice_number, {
       patient_id: selected.patient_id,
-      patient_name: patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown',
-      action: 'payment_recorded',
+      patient_name: `${selectedPatient.first_name} ${selectedPatient.last_name}`,
+      action: short > 0 ? 'payment_recorded_with_debt' : 'payment_recorded',
       amount: amt,
       method,
+      shortfall: short,
     });
-    // Move to pharmacy if fully paid
-    if (amt >= outstanding) {
-      await updatePatientStatus(selected.patient_id, 'at_pharmacy');
-    }
-    toast.success('Payment recorded', {
-      description: `₦${amt.toLocaleString()} via ${method} · ${selected.invoice_number}`,
-    });
+
+    // Move to pharmacy (invoice is settled either fully or via debt)
+    await updatePatientStatus(selected.patient_id, 'at_pharmacy');
+
+    toast.success(
+      short > 0 ? 'Payment recorded with debt' : 'Payment recorded',
+      {
+        description:
+          short > 0
+            ? `₦${amt.toLocaleString()} received · ₦${short.toLocaleString()} added as debt`
+            : `₦${amt.toLocaleString()} via ${method} · ${selected.invoice_number}`,
+      }
+    );
     setSelected(null);
     setAmount('');
+    setMarkDebt(false);
   };
 
   return (
@@ -125,7 +193,7 @@ export function CashierPanel() {
           </p>
         )}
         {rows.map(({ inv, patient }) => {
-          const outstanding = Number(inv.total_amount) - Number(inv.paid_amount);
+          const out = Number(inv.total_amount) - Number(inv.paid_amount);
           return (
             <div
               key={inv.id}
@@ -152,7 +220,7 @@ export function CashierPanel() {
                 <div className="text-xs">
                   <span className="text-muted-foreground">Owing </span>
                   <span className="font-bold text-destructive">
-                    ₦{outstanding.toLocaleString()}
+                    ₦{out.toLocaleString()}
                   </span>
                 </div>
                 <Button size="sm" onClick={() => openPayment(inv)} className="h-7">
@@ -170,16 +238,20 @@ export function CashierPanel() {
           <DialogHeader>
             <DialogTitle>Record Payment</DialogTitle>
             <DialogDescription>
-              {selected?.invoice_number} · Outstanding ₦
-              {selected
-                ? (Number(selected.total_amount) - Number(selected.paid_amount)).toLocaleString()
-                : 0}
+              {selected?.invoice_number} · Outstanding ₦{outstanding.toLocaleString()}
+              {selectedPatient && (
+                <span className="block text-xs mt-1">
+                  {selectedPatient.first_name} {selectedPatient.last_name} ·{' '}
+                  <span className="capitalize">{selectedPatient.account_type}</span> ·
+                  Balance ₦{Number(selectedPatient.balance ?? 0).toLocaleString()}
+                </span>
+              )}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div>
-              <Label>Amount (₦)</Label>
+              <Label>Amount Received (₦)</Label>
               <Input
                 type="number"
                 value={amount}
@@ -201,14 +273,53 @@ export function CashierPanel() {
                 </SelectContent>
               </Select>
             </div>
+
+            {shortfall > 0 && (
+              <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 space-y-2">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-warning mt-0.5" />
+                  <div className="text-xs">
+                    <p className="font-semibold text-warning-foreground">
+                      Short by ₦{shortfall.toLocaleString()}
+                    </p>
+                    {debtEligible ? (
+                      <p className="text-muted-foreground mt-0.5">
+                        This will be added as debt on the patient's balance.
+                        New balance will be ₦
+                        {(
+                          Number(selectedPatient?.balance ?? 0) - shortfall
+                        ).toLocaleString()}
+                        . Next top-up clears it automatically.
+                      </p>
+                    ) : (
+                      <p className="text-destructive mt-0.5">
+                        Debt not allowed for this account type — collect full amount.
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {debtEligible && (
+                  <label className="flex items-center gap-2 cursor-pointer text-xs">
+                    <Checkbox
+                      checked={markDebt}
+                      onCheckedChange={(v) => setMarkDebt(!!v)}
+                    />
+                    <span>Mark ₦{shortfall.toLocaleString()} as debt on patient balance</span>
+                  </label>
+                )}
+              </div>
+            )}
           </div>
 
           <DialogFooter>
             <Button variant="ghost" onClick={() => setSelected(null)} disabled={busy}>
               Cancel
             </Button>
-            <Button onClick={submit} disabled={busy}>
-              {busy ? 'Recording…' : 'Confirm Payment'}
+            <Button
+              onClick={submit}
+              disabled={busy || (shortfall > 0 && (!debtEligible || !markDebt))}
+            >
+              {busy ? 'Recording…' : shortfall > 0 ? 'Confirm & Record Debt' : 'Confirm Payment'}
             </Button>
           </DialogFooter>
         </DialogContent>

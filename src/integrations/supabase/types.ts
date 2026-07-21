@@ -1141,109 +1141,6 @@ export type Database = {
         }
         Relationships: []
       }
-      shift_assignments: {
-        Row: {
-          created_at: string
-          id: string
-          shift_date: string
-          shift_period_id: string
-          staff_user_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          shift_date: string
-          shift_period_id: string
-          staff_user_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          shift_date?: string
-          shift_period_id?: string
-          staff_user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "shift_assignments_shift_period_id_fkey"
-            columns: ["shift_period_id"]
-            isOneToOne: false
-            referencedRelation: "shift_periods"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      shift_logs: {
-        Row: {
-          clock_in_at: string | null
-          clock_out_at: string | null
-          created_at: string
-          handover_notes: string | null
-          id: string
-          shift_date: string
-          shift_period_id: string
-          staff_user_id: string
-          status: string
-        }
-        Insert: {
-          clock_in_at?: string | null
-          clock_out_at?: string | null
-          created_at?: string
-          handover_notes?: string | null
-          id?: string
-          shift_date: string
-          shift_period_id: string
-          staff_user_id: string
-          status?: string
-        }
-        Update: {
-          clock_in_at?: string | null
-          clock_out_at?: string | null
-          created_at?: string
-          handover_notes?: string | null
-          id?: string
-          shift_date?: string
-          shift_period_id?: string
-          staff_user_id?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "shift_logs_shift_period_id_fkey"
-            columns: ["shift_period_id"]
-            isOneToOne: false
-            referencedRelation: "shift_periods"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      shift_periods: {
-        Row: {
-          created_at: string
-          end_time: string
-          id: string
-          is_active: boolean
-          name: string
-          start_time: string
-        }
-        Insert: {
-          created_at?: string
-          end_time: string
-          id?: string
-          is_active?: boolean
-          name: string
-          start_time: string
-        }
-        Update: {
-          created_at?: string
-          end_time?: string
-          id?: string
-          is_active?: boolean
-          name?: string
-          start_time?: string
-        }
-        Relationships: []
-      }
       sponsor_statement_items: {
         Row: {
           amount: number
@@ -1453,7 +1350,6 @@ export type Database = {
           date: string
           id: string
           notes: string | null
-          shift_log_id: string | null
           staff_id: string
           status: string
         }
@@ -1464,7 +1360,6 @@ export type Database = {
           date: string
           id?: string
           notes?: string | null
-          shift_log_id?: string | null
           staff_id: string
           status?: string
         }
@@ -1475,18 +1370,10 @@ export type Database = {
           date?: string
           id?: string
           notes?: string | null
-          shift_log_id?: string | null
           staff_id?: string
           status?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "staff_attendance_shift_log_id_fkey"
-            columns: ["shift_log_id"]
-            isOneToOne: false
-            referencedRelation: "shift_logs"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "staff_attendance_staff_id_fkey"
             columns: ["staff_id"]

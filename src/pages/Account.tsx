@@ -126,6 +126,9 @@ const Account = () => {
           <TabsTrigger value="retainer-claims" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <ClipboardList className="h-4 w-4" /> Retainer Claims
           </TabsTrigger>
+          <TabsTrigger value="statements" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <FileText className="h-4 w-4" /> Monthly Statements
+          </TabsTrigger>
           <TabsTrigger value="external-doctors" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Stethoscope className="h-4 w-4" /> External Doctors
           </TabsTrigger>

@@ -27,27 +27,29 @@ function money(v: number) {
   return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function CorporateClaimsReport() {
-  const { accounts } = useCorporateAccounts();
+export function CorporateClaimsReport({ fixedSponsorType }: { fixedSponsorType?: 'corporate' | 'retainer' } = {}) {
+  const { accounts } = useCorporateAccounts(fixedSponsorType);
   const [claims, setClaims] = useState<ClaimRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sponsorType, setSponsorType] = useState<string>('all');
+  const [sponsorType, setSponsorType] = useState<string>(fixedSponsorType || 'all');
   const [accountId, setAccountId] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const { data, error } = await supabase
+      let q = supabase
         .from('insurance_claims')
         .select('*, patient:patients(first_name,last_name), corporate:corporate_accounts(company_name,sponsor_type)')
-        .in('sponsor_type', ['corporate', 'retainer'])
         .order('submitted_at', { ascending: false });
+      if (fixedSponsorType) q = q.eq('sponsor_type', fixedSponsorType);
+      else q = q.in('sponsor_type', ['corporate', 'retainer']);
+      const { data, error } = await q;
       if (!error) setClaims((data || []) as unknown as ClaimRow[]);
       setLoading(false);
     };
     load();
-  }, []);
+  }, [fixedSponsorType]);
 
   const filtered = useMemo(() => claims.filter(c => {
     if (sponsorType !== 'all' && c.sponsor_type !== sponsorType) return false;
@@ -96,18 +98,20 @@ export function CorporateClaimsReport() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Building2 className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Corporate & Retainer Claims</h3>
+          <h3 className="font-semibold">{fixedSponsorType === 'retainer' ? 'Retainer Claims' : fixedSponsorType === 'corporate' ? 'Corporate Claims' : 'Corporate & Retainer Claims'}</h3>
           <Badge variant="outline">{filtered.length}</Badge>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Select value={sponsorType} onValueChange={setSponsorType}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Sponsor type" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All sponsors</SelectItem>
-              <SelectItem value="corporate">Corporate</SelectItem>
-              <SelectItem value="retainer">Retainer</SelectItem>
-            </SelectContent>
-          </Select>
+          {!fixedSponsorType && (
+            <Select value={sponsorType} onValueChange={setSponsorType}>
+              <SelectTrigger className="w-40"><SelectValue placeholder="Sponsor type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sponsors</SelectItem>
+                <SelectItem value="corporate">Corporate</SelectItem>
+                <SelectItem value="retainer">Retainer</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <Select value={accountId} onValueChange={setAccountId}>
             <SelectTrigger className="w-52"><SelectValue placeholder="Account" /></SelectTrigger>
             <SelectContent>

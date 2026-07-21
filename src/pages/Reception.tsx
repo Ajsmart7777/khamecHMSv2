@@ -98,7 +98,7 @@ const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactN
     label: 'Retainer', 
     icon: <Wallet className="h-4 w-4" />, 
     color: 'bg-accent/10 text-accent border-accent/30',
-    description: 'Pre-paid retainer account'
+    description: 'Sponsor referral — billed monthly'
   },
   staff: {
     label: 'Staff',
@@ -938,6 +938,11 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       setIsSubmitting(false);
       return;
     }
+    if ((formData.account_type === 'corporate' || formData.account_type === 'retainer') && !formData.corporate_id) {
+      toast.error(`Please select the ${formData.account_type === 'retainer' ? 'retainer sponsor' : 'corporate account'}.`);
+      setIsSubmitting(false);
+      return;
+    }
 
     if (formData.account_type === 'staff_family') {
       const { count } = await supabase
@@ -995,6 +1000,7 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
 
   const showInsuranceFields = ['insurance', 'hmo', 'nhis'].includes(formData.account_type);
   const showCorporateFields = formData.account_type === 'corporate';
+  const showRetainerFields = formData.account_type === 'retainer';
   const showStaffSelector = formData.account_type === 'staff';
   const showFamilyStaffSelector = formData.account_type === 'staff_family';
 
@@ -1147,6 +1153,16 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
         {/* Conditional Corporate Fields */}
         {showCorporateFields && (
           <CorporateSelector
+            accountType="corporate"
+            value={formData.corporate_id}
+            onChange={(v) => setFormData({...formData, corporate_id: v})}
+          />
+        )}
+
+        {/* Conditional Retainer Fields */}
+        {showRetainerFields && (
+          <CorporateSelector
+            accountType="retainer"
             value={formData.corporate_id}
             onChange={(v) => setFormData({...formData, corporate_id: v})}
           />
@@ -1213,9 +1229,11 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function CorporateSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function CorporateSelector({ value, onChange, accountType = 'corporate' }: { value: string; onChange: (v: string) => void; accountType?: 'corporate' | 'retainer' }) {
   const [accounts, setAccounts] = useState<{ id: string; company_name: string; status: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const isRetainer = accountType === 'retainer';
+  const label = isRetainer ? 'Retainer Sponsor' : 'Corporate Account';
 
   useEffect(() => {
     const fetchAccounts = async () => {
@@ -1223,27 +1241,28 @@ function CorporateSelector({ value, onChange }: { value: string; onChange: (v: s
         .from('corporate_accounts')
         .select('id, company_name, status')
         .eq('status', 'active')
+        .eq('account_type', accountType)
         .order('company_name');
       if (!error && data) setAccounts(data);
       setLoading(false);
     };
     fetchAccounts();
-  }, []);
+  }, [accountType]);
 
   return (
     <div className="mt-4 p-4 rounded-lg bg-primary/5 border border-primary/20 animate-fade-in">
       <label className="text-sm font-medium mb-1.5 block">
         <Building2 className="h-4 w-4 inline mr-1" />
-        Corporate Account *
+        {label} *
       </label>
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading companies...</p>
+        <p className="text-sm text-muted-foreground">Loading {isRetainer ? 'retainers' : 'companies'}...</p>
       ) : accounts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No active corporate accounts. Create one in the Accounts module first.</p>
+        <p className="text-sm text-muted-foreground">No active {isRetainer ? 'retainer' : 'corporate'} accounts. Create one in the Accounts module first.</p>
       ) : (
         <Select value={value} onValueChange={onChange}>
           <SelectTrigger>
-            <SelectValue placeholder="Select company" />
+            <SelectValue placeholder={`Select ${isRetainer ? 'retainer' : 'company'}`} />
           </SelectTrigger>
           <SelectContent>
             {accounts.map(a => (

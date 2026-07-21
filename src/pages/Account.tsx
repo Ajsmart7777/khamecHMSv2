@@ -116,8 +116,14 @@ const Account = () => {
           <TabsTrigger value="corporate" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Building2 className="h-4 w-4" /> Corporate
           </TabsTrigger>
+          <TabsTrigger value="retainer" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Building2 className="h-4 w-4" /> Retainer
+          </TabsTrigger>
           <TabsTrigger value="sponsor-claims" className="flex items-center gap-1.5 text-xs sm:text-sm">
-            <ClipboardList className="h-4 w-4" /> Sponsor Claims
+            <ClipboardList className="h-4 w-4" /> Corporate Claims
+          </TabsTrigger>
+          <TabsTrigger value="retainer-claims" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <ClipboardList className="h-4 w-4" /> Retainer Claims
           </TabsTrigger>
           <TabsTrigger value="external-doctors" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Stethoscope className="h-4 w-4" /> External Doctors
@@ -187,12 +193,22 @@ const Account = () => {
 
         <TabsContent value="corporate">
           <TabHeader title="Corporate Accounts" onRefresh={refetchCorporate} />
-          <CorporateAccountsManager />
+          <CorporateAccountsManager accountType="corporate" />
+        </TabsContent>
+
+        <TabsContent value="retainer">
+          <TabHeader title="Retainer Accounts" onRefresh={refetchCorporate} />
+          <CorporateAccountsManager accountType="retainer" />
         </TabsContent>
 
         <TabsContent value="sponsor-claims">
-          <TabHeader title="Corporate & Retainer Claims" onRefresh={() => {}} />
-          <CorporateClaimsReport />
+          <TabHeader title="Corporate Claims" onRefresh={() => {}} />
+          <CorporateClaimsReport fixedSponsorType="corporate" />
+        </TabsContent>
+
+        <TabsContent value="retainer-claims">
+          <TabHeader title="Retainer Claims" onRefresh={() => {}} />
+          <CorporateClaimsReport fixedSponsorType="retainer" />
         </TabsContent>
 
         <TabsContent value="external-doctors">

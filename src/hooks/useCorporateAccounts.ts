@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
+export type SponsorAccountType = 'corporate' | 'retainer';
+
 export interface CorporateAccount {
+  account_type: SponsorAccountType;
   id: string;
   company_name: string;
   contact_person: string;
@@ -20,16 +23,18 @@ export interface CorporateAccount {
   linked_patients_count?: number;
 }
 
-export function useCorporateAccounts() {
+export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
   const [accounts, setAccounts] = useState<CorporateAccount[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAccounts = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('corporate_accounts')
       .select('*')
       .order('company_name', { ascending: true });
+    if (typeFilter) query = query.eq('account_type', typeFilter);
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching corporate accounts:', error);
@@ -39,7 +44,7 @@ export function useCorporateAccounts() {
       const { data: patients } = await supabase
         .from('patients')
         .select('corporate_id')
-        .eq('account_type', 'corporate');
+        .in('account_type', ['corporate', 'retainer']);
 
       const countMap: Record<string, number> = {};
       (patients || []).forEach((p: { corporate_id: string | null }) => {
@@ -50,6 +55,7 @@ export function useCorporateAccounts() {
 
       const mapped = (data || []).map(a => ({
         ...a,
+        account_type: (a.account_type || 'corporate') as SponsorAccountType,
         treatment_limit: Number(a.treatment_limit),
         balance: Number(a.balance),
         discount_percentage: Number(a.discount_percentage),
@@ -59,7 +65,7 @@ export function useCorporateAccounts() {
       setAccounts(mapped);
     }
     setLoading(false);
-  }, []);
+  }, [typeFilter]);
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
@@ -77,6 +83,7 @@ export function useCorporateAccounts() {
         discount_percentage: account.discount_percentage,
         status: account.status,
         notes: account.notes,
+        account_type: account.account_type || 'corporate',
       })
       .select()
       .single();
@@ -85,7 +92,7 @@ export function useCorporateAccounts() {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
       return null;
     }
-    toast({ title: 'Success', description: 'Corporate account created.' });
+    toast({ title: 'Success', description: `${account.account_type === 'retainer' ? 'Retainer' : 'Corporate'} account created.` });
     await fetchAccounts();
     return data;
   };

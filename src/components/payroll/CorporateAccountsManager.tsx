@@ -11,7 +11,7 @@ import {
   Building2, Plus, Search, Edit3, Trash2, Users, Loader2, Eye, Wallet, RefreshCw,
   Phone, Mail, MapPin, AlertCircle, FileText
 } from 'lucide-react';
-import { useCorporateAccounts, CorporateAccount } from '@/hooks/useCorporateAccounts';
+import { useCorporateAccounts, CorporateAccount, SponsorAccountType } from '@/hooks/useCorporateAccounts';
 import { toast } from '@/hooks/use-toast';
 
 interface LinkedPatient {
@@ -35,8 +35,12 @@ interface CorporateTransaction {
   patient_name: string;
 }
 
-export function CorporateAccountsManager() {
-  const { accounts, loading, createAccount, updateAccount, deleteAccount, topUpBalance, getLinkedPatients, getCorporateTransactions, refetch } = useCorporateAccounts();
+export function CorporateAccountsManager({ accountType = 'corporate' }: { accountType?: SponsorAccountType } = {}) {
+  const isRetainer = accountType === 'retainer';
+  const singular = isRetainer ? 'Retainer' : 'Corporate';
+  const singularLower = isRetainer ? 'retainer' : 'corporate';
+  const entityLabel = isRetainer ? 'Retainer' : 'Company';
+  const { accounts, loading, createAccount, updateAccount, deleteAccount, topUpBalance, getLinkedPatients, getCorporateTransactions, refetch } = useCorporateAccounts(accountType);
   const [searchTerm, setSearchTerm] = useState('');
   const [addDialog, setAddDialog] = useState(false);
   const [editAccount, setEditAccount] = useState<CorporateAccount | null>(null);
@@ -116,11 +120,12 @@ export function CorporateAccountsManager() {
       return;
     }
     setSaving(true);
+    const payload = { ...form, notes: form.notes || null, account_type: accountType } as any;
     if (editAccount) {
-      await updateAccount(editAccount.id, { ...form, notes: form.notes || null } as any);
+      await updateAccount(editAccount.id, payload);
       setEditAccount(null);
     } else {
-      await createAccount({ ...form, notes: form.notes || null } as any);
+      await createAccount(payload);
       setAddDialog(false);
     }
     resetForm();
@@ -151,18 +156,18 @@ export function CorporateAccountsManager() {
     <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Company Name *</label>
-          <Input value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))} placeholder="e.g. Dangote Industries" />
+          <label className="text-sm font-medium">{entityLabel} Name *</label>
+          <Input value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))} placeholder={isRetainer ? 'e.g. Dr. Musa Referral Clinic' : 'e.g. Dangote Industries'} />
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">Contact Person *</label>
-          <Input value={form.contact_person} onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))} placeholder="HR Manager name" />
+          <Input value={form.contact_person} onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))} placeholder={isRetainer ? 'Retainer contact' : 'HR Manager name'} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">Email *</label>
-          <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="hr@company.com" />
+          <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="contact@example.com" />
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">Phone *</label>
@@ -171,21 +176,10 @@ export function CorporateAccountsManager() {
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">Address</label>
-        <Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Company address" />
+        <Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Address" />
       </div>
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Treatment Limit (₦)</label>
-          <Input type="number" value={form.treatment_limit} onChange={e => setForm(f => ({ ...f, treatment_limit: Number(e.target.value) }))} />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Initial Balance (₦)</label>
-          <Input type="number" value={form.balance} onChange={e => setForm(f => ({ ...f, balance: Number(e.target.value) }))} />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Discount %</label>
-          <Input type="number" min={0} max={100} value={form.discount_percentage} onChange={e => setForm(f => ({ ...f, discount_percentage: Number(e.target.value) }))} />
-        </div>
+      <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground bg-muted/30">
+        Post-paid arrangement — no wallet, no treatment limit, no discount. Every invoice raised for a linked patient is billed to this {singularLower} and consolidated into a monthly statement.
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -213,7 +207,7 @@ export function CorporateAccountsManager() {
         <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-2 mb-1">
             <Building2 className="h-4 w-4 text-primary" />
-            <p className="text-sm text-muted-foreground">Total Companies</p>
+            <p className="text-sm text-muted-foreground">Total {entityLabel}s</p>
           </div>
           <p className="text-2xl font-bold">{accounts.length}</p>
         </div>
@@ -245,7 +239,7 @@ export function CorporateAccountsManager() {
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search companies..."
+            placeholder={`Search ${singularLower}s...`}
             className="pl-10"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
@@ -256,7 +250,7 @@ export function CorporateAccountsManager() {
             <RefreshCw className="h-4 w-4 mr-1" /> Refresh
           </Button>
           <Button size="sm" onClick={() => { resetForm(); setAddDialog(true); }}>
-            <Plus className="h-4 w-4 mr-1" /> Add Company
+            <Plus className="h-4 w-4 mr-1" /> Add {entityLabel}
           </Button>
         </div>
       </div>
@@ -323,7 +317,7 @@ export function CorporateAccountsManager() {
                 {filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
-                      {accounts.length === 0 ? 'No corporate accounts yet. Click "Add Company" to create one.' : 'No results found.'}
+                      {accounts.length === 0 ? `No ${singularLower} accounts yet. Click "Add ${entityLabel}" to create one.` : 'No results found.'}
                     </TableCell>
                   </TableRow>
                 )}
@@ -338,9 +332,9 @@ export function CorporateAccountsManager() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" /> Add Corporate Account
+              <Building2 className="h-5 w-5 text-primary" /> Add {singular} Account
             </DialogTitle>
-            <DialogDescription>Register a new company for corporate healthcare.</DialogDescription>
+            <DialogDescription>Register a new {singularLower} sponsor. Invoices are consolidated for monthly billing.</DialogDescription>
           </DialogHeader>
           {formFields}
           <DialogFooter>
@@ -358,7 +352,7 @@ export function CorporateAccountsManager() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Edit3 className="h-5 w-5 text-primary" /> Edit Corporate Account
+              <Edit3 className="h-5 w-5 text-primary" /> Edit {singular} Account
             </DialogTitle>
           </DialogHeader>
           {formFields}
@@ -456,7 +450,7 @@ export function CorporateAccountsManager() {
                     <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                   ) : transactions.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-4 text-center">
-                      No transactions yet for this corporate account.
+                      No transactions yet for this {singularLower} account.
                     </p>
                   ) : (
                     <div className="border border-border rounded-lg overflow-hidden max-h-[250px] overflow-y-auto">
@@ -530,7 +524,7 @@ export function CorporateAccountsManager() {
       <Dialog open={!!deleteConfirm} onOpenChange={open => !open && setDeleteConfirm(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-destructive">Delete Corporate Account?</DialogTitle>
+            <DialogTitle className="text-destructive">Delete {singular} Account?</DialogTitle>
             <DialogDescription>This action cannot be undone. All linked patients will need to be reassigned.</DialogDescription>
           </DialogHeader>
           <DialogFooter>

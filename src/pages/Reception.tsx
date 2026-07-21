@@ -61,6 +61,7 @@ import { PatientStandingOrders } from '@/components/reception/PatientStandingOrd
 import { PatientBalanceHistory } from '@/components/reception/PatientBalanceHistory';
 import { Stethoscope, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { BalanceRequestDialog } from '@/components/reception/BalanceRequestDialog';
+import { StaffSelector } from '@/components/reception/StaffSelector';
 
 const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactNode; color: string; description: string }> = {
   normal: { 

@@ -79,7 +79,7 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="/account" element={
-                  <ProtectedRoute allowedRoles={['admin']}>
+                  <ProtectedRoute allowedRoles={['accountant', 'admin']}>
                     <Account />
                   </ProtectedRoute>
                 } />

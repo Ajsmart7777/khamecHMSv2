@@ -1224,9 +1224,11 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
-function CorporateSelector({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function CorporateSelector({ value, onChange, accountType = 'corporate' }: { value: string; onChange: (v: string) => void; accountType?: 'corporate' | 'retainer' }) {
   const [accounts, setAccounts] = useState<{ id: string; company_name: string; status: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const isRetainer = accountType === 'retainer';
+  const label = isRetainer ? 'Retainer Sponsor' : 'Corporate Account';
 
   useEffect(() => {
     const fetchAccounts = async () => {
@@ -1234,27 +1236,28 @@ function CorporateSelector({ value, onChange }: { value: string; onChange: (v: s
         .from('corporate_accounts')
         .select('id, company_name, status')
         .eq('status', 'active')
+        .eq('account_type', accountType)
         .order('company_name');
       if (!error && data) setAccounts(data);
       setLoading(false);
     };
     fetchAccounts();
-  }, []);
+  }, [accountType]);
 
   return (
     <div className="mt-4 p-4 rounded-lg bg-primary/5 border border-primary/20 animate-fade-in">
       <label className="text-sm font-medium mb-1.5 block">
         <Building2 className="h-4 w-4 inline mr-1" />
-        Corporate Account *
+        {label} *
       </label>
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading companies...</p>
+        <p className="text-sm text-muted-foreground">Loading {isRetainer ? 'retainers' : 'companies'}...</p>
       ) : accounts.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No active corporate accounts. Create one in the Accounts module first.</p>
+        <p className="text-sm text-muted-foreground">No active {isRetainer ? 'retainer' : 'corporate'} accounts. Create one in the Accounts module first.</p>
       ) : (
         <Select value={value} onValueChange={onChange}>
           <SelectTrigger>
-            <SelectValue placeholder="Select company" />
+            <SelectValue placeholder={`Select ${isRetainer ? 'retainer' : 'company'}`} />
           </SelectTrigger>
           <SelectContent>
             {accounts.map(a => (

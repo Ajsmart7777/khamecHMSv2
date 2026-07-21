@@ -288,6 +288,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isJourneyOpen, setIsJourneyOpen] = useState(false);
+  const [isStandingOrderOpen, setIsStandingOrderOpen] = useState(false);
   const [receiptData, setReceiptData] = useState<{
     open: boolean;
     amount: number;

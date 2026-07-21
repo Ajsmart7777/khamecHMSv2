@@ -35,8 +35,12 @@ interface CorporateTransaction {
   patient_name: string;
 }
 
-export function CorporateAccountsManager() {
-  const { accounts, loading, createAccount, updateAccount, deleteAccount, topUpBalance, getLinkedPatients, getCorporateTransactions, refetch } = useCorporateAccounts();
+export function CorporateAccountsManager({ accountType = 'corporate' }: { accountType?: SponsorAccountType } = {}) {
+  const isRetainer = accountType === 'retainer';
+  const singular = isRetainer ? 'Retainer' : 'Corporate';
+  const singularLower = isRetainer ? 'retainer' : 'corporate';
+  const entityLabel = isRetainer ? 'Retainer' : 'Company';
+  const { accounts, loading, createAccount, updateAccount, deleteAccount, topUpBalance, getLinkedPatients, getCorporateTransactions, refetch } = useCorporateAccounts(accountType);
   const [searchTerm, setSearchTerm] = useState('');
   const [addDialog, setAddDialog] = useState(false);
   const [editAccount, setEditAccount] = useState<CorporateAccount | null>(null);

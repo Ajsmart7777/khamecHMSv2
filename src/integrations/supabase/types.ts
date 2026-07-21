@@ -182,6 +182,69 @@ export type Database = {
           },
         ]
       }
+      consultation_notes: {
+        Row: {
+          assessment: string | null
+          created_at: string
+          doctor_id: string
+          follow_up_date: string | null
+          icd10_code: string | null
+          id: string
+          objective: string | null
+          patient_id: string
+          plan: string | null
+          prescription_id: string | null
+          subjective: string | null
+          updated_at: string
+          visit_date: string
+        }
+        Insert: {
+          assessment?: string | null
+          created_at?: string
+          doctor_id: string
+          follow_up_date?: string | null
+          icd10_code?: string | null
+          id?: string
+          objective?: string | null
+          patient_id: string
+          plan?: string | null
+          prescription_id?: string | null
+          subjective?: string | null
+          updated_at?: string
+          visit_date?: string
+        }
+        Update: {
+          assessment?: string | null
+          created_at?: string
+          doctor_id?: string
+          follow_up_date?: string | null
+          icd10_code?: string | null
+          id?: string
+          objective?: string | null
+          patient_id?: string
+          plan?: string | null
+          prescription_id?: string | null
+          subjective?: string | null
+          updated_at?: string
+          visit_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultation_notes_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consultation_notes_prescription_id_fkey"
+            columns: ["prescription_id"]
+            isOneToOne: false
+            referencedRelation: "prescriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       corporate_accounts: {
         Row: {
           account_type: string
@@ -235,6 +298,53 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      emr_attachments: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          file_name: string
+          file_path: string
+          id: string
+          mime_type: string | null
+          patient_id: string
+          size_bytes: number | null
+          uploaded_by: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          file_name: string
+          file_path: string
+          id?: string
+          mime_type?: string | null
+          patient_id: string
+          size_bytes?: number | null
+          uploaded_by: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          file_name?: string
+          file_path?: string
+          id?: string
+          mime_type?: string | null
+          patient_id?: string
+          size_bytes?: number | null
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emr_attachments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       error_logs: {
         Row: {

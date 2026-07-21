@@ -187,6 +187,7 @@ export type Database = {
           assessment: string | null
           created_at: string
           doctor_id: string
+          finalized_at: string | null
           follow_up_date: string | null
           icd10_code: string | null
           id: string
@@ -194,6 +195,7 @@ export type Database = {
           patient_id: string
           plan: string | null
           prescription_id: string | null
+          status: string
           subjective: string | null
           updated_at: string
           visit_date: string
@@ -202,6 +204,7 @@ export type Database = {
           assessment?: string | null
           created_at?: string
           doctor_id: string
+          finalized_at?: string | null
           follow_up_date?: string | null
           icd10_code?: string | null
           id?: string
@@ -209,6 +212,7 @@ export type Database = {
           patient_id: string
           plan?: string | null
           prescription_id?: string | null
+          status?: string
           subjective?: string | null
           updated_at?: string
           visit_date?: string
@@ -217,6 +221,7 @@ export type Database = {
           assessment?: string | null
           created_at?: string
           doctor_id?: string
+          finalized_at?: string | null
           follow_up_date?: string | null
           icd10_code?: string | null
           id?: string
@@ -224,6 +229,7 @@ export type Database = {
           patient_id?: string
           plan?: string | null
           prescription_id?: string | null
+          status?: string
           subjective?: string | null
           updated_at?: string
           visit_date?: string

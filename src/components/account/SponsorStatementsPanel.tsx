@@ -64,6 +64,8 @@ export function SponsorStatementsPanel({ accountType }: { accountType: 'corporat
     setPrintOpen(true);
   };
 
+  const label = accountType === 'retainer' ? 'Retainer' : 'Corporate';
+
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
 
@@ -95,8 +97,6 @@ export function SponsorStatementsPanel({ accountType }: { accountType: 'corporat
       setBulkProgress(null);
     }
   };
-
-  const label = accountType === 'retainer' ? 'Retainer' : 'Corporate';
 
   return (
     <div className="space-y-4">

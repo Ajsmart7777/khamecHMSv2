@@ -20,7 +20,7 @@ const typeColors: Record<string, string> = {
   billing: 'bg-emerald-500',
   lab: 'bg-purple-500',
   pharmacy: 'bg-orange-500',
-  shift: 'bg-indigo-500',
+  
 };
 
 function NotificationItem({ notification, onRead }: { notification: Notification; onRead: (id: string, link?: string | null) => void }) {

@@ -471,10 +471,24 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
             <XCircle className="h-4 w-4 mr-2 text-destructive" /> Reject
           </Button>
           <Button variant="outline" onClick={onClose} disabled={busy}>Close</Button>
-          <Button onClick={createInvoiceAndSend} disabled={busy || items.length === 0 || snap.status !== 'pending_billing'}>
-            <Send className="h-4 w-4 mr-2" />
-            {snap.status === 'awaiting_payment' ? 'Awaiting Payment' : busy ? 'Creating…' : 'Create Invoice → Send to Cashier'}
-          </Button>
+          {(() => {
+            const pending = lines.filter(l => l.status === 'pending').length;
+            const blocked = pending > 0;
+            return (
+              <Button
+                onClick={createInvoiceAndSend}
+                disabled={busy || items.length === 0 || snap.status !== 'pending_billing' || blocked}
+                title={blocked ? `Review ${pending} pending OCR line(s) first` : undefined}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                {snap.status === 'awaiting_payment'
+                  ? 'Awaiting Payment'
+                  : busy ? 'Creating…'
+                  : blocked ? `Review ${pending} line(s) first`
+                  : 'Create Invoice → Send to Cashier'}
+              </Button>
+            );
+          })()}
         </DialogFooter>
       </DialogContent>
     </Dialog>

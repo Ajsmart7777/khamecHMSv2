@@ -83,6 +83,7 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
         discount_percentage: account.discount_percentage,
         status: account.status,
         notes: account.notes,
+        account_type: account.account_type || 'corporate',
       })
       .select()
       .single();
@@ -91,7 +92,7 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
       return null;
     }
-    toast({ title: 'Success', description: 'Corporate account created.' });
+    toast({ title: 'Success', description: `${account.account_type === 'retainer' ? 'Retainer' : 'Corporate'} account created.` });
     await fetchAccounts();
     return data;
   };

@@ -71,7 +71,7 @@ export async function createSnapOrder(input: {
     toast.error(`Snap order failed: ${error.message}`);
     return null;
   }
-  return data as SnapOrder;
+  return data as unknown as SnapOrder;
 }
 
 export function useSnapOrders(filter: {
@@ -91,7 +91,7 @@ export function useSnapOrders(filter: {
     const { data, error } = await q;
     setLoading(false);
     if (error) { toast.error('Failed to load snap orders'); return; }
-    setOrders((data ?? []) as SnapOrder[]);
+    setOrders(((data ?? []) as unknown) as SnapOrder[]);
   }, [filter.station, filter.statuses?.join(','), filter.patientId]);
 
   useEffect(() => { refresh(); }, [refresh]);

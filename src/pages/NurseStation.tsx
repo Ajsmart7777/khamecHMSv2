@@ -31,6 +31,7 @@ import { usePatients, Patient } from '@/contexts/PatientContext';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const NurseStation = () => {
   const { patients, loading, refreshPatients, updatePatientStatus, getPatientsByStatus } = usePatients();
@@ -40,12 +41,21 @@ const NurseStation = () => {
   const nurseQueue = getPatientsByStatus(['waiting', 'with_nurse']);
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
-  const handlePatientComplete = async (patientId: string) => {
+  const handlePatientComplete = async (patientId: string, assignedDoctor: 'doctor1' | 'doctor2') => {
     const patient = patients.find(p => p.id === patientId);
+    const { error: assignError } = await supabase
+      .from('patients')
+      .update({ assigned_doctor: assignedDoctor })
+      .eq('id', patientId);
+    if (assignError) {
+      logError('Failed to assign doctor', assignError);
+      toast.error('Failed to assign doctor');
+      return;
+    }
     const success = await updatePatientStatus(patientId, 'with_doctor');
     if (success && patient) {
       toast.success("Patient Sent to Doctor", {
-        description: `${patient.first_name} ${patient.last_name} has been sent to the doctor.`,
+        description: `${patient.first_name} ${patient.last_name} sent to ${assignedDoctor === 'doctor1' ? 'Doctor 1' : 'Doctor 2'}.`,
       });
       setSelectedPatientId(null);
     }

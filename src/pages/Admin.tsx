@@ -24,7 +24,7 @@ import {
 import { AuditLogsViewer } from '@/components/admin/AuditLogsViewer';
 import { StaffAccountManager } from '@/components/admin/StaffAccountManager';
 import { ErrorLogsViewer } from '@/components/admin/ErrorLogsViewer';
-import { ShiftManagement } from '@/components/admin/ShiftManagement';
+
 import { mockStaff } from '@/data/mockData';
 import { Staff, UserRole } from '@/types/hms';
 import { StatsCard } from '@/components/dashboard/StatsCard';

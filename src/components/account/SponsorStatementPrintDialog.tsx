@@ -69,11 +69,32 @@ export function SponsorStatementPrintDialog({ statement, open, onOpenChange, onP
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto print:max-w-full print:max-h-none print:shadow-none print:border-0">
         <DialogHeader className="print:hidden">
-          <DialogTitle className="flex items-center justify-between">
+          <DialogTitle className="flex items-center justify-between gap-2">
             <span>Statement — {statement.statement_number}</span>
-            <Button onClick={handlePrint} size="sm">
-              <Printer className="h-4 w-4 mr-1.5" /> Print
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={downloading || loading}
+                onClick={async () => {
+                  setDownloading(true);
+                  try {
+                    await downloadStatementPdf(statement, items);
+                    toast({ title: 'PDF downloaded', description: statement.statement_number });
+                  } catch (e) {
+                    toast({ title: 'PDF failed', description: (e as Error).message, variant: 'destructive' });
+                  } finally { setDownloading(false); }
+                }}
+              >
+                {downloading
+                  ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  : <Download className="h-4 w-4 mr-1.5" />}
+                Download PDF
+              </Button>
+              <Button onClick={handlePrint} size="sm">
+                <Printer className="h-4 w-4 mr-1.5" /> Print
+              </Button>
+            </div>
           </DialogTitle>
         </DialogHeader>
 

@@ -178,10 +178,6 @@ const Admin = () => {
               <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Accounts</span>
             </TabsTrigger>
-            <TabsTrigger value="shifts" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
-              <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span>Shifts</span>
-            </TabsTrigger>
             <TabsTrigger value="audit" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
               <ClipboardList className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Audit Logs</span>

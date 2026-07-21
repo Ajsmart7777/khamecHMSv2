@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Printer, Loader2 } from 'lucide-react';
+import { Printer, Loader2, Download } from 'lucide-react';
 import type { SponsorStatement, SponsorStatementItem } from '@/hooks/useSponsorStatements';
 import { useSponsorStatements } from '@/hooks/useSponsorStatements';
+import { downloadStatementPdf } from '@/lib/sponsorStatementPdf';
+import { toast } from '@/hooks/use-toast';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 

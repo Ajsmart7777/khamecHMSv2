@@ -1,0 +1,2 @@
+ALTER TABLE public.balance_transactions DROP CONSTRAINT balance_transactions_transaction_type_check;
+ALTER TABLE public.balance_transactions ADD CONSTRAINT balance_transactions_transaction_type_check CHECK (transaction_type = ANY (ARRAY['topup'::text, 'refund'::text, 'invoice_deduction'::text, 'staff_family_coverage'::text, 'staff_coverage'::text, 'adjustment'::text, 'debt_incurred'::text, 'debt_cleared'::text]));

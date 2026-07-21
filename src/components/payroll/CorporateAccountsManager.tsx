@@ -450,7 +450,7 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
                     <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                   ) : transactions.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-4 text-center">
-                      `No transactions yet for this ${singularLower} account.`
+                      No transactions yet for this {singularLower} account.
                     </p>
                   ) : (
                     <div className="border border-border rounded-lg overflow-hidden max-h-[250px] overflow-y-auto">

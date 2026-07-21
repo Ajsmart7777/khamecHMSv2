@@ -2,7 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
+export type SponsorAccountType = 'corporate' | 'retainer';
+
 export interface CorporateAccount {
+  account_type: SponsorAccountType;
   id: string;
   company_name: string;
   contact_person: string;

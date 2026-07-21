@@ -7,9 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
-import { UserPlus, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { UserPlus, Loader2, RefreshCw, Search, Trash2, KeyRound, ShieldCheck } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Staff, UserRole } from '@/types/hms';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Props {
   staff: Staff[];

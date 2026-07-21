@@ -6,13 +6,12 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface Entry {
   date: string;
-  type: 'vitals' | 'consultation' | 'prescription' | 'lab' | 'invoice' | 'standing_order';
+  type: 'vitals' | 'prescription' | 'lab' | 'invoice' | 'standing_order';
   data: Record<string, any>;
 }
 
 const icons: Record<Entry['type'], typeof Activity> = {
   vitals: Activity,
-  consultation: ClipboardList,
   prescription: Pill,
   lab: FlaskConical,
   invoice: Receipt,
@@ -21,7 +20,6 @@ const icons: Record<Entry['type'], typeof Activity> = {
 
 const colors: Record<Entry['type'], string> = {
   vitals: 'text-destructive',
-  consultation: 'text-primary',
   prescription: 'text-module-pharmacy',
   lab: 'text-module-lab',
   invoice: 'text-module-billing',
@@ -36,9 +34,8 @@ export function EmrTimeline({ patientId }: { patientId: string }) {
     let active = true;
     (async () => {
       setLoading(true);
-      const [v, c, p, l, i, s] = await Promise.all([
+      const [v, p, l, i, s] = await Promise.all([
         supabase.from('vitals').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
-        supabase.from('consultation_notes').select('*').eq('patient_id', patientId).order('visit_date', { ascending: false }),
         supabase.from('prescriptions').select('*, prescription_items(*)').eq('patient_id', patientId).order('created_at', { ascending: false }),
         supabase.from('lab_requests').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
         supabase.from('invoices').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
@@ -46,7 +43,6 @@ export function EmrTimeline({ patientId }: { patientId: string }) {
       ]);
       const all: Entry[] = [];
       (v.data ?? []).forEach((d: any) => all.push({ date: d.created_at, type: 'vitals', data: d }));
-      (c.data ?? []).forEach((d: any) => all.push({ date: d.visit_date || d.created_at, type: 'consultation', data: d }));
       (p.data ?? []).forEach((d: any) => all.push({ date: d.created_at, type: 'prescription', data: d }));
       (l.data ?? []).forEach((d: any) => all.push({ date: d.created_at, type: 'lab', data: d }));
       (i.data ?? []).forEach((d: any) => all.push({ date: d.created_at, type: 'invoice', data: d }));

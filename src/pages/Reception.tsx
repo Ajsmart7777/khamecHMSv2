@@ -863,6 +863,7 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     account_type: 'normal' as AccountType,
     insurance_provider: '',
     insurance_policy_number: '',
+    insurance_plan: '',
     corporate_id: '',
     staff_link_id: '',
     family_staff_id: '',
@@ -974,6 +975,7 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       corporate_id: formData.corporate_id?.trim() || undefined,
       insurance_provider: formData.insurance_provider?.trim() || undefined,
       insurance_policy_number: formData.insurance_policy_number?.trim() || undefined,
+      insurance_plan: formData.insurance_plan?.trim() || undefined,
       staff_link_id: formData.account_type === 'staff' ? formData.staff_link_id : null,
       balance: 0
     });

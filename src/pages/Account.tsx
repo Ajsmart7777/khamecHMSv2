@@ -202,8 +202,13 @@ const Account = () => {
         </TabsContent>
 
         <TabsContent value="sponsor-claims">
-          <TabHeader title="Corporate & Retainer Claims" onRefresh={() => {}} />
-          <CorporateClaimsReport />
+          <TabHeader title="Corporate Claims" onRefresh={() => {}} />
+          <CorporateClaimsReport fixedSponsorType="corporate" />
+        </TabsContent>
+
+        <TabsContent value="retainer-claims">
+          <TabHeader title="Retainer Claims" onRefresh={() => {}} />
+          <CorporateClaimsReport fixedSponsorType="retainer" />
         </TabsContent>
 
         <TabsContent value="external-doctors">

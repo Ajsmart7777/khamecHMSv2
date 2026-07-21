@@ -597,6 +597,9 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
         presetPatientId={patient.id}
       />
 
+      <PatientStandingOrders patientId={patient.id} />
+
+
       {/* Invoice Summary */}
       {patientInvoices.length > 0 && (
         <div className="space-y-3">

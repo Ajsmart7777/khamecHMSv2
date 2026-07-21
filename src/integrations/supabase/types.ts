@@ -759,6 +759,7 @@ export type Database = {
           account_type: string
           address: string
           allergies: string[] | null
+          assigned_doctor: string | null
           balance: number
           blood_group: string | null
           card_number: string
@@ -785,6 +786,7 @@ export type Database = {
           account_type?: string
           address: string
           allergies?: string[] | null
+          assigned_doctor?: string | null
           balance?: number
           blood_group?: string | null
           card_number: string
@@ -811,6 +813,7 @@ export type Database = {
           account_type?: string
           address?: string
           allergies?: string[] | null
+          assigned_doctor?: string | null
           balance?: number
           blood_group?: string | null
           card_number?: string

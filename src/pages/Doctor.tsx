@@ -48,6 +48,7 @@ import { useLabRequests } from '@/hooks/useLabRequests';
 import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { LabRequestPrintQueue } from '@/components/doctor/LabRequestPrintQueue';
 import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
+import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 import { PatientHistoryDialog } from '@/components/doctor/PatientHistoryDialog';
@@ -156,11 +157,15 @@ const Doctor = () => {
             </div>
           </div>
 
+          {/* Returned from Lab (snap results) */}
+          <LabResultInbox />
+
           {/* Lab Request Print Queue */}
           <LabRequestPrintQueue />
 
           {/* Lab Results Viewer */}
           <LabResultsViewer />
+
         </div>
 
         {/* Consultation Area */}
@@ -332,10 +337,10 @@ function ConsultationView({ patient, onComplete }: ConsultationViewProps) {
     setLabRequestData(null);
   };
 
-  const handleAdmitPatient = () => {
-    toast.success("Patient Admitted", {
-      description: `${patient.first_name} ${patient.last_name} has been admitted to the ward.`,
-    });
+  const handleAdmitPatient = async () => {
+    const { requestAdmission } = await import('@/hooks/useAdmissions');
+    const id = await requestAdmission({ patientId: patient.id, reason: diagnosis || undefined });
+    if (!id) return;
     setIsAdmitDialogOpen(false);
     onComplete(patient.id, 'admitting');
   };

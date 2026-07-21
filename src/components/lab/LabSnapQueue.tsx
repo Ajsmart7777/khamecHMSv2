@@ -4,6 +4,7 @@ import { usePatients } from '@/contexts/PatientContext';
 import { Badge } from '@/components/ui/badge';
 import { FlaskConical } from 'lucide-react';
 import { SnapFulfillDialog } from '@/components/pharmacy/PharmacySnapQueue';
+import { LabResultReturnButton } from '@/components/lab/LabResultReturnButton';
 
 const fmt = (n: number) => `₦${n.toLocaleString()}`;
 
@@ -35,22 +36,24 @@ export function LabSnapQueue() {
           {orders.map(o => {
             const total = (o.matched_items ?? []).reduce((s, it) => s + it.unit_price * it.qty, 0);
             return (
-              <button
+              <div
                 key={o.id}
-                onClick={() => setSelected(o)}
-                className="w-full text-left p-3 rounded-lg border hover:border-module-laboratory transition-colors"
+                className="p-3 rounded-lg border hover:border-module-laboratory transition-colors"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex-1 min-w-0">
+                  <button onClick={() => setSelected(o)} className="flex-1 min-w-0 text-left">
                     <p className="text-sm font-medium truncate">{nameOf.get(o.patient_id) ?? 'Unknown'}</p>
                     <p className="text-xs text-muted-foreground">
                       {(o.matched_items ?? []).length} test(s) · {fmt(total)}
                       {o.note && <> · {o.note}</>}
                     </p>
-                  </div>
+                  </button>
                   <Badge variant="success" className="text-[10px]">Paid</Badge>
                 </div>
-              </button>
+                <div className="mt-2 flex justify-end">
+                  <LabResultReturnButton parentSnap={o} />
+                </div>
+              </div>
             );
           })}
         </div>

@@ -19,10 +19,12 @@ import {
   Check,
   ClipboardList,
   AlertTriangle,
+  BedDouble,
 } from 'lucide-react';
 import { AuditLogsViewer } from '@/components/admin/AuditLogsViewer';
 import { StaffAccountManager } from '@/components/admin/StaffAccountManager';
 import { ErrorLogsViewer } from '@/components/admin/ErrorLogsViewer';
+import { WardsRoomsManager } from '@/components/admin/WardsRoomsManager';
 
 import { mockStaff } from '@/data/mockData';
 import { Staff, UserRole } from '@/types/hms';
@@ -167,15 +169,18 @@ const Admin = () => {
     <MainLayout title="Admin Panel" subtitle="System administration and user management">
       <Tabs defaultValue="overview" className="space-y-6">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:max-w-2xl sm:grid-cols-4">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:max-w-3xl sm:grid-cols-5">
             <TabsTrigger value="overview" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
               <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">Overview</span>
-              <span className="sm:hidden">Overview</span>
+              <span>Overview</span>
             </TabsTrigger>
             <TabsTrigger value="accounts" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
               <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Accounts</span>
+            </TabsTrigger>
+            <TabsTrigger value="wards" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
+              <BedDouble className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span>Wards</span>
             </TabsTrigger>
             <TabsTrigger value="audit" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
               <ClipboardList className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -394,6 +399,19 @@ const Admin = () => {
             <StaffAccountManager />
           </div>
         </TabsContent>
+
+
+        <TabsContent value="wards" className="space-y-6">
+          <div className="bg-card rounded-xl border border-border p-4 sm:p-6">
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <BedDouble className="h-5 w-5 text-module-admin" />
+              Wards, Rooms & Beds
+            </h3>
+            <WardsRoomsManager />
+          </div>
+        </TabsContent>
+
+
 
 
 

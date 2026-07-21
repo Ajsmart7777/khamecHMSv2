@@ -34,6 +34,8 @@ import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndic
 import { supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { AdmissionQueue } from '@/components/nurse/AdmissionQueue';
+import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 
 const NurseStation = () => {
   const { patients, loading, refreshPatients, updatePatientStatus, getPatientsByStatus } = usePatients();
@@ -77,9 +79,15 @@ const NurseStation = () => {
         <Badge variant="nurse" className="ml-auto">{nurseQueue.length} in queue</Badge>
       </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <AdmissionQueue />
+        <LabResultInbox />
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Patient Queue */}
         <div className="lg:col-span-1">
+
           <div className="bg-card rounded-xl border border-border p-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-semibold">Patient Queue</h3>

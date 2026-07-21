@@ -2,10 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export type SnapOrderType = 'prescription' | 'lab' | 'treatment';
-export type SnapTargetStation = 'pharmacy' | 'lab';
+export type SnapOrderType = 'prescription' | 'lab' | 'treatment' | 'lab_result';
+export type SnapTargetStation = 'pharmacy' | 'lab' | 'doctor' | 'nurse' | 'billing';
 export type SnapStatus =
-  | 'pending_billing' | 'awaiting_payment' | 'paid' | 'fulfilled' | 'rejected' | 'cancelled';
+  | 'pending_billing' | 'awaiting_payment' | 'paid' | 'fulfilled' | 'rejected' | 'cancelled'
+  | 'returned' | 'acknowledged';
 
 export interface MatchedItem {
   pricelist_id: string;
@@ -37,6 +38,12 @@ export interface SnapOrder {
   fulfilled_by: string | null;
   fulfilled_at: string | null;
   rejection_reason: string | null;
+  original_sender_role: string | null;
+  parent_snap_id: string | null;
+  returned_to: string | null;
+  returned_at: string | null;
+  ack_by: string | null;
+  ack_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -63,6 +70,7 @@ export async function createSnapOrder(input: {
       photo_path: input.photoPath,
       note: input.note || null,
       created_by: uid,
+      original_sender_role: input.sourceRole,
       status: 'pending_billing',
     })
     .select()

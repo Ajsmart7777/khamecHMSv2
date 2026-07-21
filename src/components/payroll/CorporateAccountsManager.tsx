@@ -156,18 +156,18 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
     <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Company Name *</label>
-          <Input value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))} placeholder="e.g. Dangote Industries" />
+          <label className="text-sm font-medium">{entityLabel} Name *</label>
+          <Input value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))} placeholder={isRetainer ? 'e.g. Dr. Musa Referral Clinic' : 'e.g. Dangote Industries'} />
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">Contact Person *</label>
-          <Input value={form.contact_person} onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))} placeholder="HR Manager name" />
+          <Input value={form.contact_person} onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))} placeholder={isRetainer ? 'Retainer contact' : 'HR Manager name'} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <label className="text-sm font-medium">Email *</label>
-          <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="hr@company.com" />
+          <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="contact@example.com" />
         </div>
         <div className="space-y-2">
           <label className="text-sm font-medium">Phone *</label>
@@ -176,21 +176,10 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">Address</label>
-        <Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Company address" />
+        <Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Address" />
       </div>
-      <div className="grid grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Treatment Limit (₦)</label>
-          <Input type="number" value={form.treatment_limit} onChange={e => setForm(f => ({ ...f, treatment_limit: Number(e.target.value) }))} />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Initial Balance (₦)</label>
-          <Input type="number" value={form.balance} onChange={e => setForm(f => ({ ...f, balance: Number(e.target.value) }))} />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Discount %</label>
-          <Input type="number" min={0} max={100} value={form.discount_percentage} onChange={e => setForm(f => ({ ...f, discount_percentage: Number(e.target.value) }))} />
-        </div>
+      <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground bg-muted/30">
+        Post-paid arrangement — no wallet, no treatment limit, no discount. Every invoice raised for a linked patient is billed to this {singularLower} and consolidated into a monthly statement.
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">

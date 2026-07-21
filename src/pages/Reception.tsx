@@ -58,7 +58,8 @@ import { useInvoices } from '@/hooks/useInvoices';
 import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { StandingOrderCaptureDialog } from '@/components/reception/StandingOrderCaptureDialog';
 import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
-import { Stethoscope } from 'lucide-react';
+import { Stethoscope, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { BalanceRequestDialog } from '@/components/reception/BalanceRequestDialog';
 
 const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactNode; color: string; description: string }> = {
   normal: { 
@@ -302,6 +303,8 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isJourneyOpen, setIsJourneyOpen] = useState(false);
   const [isStandingOrderOpen, setIsStandingOrderOpen] = useState(false);
+  const [balanceDialog, setBalanceDialog] = useState<'topup' | 'refund' | null>(null);
+  const canUseBalance = ['normal', 'staff', 'staff_family'].includes(patient.account_type);
   const [receiptData, setReceiptData] = useState<{
     open: boolean;
     amount: number;
@@ -603,6 +606,37 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
         </Button>
       </div>
 
+      {canUseBalance && (
+        <div className="grid grid-cols-2 gap-4">
+          <Button
+            variant="outline"
+            className="h-16 flex-col gap-1 border-primary/30 text-primary hover:bg-primary/5"
+            onClick={() => setBalanceDialog('topup')}
+          >
+            <ArrowUpCircle className="h-5 w-5" />
+            <span className="text-xs">Top Up Balance</span>
+          </Button>
+          <Button
+            variant="outline"
+            className="h-16 flex-col gap-1 border-warning/30 text-warning hover:bg-warning/5"
+            onClick={() => setBalanceDialog('refund')}
+            disabled={Number(patient.balance) <= 0}
+          >
+            <ArrowDownCircle className="h-5 w-5" />
+            <span className="text-xs">Request Refund</span>
+          </Button>
+        </div>
+      )}
+
+      {balanceDialog && (
+        <BalanceRequestDialog
+          open={!!balanceDialog}
+          onOpenChange={(o) => !o && setBalanceDialog(null)}
+          patient={patient}
+          type={balanceDialog}
+        />
+      )}
+
       <StandingOrderCaptureDialog
         open={isStandingOrderOpen}
         onOpenChange={setIsStandingOrderOpen}
@@ -610,6 +644,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
       />
 
       <PatientStandingOrders patientId={patient.id} />
+
 
 
       {/* Invoice Summary */}

@@ -21,14 +21,17 @@ interface Props {
   onRefetch: () => void;
 }
 
-const ROLES: { value: UserRole; label: string }[] = [
-  { value: 'reception', label: 'Receptionist' },
+// Roles that MUST match the app_role enum in the database (used for login accounts)
+const SYSTEM_ROLES: { value: string; label: string }[] = [
+  { value: 'receptionist', label: 'Receptionist' },
   { value: 'nurse', label: 'Nurse' },
-  { value: 'doctor', label: 'Doctor' },
-  { value: 'lab', label: 'Lab Technician' },
-  { value: 'pharmacy', label: 'Pharmacist' },
-  { value: 'billing', label: 'Billing' },
+  { value: 'doctor1', label: 'Doctor 1' },
+  { value: 'doctor2', label: 'Doctor 2' },
+  { value: 'lab_tech', label: 'Lab Technician' },
+  { value: 'pharmacist', label: 'Pharmacist' },
+  { value: 'billing', label: 'Billing / Cashier' },
   { value: 'store', label: 'Store' },
+  { value: 'accountant', label: 'Accountant' },
   { value: 'admin', label: 'Admin' },
 ];
 
@@ -47,12 +50,6 @@ const NIGERIAN_BANKS = [
   'OPay', 'PalmPay', 'VFD MFB',
 ];
 
-const generateEmployeeId = () => {
-  const prefix = 'KMC';
-  const num = Math.floor(1000 + Math.random() * 9000);
-  return `${prefix}-${num}`;
-};
-
 export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaff, onRefetch }: Props) {
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
@@ -62,13 +59,16 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
     fullName: '',
     email: '',
     phone: '',
+    isSystemUser: false,
     role: '' as string,
+    password: '',
     department: 'General',
     salary: '',
     hireDate: new Date().toISOString().split('T')[0],
     bankName: '',
     accountNumber: '',
     staffIdNumber: '',
+    familyDeductionConsent: false,
   });
 
   const resetForm = () => {
@@ -78,13 +78,16 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
       fullName: '',
       email: '',
       phone: '',
+      isSystemUser: false,
       role: '',
+      password: '',
       department: 'General',
       salary: '',
       hireDate: new Date().toISOString().split('T')[0],
       bankName: '',
       accountNumber: '',
       staffIdNumber: '',
+      familyDeductionConsent: false,
     });
   };
 
@@ -96,9 +99,43 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
       return;
     }
 
+    if (form.isSystemUser) {
+      if (!form.role) {
+        toast({ title: 'Role required', description: 'Select a system role for this login account.', variant: 'destructive' });
+        return;
+      }
+      if (!form.email.trim()) {
+        toast({ title: 'Email required', description: 'System users need a login email.', variant: 'destructive' });
+        return;
+      }
+      if (form.password.length < 8) {
+        toast({ title: 'Password too short', description: 'Password must be at least 8 characters.', variant: 'destructive' });
+        return;
+      }
+    }
+
     setSaving(true);
     const firstName = nameParts[0];
     const lastName = nameParts.slice(1).join(' ');
+    let authUserId: string | null = null;
+
+    // 1) If system user: create login via edge function (admin only)
+    if (form.isSystemUser) {
+      const { data, error } = await supabase.functions.invoke('manage-staff-accounts', {
+        body: {
+          action: 'create',
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
+          role: form.role,
+        },
+      });
+      if (error || !data?.success) {
+        setSaving(false);
+        toast({ title: 'Login creation failed', description: error?.message || data?.error || 'Could not create login account.', variant: 'destructive' });
+        return;
+      }
+      authUserId = data.userId ?? null;
+    }
 
     const newStaff: Omit<Staff, 'id'> = {
       employeeId: form.staffId.trim(),
@@ -106,7 +143,7 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
       lastName,
       email: form.email.trim() || `${form.staffId.toLowerCase()}@kmc.local`,
       phone: form.phone.trim() || '',
-      role: (form.role || 'reception') as UserRole,
+      role: (form.isSystemUser ? form.role : (form.role || 'receptionist')) as UserRole,
       department: form.department,
       salary: Number(form.salary) || 0,
       hireDate: form.hireDate,
@@ -116,6 +153,9 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
       paymentMethod: form.bankName ? 'bank' : 'cash',
       designation: form.designation || null,
       staffIdNumber: form.staffIdNumber || null,
+      isSystemUser: form.isSystemUser,
+      familyDeductionConsent: form.familyDeductionConsent,
+      authUserId,
     };
 
     const success = await onAddStaff(newStaff);

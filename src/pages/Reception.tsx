@@ -56,6 +56,8 @@ import { z } from 'zod';
 import { paymentAuditLogger } from '@/lib/auditLogger';
 import { useInvoices } from '@/hooks/useInvoices';
 import { usePrescriptions } from '@/hooks/usePrescriptions';
+import { StandingOrderCaptureDialog } from '@/components/reception/StandingOrderCaptureDialog';
+import { Stethoscope } from 'lucide-react';
 
 const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactNode; color: string; description: string }> = {
   normal: { 
@@ -140,7 +142,20 @@ const Reception = () => {
         <Button variant="ghost" size="sm" onClick={refreshPatients} className="h-7 px-2">
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 ml-auto"
+          onClick={() => setStandingOrderOpen(true)}
+        >
+          <Stethoscope className="h-3.5 w-3.5 mr-1.5" /> Capture External Prescription
+        </Button>
       </div>
+      <StandingOrderCaptureDialog
+        open={standingOrderOpen}
+        onOpenChange={setStandingOrderOpen}
+        presetPatientId={selectedPatientId || undefined}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Panel - Patient List */}

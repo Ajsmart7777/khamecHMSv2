@@ -23,7 +23,7 @@ export interface CorporateAccount {
   linked_patients_count?: number;
 }
 
-export function useCorporateAccounts() {
+export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
   const [accounts, setAccounts] = useState<CorporateAccount[]>([]);
   const [loading, setLoading] = useState(true);
 

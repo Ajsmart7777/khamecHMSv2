@@ -97,12 +97,6 @@ export function EmrTimeline({ patientId }: { patientId: string }) {
                     {d.weight && <span>Wt {d.weight}kg</span>}
                   </div>
                 )}
-                {e.type === 'consultation' && (
-                  <>
-                    {d.assessment && <p><span className="font-medium">Assessment:</span> {d.assessment}</p>}
-                    {d.icd10_code && <p>ICD-10: {d.icd10_code}</p>}
-                  </>
-                )}
                 {e.type === 'prescription' && (
                   <>
                     {d.diagnosis && <p>Dx: {d.diagnosis}</p>}

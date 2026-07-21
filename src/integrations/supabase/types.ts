@@ -14,6 +14,79 @@ export type Database = {
   }
   public: {
     Tables: {
+      admissions: {
+        Row: {
+          admitted_at: string | null
+          admitting_doctor: string | null
+          assigned_by_nurse: string | null
+          bed_id: string | null
+          created_at: string
+          discharge_notes: string | null
+          discharged_at: string | null
+          discharged_by: string | null
+          id: string
+          patient_id: string
+          reason: string | null
+          status: string
+          updated_at: string
+          visit_id: string | null
+        }
+        Insert: {
+          admitted_at?: string | null
+          admitting_doctor?: string | null
+          assigned_by_nurse?: string | null
+          bed_id?: string | null
+          created_at?: string
+          discharge_notes?: string | null
+          discharged_at?: string | null
+          discharged_by?: string | null
+          id?: string
+          patient_id: string
+          reason?: string | null
+          status?: string
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Update: {
+          admitted_at?: string | null
+          admitting_doctor?: string | null
+          assigned_by_nurse?: string | null
+          bed_id?: string | null
+          created_at?: string
+          discharge_notes?: string | null
+          discharged_at?: string | null
+          discharged_by?: string | null
+          id?: string
+          patient_id?: string
+          reason?: string | null
+          status?: string
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admissions_bed_id_fkey"
+            columns: ["bed_id"]
+            isOneToOne: false
+            referencedRelation: "beds"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admissions_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admissions_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -178,6 +251,44 @@ export type Database = {
             columns: ["related_request_id"]
             isOneToOne: false
             referencedRelation: "balance_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      beds: {
+        Row: {
+          active: boolean
+          bed_label: string
+          created_at: string
+          id: string
+          room_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          bed_label: string
+          created_at?: string
+          id?: string
+          room_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          bed_label?: string
+          created_at?: string
+          id?: string
+          room_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "beds_room_id_fkey"
+            columns: ["room_id"]
+            isOneToOne: false
+            referencedRelation: "rooms"
             referencedColumns: ["id"]
           },
         ]
@@ -1217,8 +1328,51 @@ export type Database = {
         }
         Relationships: []
       }
+      rooms: {
+        Row: {
+          active: boolean
+          created_at: string
+          daily_rate: number
+          id: string
+          room_class: string
+          room_number: string
+          updated_at: string
+          ward_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          daily_rate?: number
+          id?: string
+          room_class?: string
+          room_number: string
+          updated_at?: string
+          ward_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          daily_rate?: number
+          id?: string
+          room_class?: string
+          room_number?: string
+          updated_at?: string
+          ward_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rooms_ward_id_fkey"
+            columns: ["ward_id"]
+            isOneToOne: false
+            referencedRelation: "wards"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       snap_orders: {
         Row: {
+          ack_at: string | null
+          ack_by: string | null
           billed_at: string | null
           billed_by: string | null
           created_at: string
@@ -1232,10 +1386,14 @@ export type Database = {
           ocr_confidence: number | null
           ocr_text: string | null
           order_type: string
+          original_sender_role: string | null
           paid_at: string | null
+          parent_snap_id: string | null
           patient_id: string
           photo_path: string
           rejection_reason: string | null
+          returned_at: string | null
+          returned_to: string | null
           source_role: string
           status: string
           target_station: string
@@ -1243,6 +1401,8 @@ export type Database = {
           visit_id: string | null
         }
         Insert: {
+          ack_at?: string | null
+          ack_by?: string | null
           billed_at?: string | null
           billed_by?: string | null
           created_at?: string
@@ -1256,10 +1416,14 @@ export type Database = {
           ocr_confidence?: number | null
           ocr_text?: string | null
           order_type: string
+          original_sender_role?: string | null
           paid_at?: string | null
+          parent_snap_id?: string | null
           patient_id: string
           photo_path: string
           rejection_reason?: string | null
+          returned_at?: string | null
+          returned_to?: string | null
           source_role: string
           status?: string
           target_station: string
@@ -1267,6 +1431,8 @@ export type Database = {
           visit_id?: string | null
         }
         Update: {
+          ack_at?: string | null
+          ack_by?: string | null
           billed_at?: string | null
           billed_by?: string | null
           created_at?: string
@@ -1280,10 +1446,14 @@ export type Database = {
           ocr_confidence?: number | null
           ocr_text?: string | null
           order_type?: string
+          original_sender_role?: string | null
           paid_at?: string | null
+          parent_snap_id?: string | null
           patient_id?: string
           photo_path?: string
           rejection_reason?: string | null
+          returned_at?: string | null
+          returned_to?: string | null
           source_role?: string
           status?: string
           target_station?: string
@@ -1296,6 +1466,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "snap_orders_parent_snap_id_fkey"
+            columns: ["parent_snap_id"]
+            isOneToOne: false
+            referencedRelation: "snap_orders"
             referencedColumns: ["id"]
           },
           {
@@ -2043,6 +2220,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      wards: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          gender: string
+          id: string
+          name: string
+          updated_at: string
+          ward_type: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          gender?: string
+          id?: string
+          name: string
+          updated_at?: string
+          ward_type?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          gender?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          ward_type?: string
+        }
+        Relationships: []
       }
     }
     Views: {

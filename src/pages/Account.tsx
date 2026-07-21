@@ -20,6 +20,7 @@ import { StaffHRManager } from '@/components/accounts/StaffHRManager';
 import { StaffRegistrationForm } from '@/components/accounts/StaffRegistrationForm';
 import { ExternalDoctorsManager } from '@/components/account/ExternalDoctorsManager';
 import { CorporateClaimsReport } from '@/components/account/CorporateClaimsReport';
+import { SponsorStatementsPanel } from '@/components/account/SponsorStatementsPanel';
 import type { PayrollPeriod } from '@/hooks/usePayroll';
 
 function TabHeader({ title, onRefresh }: { title: string; onRefresh: () => void }) {

@@ -215,6 +215,19 @@ const Account = () => {
           <CorporateClaimsReport fixedSponsorType="retainer" />
         </TabsContent>
 
+        <TabsContent value="statements">
+          <div className="space-y-8">
+            <div>
+              <TabHeader title="Corporate Monthly Statements" onRefresh={() => {}} />
+              <SponsorStatementsPanel accountType="corporate" />
+            </div>
+            <div>
+              <TabHeader title="Retainer Monthly Statements" onRefresh={() => {}} />
+              <SponsorStatementsPanel accountType="retainer" />
+            </div>
+          </div>
+        </TabsContent>
+
         <TabsContent value="external-doctors">
           <TabHeader title="External Doctors" onRefresh={() => {}} />
           <ExternalDoctorsManager />

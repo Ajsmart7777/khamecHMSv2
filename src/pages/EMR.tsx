@@ -8,7 +8,7 @@ import { PatientSearchBar } from '@/components/emr/PatientSearchBar';
 import { PatientHeaderCard } from '@/components/emr/PatientHeaderCard';
 import { EmrTimeline } from '@/components/emr/EmrTimeline';
 import { VitalsTrendPanel } from '@/components/emr/VitalsTrendPanel';
-import { ConsultationNotesPanel } from '@/components/emr/ConsultationNotesPanel';
+
 import { AttachmentsPanel } from '@/components/emr/AttachmentsPanel';
 import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
 
@@ -38,7 +38,6 @@ export default function EMR() {
                   <TabsList className="w-max">
                     <TabsTrigger value="timeline">Timeline</TabsTrigger>
                     <TabsTrigger value="vitals">Vitals</TabsTrigger>
-                    <TabsTrigger value="consultations">Consultations</TabsTrigger>
                     <TabsTrigger value="external">External Rx</TabsTrigger>
                     <TabsTrigger value="attachments">Attachments</TabsTrigger>
                   </TabsList>
@@ -49,9 +48,6 @@ export default function EMR() {
                 </TabsContent>
                 <TabsContent value="vitals" className="mt-4">
                   <VitalsTrendPanel patientId={selected.id} />
-                </TabsContent>
-                <TabsContent value="consultations" className="mt-4">
-                  <ConsultationNotesPanel patientId={selected.id} />
                 </TabsContent>
                 <TabsContent value="external" className="mt-4">
                   <PatientStandingOrders patientId={selected.id} />

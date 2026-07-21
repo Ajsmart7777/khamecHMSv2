@@ -259,9 +259,38 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
           <div className="space-y-3">
             <div className="rounded-lg overflow-hidden bg-muted flex items-center justify-center min-h-[240px]">
               {imgUrl
-                ? <img src={imgUrl} alt="snap" className="max-h-[400px] object-contain" />
+                ? (
+                  <button
+                    type="button"
+                    onClick={() => setLightboxOpen(true)}
+                    className="group relative w-full flex items-center justify-center cursor-zoom-in"
+                    title="Click to view full size"
+                  >
+                    <img src={imgUrl} alt="snap" className="max-h-[400px] object-contain transition-opacity group-hover:opacity-90" />
+                    <span className="absolute bottom-2 right-2 text-[10px] bg-background/80 px-2 py-1 rounded shadow">
+                      Click to enlarge
+                    </span>
+                  </button>
+                )
                 : <p className="text-xs text-muted-foreground p-4">Loading image…</p>}
             </div>
+
+            <Dialog open={lightboxOpen} onOpenChange={setLightboxOpen}>
+              <DialogContent className="max-w-[95vw] max-h-[95vh] p-2 bg-background/95">
+                <div className="w-full h-full overflow-auto flex items-center justify-center">
+                  {imgUrl && (
+                    <img
+                      src={imgUrl}
+                      alt="snap full"
+                      className="max-w-none cursor-zoom-out"
+                      style={{ maxHeight: '90vh' }}
+                      onClick={() => setLightboxOpen(false)}
+                    />
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
 
             <div className="flex gap-2">
               <Button onClick={runOcr} disabled={ocrRunning || !imgUrl} size="sm">

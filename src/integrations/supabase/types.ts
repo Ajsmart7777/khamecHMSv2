@@ -969,6 +969,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "patients_corporate_id_fkey"
+            columns: ["corporate_id"]
+            isOneToOne: false
+            referencedRelation: "corporate_accounts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "patients_staff_link_id_fkey"
             columns: ["staff_link_id"]
             isOneToOne: false

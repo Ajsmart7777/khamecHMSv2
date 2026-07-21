@@ -722,6 +722,7 @@ export type Database = {
           first_name: string
           gender: string
           id: string
+          insurance_plan: string | null
           insurance_policy_number: string | null
           insurance_provider: string | null
           last_name: string
@@ -747,6 +748,7 @@ export type Database = {
           first_name: string
           gender: string
           id?: string
+          insurance_plan?: string | null
           insurance_policy_number?: string | null
           insurance_provider?: string | null
           last_name: string
@@ -772,6 +774,7 @@ export type Database = {
           first_name?: string
           gender?: string
           id?: string
+          insurance_plan?: string | null
           insurance_policy_number?: string | null
           insurance_provider?: string | null
           last_name?: string
@@ -1847,6 +1850,7 @@ export type Database = {
         | "accountant"
         | "doctor1"
         | "doctor2"
+        | "claims_manager"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1986,6 +1990,7 @@ export const Constants = {
         "accountant",
         "doctor1",
         "doctor2",
+        "claims_manager",
       ],
     },
   },

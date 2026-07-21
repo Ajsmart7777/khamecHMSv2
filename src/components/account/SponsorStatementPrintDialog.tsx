@@ -40,6 +40,7 @@ export function SponsorStatementPrintDialog({ statement, open, onOpenChange, onP
   const { getItems, updateStatus } = useSponsorStatements();
   const [items, setItems] = useState<SponsorStatementItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (statement && open) {

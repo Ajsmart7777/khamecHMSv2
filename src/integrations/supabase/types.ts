@@ -184,6 +184,7 @@ export type Database = {
       }
       corporate_accounts: {
         Row: {
+          account_type: string
           address: string | null
           balance: number
           company_name: string
@@ -200,6 +201,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          account_type?: string
           address?: string | null
           balance?: number
           company_name: string
@@ -216,6 +218,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          account_type?: string
           address?: string | null
           balance?: number
           company_name?: string

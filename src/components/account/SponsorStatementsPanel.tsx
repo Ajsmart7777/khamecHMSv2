@@ -126,6 +126,18 @@ export function SponsorStatementsPanel({ accountType }: { accountType: 'corporat
             {busy ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Wand2 className="h-4 w-4 mr-1.5" />}
             Generate all for {MONTHS[month - 1]} {year}
           </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleBulkDownload}
+            disabled={!!bulkProgress || filtered.length === 0}
+          >
+            {bulkProgress ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {bulkProgress.done}/{bulkProgress.total}</>
+            ) : (
+              <><FileDown className="h-4 w-4 mr-1.5" /> Download all ({filtered.length}) PDF</>
+            )}
+          </Button>
         </div>
       </div>
 

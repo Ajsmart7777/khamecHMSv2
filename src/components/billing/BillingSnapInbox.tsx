@@ -106,17 +106,7 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
   const [ocrText, setOcrText] = useState(snap.ocr_text ?? '');
   const [ocrRunning, setOcrRunning] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
-  const [lines, setLines] = useState<{ query: string; matches: PricelistItem[]; chosenId?: string; qty: number }[]>([]);
-  const [items, setItems] = useState<MatchedItem[]>(snap.matched_items ?? []);
-  const [busy, setBusy] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [showReject, setShowReject] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    snapPhotoUrl(snap.photo_path).then(url => { if (!cancelled) setImgUrl(url); });
-    return () => { cancelled = true; };
-  }, [snap.photo_path]);
+  const [lines, setLines] = useState<ReviewLine[]>([]);
 
   const runOcr = async () => {
     if (!imgUrl) return;
@@ -128,21 +118,31 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
       });
       const text = data.text ?? '';
       setOcrText(text);
-      const confidence = (data.confidence ?? 0) / 100;
-      const candidateLines = text
-        .split(/\r?\n/)
-        .map(l => l.trim())
-        .filter(l => l.length >= 3 && /[a-zA-Z]/.test(l))
-        .slice(0, 20);
+      const overallConf = (data.confidence ?? 0) / 100;
 
-      const scanned: { query: string; matches: PricelistItem[]; qty: number }[] = [];
-      for (const line of candidateLines) {
-        const m = await fuzzyMatchPricelist(line, 5);
-        if (m.length > 0) scanned.push({ query: line, matches: m, qty: 1 });
+      // Prefer per-line confidence from tesseract when available
+      const rawLines: { text: string; conf: number }[] = Array.isArray((data as any).lines) && (data as any).lines.length
+        ? (data as any).lines.map((l: any) => ({ text: (l.text ?? '').trim(), conf: (l.confidence ?? 0) / 100 }))
+        : text.split(/\r?\n/).map((t: string) => ({ text: t.trim(), conf: overallConf }));
+
+      const candidates = rawLines.filter(l => l.text.length >= 3 && /[a-zA-Z]/.test(l.text)).slice(0, 25);
+      const scanned: ReviewLine[] = [];
+      for (const c of candidates) {
+        const m = await fuzzyMatchPricelist(c.text, 5);
+        if (m.length === 0) continue;
+        scanned.push({
+          query: c.text,
+          ocrConfidence: c.conf,
+          matches: m,
+          chosenId: m[0].id,
+          qty: 1,
+          status: 'pending',
+        });
       }
       setLines(scanned);
-      await saveSnapOcr(snap.id, text, confidence, snap.matched_items ?? []);
-      toast.success(`OCR done · ${scanned.length} candidate lines`);
+      setItems([]); // reset — force review of freshly-extracted lines
+      await saveSnapOcr(snap.id, text, overallConf, []);
+      toast.success(`OCR done · ${scanned.length} lines to review`);
     } catch (e: any) {
       toast.error('OCR failed: ' + (e.message ?? e));
     } finally {
@@ -150,20 +150,30 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
     }
   };
 
-  const addFromLine = (idx: number, itemId: string) => {
+  const updateLine = (idx: number, patch: Partial<ReviewLine>) =>
+    setLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l));
+
+  const approveLine = (idx: number) => {
     const line = lines[idx];
-    const it = line.matches.find(m => m.id === itemId);
-    if (!it) return;
+    const it = line.matches.find(m => m.id === line.chosenId) ?? line.matches[0];
+    if (!it) { toast.error('Pick a match first'); return; }
     setItems(prev => [...prev, {
-      pricelist_id: it.id,
-      name: it.name,
-      size: it.size,
-      category: it.category,
-      unit_price: it.price,
-      qty: line.qty || 1,
+      pricelist_id: it.id, name: it.name, size: it.size, category: it.category,
+      unit_price: it.price, qty: Math.max(1, line.qty || 1),
     }]);
-    setLines(prev => prev.filter((_, i) => i !== idx));
+    updateLine(idx, { status: 'approved' });
   };
+
+  const skipLine = (idx: number) => updateLine(idx, { status: 'skipped' });
+
+  const searchInLine = async (idx: number) => {
+    const q = (lines[idx].manualQuery ?? '').trim();
+    if (!q) return;
+    const m = await fuzzyMatchPricelist(q, 6);
+    if (m.length === 0) { toast.error('No matches'); return; }
+    updateLine(idx, { matches: m, chosenId: m[0].id });
+  };
+
 
   const setQty = (idx: number, qty: number) =>
     setItems(prev => prev.map((it, i) => i === idx ? { ...it, qty: Math.max(1, qty) } : it));

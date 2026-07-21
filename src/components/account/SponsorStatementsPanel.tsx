@@ -64,6 +64,38 @@ export function SponsorStatementsPanel({ accountType }: { accountType: 'corporat
     setPrintOpen(true);
   };
 
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const handleDownloadOne = async (s: SponsorStatement) => {
+    setDownloadingId(s.id);
+    try {
+      await downloadStatementPdf(s);
+      toast({ title: 'PDF downloaded', description: s.statement_number });
+    } catch (e) {
+      toast({ title: 'PDF failed', description: (e as Error).message, variant: 'destructive' });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handleBulkDownload = async () => {
+    if (filtered.length === 0) return;
+    setBulkProgress({ done: 0, total: filtered.length });
+    try {
+      await downloadBulkStatementsPdf(
+        filtered,
+        `${label}-Statements-${year}-${String(month).padStart(2, '0')}`,
+        (done, total) => setBulkProgress({ done, total }),
+      );
+      toast({ title: 'Bulk PDF ready', description: `${filtered.length} statements combined` });
+    } catch (e) {
+      toast({ title: 'Bulk PDF failed', description: (e as Error).message, variant: 'destructive' });
+    } finally {
+      setBulkProgress(null);
+    }
+  };
+
   const label = accountType === 'retainer' ? 'Retainer' : 'Corporate';
 
   return (

@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
         }
 
         // Validate role
-        const validRoles = ['admin', 'doctor', 'nurse', 'receptionist', 'pharmacist', 'lab_tech', 'billing', 'store'];
+        const validRoles = ['admin', 'doctor', 'doctor1', 'doctor2', 'nurse', 'receptionist', 'pharmacist', 'lab_tech', 'billing', 'store', 'accountant'];
         if (!validRoles.includes(body.role)) {
           return new Response(JSON.stringify({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` }), {
             status: 400,

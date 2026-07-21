@@ -157,6 +157,9 @@ export interface Staff {
   paymentMethod?: string;
   designation?: string | null;
   staffIdNumber?: string | null;
+  isSystemUser?: boolean;
+  familyDeductionConsent?: boolean;
+  authUserId?: string | null;
 }
 
 export interface CorporateAccount {

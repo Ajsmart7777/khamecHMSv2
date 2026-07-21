@@ -7,9 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
-import { UserPlus, Loader2, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { UserPlus, Loader2, RefreshCw, Search, Trash2, KeyRound, ShieldCheck } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Staff, UserRole } from '@/types/hms';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Props {
   staff: Staff[];
@@ -19,14 +21,17 @@ interface Props {
   onRefetch: () => void;
 }
 
-const ROLES: { value: UserRole; label: string }[] = [
-  { value: 'reception', label: 'Receptionist' },
+// Roles that MUST match the app_role enum in the database (used for login accounts)
+const SYSTEM_ROLES: { value: string; label: string }[] = [
+  { value: 'receptionist', label: 'Receptionist' },
   { value: 'nurse', label: 'Nurse' },
-  { value: 'doctor', label: 'Doctor' },
-  { value: 'lab', label: 'Lab Technician' },
-  { value: 'pharmacy', label: 'Pharmacist' },
-  { value: 'billing', label: 'Billing' },
+  { value: 'doctor1', label: 'Doctor 1' },
+  { value: 'doctor2', label: 'Doctor 2' },
+  { value: 'lab_tech', label: 'Lab Technician' },
+  { value: 'pharmacist', label: 'Pharmacist' },
+  { value: 'billing', label: 'Billing / Cashier' },
   { value: 'store', label: 'Store' },
+  { value: 'accountant', label: 'Accountant' },
   { value: 'admin', label: 'Admin' },
 ];
 
@@ -45,12 +50,6 @@ const NIGERIAN_BANKS = [
   'OPay', 'PalmPay', 'VFD MFB',
 ];
 
-const generateEmployeeId = () => {
-  const prefix = 'KMC';
-  const num = Math.floor(1000 + Math.random() * 9000);
-  return `${prefix}-${num}`;
-};
-
 export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaff, onRefetch }: Props) {
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
@@ -60,13 +59,16 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
     fullName: '',
     email: '',
     phone: '',
+    isSystemUser: false,
     role: '' as string,
+    password: '',
     department: 'General',
     salary: '',
     hireDate: new Date().toISOString().split('T')[0],
     bankName: '',
     accountNumber: '',
     staffIdNumber: '',
+    familyDeductionConsent: false,
   });
 
   const resetForm = () => {
@@ -76,13 +78,16 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
       fullName: '',
       email: '',
       phone: '',
+      isSystemUser: false,
       role: '',
+      password: '',
       department: 'General',
       salary: '',
       hireDate: new Date().toISOString().split('T')[0],
       bankName: '',
       accountNumber: '',
       staffIdNumber: '',
+      familyDeductionConsent: false,
     });
   };
 
@@ -94,9 +99,43 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
       return;
     }
 
+    if (form.isSystemUser) {
+      if (!form.role) {
+        toast({ title: 'Role required', description: 'Select a system role for this login account.', variant: 'destructive' });
+        return;
+      }
+      if (!form.email.trim()) {
+        toast({ title: 'Email required', description: 'System users need a login email.', variant: 'destructive' });
+        return;
+      }
+      if (form.password.length < 8) {
+        toast({ title: 'Password too short', description: 'Password must be at least 8 characters.', variant: 'destructive' });
+        return;
+      }
+    }
+
     setSaving(true);
     const firstName = nameParts[0];
     const lastName = nameParts.slice(1).join(' ');
+    let authUserId: string | null = null;
+
+    // 1) If system user: create login via edge function (admin only)
+    if (form.isSystemUser) {
+      const { data, error } = await supabase.functions.invoke('manage-staff-accounts', {
+        body: {
+          action: 'create',
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
+          role: form.role,
+        },
+      });
+      if (error || !data?.success) {
+        setSaving(false);
+        toast({ title: 'Login creation failed', description: error?.message || data?.error || 'Could not create login account.', variant: 'destructive' });
+        return;
+      }
+      authUserId = data.userId ?? null;
+    }
 
     const newStaff: Omit<Staff, 'id'> = {
       employeeId: form.staffId.trim(),
@@ -104,7 +143,7 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
       lastName,
       email: form.email.trim() || `${form.staffId.toLowerCase()}@kmc.local`,
       phone: form.phone.trim() || '',
-      role: (form.role || 'reception') as UserRole,
+      role: (form.isSystemUser ? form.role : (form.role || 'receptionist')) as UserRole,
       department: form.department,
       salary: Number(form.salary) || 0,
       hireDate: form.hireDate,
@@ -114,6 +153,9 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
       paymentMethod: form.bankName ? 'bank' : 'cash',
       designation: form.designation || null,
       staffIdNumber: form.staffIdNumber || null,
+      isSystemUser: form.isSystemUser,
+      familyDeductionConsent: form.familyDeductionConsent,
+      authUserId,
     };
 
     const success = await onAddStaff(newStaff);
@@ -168,19 +210,38 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
               </div>
             </div>
 
-            {/* Row 4: Role + Department */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Role</Label>
-                <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
-                  <SelectContent>
-                    {ROLES.map(r => (
-                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* System user toggle */}
+            <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
+              <div className="flex items-start gap-2">
+                <ShieldCheck className="h-4 w-4 text-primary mt-0.5" />
+                <div>
+                  <Label className="text-sm font-medium">System User (has login)</Label>
+                  <p className="text-xs text-muted-foreground">Enable for staff who log into the app (nurse, reception, doctor, etc.)</p>
+                </div>
               </div>
+              <Switch checked={form.isSystemUser} onCheckedChange={v => setForm(f => ({ ...f, isSystemUser: v, role: v ? f.role : '' }))} />
+            </div>
+
+            {/* Row 4: Role + Department (Role only when system user) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {form.isSystemUser ? (
+                <div className="space-y-2">
+                  <Label>System Role <span className="text-destructive">*</span></Label>
+                  <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                    <SelectContent>
+                      {SYSTEM_ROLES.map(r => (
+                        <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Role</Label>
+                  <Input value="Non-system staff" disabled />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Department</Label>
                 <Select value={form.department} onValueChange={v => setForm(f => ({ ...f, department: v }))}>
@@ -194,6 +255,25 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
               </div>
             </div>
 
+            {/* Password (system users only) */}
+            {form.isSystemUser && (
+              <div className="space-y-2">
+                <Label>Login Password <span className="text-destructive">*</span></Label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="password"
+                    className="pl-9"
+                    value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    placeholder="At least 8 characters"
+                    minLength={8}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Staff will use their email + this password to sign in.</p>
+              </div>
+            )}
+
             {/* Row 5: Salary + Hire Date */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -205,6 +285,21 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                 <Input type="date" value={form.hireDate} onChange={e => setForm(f => ({ ...f, hireDate: e.target.value }))} />
               </div>
             </div>
+
+            {/* Family salary-deduction consent */}
+            <div className="flex items-start justify-between p-3 rounded-lg border border-warning/30 bg-warning/5">
+              <div className="pr-3">
+                <Label className="text-sm font-medium">Family salary-deduction consent</Label>
+                <p className="text-xs text-muted-foreground">
+                  Staff agrees the unpaid 50% share on family invoices may be deducted from their salary.
+                </p>
+              </div>
+              <Switch
+                checked={form.familyDeductionConsent}
+                onCheckedChange={v => setForm(f => ({ ...f, familyDeductionConsent: v }))}
+              />
+            </div>
+
 
             <Separator />
 

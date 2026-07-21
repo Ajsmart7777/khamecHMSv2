@@ -24,6 +24,7 @@ export interface Patient {
   corporate_id?: string;
   insurance_provider?: string;
   insurance_policy_number?: string;
+  staff_link_id?: string | null;
   balance: number;
   registered_at: string;
   last_visit?: string;

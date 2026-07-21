@@ -20,6 +20,9 @@ interface DbStaff {
   payment_method?: string;
   designation?: string | null;
   staff_id_number?: string | null;
+  is_system_user?: boolean;
+  family_deduction_consent?: boolean;
+  auth_user_id?: string | null;
 }
 
 const mapDbToStaff = (db: DbStaff): Staff => ({
@@ -39,6 +42,9 @@ const mapDbToStaff = (db: DbStaff): Staff => ({
   paymentMethod: db.payment_method || 'cash',
   designation: db.designation || null,
   staffIdNumber: db.staff_id_number || null,
+  isSystemUser: !!db.is_system_user,
+  familyDeductionConsent: !!db.family_deduction_consent,
+  authUserId: db.auth_user_id || null,
 });
 
 const mapStaffToDb = (staff: Omit<Staff, 'id'>) => ({
@@ -52,6 +58,14 @@ const mapStaffToDb = (staff: Omit<Staff, 'id'>) => ({
   salary: staff.salary,
   hire_date: staff.hireDate,
   status: staff.status,
+  bank_name: staff.bankName ?? null,
+  account_number: staff.accountNumber ?? null,
+  payment_method: staff.paymentMethod ?? 'cash',
+  designation: staff.designation ?? null,
+  staff_id_number: staff.staffIdNumber ?? null,
+  is_system_user: !!staff.isSystemUser,
+  family_deduction_consent: !!staff.familyDeductionConsent,
+  auth_user_id: staff.authUserId ?? null,
 });
 
 export function useStaff() {

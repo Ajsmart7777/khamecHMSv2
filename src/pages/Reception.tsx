@@ -61,6 +61,7 @@ import { PatientStandingOrders } from '@/components/reception/PatientStandingOrd
 import { PatientBalanceHistory } from '@/components/reception/PatientBalanceHistory';
 import { Stethoscope, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { BalanceRequestDialog } from '@/components/reception/BalanceRequestDialog';
+import { StaffSelector } from '@/components/reception/StaffSelector';
 
 const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactNode; color: string; description: string }> = {
   normal: { 
@@ -862,7 +863,10 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     account_type: 'normal' as AccountType,
     insurance_provider: '',
     insurance_policy_number: '',
-    corporate_id: ''
+    corporate_id: '',
+    staff_link_id: '',
+    family_staff_id: '',
+    family_staff_has_consent: false,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -923,6 +927,30 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       return;
     }
     
+    // Extra validation for staff / family accounts
+    if (formData.account_type === 'staff' && !formData.staff_link_id) {
+      toast.error('Please select the staff member this patient represents.');
+      setIsSubmitting(false);
+      return;
+    }
+    if (formData.account_type === 'staff_family' && !formData.family_staff_id) {
+      toast.error('Please select the staff this family member belongs to.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (formData.account_type === 'staff_family') {
+      const { count } = await supabase
+        .from('staff_family_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('staff_id', formData.family_staff_id);
+      if ((count ?? 0) >= 4) {
+        toast.error('This staff has already enrolled the maximum of 4 family members.');
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     const cardNumber = generateCardNumber();
     const result = await addPatient({
       card_number: cardNumber,
@@ -941,8 +969,22 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       corporate_id: formData.corporate_id?.trim() || undefined,
       insurance_provider: formData.insurance_provider?.trim() || undefined,
       insurance_policy_number: formData.insurance_policy_number?.trim() || undefined,
+      staff_link_id: formData.account_type === 'staff' ? formData.staff_link_id : null,
       balance: 0
     });
+
+    if (result && formData.account_type === 'staff_family') {
+      const { error: famErr } = await supabase
+        .from('staff_family_members')
+        .insert({
+          patient_id: result.id,
+          staff_id: formData.family_staff_id,
+          salary_deduction_consent: formData.family_staff_has_consent,
+        });
+      if (famErr) {
+        toast.error('Patient created but family enrollment failed', { description: famErr.message });
+      }
+    }
 
     setIsSubmitting(false);
     
@@ -953,6 +995,8 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
 
   const showInsuranceFields = ['insurance', 'hmo', 'nhis'].includes(formData.account_type);
   const showCorporateFields = formData.account_type === 'corporate';
+  const showStaffSelector = formData.account_type === 'staff';
+  const showFamilyStaffSelector = formData.account_type === 'staff_family';
 
   return (
     <div className="space-y-6 py-4">
@@ -1106,6 +1150,44 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
             value={formData.corporate_id}
             onChange={(v) => setFormData({...formData, corporate_id: v})}
           />
+        )}
+
+        {/* Staff patient link */}
+        {showStaffSelector && (
+          <StaffSelector
+            label="Link to Staff Member"
+            helper="Staff patients are fully covered — no charges are billed."
+            value={formData.staff_link_id}
+            onChange={(id) => setFormData({ ...formData, staff_link_id: id })}
+          />
+        )}
+
+        {/* Staff family patient link */}
+        {showFamilyStaffSelector && (
+          <>
+            <StaffSelector
+              label="Belongs to Staff"
+              helper="Family members pay 50% — the rest is billed to the staff (deducted from salary if they consented)."
+              value={formData.family_staff_id}
+              onChange={(id, s) => setFormData({
+                ...formData,
+                family_staff_id: id,
+                family_staff_has_consent: s?.family_deduction_consent ?? false,
+              })}
+            />
+            {formData.family_staff_id && (
+              <div className={cn(
+                "mt-2 p-3 rounded-md text-xs border",
+                formData.family_staff_has_consent
+                  ? "bg-success/5 border-success/20 text-success-foreground"
+                  : "bg-warning/5 border-warning/20 text-warning-foreground"
+              )}>
+                {formData.family_staff_has_consent
+                  ? "✓ Staff consented to salary deduction — unpaid balance auto-queues for payroll."
+                  : "⚠ Staff has NOT consented to salary deduction — the 50% share must be collected at the cashier."}
+              </div>
+            )}
+          </>
         )}
       </div>
 

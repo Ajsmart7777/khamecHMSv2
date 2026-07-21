@@ -5,10 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Filter, Eye } from 'lucide-react';
+import { FileText, Filter, Eye, Download, Loader2 } from 'lucide-react';
 import { useClaimsQueue, Visit } from '@/hooks/useVisits';
 import { usePatients } from '@/contexts/PatientContext';
 import { VisitEnvelopeDialog } from '@/components/visit/VisitEnvelopeDialog';
+import { downloadClaimsPacketPdf, downloadBulkClaimsPacketsPdf } from '@/lib/claimsPacketPdf';
+import { toast } from 'sonner';
 
 const SPONSORS = ['corporate', 'retainer', 'nhia', 'hmo', 'katchma', 'staff', 'staff_family'] as const;
 
@@ -18,6 +20,34 @@ export function ClaimsQueue() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [open, setOpen] = useState<Visit | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
+
+  async function handleSingle(v: Visit) {
+    setDownloadingId(v.id);
+    try {
+      await downloadClaimsPacketPdf(v);
+      toast.success('Claims packet downloaded');
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Failed to build packet');
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
+  async function handleBulk(list: Visit[], label: string) {
+    if (list.length === 0) return;
+    setBulk({ done: 0, total: list.length });
+    try {
+      await downloadBulkClaimsPacketsPdf(list, label, (done, total) => setBulk({ done, total }));
+      toast.success(`Exported ${list.length} packets`);
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Bulk export failed');
+    } finally {
+      setBulk(null);
+    }
+  }
+
 
   const filters = useMemo(
     () => ({
@@ -92,6 +122,20 @@ export function ClaimsQueue() {
         </Card>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          {bulk ? `Building packets… ${bulk.done}/${bulk.total}` : `Export claims packets for all visits in view.`}
+        </p>
+        <Button
+          size="sm"
+          onClick={() => handleBulk(visits, `claims-packets-${new Date().toISOString().slice(0,10)}`)}
+          disabled={!!bulk || visits.length === 0}
+        >
+          {bulk ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Download className="h-3 w-3 mr-1" />}
+          Export all packets ({visits.length})
+        </Button>
+      </div>
+
       {loading ? (
         <p className="text-sm text-muted-foreground text-center py-8">Loading claims…</p>
       ) : visits.length === 0 ? (
@@ -105,12 +149,22 @@ export function ClaimsQueue() {
             const grp = list.reduce((s, v) => s + Number(v.total_charged), 0);
             return (
               <Card key={sponsor} className="p-4">
-                <div className="flex justify-between items-center mb-3">
+                <div className="flex justify-between items-center mb-3 gap-2 flex-wrap">
                   <div>
                     <h3 className="font-semibold capitalize">{sponsor.replace('_', ' ')}</h3>
                     <p className="text-xs text-muted-foreground">{list.length} visits</p>
                   </div>
-                  <p className="text-sm font-semibold">₦{grp.toLocaleString()}</p>
+                  <div className="flex items-center gap-3">
+                    <p className="text-sm font-semibold">₦{grp.toLocaleString()}</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleBulk(list, `${sponsor}-packets-${new Date().toISOString().slice(0,10)}`)}
+                      disabled={!!bulk}
+                    >
+                      <Download className="h-3 w-3 mr-1" /> Export group
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   {list.map((v) => {
@@ -141,6 +195,16 @@ export function ClaimsQueue() {
                           <Badge variant="secondary" className="text-[10px]">pending</Badge>
                           <Button size="sm" variant="outline" onClick={() => setOpen(v)}>
                             <Eye className="h-3 w-3 mr-1" /> View
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleSingle(v)}
+                            disabled={downloadingId === v.id || !!bulk}
+                          >
+                            {downloadingId === v.id
+                              ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              : <Download className="h-3 w-3 mr-1" />}
+                            Packet
                           </Button>
                         </div>
                       </div>

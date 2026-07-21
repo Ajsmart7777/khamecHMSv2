@@ -3,6 +3,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { LayoutDashboard, Users, FileSpreadsheet, CreditCard, FileText, Building2, Shield, UserCheck, UserPlus, RefreshCw } from 'lucide-react';
+import { Stethoscope, ClipboardList } from 'lucide-react';
 import { useStaff } from '@/hooks/useStaff';
 import { usePayrollPeriods, usePayrollEntries } from '@/hooks/usePayroll';
 import { useInsurance } from '@/hooks/useInsurance';
@@ -17,6 +18,8 @@ import { CorporateAccountsManager } from '@/components/payroll/CorporateAccounts
 import { InsuranceManager } from '@/components/accounts/InsuranceManager';
 import { StaffHRManager } from '@/components/accounts/StaffHRManager';
 import { StaffRegistrationForm } from '@/components/accounts/StaffRegistrationForm';
+import { ExternalDoctorsManager } from '@/components/account/ExternalDoctorsManager';
+import { CorporateClaimsReport } from '@/components/account/CorporateClaimsReport';
 import type { PayrollPeriod } from '@/hooks/usePayroll';
 
 function TabHeader({ title, onRefresh }: { title: string; onRefresh: () => void }) {
@@ -113,6 +116,12 @@ const Account = () => {
           <TabsTrigger value="corporate" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Building2 className="h-4 w-4" /> Corporate
           </TabsTrigger>
+          <TabsTrigger value="sponsor-claims" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <ClipboardList className="h-4 w-4" /> Sponsor Claims
+          </TabsTrigger>
+          <TabsTrigger value="external-doctors" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Stethoscope className="h-4 w-4" /> External Doctors
+          </TabsTrigger>
           <TabsTrigger value="register" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <UserPlus className="h-4 w-4" /> Register Staff
           </TabsTrigger>
@@ -179,6 +188,16 @@ const Account = () => {
         <TabsContent value="corporate">
           <TabHeader title="Corporate Accounts" onRefresh={refetchCorporate} />
           <CorporateAccountsManager />
+        </TabsContent>
+
+        <TabsContent value="sponsor-claims">
+          <TabHeader title="Corporate & Retainer Claims" onRefresh={() => {}} />
+          <CorporateClaimsReport />
+        </TabsContent>
+
+        <TabsContent value="external-doctors">
+          <TabHeader title="External Doctors" onRefresh={() => {}} />
+          <ExternalDoctorsManager />
         </TabsContent>
 
         <TabsContent value="register">

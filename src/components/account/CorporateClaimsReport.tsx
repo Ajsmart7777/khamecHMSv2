@@ -98,18 +98,20 @@ export function CorporateClaimsReport({ fixedSponsorType }: { fixedSponsorType?:
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Building2 className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Corporate & Retainer Claims</h3>
+          <h3 className="font-semibold">{fixedSponsorType === 'retainer' ? 'Retainer Claims' : fixedSponsorType === 'corporate' ? 'Corporate Claims' : 'Corporate & Retainer Claims'}</h3>
           <Badge variant="outline">{filtered.length}</Badge>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Select value={sponsorType} onValueChange={setSponsorType}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Sponsor type" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All sponsors</SelectItem>
-              <SelectItem value="corporate">Corporate</SelectItem>
-              <SelectItem value="retainer">Retainer</SelectItem>
-            </SelectContent>
-          </Select>
+          {!fixedSponsorType && (
+            <Select value={sponsorType} onValueChange={setSponsorType}>
+              <SelectTrigger className="w-40"><SelectValue placeholder="Sponsor type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sponsors</SelectItem>
+                <SelectItem value="corporate">Corporate</SelectItem>
+                <SelectItem value="retainer">Retainer</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
           <Select value={accountId} onValueChange={setAccountId}>
             <SelectTrigger className="w-52"><SelectValue placeholder="Account" /></SelectTrigger>
             <SelectContent>

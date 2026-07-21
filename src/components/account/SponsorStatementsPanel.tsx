@@ -3,10 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, FileText, Printer, RefreshCw, Wand2, CheckCircle2, XCircle, DollarSign } from 'lucide-react';
+import { Loader2, FileText, Printer, RefreshCw, Wand2, CheckCircle2, XCircle, DollarSign, Download, FileDown } from 'lucide-react';
 import { useSponsorStatements, SponsorStatement } from '@/hooks/useSponsorStatements';
 import { useCorporateAccounts } from '@/hooks/useCorporateAccounts';
 import { SponsorStatementPrintDialog } from './SponsorStatementPrintDialog';
+import { downloadStatementPdf, downloadBulkStatementsPdf } from '@/lib/sponsorStatementPdf';
 import { toast } from '@/hooks/use-toast';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];

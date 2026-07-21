@@ -19,7 +19,7 @@ import {
   Check,
   ClipboardList,
   AlertTriangle,
-  Clock
+  AlertTriangle
 } from 'lucide-react';
 import { AuditLogsViewer } from '@/components/admin/AuditLogsViewer';
 import { StaffAccountManager } from '@/components/admin/StaffAccountManager';

@@ -332,10 +332,10 @@ function ConsultationView({ patient, onComplete }: ConsultationViewProps) {
     setLabRequestData(null);
   };
 
-  const handleAdmitPatient = () => {
-    toast.success("Patient Admitted", {
-      description: `${patient.first_name} ${patient.last_name} has been admitted to the ward.`,
-    });
+  const handleAdmitPatient = async () => {
+    const { requestAdmission } = await import('@/hooks/useAdmissions');
+    const id = await requestAdmission({ patientId: patient.id, reason: diagnosis || undefined });
+    if (!id) return;
     setIsAdmitDialogOpen(false);
     onComplete(patient.id, 'admitting');
   };

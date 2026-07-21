@@ -107,6 +107,31 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
   const [ocrRunning, setOcrRunning] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [lines, setLines] = useState<ReviewLine[]>([]);
+  const [items, setItems] = useState<MatchedItem[]>(snap.matched_items ?? []);
+  const [busy, setBusy] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [showReject, setShowReject] = useState(false);
+  const [manualQuery, setManualQuery] = useState('');
+  const [manualMatches, setManualMatches] = useState<PricelistItem[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    snapPhotoUrl(snap.photo_path).then(url => { if (!cancelled) setImgUrl(url); });
+    return () => { cancelled = true; };
+  }, [snap.photo_path]);
+
+  const doManualSearch = async () => {
+    const m = await fuzzyMatchPricelist(manualQuery, 6);
+    setManualMatches(m);
+    if (m.length === 0) toast.error('No matches — add via Pricelist Manager');
+  };
+  const addManual = (it: PricelistItem) => {
+    setItems(prev => [...prev, {
+      pricelist_id: it.id, name: it.name, size: it.size, category: it.category, unit_price: it.price, qty: 1,
+    }]);
+    setManualQuery('');
+    setManualMatches([]);
+  };
 
   const runOcr = async () => {
     if (!imgUrl) return;

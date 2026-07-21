@@ -280,27 +280,110 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
               />
             )}
 
-            {lines.length > 0 && (
-              <div className="space-y-2 border rounded-lg p-2 max-h-64 overflow-y-auto">
-                <p className="text-xs font-medium">OCR Candidates — pick the correct pricelist match:</p>
-                {lines.map((line, idx) => (
-                  <div key={idx} className="text-xs space-y-1 pb-2 border-b last:border-0">
-                    <p className="font-mono text-muted-foreground truncate">{line.query}</p>
-                    <div className="flex flex-wrap gap-1">
-                      {line.matches.map(m => (
-                        <button
-                          key={m.id}
-                          onClick={() => addFromLine(idx, m.id)}
-                          className="px-2 py-1 rounded border hover:bg-primary/10 text-[11px]"
-                        >
-                          {m.name}{m.size ? ` ${m.size}` : ''} · {fmt(m.price)}
-                        </button>
-                      ))}
+            {lines.length > 0 && (() => {
+              const pending = lines.filter(l => l.status === 'pending').length;
+              const approved = lines.filter(l => l.status === 'approved').length;
+              const skipped = lines.filter(l => l.status === 'skipped').length;
+              return (
+                <div className="space-y-2 border rounded-lg p-2 max-h-[420px] overflow-y-auto">
+                  <div className="flex items-center justify-between sticky top-0 bg-card pb-1">
+                    <p className="text-xs font-medium">OCR Confidence Review</p>
+                    <div className="flex gap-1 text-[10px]">
+                      <Badge variant="warning">{pending} pending</Badge>
+                      <Badge variant="success">{approved} approved</Badge>
+                      {skipped > 0 && <Badge variant="secondary">{skipped} skipped</Badge>}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  {lines.map((line, idx) => {
+                    const band = confBand(line.ocrConfidence);
+                    const chosen = line.matches.find(m => m.id === line.chosenId);
+                    const isDone = line.status !== 'pending';
+                    return (
+                      <div
+                        key={idx}
+                        className={`text-xs space-y-1.5 p-2 rounded border ${
+                          line.status === 'approved' ? 'bg-emerald-500/5 border-emerald-500/30' :
+                          line.status === 'skipped'  ? 'bg-muted/50 opacity-60' :
+                          'bg-background'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className={`px-1.5 py-0.5 rounded border text-[10px] font-medium ${band.cls}`}>
+                            {band.label} {Math.round(line.ocrConfidence * 100)}%
+                          </span>
+                          <p className="font-mono text-muted-foreground flex-1 break-words">{line.query}</p>
+                        </div>
+
+                        {!isDone && (
+                          <>
+                            {line.editing ? (
+                              <div className="flex gap-1">
+                                <Input
+                                  className="h-7 text-xs"
+                                  placeholder="Search pricelist…"
+                                  value={line.manualQuery ?? ''}
+                                  onChange={(e) => updateLine(idx, { manualQuery: e.target.value })}
+                                  onKeyDown={(e) => e.key === 'Enter' && searchInLine(idx)}
+                                />
+                                <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => searchInLine(idx)}>Go</Button>
+                                <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => updateLine(idx, { editing: false })}>×</Button>
+                              </div>
+                            ) : null}
+
+                            <div className="flex flex-wrap gap-1">
+                              {line.matches.map(m => (
+                                <button
+                                  key={m.id}
+                                  onClick={() => updateLine(idx, { chosenId: m.id })}
+                                  className={`px-2 py-1 rounded border text-[11px] ${
+                                    line.chosenId === m.id ? 'border-primary bg-primary/10 font-medium' : 'hover:bg-muted'
+                                  }`}
+                                >
+                                  {m.name}{m.size ? ` ${m.size}` : ''} · {fmt(m.price)}
+                                </button>
+                              ))}
+                            </div>
+
+                            <div className="flex items-center gap-1 pt-1">
+                              <Input
+                                type="number"
+                                min={1}
+                                value={line.qty}
+                                onChange={(e) => updateLine(idx, { qty: parseInt(e.target.value) || 1 })}
+                                className="w-14 h-7 text-xs"
+                              />
+                              <Button size="sm" className="h-7" onClick={() => approveLine(idx)} disabled={!chosen}>
+                                <Check className="h-3 w-3 mr-1" /> Approve
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7" onClick={() => updateLine(idx, { editing: !line.editing })}>
+                                <Pencil className="h-3 w-3 mr-1" /> Correct
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7" onClick={() => skipLine(idx)}>
+                                <SkipForward className="h-3 w-3 mr-1" /> Skip
+                              </Button>
+                            </div>
+                          </>
+                        )}
+
+                        {line.status === 'approved' && chosen && (
+                          <p className="text-[11px] text-emerald-700 flex items-center gap-1">
+                            <Check className="h-3 w-3" /> Approved: {chosen.name} × {line.qty}
+                          </p>
+                        )}
+                        {line.status === 'skipped' && (
+                          <button
+                            onClick={() => updateLine(idx, { status: 'pending' })}
+                            className="text-[11px] text-muted-foreground underline"
+                          >
+                            Skipped — undo
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Right: Invoice items */}

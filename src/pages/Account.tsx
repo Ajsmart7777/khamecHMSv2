@@ -20,6 +20,7 @@ import { StaffHRManager } from '@/components/accounts/StaffHRManager';
 import { StaffRegistrationForm } from '@/components/accounts/StaffRegistrationForm';
 import { ExternalDoctorsManager } from '@/components/account/ExternalDoctorsManager';
 import { CorporateClaimsReport } from '@/components/account/CorporateClaimsReport';
+import { SponsorStatementsPanel } from '@/components/account/SponsorStatementsPanel';
 import type { PayrollPeriod } from '@/hooks/usePayroll';
 
 function TabHeader({ title, onRefresh }: { title: string; onRefresh: () => void }) {
@@ -125,6 +126,9 @@ const Account = () => {
           <TabsTrigger value="retainer-claims" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <ClipboardList className="h-4 w-4" /> Retainer Claims
           </TabsTrigger>
+          <TabsTrigger value="statements" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <FileText className="h-4 w-4" /> Monthly Statements
+          </TabsTrigger>
           <TabsTrigger value="external-doctors" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Stethoscope className="h-4 w-4" /> External Doctors
           </TabsTrigger>
@@ -209,6 +213,19 @@ const Account = () => {
         <TabsContent value="retainer-claims">
           <TabHeader title="Retainer Claims" onRefresh={() => {}} />
           <CorporateClaimsReport fixedSponsorType="retainer" />
+        </TabsContent>
+
+        <TabsContent value="statements">
+          <div className="space-y-8">
+            <div>
+              <TabHeader title="Corporate Monthly Statements" onRefresh={() => {}} />
+              <SponsorStatementsPanel accountType="corporate" />
+            </div>
+            <div>
+              <TabHeader title="Retainer Monthly Statements" onRefresh={() => {}} />
+              <SponsorStatementsPanel accountType="retainer" />
+            </div>
+          </div>
         </TabsContent>
 
         <TabsContent value="external-doctors">

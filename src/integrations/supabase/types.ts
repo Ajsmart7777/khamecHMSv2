@@ -1194,6 +1194,135 @@ export type Database = {
         }
         Relationships: []
       }
+      sponsor_statement_items: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          invoice_id: string
+          patient_id: string
+          service_date: string
+          statement_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          invoice_id: string
+          patient_id: string
+          service_date: string
+          statement_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          patient_id?: string
+          service_date?: string
+          statement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsor_statement_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsor_statement_items_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sponsor_statement_items_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "sponsor_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sponsor_statements: {
+        Row: {
+          created_at: string
+          finalized_at: string | null
+          generated_at: string
+          generated_by: string | null
+          id: string
+          invoice_count: number
+          notes: string | null
+          paid_at: string | null
+          patient_count: number
+          period_end: string
+          period_month: number
+          period_start: string
+          period_year: number
+          printed_at: string | null
+          sponsor_id: string
+          sponsor_type: string
+          statement_number: string
+          status: string
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          finalized_at?: string | null
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          invoice_count?: number
+          notes?: string | null
+          paid_at?: string | null
+          patient_count?: number
+          period_end: string
+          period_month: number
+          period_start: string
+          period_year: number
+          printed_at?: string | null
+          sponsor_id: string
+          sponsor_type: string
+          statement_number: string
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          finalized_at?: string | null
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          invoice_count?: number
+          notes?: string | null
+          paid_at?: string | null
+          patient_count?: number
+          period_end?: string
+          period_month?: number
+          period_start?: string
+          period_year?: number
+          printed_at?: string | null
+          sponsor_id?: string
+          sponsor_type?: string
+          statement_number?: string
+          status?: string
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sponsor_statements_sponsor_id_fkey"
+            columns: ["sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "corporate_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff: {
         Row: {
           account_number: string | null
@@ -1667,6 +1796,14 @@ export type Database = {
         }
         Returns: number
       }
+      generate_all_sponsor_statements: {
+        Args: { _month: number; _year: number }
+        Returns: number
+      }
+      generate_sponsor_statement: {
+        Args: { _month: number; _sponsor_id: string; _year: number }
+        Returns: string
+      }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]
@@ -1682,6 +1819,10 @@ export type Database = {
         Returns: boolean
       }
       is_authenticated_staff: { Args: never; Returns: boolean }
+      next_statement_number: {
+        Args: { _month: number; _year: number }
+        Returns: string
+      }
       write_audit_log: {
         Args: {
           _action: string

@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PatientProvider } from "@/contexts/PatientContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
-import { ShiftEnforcementProvider } from "@/contexts/ShiftEnforcementContext";
+
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -37,7 +37,6 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <PatientProvider>
-            <ShiftEnforcementProvider>
               <Routes>
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/" element={
@@ -117,7 +116,6 @@ const App = () => (
                 } />
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </ShiftEnforcementProvider>
             </PatientProvider>
           </BrowserRouter>
         </SettingsProvider>

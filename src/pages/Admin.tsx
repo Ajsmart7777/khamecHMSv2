@@ -19,12 +19,11 @@ import {
   Check,
   ClipboardList,
   AlertTriangle,
-  Clock
 } from 'lucide-react';
 import { AuditLogsViewer } from '@/components/admin/AuditLogsViewer';
 import { StaffAccountManager } from '@/components/admin/StaffAccountManager';
 import { ErrorLogsViewer } from '@/components/admin/ErrorLogsViewer';
-import { ShiftManagement } from '@/components/admin/ShiftManagement';
+
 import { mockStaff } from '@/data/mockData';
 import { Staff, UserRole } from '@/types/hms';
 import { StatsCard } from '@/components/dashboard/StatsCard';
@@ -168,7 +167,7 @@ const Admin = () => {
     <MainLayout title="Admin Panel" subtitle="System administration and user management">
       <Tabs defaultValue="overview" className="space-y-6">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:max-w-2xl sm:grid-cols-5">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:max-w-2xl sm:grid-cols-4">
             <TabsTrigger value="overview" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
               <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span className="hidden sm:inline">Overview</span>
@@ -177,10 +176,6 @@ const Admin = () => {
             <TabsTrigger value="accounts" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
               <UserPlus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Accounts</span>
-            </TabsTrigger>
-            <TabsTrigger value="shifts" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
-              <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span>Shifts</span>
             </TabsTrigger>
             <TabsTrigger value="audit" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
               <ClipboardList className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -400,15 +395,8 @@ const Admin = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="shifts" className="space-y-6">
-          <div className="bg-card rounded-xl border border-border p-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Clock className="h-5 w-5 text-module-admin" />
-              Shift Management
-            </h3>
-            <ShiftManagement />
-          </div>
-        </TabsContent>
+
+
 
         <TabsContent value="audit" className="space-y-6">
           <div className="bg-card rounded-xl border border-border p-6">

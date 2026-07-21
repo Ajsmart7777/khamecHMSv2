@@ -171,7 +171,7 @@ export function StaffHRManager() {
               </thead>
               <tbody>
                 {attendance.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No attendance records. Attendance is auto-tracked via the shift clock system.</td></tr>
+                  <tr><td colSpan={6} className="text-center py-8 text-muted-foreground">No attendance records.</td></tr>
                 ) : (
                   attendance.map(a => (
                     <tr key={a.id}>

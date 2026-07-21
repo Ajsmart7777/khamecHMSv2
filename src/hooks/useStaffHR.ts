@@ -25,7 +25,7 @@ export interface StaffAttendance {
   clock_out: string | null;
   status: string;
   notes: string | null;
-  shift_log_id: string | null;
+  
   created_at: string;
 }
 

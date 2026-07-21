@@ -149,12 +149,22 @@ export function ClaimsQueue() {
             const grp = list.reduce((s, v) => s + Number(v.total_charged), 0);
             return (
               <Card key={sponsor} className="p-4">
-                <div className="flex justify-between items-center mb-3">
+                <div className="flex justify-between items-center mb-3 gap-2 flex-wrap">
                   <div>
                     <h3 className="font-semibold capitalize">{sponsor.replace('_', ' ')}</h3>
                     <p className="text-xs text-muted-foreground">{list.length} visits</p>
                   </div>
-                  <p className="text-sm font-semibold">₦{grp.toLocaleString()}</p>
+                  <div className="flex items-center gap-3">
+                    <p className="text-sm font-semibold">₦{grp.toLocaleString()}</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleBulk(list, `${sponsor}-packets-${new Date().toISOString().slice(0,10)}`)}
+                      disabled={!!bulk}
+                    >
+                      <Download className="h-3 w-3 mr-1" /> Export group
+                    </Button>
+                  </div>
                 </div>
                 <div className="space-y-2">
                   {list.map((v) => {

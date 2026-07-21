@@ -579,7 +579,22 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
             <span>Edit Details</span>
           </Button>
         )}
+
+        <Button
+          variant="outline"
+          className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-sm border-primary/30 text-primary"
+          onClick={() => setIsStandingOrderOpen(true)}
+        >
+          <Stethoscope className="h-5 w-5" />
+          <span className="text-xs leading-tight text-center">Capture External Rx</span>
+        </Button>
       </div>
+
+      <StandingOrderCaptureDialog
+        open={isStandingOrderOpen}
+        onOpenChange={setIsStandingOrderOpen}
+        presetPatientId={patient.id}
+      />
 
       {/* Invoice Summary */}
       {patientInvoices.length > 0 && (

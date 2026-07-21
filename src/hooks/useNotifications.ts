@@ -37,12 +37,13 @@ export function useNotifications() {
 
       if (error) throw error;
 
-      // Client-side filter: admin sees all; others see their role or 'all'
+      // Client-side filter: admin sees all; others see their role or broadcast (null)
       const filtered = (data || []).filter((n: any) => {
         if (role === 'admin') return true;
-        if (n.target_role && n.target_role !== role && n.target_role !== 'all') return false;
+        if (n.target_role && n.target_role !== role) return false;
         return true;
       }) as Notification[];
+
 
       setNotifications(filtered);
     } catch (err) {
@@ -101,7 +102,7 @@ export function useNotifications() {
         (payload) => {
           const newNotif = payload.new as Notification;
           // Client-side filter: admin sees all
-          if (role !== 'admin' && newNotif.target_role && newNotif.target_role !== role && newNotif.target_role !== 'all') return;
+          if (role !== 'admin' && newNotif.target_role && newNotif.target_role !== role) return;
           setNotifications(prev => {
             if (prev.some(n => n.id === newNotif.id)) return prev;
             return [newNotif, ...prev];
@@ -144,7 +145,7 @@ export async function createNotification(params: {
         type: params.type || 'info',
         link: params.link || null,
         resource_id: params.resource_id || null,
-        target_role: params.target_role || 'all',
+        target_role: params.target_role ?? null,
         user_id: params.user_id || null,
       }]);
 

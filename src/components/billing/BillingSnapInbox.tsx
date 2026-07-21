@@ -208,20 +208,6 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
 
   const total = items.reduce((s, i) => s + i.unit_price * i.qty, 0);
 
-  const [manualQuery, setManualQuery] = useState('');
-  const [manualMatches, setManualMatches] = useState<PricelistItem[]>([]);
-  const doManualSearch = async () => {
-    const m = await fuzzyMatchPricelist(manualQuery, 6);
-    setManualMatches(m);
-    if (m.length === 0) toast.error('No matches — add via Pricelist Manager');
-  };
-  const addManual = (it: PricelistItem) => {
-    setItems(prev => [...prev, {
-      pricelist_id: it.id, name: it.name, size: it.size, category: it.category, unit_price: it.price, qty: 1,
-    }]);
-    setManualQuery('');
-    setManualMatches([]);
-  };
 
   const createInvoiceAndSend = async () => {
     if (items.length === 0) { toast.error('Add at least one item'); return; }

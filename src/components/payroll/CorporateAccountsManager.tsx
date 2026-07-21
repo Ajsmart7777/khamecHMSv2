@@ -334,7 +334,7 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
             <DialogTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5 text-primary" /> Add {singular} Account
             </DialogTitle>
-            <DialogDescription>`Register a new ${singularLower} sponsor. Invoices are consolidated for monthly billing.`</DialogDescription>
+            <DialogDescription>Register a new {singularLower} sponsor. Invoices are consolidated for monthly billing.</DialogDescription>
           </DialogHeader>
           {formFields}
           <DialogFooter>

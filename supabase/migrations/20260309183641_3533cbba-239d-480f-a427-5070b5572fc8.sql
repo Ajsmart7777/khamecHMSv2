@@ -1,0 +1,1 @@
+ALTER TABLE public.payroll_payments ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFAULT 'flutterwave';

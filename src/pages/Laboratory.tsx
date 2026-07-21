@@ -15,6 +15,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { SnapToCard } from '@/components/visit/SnapToCard';
 import {
   Dialog,
   DialogContent,
@@ -279,6 +280,11 @@ const Laboratory = () => {
               )}
             </DialogDescription>
           </DialogHeader>
+          {selectedPatientData && (
+            <div className="flex justify-end -mt-2">
+              <SnapToCard patientId={selectedPatientData.id} station="lab" defaultLabel="Lab result" />
+            </div>
+          )}
           <div className="space-y-4 py-4">
             <div>
               <label className="text-sm font-medium mb-1.5 block">Results</label>

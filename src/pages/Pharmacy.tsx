@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { mockInventory } from '@/data/mockData';
 import { toast } from 'sonner';
+import { SnapToCard } from '@/components/visit/SnapToCard';
 import { prescriptionAuditLogger } from '@/lib/auditLogger';
 import {
   Dialog,
@@ -286,7 +287,10 @@ const Pharmacy = () => {
                           </div>
                         </div>
                       </div>
-                      <Badge variant="success">Ready</Badge>
+                      <div className="flex items-center gap-2">
+                        <SnapToCard patientId={patient.id} station="pharmacy" defaultLabel="Dispense receipt" />
+                        <Badge variant="success">Ready</Badge>
+                      </div>
                     </div>
 
                     <div className="bg-muted/30 rounded-lg p-3 mb-4">

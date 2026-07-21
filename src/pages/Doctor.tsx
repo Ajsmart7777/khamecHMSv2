@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { SnapToCard } from '@/components/visit/SnapToCard';
 import {
   Dialog,
   DialogContent,
@@ -164,10 +165,15 @@ const Doctor = () => {
         {/* Consultation Area */}
         <div className="lg:col-span-3">
           {selectedPatient ? (
-            <ConsultationView 
-              patient={selectedPatient}
-              onComplete={handlePatientComplete}
-            />
+            <div className="space-y-3">
+              <div className="flex justify-end">
+                <SnapToCard patientId={selectedPatient.id} station="doctor" defaultLabel="Doctor Dx / Rx" />
+              </div>
+              <ConsultationView
+                patient={selectedPatient}
+                onComplete={handlePatientComplete}
+              />
+            </div>
           ) : (
             <div className="bg-card rounded-xl border border-border p-12 text-center animate-fade-in">
               <Stethoscope className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />

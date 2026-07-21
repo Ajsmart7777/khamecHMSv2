@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { SnapToCard } from '@/components/visit/SnapToCard';
 import {
   Dialog,
   DialogContent,
@@ -127,10 +128,15 @@ const NurseStation = () => {
         {/* Vitals Recording */}
         <div className="lg:col-span-3">
           {selectedPatient ? (
-            <VitalsForm 
-              patient={selectedPatient}
-              onComplete={handlePatientComplete}
-            />
+            <div className="space-y-3">
+              <div className="flex justify-end">
+                <SnapToCard patientId={selectedPatient.id} station="nurse" defaultLabel="Nurse vitals note" />
+              </div>
+              <VitalsForm
+                patient={selectedPatient}
+                onComplete={handlePatientComplete}
+              />
+            </div>
           ) : (
             <div className="bg-card rounded-xl border border-border p-12 text-center animate-fade-in">
               <Activity className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />

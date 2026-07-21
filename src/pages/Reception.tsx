@@ -98,7 +98,7 @@ const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactN
     label: 'Retainer', 
     icon: <Wallet className="h-4 w-4" />, 
     color: 'bg-accent/10 text-accent border-accent/30',
-    description: 'Pre-paid retainer account'
+    description: 'Sponsor referral — billed monthly'
   },
   staff: {
     label: 'Staff',

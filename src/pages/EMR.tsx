@@ -11,6 +11,7 @@ import { VitalsTrendPanel } from '@/components/emr/VitalsTrendPanel';
 
 import { AttachmentsPanel } from '@/components/emr/AttachmentsPanel';
 import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
+import { PatientVisitsPanel } from '@/components/visit/PatientVisitsPanel';
 
 export default function EMR() {
   const [selected, setSelected] = useState<Patient | null>(null);
@@ -37,6 +38,7 @@ export default function EMR() {
                 <div className="overflow-x-auto -mx-1 px-1">
                   <TabsList className="w-max">
                     <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                    <TabsTrigger value="visits">Visit Cards</TabsTrigger>
                     <TabsTrigger value="vitals">Vitals</TabsTrigger>
                     <TabsTrigger value="external">External Rx</TabsTrigger>
                     <TabsTrigger value="attachments">Attachments</TabsTrigger>
@@ -45,6 +47,9 @@ export default function EMR() {
 
                 <TabsContent value="timeline" className="mt-4">
                   <Card className="p-4"><EmrTimeline patientId={selected.id} /></Card>
+                </TabsContent>
+                <TabsContent value="visits" className="mt-4">
+                  <PatientVisitsPanel patientId={selected.id} />
                 </TabsContent>
                 <TabsContent value="vitals" className="mt-4">
                   <VitalsTrendPanel patientId={selected.id} />

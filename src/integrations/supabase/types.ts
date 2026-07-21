@@ -605,6 +605,7 @@ export type Database = {
           status: string
           total_amount: number
           updated_at: string
+          visit_id: string | null
         }
         Insert: {
           corporate_account_id?: string | null
@@ -623,6 +624,7 @@ export type Database = {
           status?: string
           total_amount?: number
           updated_at?: string
+          visit_id?: string | null
         }
         Update: {
           corporate_account_id?: string | null
@@ -641,6 +643,7 @@ export type Database = {
           status?: string
           total_amount?: number
           updated_at?: string
+          visit_id?: string | null
         }
         Relationships: [
           {
@@ -655,6 +658,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "visits"
             referencedColumns: ["id"]
           },
         ]
@@ -674,6 +684,7 @@ export type Database = {
           status: string
           tests: string[]
           updated_at: string
+          visit_id: string | null
         }
         Insert: {
           completed_at?: string | null
@@ -689,6 +700,7 @@ export type Database = {
           status?: string
           tests: string[]
           updated_at?: string
+          visit_id?: string | null
         }
         Update: {
           completed_at?: string | null
@@ -704,6 +716,7 @@ export type Database = {
           status?: string
           tests?: string[]
           updated_at?: string
+          visit_id?: string | null
         }
         Relationships: [
           {
@@ -711,6 +724,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_requests_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "visits"
             referencedColumns: ["id"]
           },
         ]
@@ -1121,6 +1141,7 @@ export type Database = {
           patient_id: string
           status: string
           updated_at: string
+          visit_id: string | null
         }
         Insert: {
           created_at?: string
@@ -1131,6 +1152,7 @@ export type Database = {
           patient_id: string
           status?: string
           updated_at?: string
+          visit_id?: string | null
         }
         Update: {
           created_at?: string
@@ -1141,8 +1163,17 @@ export type Database = {
           patient_id?: string
           status?: string
           updated_at?: string
+          visit_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "prescriptions_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "visits"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sponsor_statement_items: {
         Row: {
@@ -1498,6 +1529,7 @@ export type Database = {
           status: string
           transcribed_prescription_id: string | null
           updated_at: string
+          visit_id: string | null
         }
         Insert: {
           captured_by?: string | null
@@ -1515,6 +1547,7 @@ export type Database = {
           status?: string
           transcribed_prescription_id?: string | null
           updated_at?: string
+          visit_id?: string | null
         }
         Update: {
           captured_by?: string | null
@@ -1532,6 +1565,7 @@ export type Database = {
           status?: string
           transcribed_prescription_id?: string | null
           updated_at?: string
+          visit_id?: string | null
         }
         Relationships: [
           {
@@ -1553,6 +1587,13 @@ export type Database = {
             columns: ["transcribed_prescription_id"]
             isOneToOne: false
             referencedRelation: "prescriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "standing_orders_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "visits"
             referencedColumns: ["id"]
           },
         ]
@@ -1666,6 +1707,141 @@ export type Database = {
         }
         Relationships: []
       }
+      visit_attachments: {
+        Row: {
+          captured_at: string
+          captured_by: string | null
+          created_at: string
+          id: string
+          label: string | null
+          mime_type: string | null
+          patient_id: string
+          size_bytes: number | null
+          station: Database["public"]["Enums"]["visit_station"]
+          storage_path: string
+          visit_id: string
+        }
+        Insert: {
+          captured_at?: string
+          captured_by?: string | null
+          created_at?: string
+          id?: string
+          label?: string | null
+          mime_type?: string | null
+          patient_id: string
+          size_bytes?: number | null
+          station: Database["public"]["Enums"]["visit_station"]
+          storage_path: string
+          visit_id: string
+        }
+        Update: {
+          captured_at?: string
+          captured_by?: string | null
+          created_at?: string
+          id?: string
+          label?: string | null
+          mime_type?: string | null
+          patient_id?: string
+          size_bytes?: number | null
+          station?: Database["public"]["Enums"]["visit_station"]
+          storage_path?: string
+          visit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visit_attachments_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_attachments_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      visits: {
+        Row: {
+          cancel_reason: string | null
+          closed_at: string | null
+          closed_by: string | null
+          corporate_id: string | null
+          created_at: string
+          force_new_reason: string | null
+          id: string
+          insurance_plan: string | null
+          opened_at: string
+          opened_by: string | null
+          patient_id: string
+          presenting_complaint: string | null
+          sponsor_type: string | null
+          status: Database["public"]["Enums"]["visit_status"]
+          total_charged: number
+          total_paid: number
+          updated_at: string
+          visit_number: string
+        }
+        Insert: {
+          cancel_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          corporate_id?: string | null
+          created_at?: string
+          force_new_reason?: string | null
+          id?: string
+          insurance_plan?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          patient_id: string
+          presenting_complaint?: string | null
+          sponsor_type?: string | null
+          status?: Database["public"]["Enums"]["visit_status"]
+          total_charged?: number
+          total_paid?: number
+          updated_at?: string
+          visit_number: string
+        }
+        Update: {
+          cancel_reason?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          corporate_id?: string | null
+          created_at?: string
+          force_new_reason?: string | null
+          id?: string
+          insurance_plan?: string | null
+          opened_at?: string
+          opened_by?: string | null
+          patient_id?: string
+          presenting_complaint?: string | null
+          sponsor_type?: string | null
+          status?: Database["public"]["Enums"]["visit_status"]
+          total_charged?: number
+          total_paid?: number
+          updated_at?: string
+          visit_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "visits_corporate_id_fkey"
+            columns: ["corporate_id"]
+            isOneToOne: false
+            referencedRelation: "corporate_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visits_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vitals: {
         Row: {
           blood_pressure: string | null
@@ -1679,6 +1855,7 @@ export type Database = {
           respiratory_rate: number | null
           temperature: number | null
           updated_at: string
+          visit_id: string | null
           weight: number | null
         }
         Insert: {
@@ -1693,6 +1870,7 @@ export type Database = {
           respiratory_rate?: number | null
           temperature?: number | null
           updated_at?: string
+          visit_id?: string | null
           weight?: number | null
         }
         Update: {
@@ -1707,6 +1885,7 @@ export type Database = {
           respiratory_rate?: number | null
           temperature?: number | null
           updated_at?: string
+          visit_id?: string | null
           weight?: number | null
         }
         Relationships: [
@@ -1715,6 +1894,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vitals_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "visits"
             referencedColumns: ["id"]
           },
         ]
@@ -1736,6 +1922,7 @@ export type Database = {
         }
         Returns: number
       }
+      close_visit: { Args: { _visit_id: string }; Returns: undefined }
       generate_all_sponsor_statements: {
         Args: { _month: number; _year: number }
         Returns: number
@@ -1763,6 +1950,17 @@ export type Database = {
         Args: { _month: number; _year: number }
         Returns: string
       }
+      next_visit_number: { Args: never; Returns: string }
+      open_visit_for_patient: {
+        Args: {
+          _force_new?: boolean
+          _force_new_reason?: string
+          _patient_id: string
+          _presenting_complaint?: string
+        }
+        Returns: string
+      }
+      recalc_visit_totals: { Args: { _visit_id: string }; Returns: undefined }
       write_audit_log: {
         Args: {
           _action: string
@@ -1788,6 +1986,16 @@ export type Database = {
         | "doctor1"
         | "doctor2"
         | "claims_manager"
+      visit_station:
+        | "reception"
+        | "nurse"
+        | "doctor"
+        | "lab"
+        | "pharmacy"
+        | "billing"
+        | "cashier"
+        | "other"
+      visit_status: "open" | "settled" | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1929,6 +2137,17 @@ export const Constants = {
         "doctor2",
         "claims_manager",
       ],
+      visit_station: [
+        "reception",
+        "nurse",
+        "doctor",
+        "lab",
+        "pharmacy",
+        "billing",
+        "cashier",
+        "other",
+      ],
+      visit_status: ["open", "settled", "cancelled"],
     },
   },
 } as const

@@ -37,6 +37,10 @@ import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { useCorporateAccounts, CorporateAccount } from '@/hooks/useCorporateAccounts';
 import { supabase } from '@/integrations/supabase/client';
 import { BalanceRequestsPanel } from '@/components/billing/BalanceRequestsPanel';
+import { SnapToCard } from '@/components/visit/SnapToCard';
+import { SettleDischargeDialog } from '@/components/billing/SettleDischargeDialog';
+import { useActiveVisit } from '@/hooks/useVisits';
+import { CheckCircle2 } from 'lucide-react';
 
 const Billing = () => {
   const { patients, loading, updatePatientStatus, getPatientsByStatus, refreshPatients } = usePatients();
@@ -484,6 +488,7 @@ const Billing = () => {
                   </div>
                 )}
               </div>
+              {selectedPatient && <VisitCardBar patientId={selectedPatient.id} />}
             </div>
 
             {/* Corporate Account Info Panel */}
@@ -644,4 +649,39 @@ const Billing = () => {
   );
 };
 
+/** Small bar rendered above invoice generator showing active visit + Snap + Settle. */
+function VisitCardBar({ patientId }: { patientId: string }) {
+  const { visit, refresh } = useActiveVisit(patientId);
+  const [settleOpen, setSettleOpen] = useState(false);
+
+  if (!visit) {
+    return (
+      <div className="mt-3 p-2 rounded-md border border-dashed border-border text-xs text-muted-foreground">
+        No open visit card for this patient. Reception opens one at check-in.
+      </div>
+    );
+  }
+
+  const outstanding = Number(visit.total_charged) - Number(visit.total_paid);
+
+  return (
+    <div className="mt-3 flex items-center justify-between gap-2 p-2 rounded-md border border-primary/30 bg-primary/5 flex-wrap">
+      <div className="text-xs">
+        <span className="font-mono font-semibold">{visit.visit_number}</span>
+        <span className="text-muted-foreground"> · charged ₦{Number(visit.total_charged).toLocaleString()}</span>
+        {outstanding > 0 && <span className="text-destructive"> · owing ₦{outstanding.toLocaleString()}</span>}
+      </div>
+      <div className="flex items-center gap-2">
+        <SnapToCard patientId={patientId} station="billing" defaultLabel="Billing receipt" />
+        <Button size="sm" variant="hero" onClick={() => setSettleOpen(true)}>
+          <CheckCircle2 className="h-4 w-4 mr-1" />
+          Settle & Discharge
+        </Button>
+      </div>
+      <SettleDischargeDialog open={settleOpen} onOpenChange={setSettleOpen} visit={visit} onSettled={refresh} />
+    </div>
+  );
+}
+
 export default Billing;
+

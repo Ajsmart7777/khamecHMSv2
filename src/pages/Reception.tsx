@@ -59,9 +59,12 @@ import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { StandingOrderCaptureDialog } from '@/components/reception/StandingOrderCaptureDialog';
 import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
 import { PatientBalanceHistory } from '@/components/reception/PatientBalanceHistory';
-import { Stethoscope, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Stethoscope, ArrowUpCircle, ArrowDownCircle, LogIn } from 'lucide-react';
 import { BalanceRequestDialog } from '@/components/reception/BalanceRequestDialog';
 import { StaffSelector } from '@/components/reception/StaffSelector';
+import { CheckInDialog } from '@/components/visit/CheckInDialog';
+import { SnapToCard } from '@/components/visit/SnapToCard';
+import { useActiveVisit } from '@/hooks/useVisits';
 
 const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactNode; color: string; description: string }> = {
   normal: { 
@@ -305,6 +308,8 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isJourneyOpen, setIsJourneyOpen] = useState(false);
   const [isStandingOrderOpen, setIsStandingOrderOpen] = useState(false);
+  const [isCheckInOpen, setIsCheckInOpen] = useState(false);
+  const { visit: activeVisit } = useActiveVisit(patient.id);
   const [balanceDialog, setBalanceDialog] = useState<'topup' | 'refund' | null>(null);
   const canUseBalance = ['normal', 'staff', 'staff_family'].includes(patient.account_type);
   const [receiptData, setReceiptData] = useState<{
@@ -606,7 +611,35 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
           <Stethoscope className="h-5 w-5" />
           <span className="text-xs leading-tight text-center">Capture External Rx</span>
         </Button>
+
+        <Button
+          variant={activeVisit ? 'outline' : 'hero'}
+          className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-sm"
+          onClick={() => setIsCheckInOpen(true)}
+        >
+          <LogIn className="h-5 w-5" />
+          <span className="text-xs leading-tight text-center">
+            {activeVisit ? `Visit ${activeVisit.visit_number}` : 'Check In (Open Visit Card)'}
+          </span>
+        </Button>
       </div>
+
+      {activeVisit && (
+        <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Active visit card</p>
+            <p className="text-sm font-mono font-semibold">{activeVisit.visit_number}</p>
+          </div>
+          <SnapToCard patientId={patient.id} station="reception" defaultLabel="Reception note" />
+        </div>
+      )}
+
+      <CheckInDialog
+        open={isCheckInOpen}
+        onOpenChange={setIsCheckInOpen}
+        patientId={patient.id}
+        patientName={`${patient.first_name} ${patient.last_name}`}
+      />
 
       {canUseBalance && (
         <div className="grid grid-cols-2 gap-4">

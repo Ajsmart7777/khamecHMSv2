@@ -214,6 +214,10 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
   };
 
   const handleSendToDoctor = async () => {
+    if (!assignedDoctor) {
+      toast.error("Select a doctor", { description: "Choose Doctor 1 or Doctor 2 before sending." });
+      return;
+    }
     if (!vitals.temperature || !vitals.bloodPressure || !vitals.pulse) {
       toast.error("Incomplete Vitals", {
         description: "Please record temperature, blood pressure, and pulse before sending.",
@@ -222,7 +226,7 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
     }
     const saved = await saveVitalsToDb();
     if (saved) {
-      onComplete(patient.id);
+      onComplete(patient.id, assignedDoctor);
     }
   };
 

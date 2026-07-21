@@ -97,6 +97,18 @@ const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactN
     color: 'bg-accent/10 text-accent border-accent/30',
     description: 'Pre-paid retainer account'
   },
+  staff: {
+    label: 'Staff',
+    icon: <Briefcase className="h-4 w-4" />,
+    color: 'bg-success/10 text-success border-success/30',
+    description: 'Hospital staff — fully covered'
+  },
+  staff_family: {
+    label: 'Staff Family',
+    icon: <Heart className="h-4 w-4" />,
+    color: 'bg-primary/10 text-primary border-primary/30',
+    description: 'Staff dependent — 50% covered'
+  },
 };
 
 const Reception = () => {

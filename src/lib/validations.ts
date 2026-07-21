@@ -49,7 +49,7 @@ export const patientSchema = z.object({
   
   blood_group: z.enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']).optional().nullable(),
   
-  account_type: z.enum(['normal', 'insurance', 'corporate', 'nhis', 'hmo', 'retainer'], {
+  account_type: z.enum(['normal', 'insurance', 'corporate', 'nhis', 'hmo', 'retainer', 'staff', 'staff_family'], {
     required_error: 'Account type is required',
   }),
   

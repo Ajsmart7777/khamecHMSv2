@@ -25,7 +25,9 @@ const accountTypeLabels: Record<AccountType, string> = {
   corporate: 'Corporate',
   nhis: 'NHIS',
   hmo: 'HMO',
-  retainer: 'Retainer'
+  retainer: 'Retainer',
+  staff: 'Staff',
+  staff_family: 'Staff Family'
 };
 
 export function RealTimePatientList({

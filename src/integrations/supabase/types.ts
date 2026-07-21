@@ -56,6 +56,132 @@ export type Database = {
         }
         Relationships: []
       }
+      balance_requests: {
+        Row: {
+          amount: number | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          notes: string | null
+          patient_id: string
+          payment_method: string | null
+          rejection_reason: string | null
+          request_type: string
+          requested_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          notes?: string | null
+          patient_id: string
+          payment_method?: string | null
+          rejection_reason?: string | null
+          request_type: string
+          requested_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          notes?: string | null
+          patient_id?: string
+          payment_method?: string | null
+          rejection_reason?: string | null
+          request_type?: string
+          requested_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "balance_requests_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      balance_transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at: string
+          id: string
+          notes: string | null
+          patient_id: string
+          payment_method: string | null
+          performed_by: string | null
+          related_invoice_id: string | null
+          related_request_id: string | null
+          transaction_type: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          patient_id: string
+          payment_method?: string | null
+          performed_by?: string | null
+          related_invoice_id?: string | null
+          related_request_id?: string | null
+          transaction_type: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          balance_before?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          patient_id?: string
+          payment_method?: string | null
+          performed_by?: string | null
+          related_invoice_id?: string | null
+          related_request_id?: string | null
+          transaction_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "balance_transactions_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "balance_transactions_related_invoice_id_fkey"
+            columns: ["related_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "balance_transactions_related_request_id_fkey"
+            columns: ["related_request_id"]
+            isOneToOne: false
+            referencedRelation: "balance_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       corporate_accounts: {
         Row: {
           address: string | null
@@ -1107,6 +1233,48 @@ export type Database = {
           },
         ]
       }
+      staff_family_members: {
+        Row: {
+          created_at: string
+          id: string
+          patient_id: string
+          salary_deduction_consent: boolean
+          staff_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          patient_id: string
+          salary_deduction_consent?: boolean
+          staff_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          patient_id?: string
+          salary_deduction_consent?: boolean
+          staff_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_family_members_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: true
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_family_members_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_leave: {
         Row: {
           approved_at: string | null
@@ -1403,6 +1571,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      adjust_patient_balance: {
+        Args: {
+          _delta: number
+          _notes?: string
+          _patient_id: string
+          _payment_method?: string
+          _related_invoice_id?: string
+          _related_request_id?: string
+          _transaction_type: string
+        }
+        Returns: number
+      }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]

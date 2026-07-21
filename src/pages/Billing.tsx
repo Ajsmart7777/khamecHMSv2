@@ -36,6 +36,7 @@ import { useInvoices } from '@/hooks/useInvoices';
 import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { useCorporateAccounts, CorporateAccount } from '@/hooks/useCorporateAccounts';
 import { supabase } from '@/integrations/supabase/client';
+import { BalanceRequestsPanel } from '@/components/billing/BalanceRequestsPanel';
 
 const Billing = () => {
   const { patients, loading, updatePatientStatus, getPatientsByStatus, refreshPatients } = usePatients();
@@ -321,6 +322,12 @@ const Billing = () => {
         <Button variant="ghost" size="sm" onClick={() => { refreshPatients(); refreshInvoices(); }} className="h-7 px-2 ml-auto">
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
+      </div>
+
+      {/* Cashier Panels */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+        <BalanceRequestsPanel type="topup" />
+        <BalanceRequestsPanel type="refund" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -24,6 +24,8 @@ const accountTypeLabels: Record<AccountType, string> = {
   nhis: 'NHIS',
   hmo: 'HMO',
   retainer: 'Retainer',
+  staff: 'Staff',
+  staff_family: 'Staff Family',
 };
 
 export function ActivePatients() {

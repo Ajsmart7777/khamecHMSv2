@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.enforce_family_member_limit() FROM PUBLIC, anon, authenticated;

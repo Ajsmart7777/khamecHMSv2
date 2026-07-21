@@ -5,10 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Filter, Eye } from 'lucide-react';
+import { FileText, Filter, Eye, Download, Loader2 } from 'lucide-react';
 import { useClaimsQueue, Visit } from '@/hooks/useVisits';
 import { usePatients } from '@/contexts/PatientContext';
 import { VisitEnvelopeDialog } from '@/components/visit/VisitEnvelopeDialog';
+import { downloadClaimsPacketPdf, downloadBulkClaimsPacketsPdf } from '@/lib/claimsPacketPdf';
+import { toast } from 'sonner';
 
 const SPONSORS = ['corporate', 'retainer', 'nhia', 'hmo', 'katchma', 'staff', 'staff_family'] as const;
 

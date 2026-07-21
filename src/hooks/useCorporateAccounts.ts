@@ -29,10 +29,12 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
 
   const fetchAccounts = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from('corporate_accounts')
       .select('*')
       .order('company_name', { ascending: true });
+    if (typeFilter) query = query.eq('account_type', typeFilter);
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching corporate accounts:', error);
@@ -42,7 +44,7 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
       const { data: patients } = await supabase
         .from('patients')
         .select('corporate_id')
-        .eq('account_type', 'corporate');
+        .in('account_type', ['corporate', 'retainer']);
 
       const countMap: Record<string, number> = {};
       (patients || []).forEach((p: { corporate_id: string | null }) => {
@@ -53,6 +55,7 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
 
       const mapped = (data || []).map(a => ({
         ...a,
+        account_type: (a.account_type || 'corporate') as SponsorAccountType,
         treatment_limit: Number(a.treatment_limit),
         balance: Number(a.balance),
         discount_percentage: Number(a.discount_percentage),
@@ -62,7 +65,7 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
       setAccounts(mapped);
     }
     setLoading(false);
-  }, []);
+  }, [typeFilter]);
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 

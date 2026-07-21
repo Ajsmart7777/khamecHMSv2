@@ -195,6 +195,17 @@ export function SponsorStatementsPanel({ accountType }: { accountType: 'corporat
                   <Button size="sm" variant="outline" onClick={() => openPrint(s)}>
                     <Printer className="h-3.5 w-3.5 mr-1" /> View / Print
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownloadOne(s)}
+                    disabled={downloadingId === s.id}
+                  >
+                    {downloadingId === s.id
+                      ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                      : <Download className="h-3.5 w-3.5 mr-1" />}
+                    PDF
+                  </Button>
                   {s.status === 'draft' && (
                     <Button size="sm" variant="outline" onClick={() => updateStatus(s.id, 'finalized')}>
                       <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Finalize

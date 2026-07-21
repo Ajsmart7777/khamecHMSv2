@@ -77,8 +77,8 @@ function Thumb({ att, canDelete, onDelete }: { att: VisitAttachment; canDelete: 
 
 export function VisitAttachmentGrid({ visitId }: { visitId: string }) {
   const { attachments, loading, refresh } = useVisitAttachments(visitId);
-  const { userRole } = useAuth();
-  const canDelete = userRole === 'admin';
+  const { role } = useAuth();
+  const canDelete = role === 'admin';
 
   if (loading) return <p className="text-sm text-muted-foreground text-center py-6">Loading photos…</p>;
   if (attachments.length === 0) {

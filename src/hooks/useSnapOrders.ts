@@ -38,6 +38,12 @@ export interface SnapOrder {
   fulfilled_by: string | null;
   fulfilled_at: string | null;
   rejection_reason: string | null;
+  original_sender_role: string | null;
+  parent_snap_id: string | null;
+  returned_to: string | null;
+  returned_at: string | null;
+  ack_by: string | null;
+  ack_at: string | null;
   created_at: string;
   updated_at: string;
 }

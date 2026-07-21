@@ -646,6 +646,8 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
 
       <PatientStandingOrders patientId={patient.id} />
 
+      <PatientBalanceHistory patientId={patient.id} />
+
 
 
       {/* Invoice Summary */}

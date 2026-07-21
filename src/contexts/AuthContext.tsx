@@ -25,6 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [roleLoading, setRoleLoading] = useState(false);
 
   const fetchUserRole = async (userId: string) => {
     try {
@@ -90,9 +91,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          setRoleLoading(true);
           const fetchedRole = await fetchUserRole(session.user.id);
           if (isMounted) {
             setRole(fetchedRole);
+            setRoleLoading(false);
           }
           
           // Start proactive refresh interval (check every 4 minutes)
@@ -122,12 +125,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session?.user ?? null);
         
         if (session?.user) {
+          setRoleLoading(true);
           // Use setTimeout to prevent Supabase deadlock
           setTimeout(async () => {
             if (!isMounted) return;
             const fetchedRole = await fetchUserRole(session.user.id);
             if (isMounted) {
               setRole(fetchedRole);
+              setRoleLoading(false);
             }
           }, 0);
           
@@ -137,6 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } else {
           setRole(null);
+          setRoleLoading(false);
           // Clear refresh interval when logged out
           if (refreshInterval) {
             clearInterval(refreshInterval);
@@ -221,7 +227,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         session,
         role,
-        loading,
+        loading: loading || roleLoading,
         signIn,
         signUp,
         signOut,

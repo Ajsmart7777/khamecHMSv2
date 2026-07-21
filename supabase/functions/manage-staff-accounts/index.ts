@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
           });
         }
 
-        const validRolesForChange = ['admin', 'doctor', 'nurse', 'receptionist', 'pharmacist', 'lab_tech', 'billing', 'store'];
+        const validRolesForChange = ['admin', 'doctor', 'doctor1', 'doctor2', 'nurse', 'receptionist', 'pharmacist', 'lab_tech', 'billing', 'store', 'accountant'];
         if (!validRolesForChange.includes(body.role)) {
           return new Response(JSON.stringify({ error: `Invalid role. Must be one of: ${validRolesForChange.join(', ')}` }), {
             status: 400,

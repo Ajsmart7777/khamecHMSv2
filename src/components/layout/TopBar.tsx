@@ -44,8 +44,7 @@ export function TopBar({ title, subtitle, onMenuClick, showMenuButton }: TopBarP
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4 shrink-0">
-          {/* Shift Clock Panel */}
-          <ShiftClockPanel />
+
 
           {/* Date */}
           <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">

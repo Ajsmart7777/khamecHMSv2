@@ -317,7 +317,7 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
                 {filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
-                      {accounts.length === 0 ? 'No corporate accounts yet. Click "Add {entityLabel}" to create one.' : 'No results found.'}
+                      {accounts.length === 0 ? `No ${singularLower} accounts yet. Click "Add ${entityLabel}" to create one.` : 'No results found.'}
                     </TableCell>
                   </TableRow>
                 )}

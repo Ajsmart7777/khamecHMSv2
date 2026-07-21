@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { Visit } from '@/hooks/useVisits';
 import { VisitAttachmentGrid } from './VisitAttachmentGrid';
+import { VisitTimeline } from './VisitTimeline';
 import { Activity, Pill, FlaskConical, Receipt } from 'lucide-react';
 
 interface Props {

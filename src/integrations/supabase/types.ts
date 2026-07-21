@@ -1175,6 +1175,145 @@ export type Database = {
           },
         ]
       }
+      pricelist: {
+        Row: {
+          active: boolean
+          category: string
+          created_at: string
+          id: string
+          name: string
+          notes: string | null
+          pack_qty: number
+          price: number
+          search_text: string | null
+          size: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          category: string
+          created_at?: string
+          id?: string
+          name: string
+          notes?: string | null
+          pack_qty?: number
+          price: number
+          search_text?: string | null
+          size?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          category?: string
+          created_at?: string
+          id?: string
+          name?: string
+          notes?: string | null
+          pack_qty?: number
+          price?: number
+          search_text?: string | null
+          size?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      snap_orders: {
+        Row: {
+          billed_at: string | null
+          billed_by: string | null
+          created_at: string
+          created_by: string | null
+          fulfilled_at: string | null
+          fulfilled_by: string | null
+          id: string
+          invoice_id: string | null
+          matched_items: Json
+          note: string | null
+          ocr_confidence: number | null
+          ocr_text: string | null
+          order_type: string
+          paid_at: string | null
+          patient_id: string
+          photo_path: string
+          rejection_reason: string | null
+          source_role: string
+          status: string
+          target_station: string
+          updated_at: string
+          visit_id: string | null
+        }
+        Insert: {
+          billed_at?: string | null
+          billed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          fulfilled_at?: string | null
+          fulfilled_by?: string | null
+          id?: string
+          invoice_id?: string | null
+          matched_items?: Json
+          note?: string | null
+          ocr_confidence?: number | null
+          ocr_text?: string | null
+          order_type: string
+          paid_at?: string | null
+          patient_id: string
+          photo_path: string
+          rejection_reason?: string | null
+          source_role: string
+          status?: string
+          target_station: string
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Update: {
+          billed_at?: string | null
+          billed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          fulfilled_at?: string | null
+          fulfilled_by?: string | null
+          id?: string
+          invoice_id?: string | null
+          matched_items?: Json
+          note?: string | null
+          ocr_confidence?: number | null
+          ocr_text?: string | null
+          order_type?: string
+          paid_at?: string | null
+          patient_id?: string
+          photo_path?: string
+          rejection_reason?: string | null
+          source_role?: string
+          status?: string
+          target_station?: string
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "snap_orders_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "snap_orders_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "snap_orders_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sponsor_statement_items: {
         Row: {
           amount: number
@@ -1961,6 +2100,8 @@ export type Database = {
         Returns: string
       }
       recalc_visit_totals: { Args: { _visit_id: string }; Returns: undefined }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
       write_audit_log: {
         Args: {
           _action: string

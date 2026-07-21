@@ -398,7 +398,18 @@ const Admin = () => {
           <div className="bg-card rounded-xl border border-border p-6">
             <StaffAccountManager />
           </div>
+
+        <TabsContent value="wards" className="space-y-6">
+          <div className="bg-card rounded-xl border border-border p-4 sm:p-6">
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <BedDouble className="h-5 w-5 text-module-admin" />
+              Wards, Rooms & Beds
+            </h3>
+            <WardsRoomsManager />
+          </div>
         </TabsContent>
+
+
 
 
 

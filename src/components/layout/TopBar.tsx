@@ -1,7 +1,7 @@
 import { Search, User, Calendar, Menu } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { ShiftClockPanel } from '@/components/shift/ShiftClockPanel';
+
 import { NotificationPanel } from '@/components/layout/NotificationPanel';
 import { useAuth } from '@/contexts/AuthContext';
 

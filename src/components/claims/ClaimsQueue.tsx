@@ -196,6 +196,16 @@ export function ClaimsQueue() {
                           <Button size="sm" variant="outline" onClick={() => setOpen(v)}>
                             <Eye className="h-3 w-3 mr-1" /> View
                           </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleSingle(v)}
+                            disabled={downloadingId === v.id || !!bulk}
+                          >
+                            {downloadingId === v.id
+                              ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              : <Download className="h-3 w-3 mr-1" />}
+                            Packet
+                          </Button>
                         </div>
                       </div>
                     );

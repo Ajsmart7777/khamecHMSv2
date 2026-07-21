@@ -20,6 +20,34 @@ export function ClaimsQueue() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [open, setOpen] = useState<Visit | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
+
+  async function handleSingle(v: Visit) {
+    setDownloadingId(v.id);
+    try {
+      await downloadClaimsPacketPdf(v);
+      toast.success('Claims packet downloaded');
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Failed to build packet');
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
+  async function handleBulk(list: Visit[], label: string) {
+    if (list.length === 0) return;
+    setBulk({ done: 0, total: list.length });
+    try {
+      await downloadBulkClaimsPacketsPdf(list, label, (done, total) => setBulk({ done, total }));
+      toast.success(`Exported ${list.length} packets`);
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Bulk export failed');
+    } finally {
+      setBulk(null);
+    }
+  }
+
 
   const filters = useMemo(
     () => ({

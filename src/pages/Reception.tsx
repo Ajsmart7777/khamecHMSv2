@@ -70,11 +70,11 @@ const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactN
     color: 'bg-secondary text-secondary-foreground',
     description: 'Standard walk-in patient'
   },
-  insurance: { 
-    label: 'Insurance', 
-    icon: <Shield className="h-4 w-4" />, 
+  katchma: {
+    label: 'Katchma',
+    icon: <Shield className="h-4 w-4" />,
     color: 'bg-info/10 text-info border-info/30',
-    description: 'Private health insurance'
+    description: 'Katchma State Health Insurance'
   },
   corporate: { 
     label: 'Corporate', 
@@ -455,7 +455,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
         </div>
 
         {/* Insurance/Corporate Info */}
-        {(patient.account_type === 'insurance' || patient.account_type === 'hmo') && patient.insurance_provider && (
+        {(patient.account_type === 'katchma' || patient.account_type === 'hmo' || patient.account_type === 'nhis') && patient.insurance_provider && (
           <div className="mt-4 p-3 rounded-lg bg-info/5 border border-info/20">
             <div className="flex items-center gap-2 text-sm">
               <Shield className="h-4 w-4 text-info" />
@@ -998,7 +998,7 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     }
   };
 
-  const showInsuranceFields = ['insurance', 'hmo', 'nhis'].includes(formData.account_type);
+  const showInsuranceFields = ['katchma', 'hmo', 'nhis'].includes(formData.account_type);
   const showCorporateFields = formData.account_type === 'corporate';
   const showRetainerFields = formData.account_type === 'retainer';
   const showStaffSelector = formData.account_type === 'staff';

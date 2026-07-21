@@ -53,7 +53,7 @@ export const mockPatients: Patient[] = [
     bloodGroup: 'B+',
     allergies: ['Aspirin', 'Sulfa drugs'],
     status: 'waiting',
-    accountType: 'insurance',
+    accountType: 'normal',
     insuranceProvider: 'Leadway Health',
     insurancePolicyNumber: 'LWH-2024-12345',
     balance: 25000,

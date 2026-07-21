@@ -396,15 +396,8 @@ const Admin = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="shifts" className="space-y-6">
-          <div className="bg-card rounded-xl border border-border p-6">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Clock className="h-5 w-5 text-module-admin" />
-              Shift Management
-            </h3>
-            <ShiftManagement />
-          </div>
-        </TabsContent>
+
+
 
         <TabsContent value="audit" className="space-y-6">
           <div className="bg-card rounded-xl border border-border p-6">

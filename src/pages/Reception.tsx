@@ -58,6 +58,7 @@ import { useInvoices } from '@/hooks/useInvoices';
 import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { StandingOrderCaptureDialog } from '@/components/reception/StandingOrderCaptureDialog';
 import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
+import { PatientBalanceHistory } from '@/components/reception/PatientBalanceHistory';
 import { Stethoscope, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { BalanceRequestDialog } from '@/components/reception/BalanceRequestDialog';
 
@@ -644,6 +645,8 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
       />
 
       <PatientStandingOrders patientId={patient.id} />
+
+      <PatientBalanceHistory patientId={patient.id} />
 
 
 

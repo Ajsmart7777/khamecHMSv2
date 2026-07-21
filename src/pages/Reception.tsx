@@ -57,6 +57,7 @@ import { paymentAuditLogger } from '@/lib/auditLogger';
 import { useInvoices } from '@/hooks/useInvoices';
 import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { StandingOrderCaptureDialog } from '@/components/reception/StandingOrderCaptureDialog';
+import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
 import { Stethoscope } from 'lucide-react';
 
 const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactNode; color: string; description: string }> = {

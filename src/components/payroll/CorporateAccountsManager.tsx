@@ -11,7 +11,7 @@ import {
   Building2, Plus, Search, Edit3, Trash2, Users, Loader2, Eye, Wallet, RefreshCw,
   Phone, Mail, MapPin, AlertCircle, FileText
 } from 'lucide-react';
-import { useCorporateAccounts, CorporateAccount } from '@/hooks/useCorporateAccounts';
+import { useCorporateAccounts, CorporateAccount, SponsorAccountType } from '@/hooks/useCorporateAccounts';
 import { toast } from '@/hooks/use-toast';
 
 interface LinkedPatient {

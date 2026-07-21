@@ -995,6 +995,7 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
 
   const showInsuranceFields = ['insurance', 'hmo', 'nhis'].includes(formData.account_type);
   const showCorporateFields = formData.account_type === 'corporate';
+  const showRetainerFields = formData.account_type === 'retainer';
   const showStaffSelector = formData.account_type === 'staff';
   const showFamilyStaffSelector = formData.account_type === 'staff_family';
 

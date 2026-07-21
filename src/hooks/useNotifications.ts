@@ -145,7 +145,7 @@ export async function createNotification(params: {
         type: params.type || 'info',
         link: params.link || null,
         resource_id: params.resource_id || null,
-        target_role: params.target_role || 'all',
+        target_role: params.target_role ?? null,
         user_id: params.user_id || null,
       }]);
 

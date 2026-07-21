@@ -87,11 +87,16 @@ export function VisitEnvelopeDialog({ open, onOpenChange, visit }: Props) {
           </div>
         )}
 
-        <Tabs defaultValue="photos">
+        <Tabs defaultValue="timeline">
           <TabsList>
+            <TabsTrigger value="timeline">Timeline</TabsTrigger>
             <TabsTrigger value="photos">Photos</TabsTrigger>
             <TabsTrigger value="entries">Structured Entries</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="timeline" className="mt-3">
+            <VisitTimeline visitId={visit.id} />
+          </TabsContent>
 
           <TabsContent value="photos" className="mt-3">
             <VisitAttachmentGrid visitId={visit.id} />

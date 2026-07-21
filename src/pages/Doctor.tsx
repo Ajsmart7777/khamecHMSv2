@@ -49,14 +49,22 @@ import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
 import { supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 import { PatientHistoryDialog } from '@/components/doctor/PatientHistoryDialog';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Doctor = () => {
   const { patients, loading, refreshPatients, updatePatientStatus, getPatientsByStatus } = usePatients();
   const { labRequests } = useLabRequests();
+  const { role } = useAuth();
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-  
-  const doctorQueue = getPatientsByStatus(['with_doctor', 'with_nurse']);
-  const labReturnedPatients = patients.filter(p => p.status === 'with_doctor' && labRequests.some(lr => lr.patient_id === p.id && lr.status === 'completed'));
+
+  const myDoctorKey: 'doctor1' | 'doctor2' | null =
+    role === 'doctor1' ? 'doctor1' : role === 'doctor2' ? 'doctor2' : null;
+
+  const baseQueue = getPatientsByStatus(['with_doctor', 'with_nurse']);
+  const doctorQueue = myDoctorKey
+    ? baseQueue.filter(p => p.assigned_doctor === myDoctorKey)
+    : baseQueue;
+  const labReturnedPatients = patients.filter(p => p.status === 'with_doctor' && (!myDoctorKey || p.assigned_doctor === myDoctorKey) && labRequests.some(lr => lr.patient_id === p.id && lr.status === 'completed'));
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
   const handlePatientComplete = async (patientId: string, destination: 'billing' | 'lab' | 'admitting') => {

@@ -31,6 +31,7 @@ import { usePatients, Patient } from '@/contexts/PatientContext';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const NurseStation = () => {
   const { patients, loading, refreshPatients, updatePatientStatus, getPatientsByStatus } = usePatients();
@@ -40,12 +41,21 @@ const NurseStation = () => {
   const nurseQueue = getPatientsByStatus(['waiting', 'with_nurse']);
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
-  const handlePatientComplete = async (patientId: string) => {
+  const handlePatientComplete = async (patientId: string, assignedDoctor: 'doctor1' | 'doctor2') => {
     const patient = patients.find(p => p.id === patientId);
+    const { error: assignError } = await supabase
+      .from('patients')
+      .update({ assigned_doctor: assignedDoctor })
+      .eq('id', patientId);
+    if (assignError) {
+      logError('Failed to assign doctor', assignError);
+      toast.error('Failed to assign doctor');
+      return;
+    }
     const success = await updatePatientStatus(patientId, 'with_doctor');
     if (success && patient) {
       toast.success("Patient Sent to Doctor", {
-        description: `${patient.first_name} ${patient.last_name} has been sent to the doctor.`,
+        description: `${patient.first_name} ${patient.last_name} sent to ${assignedDoctor === 'doctor1' ? 'Doctor 1' : 'Doctor 2'}.`,
       });
       setSelectedPatientId(null);
     }
@@ -136,7 +146,7 @@ const NurseStation = () => {
 
 interface VitalsFormProps {
   patient: Patient;
-  onComplete: (patientId: string) => void;
+  onComplete: (patientId: string, assignedDoctor: 'doctor1' | 'doctor2') => void;
 }
 
 function VitalsForm({ patient, onComplete }: VitalsFormProps) {
@@ -150,6 +160,7 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
     height: '',
     notes: ''
   });
+  const [assignedDoctor, setAssignedDoctor] = useState<'doctor1' | 'doctor2' | ''>('');
   const [isSaving, setIsSaving] = useState(false);
   const [isCallDialogOpen, setIsCallDialogOpen] = useState(false);
 
@@ -203,6 +214,10 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
   };
 
   const handleSendToDoctor = async () => {
+    if (!assignedDoctor) {
+      toast.error("Select a doctor", { description: "Choose Doctor 1 or Doctor 2 before sending." });
+      return;
+    }
     if (!vitals.temperature || !vitals.bloodPressure || !vitals.pulse) {
       toast.error("Incomplete Vitals", {
         description: "Please record temperature, blood pressure, and pulse before sending.",
@@ -211,7 +226,7 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
     }
     const saved = await saveVitalsToDb();
     if (saved) {
-      onComplete(patient.id);
+      onComplete(patient.id, assignedDoctor);
     }
   };
 
@@ -339,6 +354,21 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
         </div>
       </div>
 
+      {/* Assign Doctor */}
+      <div className="bg-card rounded-xl border border-border p-4">
+        <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+          <Send className="h-4 w-4 text-module-nurse" />
+          Assign to Doctor *
+        </label>
+        <Select value={assignedDoctor} onValueChange={(v) => setAssignedDoctor(v as 'doctor1' | 'doctor2')}>
+          <SelectTrigger><SelectValue placeholder="Select Doctor 1 or Doctor 2" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="doctor1">Doctor 1</SelectItem>
+            <SelectItem value="doctor2">Doctor 2</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Actions */}
       <div className="flex justify-end gap-3">
         <Button variant="outline" onClick={handleSaveDraft} disabled={isSaving} className="press-effect">
@@ -348,8 +378,12 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
         <Button 
           variant="outline" 
           onClick={() => {
+            if (!assignedDoctor) {
+              toast.error("Select a doctor", { description: "Choose Doctor 1 or Doctor 2 first." });
+              return;
+            }
             toast.info("Skipping vitals", { description: "Sending patient directly to doctor without vitals." });
-            onComplete(patient.id);
+            onComplete(patient.id, assignedDoctor);
           }} 
           className="press-effect"
         >

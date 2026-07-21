@@ -1,0 +1,1 @@
+ALTER TABLE public.patients ADD COLUMN IF NOT EXISTS assigned_doctor TEXT CHECK (assigned_doctor IN ('doctor1','doctor2'));

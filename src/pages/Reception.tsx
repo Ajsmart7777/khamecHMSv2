@@ -1148,6 +1148,16 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
         {/* Conditional Corporate Fields */}
         {showCorporateFields && (
           <CorporateSelector
+            accountType="corporate"
+            value={formData.corporate_id}
+            onChange={(v) => setFormData({...formData, corporate_id: v})}
+          />
+        )}
+
+        {/* Conditional Retainer Fields */}
+        {showRetainerFields && (
+          <CorporateSelector
+            accountType="retainer"
             value={formData.corporate_id}
             onChange={(v) => setFormData({...formData, corporate_id: v})}
           />

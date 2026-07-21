@@ -68,6 +68,7 @@ export type Database = {
           id: string
           notes: string | null
           phone: string
+          sponsor_type: string
           status: string
           treatment_limit: number
           updated_at: string
@@ -83,6 +84,7 @@ export type Database = {
           id?: string
           notes?: string | null
           phone: string
+          sponsor_type?: string
           status?: string
           treatment_limit?: number
           updated_at?: string
@@ -98,6 +100,7 @@ export type Database = {
           id?: string
           notes?: string | null
           phone?: string
+          sponsor_type?: string
           status?: string
           treatment_limit?: number
           updated_at?: string
@@ -140,10 +143,44 @@ export type Database = {
         }
         Relationships: []
       }
+      external_doctors: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          phone: string | null
+          schedule_notes: string | null
+          specialty: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          phone?: string | null
+          schedule_notes?: string | null
+          specialty?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          phone?: string | null
+          schedule_notes?: string | null
+          specialty?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       insurance_claims: {
         Row: {
           approved_at: string | null
           claim_number: string
+          corporate_account_id: string | null
           covered_amount: number
           created_at: string
           created_by: string | null
@@ -153,8 +190,9 @@ export type Database = {
           paid_at: string | null
           patient_copay: number
           patient_id: string
-          provider_id: string
+          provider_id: string | null
           rejection_reason: string | null
+          sponsor_type: string
           status: string
           submitted_at: string
           total_amount: number
@@ -163,6 +201,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           claim_number: string
+          corporate_account_id?: string | null
           covered_amount?: number
           created_at?: string
           created_by?: string | null
@@ -172,8 +211,9 @@ export type Database = {
           paid_at?: string | null
           patient_copay?: number
           patient_id: string
-          provider_id: string
+          provider_id?: string | null
           rejection_reason?: string | null
+          sponsor_type?: string
           status?: string
           submitted_at?: string
           total_amount?: number
@@ -182,6 +222,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           claim_number?: string
+          corporate_account_id?: string | null
           covered_amount?: number
           created_at?: string
           created_by?: string | null
@@ -191,14 +232,22 @@ export type Database = {
           paid_at?: string | null
           patient_copay?: number
           patient_id?: string
-          provider_id?: string
+          provider_id?: string | null
           rejection_reason?: string | null
+          sponsor_type?: string
           status?: string
           submitted_at?: string
           total_amount?: number
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "insurance_claims_corporate_account_id_fkey"
+            columns: ["corporate_account_id"]
+            isOneToOne: false
+            referencedRelation: "corporate_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "insurance_claims_invoice_id_fkey"
             columns: ["invoice_id"]
@@ -364,48 +413,67 @@ export type Database = {
       }
       invoices: {
         Row: {
+          corporate_account_id: string | null
           created_at: string
           created_by: string | null
+          discount_amount: number
           id: string
           invoice_number: string
           notes: string | null
+          original_amount: number
           paid_amount: number
           paid_at: string | null
           patient_id: string
           payment_method: string | null
+          sponsor_type: string | null
           status: string
           total_amount: number
           updated_at: string
         }
         Insert: {
+          corporate_account_id?: string | null
           created_at?: string
           created_by?: string | null
+          discount_amount?: number
           id?: string
           invoice_number: string
           notes?: string | null
+          original_amount?: number
           paid_amount?: number
           paid_at?: string | null
           patient_id: string
           payment_method?: string | null
+          sponsor_type?: string | null
           status?: string
           total_amount?: number
           updated_at?: string
         }
         Update: {
+          corporate_account_id?: string | null
           created_at?: string
           created_by?: string | null
+          discount_amount?: number
           id?: string
           invoice_number?: string
           notes?: string | null
+          original_amount?: number
           paid_amount?: number
           paid_at?: string | null
           patient_id?: string
           payment_method?: string | null
+          sponsor_type?: string | null
           status?: string
           total_amount?: number
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "invoices_corporate_account_id_fkey"
+            columns: ["corporate_account_id"]
+            isOneToOne: false
+            referencedRelation: "corporate_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "invoices_patient_id_fkey"
             columns: ["patient_id"]
@@ -1088,6 +1156,79 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      standing_orders: {
+        Row: {
+          captured_by: string | null
+          created_at: string
+          expiry_date: string | null
+          external_doctor_id: string | null
+          external_doctor_name: string | null
+          fulfilled_at: string | null
+          fulfilled_by: string | null
+          id: string
+          notes: string | null
+          patient_id: string
+          photo_url: string
+          status: string
+          transcribed_prescription_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          captured_by?: string | null
+          created_at?: string
+          expiry_date?: string | null
+          external_doctor_id?: string | null
+          external_doctor_name?: string | null
+          fulfilled_at?: string | null
+          fulfilled_by?: string | null
+          id?: string
+          notes?: string | null
+          patient_id: string
+          photo_url: string
+          status?: string
+          transcribed_prescription_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          captured_by?: string | null
+          created_at?: string
+          expiry_date?: string | null
+          external_doctor_id?: string | null
+          external_doctor_name?: string | null
+          fulfilled_at?: string | null
+          fulfilled_by?: string | null
+          id?: string
+          notes?: string | null
+          patient_id?: string
+          photo_url?: string
+          status?: string
+          transcribed_prescription_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "standing_orders_external_doctor_id_fkey"
+            columns: ["external_doctor_id"]
+            isOneToOne: false
+            referencedRelation: "external_doctors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "standing_orders_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "standing_orders_transcribed_prescription_id_fkey"
+            columns: ["transcribed_prescription_id"]
+            isOneToOne: false
+            referencedRelation: "prescriptions"
             referencedColumns: ["id"]
           },
         ]

@@ -19,6 +19,7 @@ import {
 import { mockInventory } from '@/data/mockData';
 import { toast } from 'sonner';
 import { SnapToCard } from '@/components/visit/SnapToCard';
+import { PharmacySnapQueue } from '@/components/pharmacy/PharmacySnapQueue';
 import { prescriptionAuditLogger } from '@/lib/auditLogger';
 import {
   Dialog,
@@ -249,6 +250,10 @@ const Pharmacy = () => {
         <Button variant="ghost" size="sm" onClick={() => { refreshPatients(); refreshPrescriptions(); }} className="h-7 px-2 ml-auto">
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
+      </div>
+
+      <div className="mb-6">
+        <PharmacySnapQueue />
       </div>
 
       <div className="mb-6 bg-card rounded-xl border border-border p-4">

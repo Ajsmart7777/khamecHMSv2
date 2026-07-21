@@ -1,0 +1,223 @@
+import { useMemo, useState } from 'react';
+import { usePricelist, PricelistItem, PricelistCategory } from '@/hooks/usePricelist';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { toast } from 'sonner';
+
+const CATEGORIES: { value: PricelistCategory; label: string }[] = [
+  { value: 'drug_tablet', label: 'Drug — Tablet' },
+  { value: 'drug_capsule', label: 'Drug — Capsule' },
+  { value: 'drug_liquid', label: 'Drug — Liquid' },
+  { value: 'drug_injection', label: 'Drug — Injection' },
+  { value: 'drug_topical', label: 'Drug — Topical' },
+  { value: 'consumable', label: 'Consumable' },
+  { value: 'lab', label: 'Lab Test' },
+  { value: 'imaging', label: 'Imaging' },
+  { value: 'bed', label: 'Bed / Admission' },
+  { value: 'procedure', label: 'Procedure' },
+  { value: 'other', label: 'Other' },
+];
+
+const fmt = (n: number) => `₦${n.toLocaleString()}`;
+
+export function PricelistManager() {
+  const { items, loading, upsertItem, deleteItem } = usePricelist();
+  const [query, setQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [editing, setEditing] = useState<PricelistItem | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return items.filter(i =>
+      (categoryFilter === 'all' || i.category === categoryFilter) &&
+      (q.length === 0 || i.name.toLowerCase().includes(q) || (i.size ?? '').toLowerCase().includes(q))
+    );
+  }, [items, query, categoryFilter]);
+
+  const openNew = () => { setEditing(null); setOpen(true); };
+  const openEdit = (it: PricelistItem) => { setEditing(it); setOpen(true); };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search name or size…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-full sm:w-56"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button onClick={openNew}><Plus className="h-4 w-4 mr-1.5" /> Add Item</Button>
+      </div>
+
+      <div className="text-xs text-muted-foreground">
+        {loading ? 'Loading…' : `${filtered.length} of ${items.length} items`}
+      </div>
+
+      <div className="rounded-lg border overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Size</TableHead>
+              <TableHead className="text-right">Pack</TableHead>
+              <TableHead className="text-right">Price</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filtered.map(it => (
+              <TableRow key={it.id}>
+                <TableCell className="font-medium">{it.name}</TableCell>
+                <TableCell className="text-muted-foreground">{it.size ?? '—'}</TableCell>
+                <TableCell className="text-right">{it.pack_qty}</TableCell>
+                <TableCell className="text-right font-mono">{fmt(it.price)}</TableCell>
+                <TableCell><Badge variant="outline" className="text-[10px]">{it.category}</Badge></TableCell>
+                <TableCell>
+                  {it.active
+                    ? <Badge variant="success" className="text-[10px]">Active</Badge>
+                    : <Badge variant="secondary" className="text-[10px]">Inactive</Badge>}
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button size="sm" variant="ghost" onClick={() => openEdit(it)}><Pencil className="h-3.5 w-3.5" /></Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={async () => {
+                      if (confirm(`Delete "${it.name}"?`)) await deleteItem(it.id);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+            {filtered.length === 0 && (
+              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No items</TableCell></TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      <PricelistEditor
+        open={open}
+        onOpenChange={setOpen}
+        item={editing}
+        onSave={async (row) => {
+          const ok = await upsertItem(row);
+          if (ok) setOpen(false);
+        }}
+      />
+    </div>
+  );
+}
+
+function PricelistEditor({
+  open, onOpenChange, item, onSave,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  item: PricelistItem | null;
+  onSave: (row: Partial<PricelistItem> & { name: string; price: number; category: PricelistCategory }) => Promise<void>;
+}) {
+  const [name, setName] = useState(item?.name ?? '');
+  const [size, setSize] = useState(item?.size ?? '');
+  const [packQty, setPackQty] = useState(item?.pack_qty ?? 1);
+  const [price, setPrice] = useState(item?.price ?? 0);
+  const [category, setCategory] = useState<PricelistCategory>(item?.category ?? 'drug_tablet');
+  const [active, setActive] = useState(item?.active ?? true);
+  const [notes, setNotes] = useState(item?.notes ?? '');
+
+  // Reset form on open
+  useMemo(() => {
+    if (open) {
+      setName(item?.name ?? '');
+      setSize(item?.size ?? '');
+      setPackQty(item?.pack_qty ?? 1);
+      setPrice(item?.price ?? 0);
+      setCategory(item?.category ?? 'drug_tablet');
+      setActive(item?.active ?? true);
+      setNotes(item?.notes ?? '');
+    }
+  }, [open, item]);
+
+  const submit = async () => {
+    if (!name.trim()) { toast.error('Name is required'); return; }
+    if (price < 0) { toast.error('Price must be ≥ 0'); return; }
+    await onSave({
+      id: item?.id, name, size, pack_qty: packQty, price, category, active, notes,
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{item ? 'Edit Item' : 'Add Item'}</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-3">
+          <div className="space-y-1.5">
+            <Label>Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Paracetamol 500mg" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Size / Strength</Label>
+              <Input value={size} onChange={(e) => setSize(e.target.value)} placeholder="500MG, 100ML…" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Pack Qty</Label>
+              <Input type="number" min={1} value={packQty} onChange={(e) => setPackQty(parseInt(e.target.value) || 1)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Price (₦) *</Label>
+              <Input type="number" min={0} step="0.01" value={price}
+                onChange={(e) => setPrice(parseFloat(e.target.value) || 0)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Category *</Label>
+              <Select value={category} onValueChange={(v) => setCategory(v as PricelistCategory)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Notes</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+            Active (visible in pricing search)
+          </label>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={submit}>{item ? 'Save Changes' : 'Add Item'}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

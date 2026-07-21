@@ -1,0 +1,155 @@
+import { useCallback, useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+
+export type SnapOrderType = 'prescription' | 'lab' | 'treatment';
+export type SnapTargetStation = 'pharmacy' | 'lab';
+export type SnapStatus =
+  | 'pending_billing' | 'awaiting_payment' | 'paid' | 'fulfilled' | 'rejected' | 'cancelled';
+
+export interface MatchedItem {
+  pricelist_id: string;
+  name: string;
+  size: string | null;
+  category: string;
+  unit_price: number;
+  qty: number;
+}
+
+export interface SnapOrder {
+  id: string;
+  patient_id: string;
+  visit_id: string | null;
+  order_type: SnapOrderType;
+  target_station: SnapTargetStation;
+  source_role: string;
+  photo_path: string;
+  note: string | null;
+  ocr_text: string | null;
+  ocr_confidence: number | null;
+  matched_items: MatchedItem[];
+  status: SnapStatus;
+  invoice_id: string | null;
+  created_by: string | null;
+  billed_by: string | null;
+  billed_at: string | null;
+  paid_at: string | null;
+  fulfilled_by: string | null;
+  fulfilled_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export async function createSnapOrder(input: {
+  patientId: string;
+  visitId: string | null;
+  orderType: SnapOrderType;
+  targetStation: SnapTargetStation;
+  sourceRole: string;
+  photoPath: string;
+  note?: string;
+}): Promise<SnapOrder | null> {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  const { data, error } = await supabase
+    .from('snap_orders')
+    .insert({
+      patient_id: input.patientId,
+      visit_id: input.visitId,
+      order_type: input.orderType,
+      target_station: input.targetStation,
+      source_role: input.sourceRole,
+      photo_path: input.photoPath,
+      note: input.note || null,
+      created_by: uid,
+      status: 'pending_billing',
+    })
+    .select()
+    .single();
+  if (error) {
+    toast.error(`Snap order failed: ${error.message}`);
+    return null;
+  }
+  return data as SnapOrder;
+}
+
+export function useSnapOrders(filter: {
+  station?: SnapTargetStation;
+  statuses?: SnapStatus[];
+  patientId?: string;
+} = {}) {
+  const [orders, setOrders] = useState<SnapOrder[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    let q = supabase.from('snap_orders').select('*').order('created_at', { ascending: false });
+    if (filter.station) q = q.eq('target_station', filter.station);
+    if (filter.statuses?.length) q = q.in('status', filter.statuses);
+    if (filter.patientId) q = q.eq('patient_id', filter.patientId);
+    const { data, error } = await q;
+    setLoading(false);
+    if (error) { toast.error('Failed to load snap orders'); return; }
+    setOrders((data ?? []) as SnapOrder[]);
+  }, [filter.station, filter.statuses?.join(','), filter.patientId]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  useEffect(() => {
+    const ch = supabase
+      .channel(`snap-orders-${filter.station ?? 'all'}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders' }, () => refresh())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [refresh, filter.station]);
+
+  return { orders, loading, refresh };
+}
+
+export async function saveSnapOcr(id: string, ocrText: string, confidence: number, matched: MatchedItem[]) {
+  const { error } = await supabase
+    .from('snap_orders')
+    .update({ ocr_text: ocrText, ocr_confidence: confidence, matched_items: matched as any })
+    .eq('id', id);
+  if (error) toast.error(error.message);
+}
+
+export async function attachInvoiceToSnap(id: string, invoiceId: string) {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  const { error } = await supabase
+    .from('snap_orders')
+    .update({ invoice_id: invoiceId, status: 'awaiting_payment', billed_by: uid, billed_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) { toast.error(error.message); return false; }
+  return true;
+}
+
+export async function markSnapFulfilled(id: string) {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  const { error } = await supabase
+    .from('snap_orders')
+    .update({ status: 'fulfilled', fulfilled_by: uid, fulfilled_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) { toast.error(error.message); return false; }
+  toast.success('Marked fulfilled');
+  return true;
+}
+
+export async function rejectSnap(id: string, reason: string) {
+  const { error } = await supabase
+    .from('snap_orders')
+    .update({ status: 'rejected', rejection_reason: reason })
+    .eq('id', id);
+  if (error) { toast.error(error.message); return false; }
+  return true;
+}
+
+/** Signed URL for the snap photo (stored in visit-cards bucket). */
+export async function snapPhotoUrl(path: string, expiresIn = 3600): Promise<string | null> {
+  const { data, error } = await supabase.storage.from('visit-cards').createSignedUrl(path, expiresIn);
+  if (error) return null;
+  return data.signedUrl;
+}

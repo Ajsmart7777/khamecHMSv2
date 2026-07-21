@@ -28,7 +28,7 @@ export type PaymentMethod = 'cash' | 'pos' | 'insurance' | 'corporate' | 'indivi
 
 export type PaymentStatus = 'pending' | 'partial' | 'completed' | 'refunded';
 
-export type AccountType = 'normal' | 'insurance' | 'corporate' | 'nhis' | 'hmo' | 'retainer' | 'staff' | 'staff_family';
+export type AccountType = 'normal' | 'corporate' | 'nhis' | 'hmo' | 'katchma' | 'retainer' | 'staff' | 'staff_family';
 
 export interface Patient {
   id: string;

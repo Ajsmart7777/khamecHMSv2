@@ -944,6 +944,13 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       setIsSubmitting(false);
       return;
     }
+    if (['katchma', 'hmo', 'nhis'].includes(formData.account_type)) {
+      if (!formData.insurance_plan || !formData.insurance_provider.trim() || !formData.insurance_policy_number.trim()) {
+        toast.error('Plan, provider name, and enrollee ID are required for insurance patients.');
+        setIsSubmitting(false);
+        return;
+      }
+    }
 
     if (formData.account_type === 'staff_family') {
       const { count } = await supabase

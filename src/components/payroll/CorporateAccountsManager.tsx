@@ -120,11 +120,12 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
       return;
     }
     setSaving(true);
+    const payload = { ...form, notes: form.notes || null, account_type: accountType } as any;
     if (editAccount) {
-      await updateAccount(editAccount.id, { ...form, notes: form.notes || null } as any);
+      await updateAccount(editAccount.id, payload);
       setEditAccount(null);
     } else {
-      await createAccount({ ...form, notes: form.notes || null } as any);
+      await createAccount(payload);
       setAddDialog(false);
     }
     resetForm();

@@ -23,6 +23,7 @@ import Admin from "./pages/Admin";
 import Settings from "./pages/Settings";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
+import Claims from "./pages/Claims";
 
 const queryClient = new QueryClient();
 
@@ -86,6 +87,11 @@ const App = () => (
                 <Route path="/auditing" element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <Auditing />
+                  </ProtectedRoute>
+                } />
+                <Route path="/claims" element={
+                  <ProtectedRoute allowedRoles={['claims_manager', 'admin']}>
+                    <Claims />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin" element={

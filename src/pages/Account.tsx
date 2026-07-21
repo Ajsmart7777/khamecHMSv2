@@ -120,7 +120,10 @@ const Account = () => {
             <Building2 className="h-4 w-4" /> Retainer
           </TabsTrigger>
           <TabsTrigger value="sponsor-claims" className="flex items-center gap-1.5 text-xs sm:text-sm">
-            <ClipboardList className="h-4 w-4" /> Sponsor Claims
+            <ClipboardList className="h-4 w-4" /> Corporate Claims
+          </TabsTrigger>
+          <TabsTrigger value="retainer-claims" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <ClipboardList className="h-4 w-4" /> Retainer Claims
           </TabsTrigger>
           <TabsTrigger value="external-doctors" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Stethoscope className="h-4 w-4" /> External Doctors

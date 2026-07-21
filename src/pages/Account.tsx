@@ -190,7 +190,12 @@ const Account = () => {
 
         <TabsContent value="corporate">
           <TabHeader title="Corporate Accounts" onRefresh={refetchCorporate} />
-          <CorporateAccountsManager />
+          <CorporateAccountsManager accountType="corporate" />
+        </TabsContent>
+
+        <TabsContent value="retainer">
+          <TabHeader title="Retainer Accounts" onRefresh={refetchCorporate} />
+          <CorporateAccountsManager accountType="retainer" />
         </TabsContent>
 
         <TabsContent value="sponsor-claims">

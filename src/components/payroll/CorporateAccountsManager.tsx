@@ -207,7 +207,7 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
         <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-2 mb-1">
             <Building2 className="h-4 w-4 text-primary" />
-            <p className="text-sm text-muted-foreground">Total Companies</p>
+            <p className="text-sm text-muted-foreground">Total {entityLabel}s</p>
           </div>
           <p className="text-2xl font-bold">{accounts.length}</p>
         </div>
@@ -239,7 +239,7 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
         <div className="relative flex-1 w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search companies..."
+            placeholder={`Search ${singularLower}s...`}
             className="pl-10"
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
@@ -250,7 +250,7 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
             <RefreshCw className="h-4 w-4 mr-1" /> Refresh
           </Button>
           <Button size="sm" onClick={() => { resetForm(); setAddDialog(true); }}>
-            <Plus className="h-4 w-4 mr-1" /> Add Company
+            <Plus className="h-4 w-4 mr-1" /> Add {entityLabel}
           </Button>
         </div>
       </div>
@@ -317,7 +317,7 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
                 {filtered.length === 0 && (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
-                      {accounts.length === 0 ? 'No corporate accounts yet. Click "Add Company" to create one.' : 'No results found.'}
+                      {accounts.length === 0 ? 'No corporate accounts yet. Click "Add {entityLabel}" to create one.' : 'No results found.'}
                     </TableCell>
                   </TableRow>
                 )}
@@ -332,9 +332,9 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" /> Add Corporate Account
+              <Building2 className="h-5 w-5 text-primary" /> Add {singular} Account
             </DialogTitle>
-            <DialogDescription>Register a new company for corporate healthcare.</DialogDescription>
+            <DialogDescription>`Register a new ${singularLower} sponsor. Invoices are consolidated for monthly billing.`</DialogDescription>
           </DialogHeader>
           {formFields}
           <DialogFooter>
@@ -352,7 +352,7 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Edit3 className="h-5 w-5 text-primary" /> Edit Corporate Account
+              <Edit3 className="h-5 w-5 text-primary" /> Edit {singular} Account
             </DialogTitle>
           </DialogHeader>
           {formFields}
@@ -450,7 +450,7 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
                     <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                   ) : transactions.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-4 text-center">
-                      No transactions yet for this corporate account.
+                      `No transactions yet for this ${singularLower} account.`
                     </p>
                   ) : (
                     <div className="border border-border rounded-lg overflow-hidden max-h-[250px] overflow-y-auto">
@@ -524,7 +524,7 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
       <Dialog open={!!deleteConfirm} onOpenChange={open => !open && setDeleteConfirm(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-destructive">Delete Corporate Account?</DialogTitle>
+            <DialogTitle className="text-destructive">Delete {singular} Account?</DialogTitle>
             <DialogDescription>This action cannot be undone. All linked patients will need to be reassigned.</DialogDescription>
           </DialogHeader>
           <DialogFooter>

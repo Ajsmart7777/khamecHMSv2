@@ -40,6 +40,7 @@ import { BalanceRequestsPanel } from '@/components/billing/BalanceRequestsPanel'
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { SettleDischargeDialog } from '@/components/billing/SettleDischargeDialog';
 import { BillingSnapInbox } from '@/components/billing/BillingSnapInbox';
+import { CashierPanel } from '@/components/billing/CashierPanel';
 import { useActiveVisit } from '@/hooks/useVisits';
 import { CheckCircle2 } from 'lucide-react';
 

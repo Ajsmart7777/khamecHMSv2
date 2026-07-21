@@ -122,6 +122,20 @@ export function ClaimsQueue() {
         </Card>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">
+          {bulk ? `Building packets… ${bulk.done}/${bulk.total}` : `Export claims packets for all visits in view.`}
+        </p>
+        <Button
+          size="sm"
+          onClick={() => handleBulk(visits, `claims-packets-${new Date().toISOString().slice(0,10)}`)}
+          disabled={!!bulk || visits.length === 0}
+        >
+          {bulk ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Download className="h-3 w-3 mr-1" />}
+          Export all packets ({visits.length})
+        </Button>
+      </div>
+
       {loading ? (
         <p className="text-sm text-muted-foreground text-center py-8">Loading claims…</p>
       ) : visits.length === 0 ? (

@@ -3,10 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, FileText, Printer, RefreshCw, Wand2, CheckCircle2, XCircle, DollarSign } from 'lucide-react';
+import { Loader2, FileText, Printer, RefreshCw, Wand2, CheckCircle2, XCircle, DollarSign, Download, FileDown } from 'lucide-react';
 import { useSponsorStatements, SponsorStatement } from '@/hooks/useSponsorStatements';
 import { useCorporateAccounts } from '@/hooks/useCorporateAccounts';
 import { SponsorStatementPrintDialog } from './SponsorStatementPrintDialog';
+import { downloadStatementPdf, downloadBulkStatementsPdf } from '@/lib/sponsorStatementPdf';
 import { toast } from '@/hooks/use-toast';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -65,6 +66,38 @@ export function SponsorStatementsPanel({ accountType }: { accountType: 'corporat
 
   const label = accountType === 'retainer' ? 'Retainer' : 'Corporate';
 
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const handleDownloadOne = async (s: SponsorStatement) => {
+    setDownloadingId(s.id);
+    try {
+      await downloadStatementPdf(s);
+      toast({ title: 'PDF downloaded', description: s.statement_number });
+    } catch (e) {
+      toast({ title: 'PDF failed', description: (e as Error).message, variant: 'destructive' });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handleBulkDownload = async () => {
+    if (filtered.length === 0) return;
+    setBulkProgress({ done: 0, total: filtered.length });
+    try {
+      await downloadBulkStatementsPdf(
+        filtered,
+        `${label}-Statements-${year}-${String(month).padStart(2, '0')}`,
+        (done, total) => setBulkProgress({ done, total }),
+      );
+      toast({ title: 'Bulk PDF ready', description: `${filtered.length} statements combined` });
+    } catch (e) {
+      toast({ title: 'Bulk PDF failed', description: (e as Error).message, variant: 'destructive' });
+    } finally {
+      setBulkProgress(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -92,6 +125,18 @@ export function SponsorStatementsPanel({ accountType }: { accountType: 'corporat
           <Button size="sm" onClick={handleGenerateAll} disabled={busy}>
             {busy ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Wand2 className="h-4 w-4 mr-1.5" />}
             Generate all for {MONTHS[month - 1]} {year}
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleBulkDownload}
+            disabled={!!bulkProgress || filtered.length === 0}
+          >
+            {bulkProgress ? (
+              <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> {bulkProgress.done}/{bulkProgress.total}</>
+            ) : (
+              <><FileDown className="h-4 w-4 mr-1.5" /> Download all ({filtered.length}) PDF</>
+            )}
           </Button>
         </div>
       </div>
@@ -149,6 +194,17 @@ export function SponsorStatementsPanel({ accountType }: { accountType: 'corporat
                 <TableCell className="text-right space-x-1">
                   <Button size="sm" variant="outline" onClick={() => openPrint(s)}>
                     <Printer className="h-3.5 w-3.5 mr-1" /> View / Print
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleDownloadOne(s)}
+                    disabled={downloadingId === s.id}
+                  >
+                    {downloadingId === s.id
+                      ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                      : <Download className="h-3.5 w-3.5 mr-1" />}
+                    PDF
                   </Button>
                   {s.status === 'draft' && (
                     <Button size="sm" variant="outline" onClick={() => updateStatus(s.id, 'finalized')}>

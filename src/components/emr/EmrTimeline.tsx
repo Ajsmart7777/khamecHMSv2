@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { Activity, FileText, FlaskConical, Pill, Receipt, ClipboardList, Camera } from 'lucide-react';
+import { Activity, FileText, FlaskConical, Pill, Receipt, Camera } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 

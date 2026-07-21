@@ -116,6 +116,9 @@ const Account = () => {
           <TabsTrigger value="corporate" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Building2 className="h-4 w-4" /> Corporate
           </TabsTrigger>
+          <TabsTrigger value="retainer" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Building2 className="h-4 w-4" /> Retainer
+          </TabsTrigger>
           <TabsTrigger value="sponsor-claims" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <ClipboardList className="h-4 w-4" /> Sponsor Claims
           </TabsTrigger>

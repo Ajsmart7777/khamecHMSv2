@@ -726,6 +726,7 @@ export type Database = {
           mini_card_number: string
           phone: string
           registered_at: string
+          staff_link_id: string | null
           status: string
           updated_at: string
         }
@@ -750,6 +751,7 @@ export type Database = {
           mini_card_number: string
           phone: string
           registered_at?: string
+          staff_link_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -774,10 +776,80 @@ export type Database = {
           mini_card_number?: string
           phone?: string
           registered_at?: string
+          staff_link_id?: string | null
           status?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "patients_staff_link_id_fkey"
+            columns: ["staff_link_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payroll_deductions: {
+        Row: {
+          amount: number
+          applied_in_period_id: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          reason: string
+          source_invoice_id: string | null
+          staff_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          applied_in_period_id?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          reason: string
+          source_invoice_id?: string | null
+          staff_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          applied_in_period_id?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          reason?: string
+          source_invoice_id?: string | null
+          staff_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payroll_deductions_applied_in_period_id_fkey"
+            columns: ["applied_in_period_id"]
+            isOneToOne: false
+            referencedRelation: "payroll_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_deductions_source_invoice_id_fkey"
+            columns: ["source_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payroll_deductions_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payroll_entries: {
         Row: {
@@ -1122,15 +1194,18 @@ export type Database = {
       staff: {
         Row: {
           account_number: string | null
+          auth_user_id: string | null
           bank_name: string | null
           created_at: string
           department: string
           designation: string | null
           email: string
           employee_id: string
+          family_deduction_consent: boolean
           first_name: string
           hire_date: string
           id: string
+          is_system_user: boolean
           last_name: string
           payment_method: string
           phone: string
@@ -1142,15 +1217,18 @@ export type Database = {
         }
         Insert: {
           account_number?: string | null
+          auth_user_id?: string | null
           bank_name?: string | null
           created_at?: string
           department?: string
           designation?: string | null
           email: string
           employee_id: string
+          family_deduction_consent?: boolean
           first_name: string
           hire_date?: string
           id?: string
+          is_system_user?: boolean
           last_name: string
           payment_method?: string
           phone: string
@@ -1162,15 +1240,18 @@ export type Database = {
         }
         Update: {
           account_number?: string | null
+          auth_user_id?: string | null
           bank_name?: string | null
           created_at?: string
           department?: string
           designation?: string | null
           email?: string
           employee_id?: string
+          family_deduction_consent?: boolean
           first_name?: string
           hire_date?: string
           id?: string
+          is_system_user?: boolean
           last_name?: string
           payment_method?: string
           phone?: string
@@ -1620,6 +1701,8 @@ export type Database = {
         | "billing"
         | "store"
         | "accountant"
+        | "doctor1"
+        | "doctor2"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1757,6 +1840,8 @@ export const Constants = {
         "billing",
         "store",
         "accountant",
+        "doctor1",
+        "doctor2",
       ],
     },
   },

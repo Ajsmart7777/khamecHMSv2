@@ -21,6 +21,7 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { SnapToCard } from '@/components/visit/SnapToCard';
+import { SnapClinicalOrder } from '@/components/visit/SnapClinicalOrder';
 import {
   Dialog,
   DialogContent,

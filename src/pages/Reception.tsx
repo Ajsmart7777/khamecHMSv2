@@ -103,6 +103,7 @@ const Reception = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
+  const [standingOrderOpen, setStandingOrderOpen] = useState(false);
 
   const filteredPatients = patients.filter(p => 
     p.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||

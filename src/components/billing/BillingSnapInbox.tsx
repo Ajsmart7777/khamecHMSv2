@@ -103,6 +103,7 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
 }) {
   const { createInvoice } = useInvoices();
   const [imgUrl, setImgUrl] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const [ocrText, setOcrText] = useState(snap.ocr_text ?? '');
   const [ocrRunning, setOcrRunning] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);

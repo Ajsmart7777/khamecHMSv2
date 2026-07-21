@@ -210,19 +210,38 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
               </div>
             </div>
 
-            {/* Row 4: Role + Department */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Role</Label>
-                <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
-                  <SelectContent>
-                    {ROLES.map(r => (
-                      <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* System user toggle */}
+            <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-muted/30">
+              <div className="flex items-start gap-2">
+                <ShieldCheck className="h-4 w-4 text-primary mt-0.5" />
+                <div>
+                  <Label className="text-sm font-medium">System User (has login)</Label>
+                  <p className="text-xs text-muted-foreground">Enable for staff who log into the app (nurse, reception, doctor, etc.)</p>
+                </div>
               </div>
+              <Switch checked={form.isSystemUser} onCheckedChange={v => setForm(f => ({ ...f, isSystemUser: v, role: v ? f.role : '' }))} />
+            </div>
+
+            {/* Row 4: Role + Department (Role only when system user) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {form.isSystemUser ? (
+                <div className="space-y-2">
+                  <Label>System Role <span className="text-destructive">*</span></Label>
+                  <Select value={form.role} onValueChange={v => setForm(f => ({ ...f, role: v }))}>
+                    <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                    <SelectContent>
+                      {SYSTEM_ROLES.map(r => (
+                        <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Role</Label>
+                  <Input value="Non-system staff" disabled />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Department</Label>
                 <Select value={form.department} onValueChange={v => setForm(f => ({ ...f, department: v }))}>
@@ -236,6 +255,25 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
               </div>
             </div>
 
+            {/* Password (system users only) */}
+            {form.isSystemUser && (
+              <div className="space-y-2">
+                <Label>Login Password <span className="text-destructive">*</span></Label>
+                <div className="relative">
+                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="password"
+                    className="pl-9"
+                    value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    placeholder="At least 8 characters"
+                    minLength={8}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Staff will use their email + this password to sign in.</p>
+              </div>
+            )}
+
             {/* Row 5: Salary + Hire Date */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -247,6 +285,21 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                 <Input type="date" value={form.hireDate} onChange={e => setForm(f => ({ ...f, hireDate: e.target.value }))} />
               </div>
             </div>
+
+            {/* Family salary-deduction consent */}
+            <div className="flex items-start justify-between p-3 rounded-lg border border-warning/30 bg-warning/5">
+              <div className="pr-3">
+                <Label className="text-sm font-medium">Family salary-deduction consent</Label>
+                <p className="text-xs text-muted-foreground">
+                  Staff agrees the unpaid 50% share on family invoices may be deducted from their salary.
+                </p>
+              </div>
+              <Switch
+                checked={form.familyDeductionConsent}
+                onCheckedChange={v => setForm(f => ({ ...f, familyDeductionConsent: v }))}
+              />
+            </div>
+
 
             <Separator />
 

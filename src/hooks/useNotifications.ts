@@ -102,7 +102,7 @@ export function useNotifications() {
         (payload) => {
           const newNotif = payload.new as Notification;
           // Client-side filter: admin sees all
-          if (role !== 'admin' && newNotif.target_role && newNotif.target_role !== role && newNotif.target_role !== 'all') return;
+          if (role !== 'admin' && newNotif.target_role && newNotif.target_role !== role) return;
           setNotifications(prev => {
             if (prev.some(n => n.id === newNotif.id)) return prev;
             return [newNotif, ...prev];

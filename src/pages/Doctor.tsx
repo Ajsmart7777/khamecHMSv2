@@ -156,11 +156,15 @@ const Doctor = () => {
             </div>
           </div>
 
+          {/* Returned from Lab (snap results) */}
+          <LabResultInbox />
+
           {/* Lab Request Print Queue */}
           <LabRequestPrintQueue />
 
           {/* Lab Results Viewer */}
           <LabResultsViewer />
+
         </div>
 
         {/* Consultation Area */}

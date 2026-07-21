@@ -38,7 +38,6 @@ export default function EMR() {
                   <TabsList className="w-max">
                     <TabsTrigger value="timeline">Timeline</TabsTrigger>
                     <TabsTrigger value="vitals">Vitals</TabsTrigger>
-                    <TabsTrigger value="consultations">Consultations</TabsTrigger>
                     <TabsTrigger value="external">External Rx</TabsTrigger>
                     <TabsTrigger value="attachments">Attachments</TabsTrigger>
                   </TabsList>
@@ -49,9 +48,6 @@ export default function EMR() {
                 </TabsContent>
                 <TabsContent value="vitals" className="mt-4">
                   <VitalsTrendPanel patientId={selected.id} />
-                </TabsContent>
-                <TabsContent value="consultations" className="mt-4">
-                  <ConsultationNotesPanel patientId={selected.id} />
                 </TabsContent>
                 <TabsContent value="external" className="mt-4">
                   <PatientStandingOrders patientId={selected.id} />

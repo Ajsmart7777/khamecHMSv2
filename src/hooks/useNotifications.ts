@@ -37,12 +37,13 @@ export function useNotifications() {
 
       if (error) throw error;
 
-      // Client-side filter: admin sees all; others see their role or 'all'
+      // Client-side filter: admin sees all; others see their role or broadcast (null)
       const filtered = (data || []).filter((n: any) => {
         if (role === 'admin') return true;
-        if (n.target_role && n.target_role !== role && n.target_role !== 'all') return false;
+        if (n.target_role && n.target_role !== role) return false;
         return true;
       }) as Notification[];
+
 
       setNotifications(filtered);
     } catch (err) {

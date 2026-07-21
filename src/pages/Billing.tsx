@@ -685,5 +685,3 @@ function VisitCardBar({ patientId }: { patientId: string }) {
 
 export default Billing;
 
-
-export default Billing;

@@ -27,27 +27,29 @@ function money(v: number) {
   return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function CorporateClaimsReport() {
-  const { accounts } = useCorporateAccounts();
+export function CorporateClaimsReport({ fixedSponsorType }: { fixedSponsorType?: 'corporate' | 'retainer' } = {}) {
+  const { accounts } = useCorporateAccounts(fixedSponsorType);
   const [claims, setClaims] = useState<ClaimRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sponsorType, setSponsorType] = useState<string>('all');
+  const [sponsorType, setSponsorType] = useState<string>(fixedSponsorType || 'all');
   const [accountId, setAccountId] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const { data, error } = await supabase
+      let q = supabase
         .from('insurance_claims')
         .select('*, patient:patients(first_name,last_name), corporate:corporate_accounts(company_name,sponsor_type)')
-        .in('sponsor_type', ['corporate', 'retainer'])
         .order('submitted_at', { ascending: false });
+      if (fixedSponsorType) q = q.eq('sponsor_type', fixedSponsorType);
+      else q = q.in('sponsor_type', ['corporate', 'retainer']);
+      const { data, error } = await q;
       if (!error) setClaims((data || []) as unknown as ClaimRow[]);
       setLoading(false);
     };
     load();
-  }, []);
+  }, [fixedSponsorType]);
 
   const filtered = useMemo(() => claims.filter(c => {
     if (sponsorType !== 'all' && c.sponsor_type !== sponsorType) return false;

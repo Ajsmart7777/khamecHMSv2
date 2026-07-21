@@ -354,6 +354,21 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
         </div>
       </div>
 
+      {/* Assign Doctor */}
+      <div className="bg-card rounded-xl border border-border p-4">
+        <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+          <Send className="h-4 w-4 text-module-nurse" />
+          Assign to Doctor *
+        </label>
+        <Select value={assignedDoctor} onValueChange={(v) => setAssignedDoctor(v as 'doctor1' | 'doctor2')}>
+          <SelectTrigger><SelectValue placeholder="Select Doctor 1 or Doctor 2" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="doctor1">Doctor 1</SelectItem>
+            <SelectItem value="doctor2">Doctor 2</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Actions */}
       <div className="flex justify-end gap-3">
         <Button variant="outline" onClick={handleSaveDraft} disabled={isSaving} className="press-effect">
@@ -363,8 +378,12 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
         <Button 
           variant="outline" 
           onClick={() => {
+            if (!assignedDoctor) {
+              toast.error("Select a doctor", { description: "Choose Doctor 1 or Doctor 2 first." });
+              return;
+            }
             toast.info("Skipping vitals", { description: "Sending patient directly to doctor without vitals." });
-            onComplete(patient.id);
+            onComplete(patient.id, assignedDoctor);
           }} 
           className="press-effect"
         >

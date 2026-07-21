@@ -9,8 +9,25 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Camera, ScanText, Plus, Trash2, Send, XCircle, Loader2 } from 'lucide-react';
+import { Camera, ScanText, Plus, Trash2, Send, XCircle, Loader2, Check, Pencil, SkipForward } from 'lucide-react';
 import Tesseract from 'tesseract.js';
+
+type ReviewStatus = 'pending' | 'approved' | 'skipped';
+interface ReviewLine {
+  query: string;
+  ocrConfidence: number; // 0..1 from tesseract for that line
+  matches: PricelistItem[];
+  chosenId?: string;
+  qty: number;
+  status: ReviewStatus;
+  editing?: boolean;
+  manualQuery?: string;
+}
+
+const confBand = (c: number) =>
+  c >= 0.85 ? { label: 'High', cls: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30' }
+  : c >= 0.6 ? { label: 'Med',  cls: 'bg-amber-500/15 text-amber-700 border-amber-500/30' }
+  :            { label: 'Low',  cls: 'bg-red-500/15 text-red-700 border-red-500/30' };
 
 const fmt = (n: number) => `₦${n.toLocaleString()}`;
 

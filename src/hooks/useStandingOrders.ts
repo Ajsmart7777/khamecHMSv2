@@ -9,6 +9,7 @@ export interface StandingOrder {
   external_doctor_name: string | null;
   photo_url: string;
   notes: string | null;
+  order_type: 'prescription' | 'lab' | 'both';
   status: 'pending_fulfillment' | 'transcribed' | 'fulfilled' | 'expired' | string;
   expiry_date: string | null;
   transcribed_prescription_id: string | null;
@@ -82,6 +83,7 @@ export function useStandingOrders(filterStatus?: string) {
     photo: Blob;
     notes?: string | null;
     expiry_date?: string | null;
+    order_type?: 'prescription' | 'lab' | 'both';
   }) => {
     const path = await uploadPhoto(input.photo, input.patient_id);
     if (!path) return null;
@@ -95,6 +97,7 @@ export function useStandingOrders(filterStatus?: string) {
         photo_url: path,
         notes: input.notes || null,
         expiry_date: input.expiry_date || null,
+        order_type: input.order_type || 'prescription',
         status: 'pending_fulfillment',
         captured_by: userData.user?.id || null,
       })

@@ -37,6 +37,10 @@ import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { useCorporateAccounts, CorporateAccount } from '@/hooks/useCorporateAccounts';
 import { supabase } from '@/integrations/supabase/client';
 import { BalanceRequestsPanel } from '@/components/billing/BalanceRequestsPanel';
+import { SnapToCard } from '@/components/visit/SnapToCard';
+import { SettleDischargeDialog } from '@/components/billing/SettleDischargeDialog';
+import { useActiveVisit } from '@/hooks/useVisits';
+import { CheckCircle2 } from 'lucide-react';
 
 const Billing = () => {
   const { patients, loading, updatePatientStatus, getPatientsByStatus, refreshPatients } = usePatients();
@@ -484,6 +488,7 @@ const Billing = () => {
                   </div>
                 )}
               </div>
+              {selectedPatient && <VisitCardBar patientId={selectedPatient.id} />}
             </div>
 
             {/* Corporate Account Info Panel */}

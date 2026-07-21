@@ -862,7 +862,10 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     account_type: 'normal' as AccountType,
     insurance_provider: '',
     insurance_policy_number: '',
-    corporate_id: ''
+    corporate_id: '',
+    staff_link_id: '',
+    family_staff_id: '',
+    family_staff_has_consent: false,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});

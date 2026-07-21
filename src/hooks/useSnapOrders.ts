@@ -70,6 +70,7 @@ export async function createSnapOrder(input: {
       photo_path: input.photoPath,
       note: input.note || null,
       created_by: uid,
+      original_sender_role: input.sourceRole,
       status: 'pending_billing',
     })
     .select()

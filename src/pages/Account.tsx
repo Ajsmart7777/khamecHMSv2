@@ -2,8 +2,9 @@ import { useState, useCallback, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Users, FileSpreadsheet, CreditCard, FileText, Building2, Shield, UserCheck, UserPlus, RefreshCw } from 'lucide-react';
+import { LayoutDashboard, Users, FileSpreadsheet, CreditCard, FileText, Building2, Shield, UserCheck, UserPlus, RefreshCw, DollarSign } from 'lucide-react';
 import { Stethoscope, ClipboardList } from 'lucide-react';
+import { PricelistManager } from '@/components/account/PricelistManager';
 import { useStaff } from '@/hooks/useStaff';
 import { usePayrollPeriods, usePayrollEntries } from '@/hooks/usePayroll';
 import { useInsurance } from '@/hooks/useInsurance';
@@ -129,6 +130,9 @@ const Account = () => {
           <TabsTrigger value="statements" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <FileText className="h-4 w-4" /> Monthly Statements
           </TabsTrigger>
+          <TabsTrigger value="pricelist" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <DollarSign className="h-4 w-4" /> Pricelist
+          </TabsTrigger>
           <TabsTrigger value="external-doctors" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Stethoscope className="h-4 w-4" /> External Doctors
           </TabsTrigger>
@@ -231,6 +235,11 @@ const Account = () => {
         <TabsContent value="external-doctors">
           <TabHeader title="External Doctors" onRefresh={() => {}} />
           <ExternalDoctorsManager />
+        </TabsContent>
+
+        <TabsContent value="pricelist">
+          <TabHeader title="Hospital Pricelist" onRefresh={() => {}} />
+          <PricelistManager />
         </TabsContent>
 
         <TabsContent value="register">

@@ -21,6 +21,7 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { SnapToCard } from '@/components/visit/SnapToCard';
+import { SnapClinicalOrder } from '@/components/visit/SnapClinicalOrder';
 import {
   Dialog,
   DialogContent,
@@ -129,7 +130,23 @@ const NurseStation = () => {
         <div className="lg:col-span-3">
           {selectedPatient ? (
             <div className="space-y-3">
-              <div className="flex justify-end">
+              <div className="flex flex-wrap justify-end gap-2">
+                <SnapClinicalOrder
+                  patientId={selectedPatient.id}
+                  sourceStation="nurse"
+                  defaultOrderType="lab"
+                  label="Snap Lab Request"
+                  variant="outline"
+                  size="sm"
+                />
+                <SnapClinicalOrder
+                  patientId={selectedPatient.id}
+                  sourceStation="nurse"
+                  defaultOrderType="prescription"
+                  label="Snap Rx / Treatment"
+                  variant="outline"
+                  size="sm"
+                />
                 <SnapToCard patientId={selectedPatient.id} station="nurse" defaultLabel="Nurse vitals note" />
               </div>
               <VitalsForm

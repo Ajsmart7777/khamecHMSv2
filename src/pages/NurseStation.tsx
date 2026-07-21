@@ -146,7 +146,7 @@ const NurseStation = () => {
 
 interface VitalsFormProps {
   patient: Patient;
-  onComplete: (patientId: string) => void;
+  onComplete: (patientId: string, assignedDoctor: 'doctor1' | 'doctor2') => void;
 }
 
 function VitalsForm({ patient, onComplete }: VitalsFormProps) {
@@ -160,6 +160,7 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
     height: '',
     notes: ''
   });
+  const [assignedDoctor, setAssignedDoctor] = useState<'doctor1' | 'doctor2' | ''>('');
   const [isSaving, setIsSaving] = useState(false);
   const [isCallDialogOpen, setIsCallDialogOpen] = useState(false);
 

@@ -398,6 +398,8 @@ const Admin = () => {
           <div className="bg-card rounded-xl border border-border p-6">
             <StaffAccountManager />
           </div>
+        </TabsContent>
+
 
         <TabsContent value="wards" className="space-y-6">
           <div className="bg-card rounded-xl border border-border p-4 sm:p-6">

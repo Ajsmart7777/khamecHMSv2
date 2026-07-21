@@ -9,6 +9,36 @@ Deno.serve(async (req) => {
   try {
     const url = Deno.env.get('SUPABASE_URL')!;
     const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const cronSecret = Deno.env.get('CRON_SECRET');
+
+    // Authorize: either a valid CRON_SECRET header (pg_cron) OR an
+    // authenticated admin/accountant caller.
+    const providedCron = req.headers.get('x-cron-secret');
+    let authorized = false;
+    if (cronSecret && providedCron && providedCron === cronSecret) {
+      authorized = true;
+    } else {
+      const authHeader = req.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const userClient = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, {
+          global: { headers: { Authorization: authHeader } },
+        });
+        const { data: { user } } = await userClient.auth.getUser();
+        if (user) {
+          const admin = createClient(url, key);
+          const { data: roleRows } = await admin
+            .from('user_roles').select('role').eq('user_id', user.id);
+          const roles = (roleRows ?? []).map((r: { role: string }) => r.role);
+          if (roles.includes('admin') || roles.includes('accountant')) authorized = true;
+        }
+      }
+    }
+    if (!authorized) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const supabase = createClient(url, key);
 
     let year: number;

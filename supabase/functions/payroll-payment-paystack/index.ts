@@ -68,6 +68,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+    const { data: roleRows } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
+    const roles = (roleRows ?? []).map((r: { role: string }) => r.role);
+    if (!roles.includes("billing") && !roles.includes("admin")) {
+      return new Response(JSON.stringify({ error: "Forbidden: billing or admin role required" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { action, ...params } = await req.json();
 
     switch (action) {

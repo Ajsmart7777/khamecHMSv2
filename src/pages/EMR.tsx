@@ -8,7 +8,7 @@ import { PatientSearchBar } from '@/components/emr/PatientSearchBar';
 import { PatientHeaderCard } from '@/components/emr/PatientHeaderCard';
 import { EmrTimeline } from '@/components/emr/EmrTimeline';
 import { VitalsTrendPanel } from '@/components/emr/VitalsTrendPanel';
-import { ConsultationNotesPanel } from '@/components/emr/ConsultationNotesPanel';
+
 import { AttachmentsPanel } from '@/components/emr/AttachmentsPanel';
 import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
 

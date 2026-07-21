@@ -2070,6 +2070,19 @@ export type Database = {
         Args: { _month: number; _sponsor_id: string; _year: number }
         Returns: string
       }
+      get_visit_audit_trail: {
+        Args: { _visit_id: string }
+        Returns: {
+          action: string
+          created_at: string
+          details: Json
+          id: string
+          resource_id: string
+          resource_type: string
+          status: string
+          user_id: string
+        }[]
+      }
       has_any_role: {
         Args: {
           _roles: Database["public"]["Enums"]["app_role"][]

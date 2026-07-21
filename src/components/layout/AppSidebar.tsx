@@ -42,7 +42,8 @@ const allMenuItems = [
   { id: 'billing', label: 'Billing', icon: Receipt, path: '/billing', color: 'text-module-billing', roles: ['billing', 'admin'] },
   { id: 'pharmacy', label: 'Pharmacy', icon: Pill, path: '/pharmacy', color: 'text-module-pharmacy', roles: ['pharmacist', 'admin'] },
   { id: 'store', label: 'Store', icon: Package, path: '/store', color: 'text-module-store', roles: ['store', 'admin'] },
-  { id: 'account', label: 'Accounts', icon: Wallet, path: '/account', color: 'text-module-account', roles: ['admin'] },
+  { id: 'account', label: 'Accounts', icon: Wallet, path: '/account', color: 'text-module-account', roles: ['accountant', 'admin'] },
+  { id: 'claims', label: 'Claims', icon: Shield, path: '/claims', color: 'text-module-billing', roles: ['claims_manager', 'admin'] },
   { id: 'auditing', label: 'Auditing', icon: ClipboardCheck, path: '/auditing', color: 'text-module-auditing', roles: ['admin'] },
   { id: 'admin', label: 'Admin', icon: Shield, path: '/admin', color: 'text-module-admin', roles: ['admin'] },
 ];

@@ -21,7 +21,7 @@ interface RealTimePatientListProps {
 
 const accountTypeLabels: Record<AccountType, string> = {
   normal: 'Normal',
-  insurance: 'Insurance',
+  katchma: 'Katchma',
   corporate: 'Corporate',
   nhis: 'NHIS',
   hmo: 'HMO',

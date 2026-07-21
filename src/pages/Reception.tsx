@@ -70,11 +70,11 @@ const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactN
     color: 'bg-secondary text-secondary-foreground',
     description: 'Standard walk-in patient'
   },
-  insurance: { 
-    label: 'Insurance', 
-    icon: <Shield className="h-4 w-4" />, 
+  katchma: {
+    label: 'Katchma',
+    icon: <Shield className="h-4 w-4" />,
     color: 'bg-info/10 text-info border-info/30',
-    description: 'Private health insurance'
+    description: 'Katchma State Health Insurance'
   },
   corporate: { 
     label: 'Corporate', 
@@ -455,7 +455,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
         </div>
 
         {/* Insurance/Corporate Info */}
-        {(patient.account_type === 'insurance' || patient.account_type === 'hmo') && patient.insurance_provider && (
+        {(patient.account_type === 'katchma' || patient.account_type === 'hmo' || patient.account_type === 'nhis') && patient.insurance_provider && (
           <div className="mt-4 p-3 rounded-lg bg-info/5 border border-info/20">
             <div className="flex items-center gap-2 text-sm">
               <Shield className="h-4 w-4 text-info" />
@@ -863,6 +863,7 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     account_type: 'normal' as AccountType,
     insurance_provider: '',
     insurance_policy_number: '',
+    insurance_plan: '',
     corporate_id: '',
     staff_link_id: '',
     family_staff_id: '',
@@ -943,6 +944,13 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       setIsSubmitting(false);
       return;
     }
+    if (['katchma', 'hmo', 'nhis'].includes(formData.account_type)) {
+      if (!formData.insurance_plan || !formData.insurance_provider.trim() || !formData.insurance_policy_number.trim()) {
+        toast.error('Plan, provider name, and enrollee ID are required for insurance patients.');
+        setIsSubmitting(false);
+        return;
+      }
+    }
 
     if (formData.account_type === 'staff_family') {
       const { count } = await supabase
@@ -974,6 +982,7 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       corporate_id: formData.corporate_id?.trim() || undefined,
       insurance_provider: formData.insurance_provider?.trim() || undefined,
       insurance_policy_number: formData.insurance_policy_number?.trim() || undefined,
+      insurance_plan: formData.insurance_plan?.trim() || undefined,
       staff_link_id: formData.account_type === 'staff' ? formData.staff_link_id : null,
       balance: 0
     });
@@ -998,7 +1007,7 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     }
   };
 
-  const showInsuranceFields = ['insurance', 'hmo', 'nhis'].includes(formData.account_type);
+  const showInsuranceFields = ['katchma', 'hmo', 'nhis'].includes(formData.account_type);
   const showCorporateFields = formData.account_type === 'corporate';
   const showRetainerFields = formData.account_type === 'retainer';
   const showStaffSelector = formData.account_type === 'staff';
@@ -1129,26 +1138,44 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
         </div>
 
         {/* Conditional Insurance Fields */}
-        {showInsuranceFields && (
-          <div className="grid grid-cols-2 gap-4 mt-4 p-4 rounded-lg bg-info/5 border border-info/20 animate-fade-in">
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Insurance Provider</label>
-              <Input 
-                placeholder="Provider name" 
-                value={formData.insurance_provider}
-                onChange={(e) => setFormData({...formData, insurance_provider: e.target.value})}
-              />
+        {showInsuranceFields && (() => {
+          const planOptions: Record<string, string[]> = {
+            katchma: ['Katchma Basic', 'Katchma Standard'],
+            hmo: ['HMO Daily Claims', 'HMO Monthly Claims'],
+            nhis: ['NHIA Standard'],
+          };
+          const options = planOptions[formData.account_type] || [];
+          const providerLabel = formData.account_type === 'nhis' ? 'NHIA Office / Branch' : formData.account_type === 'katchma' ? 'Katchma Desk / Branch' : 'HMO Provider Name';
+          return (
+            <div className="grid grid-cols-2 gap-4 mt-4 p-4 rounded-lg bg-info/5 border border-info/20 animate-fade-in">
+              <div className="col-span-2">
+                <label className="text-sm font-medium mb-1.5 block">Plan *</label>
+                <Select value={formData.insurance_plan} onValueChange={(v) => setFormData({ ...formData, insurance_plan: v })}>
+                  <SelectTrigger><SelectValue placeholder="Select plan" /></SelectTrigger>
+                  <SelectContent>
+                    {options.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">{providerLabel} *</label>
+                <Input
+                  placeholder="Provider name"
+                  value={formData.insurance_provider}
+                  onChange={(e) => setFormData({ ...formData, insurance_provider: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Member / Enrollee ID *</label>
+                <Input
+                  placeholder="Enrollee ID"
+                  value={formData.insurance_policy_number}
+                  onChange={(e) => setFormData({ ...formData, insurance_policy_number: e.target.value })}
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Policy Number</label>
-              <Input 
-                placeholder="Policy number" 
-                value={formData.insurance_policy_number}
-                onChange={(e) => setFormData({...formData, insurance_policy_number: e.target.value})}
-              />
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Conditional Corporate Fields */}
         {showCorporateFields && (

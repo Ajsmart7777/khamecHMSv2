@@ -44,6 +44,7 @@ export function PatientHeaderCard({ patient }: { patient: Patient }) {
             <Wallet className="h-4 w-4 text-muted-foreground" />
             <span className="font-medium">₦{Number(patient.balance || 0).toLocaleString()}</span>
           </div>
+          <ViewCardButton patient={patient} label="Open Card" variant="default" />
         </div>
       </div>
 

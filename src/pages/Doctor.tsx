@@ -43,7 +43,6 @@ import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndic
 import { PatientStatus } from '@/types/hms';
 import { PrintableLabRequestDialog } from '@/components/receipts/PrintableLabRequestDialog';
 import { useLabRequests } from '@/hooks/useLabRequests';
-import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { LabRequestPrintQueue } from '@/components/doctor/LabRequestPrintQueue';
 import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
 import { LabResultInbox } from '@/components/doctor/LabResultInbox';

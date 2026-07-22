@@ -884,6 +884,7 @@ function PaymentForm({ onSubmit, onCancel, defaultAmount, invoiceNumber }: { onS
 
 function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
   const { addPatient } = usePatients();
+  const { providers } = useInsurance();
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
@@ -891,9 +892,20 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     gender: '' as 'male' | 'female' | '',
     address: '',
     age: '',
+    account_type: 'normal' as AccountType,
+    corporate_id: '',
+    insurance_provider: '',
+    insurance_plan: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const isSponsor = formData.account_type === 'corporate' || formData.account_type === 'retainer';
+  const isInsurance = ['nhis', 'hmo', 'katchma'].includes(formData.account_type);
+  const isStaffFamily = formData.account_type === 'staff_family';
+  const availablePlans = isInsurance
+    ? (providers.find(p => p.id === formData.insurance_provider)?.plans || []) as any[]
+    : [];
 
   const generateCardNumber = () => {
     const year = new Date().getFullYear();

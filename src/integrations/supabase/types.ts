@@ -87,6 +87,163 @@ export type Database = {
           },
         ]
       }
+      anc_programs: {
+        Row: {
+          anc_number: string
+          closed_at: string | null
+          created_at: string
+          created_by: string | null
+          delivery_data: Json | null
+          edd: string | null
+          gravida: number | null
+          height: number | null
+          high_risk: boolean
+          husband_occupation: string | null
+          id: string
+          lmp: string | null
+          occupation: string | null
+          para: number | null
+          patient_id: string
+          pelvic_assessment: string | null
+          previous_pregnancies: Json | null
+          registration_date: string
+          religion: string | null
+          remarks: string | null
+          special_considerations: string | null
+          status: string
+          tribe: string | null
+          updated_at: string
+          weight: number | null
+        }
+        Insert: {
+          anc_number: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          delivery_data?: Json | null
+          edd?: string | null
+          gravida?: number | null
+          height?: number | null
+          high_risk?: boolean
+          husband_occupation?: string | null
+          id?: string
+          lmp?: string | null
+          occupation?: string | null
+          para?: number | null
+          patient_id: string
+          pelvic_assessment?: string | null
+          previous_pregnancies?: Json | null
+          registration_date?: string
+          religion?: string | null
+          remarks?: string | null
+          special_considerations?: string | null
+          status?: string
+          tribe?: string | null
+          updated_at?: string
+          weight?: number | null
+        }
+        Update: {
+          anc_number?: string
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          delivery_data?: Json | null
+          edd?: string | null
+          gravida?: number | null
+          height?: number | null
+          high_risk?: boolean
+          husband_occupation?: string | null
+          id?: string
+          lmp?: string | null
+          occupation?: string | null
+          para?: number | null
+          patient_id?: string
+          pelvic_assessment?: string | null
+          previous_pregnancies?: Json | null
+          registration_date?: string
+          religion?: string | null
+          remarks?: string | null
+          special_considerations?: string | null
+          status?: string
+          tribe?: string | null
+          updated_at?: string
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anc_programs_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      anc_visits: {
+        Row: {
+          anc_program_id: string
+          blood_pressure: string | null
+          comment: string | null
+          created_at: string
+          fetal_heart_rate: string | null
+          fundal_height: string | null
+          hb: string | null
+          id: string
+          next_visit: string | null
+          oedema: string | null
+          presentation: string | null
+          staff_id: string | null
+          urine: string | null
+          visit_date: string
+          week_of_pregnancy: number | null
+          weight: number | null
+        }
+        Insert: {
+          anc_program_id: string
+          blood_pressure?: string | null
+          comment?: string | null
+          created_at?: string
+          fetal_heart_rate?: string | null
+          fundal_height?: string | null
+          hb?: string | null
+          id?: string
+          next_visit?: string | null
+          oedema?: string | null
+          presentation?: string | null
+          staff_id?: string | null
+          urine?: string | null
+          visit_date?: string
+          week_of_pregnancy?: number | null
+          weight?: number | null
+        }
+        Update: {
+          anc_program_id?: string
+          blood_pressure?: string | null
+          comment?: string | null
+          created_at?: string
+          fetal_heart_rate?: string | null
+          fundal_height?: string | null
+          hb?: string | null
+          id?: string
+          next_visit?: string | null
+          oedema?: string | null
+          presentation?: string | null
+          staff_id?: string | null
+          urine?: string | null
+          visit_date?: string
+          week_of_pregnancy?: number | null
+          weight?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "anc_visits_anc_program_id_fkey"
+            columns: ["anc_program_id"]
+            isOneToOne: false
+            referencedRelation: "anc_programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_logs: {
         Row: {
           action: string
@@ -2322,6 +2479,7 @@ export type Database = {
         Args: { _month: number; _year: number }
         Returns: number
       }
+      generate_anc_number: { Args: never; Returns: string }
       generate_sponsor_statement: {
         Args: { _month: number; _sponsor_id: string; _year: number }
         Returns: string

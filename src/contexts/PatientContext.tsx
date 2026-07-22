@@ -40,7 +40,7 @@ interface PatientContextType {
   error: string | null;
   refreshPatients: () => Promise<void>;
   addPatient: (patient: Omit<Patient, 'id' | 'registered_at' | 'updated_at' | 'created_at'>) => Promise<Patient | null>;
-  updatePatientStatus: (patientId: string, status: PatientStatus) => Promise<boolean>;
+  updatePatientStatus: (patientId: string, status: PatientStatus, opts?: { guardInpatient?: boolean }) => Promise<boolean>;
   updatePatient: (patientId: string, updates: Partial<Patient>) => Promise<boolean>;
   getPatientsByStatus: (statuses: PatientStatus[]) => Patient[];
   getPatientById: (id: string) => Patient | undefined;

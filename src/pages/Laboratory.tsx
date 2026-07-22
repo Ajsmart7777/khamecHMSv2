@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -286,9 +287,12 @@ const Laboratory = () => {
             </DialogDescription>
           </DialogHeader>
           {selectedPatientData && (
-            <div className="flex justify-end -mt-2">
-              <SnapToCard patientId={selectedPatientData.id} station="lab" defaultLabel="Lab result" />
-            </div>
+            <>
+              <UniversalPatientHeader patient={selectedPatientData} />
+              <div className="flex justify-end -mt-2">
+                <SnapToCard patientId={selectedPatientData.id} station="lab" defaultLabel="Lab result" />
+              </div>
+            </>
           )}
           <div className="space-y-4 py-4">
             <div>

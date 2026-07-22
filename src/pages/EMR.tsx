@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileText } from 'lucide-react';
 import { Patient } from '@/contexts/PatientContext';
 import { PatientSearchBar } from '@/components/emr/PatientSearchBar';
-import { PatientHeaderCard } from '@/components/emr/PatientHeaderCard';
+import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { EmrTimeline } from '@/components/emr/EmrTimeline';
 import { VitalsTrendPanel } from '@/components/emr/VitalsTrendPanel';
 
@@ -33,6 +33,7 @@ export default function EMR() {
             </Card>
           ) : (
             <>
+              <UniversalPatientHeader patient={selected} />
               <Tabs defaultValue="card" className="w-full">
                 <div className="overflow-x-auto -mx-1 px-1">
                   <TabsList className="w-max">

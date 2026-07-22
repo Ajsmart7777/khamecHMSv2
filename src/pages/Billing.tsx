@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -478,6 +479,11 @@ const Billing = () => {
             </div>
 
             {/* Patient Info */}
+            {selectedPatient && (
+              <div className="mb-4">
+                <UniversalPatientHeader patient={selectedPatient} />
+              </div>
+            )}
             <div className="bg-muted/30 rounded-lg p-4 mb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-module-billing/10 flex items-center justify-center">

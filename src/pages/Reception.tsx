@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -265,11 +266,14 @@ const Reception = () => {
         {/* Right Panel - Patient Details */}
         <div className="lg:col-span-2">
           {selectedPatient ? (
-            <PatientDetailsView 
-              patient={selectedPatient}
-              onClose={() => setSelectedPatientId(null)}
-              onSendToNurse={handleSendToNurse}
-            />
+            <div className="space-y-3">
+              <UniversalPatientHeader patient={selectedPatient} />
+              <PatientDetailsView
+                patient={selectedPatient}
+                onClose={() => setSelectedPatientId(null)}
+                onSendToNurse={handleSendToNurse}
+              />
+            </div>
           ) : (
             <EmptyState onNewPatient={() => setIsNewPatientOpen(true)} />
           )}

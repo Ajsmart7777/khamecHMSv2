@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -142,6 +143,7 @@ const NurseStation = () => {
         <div className="lg:col-span-3">
           {selectedPatient ? (
             <div className="space-y-3">
+              <UniversalPatientHeader patient={selectedPatient} />
               <div className="flex flex-wrap justify-end gap-2">
                 <SnapClinicalOrder
                   patientId={selectedPatient.id}

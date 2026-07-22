@@ -142,6 +142,7 @@ const NurseStation = () => {
         <div className="lg:col-span-3">
           {selectedPatient ? (
             <div className="space-y-3">
+              <UniversalPatientHeader patient={selectedPatient} />
               <div className="flex flex-wrap justify-end gap-2">
                 <SnapClinicalOrder
                   patientId={selectedPatient.id}

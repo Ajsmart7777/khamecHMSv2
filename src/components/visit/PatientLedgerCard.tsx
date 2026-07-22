@@ -642,9 +642,12 @@ function LedgerRowView({
   onOpenImage: (url: string) => void;
 }) {
   const tone = STATION_TONE[row.station] ?? STATION_TONE.admin;
+  const subTone = row.subkind ? SUB_TONE[row.subkind] : null;
+  const SubIcon = row.subkind ? SUB_ICON[row.subkind] ?? Sparkles : null;
+  const subLabel = row.subkind ? SNAP_LABEL[row.subkind] : null;
 
   return (
-    <div className="flex">
+    <div className={`flex transition-colors ${row.isNew ? 'bg-primary/5 animate-in fade-in' : ''}`}>
       {/* Date cell */}
       <div className="w-24 md:w-32 shrink-0 bg-muted/40 p-3 md:p-4 border-r border-border text-center">
         <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
@@ -661,9 +664,40 @@ function LedgerRowView({
       {/* Content cell */}
       <div className="flex-1 p-3 md:p-4 min-w-0">
         <div className="mb-2 flex items-center justify-between gap-2 flex-wrap">
-          <span className="text-xs font-bold uppercase tracking-widest">{row.title}</span>
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            {SubIcon && subTone && (
+              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-bold uppercase tracking-tight ${subTone}`}>
+                <SubIcon className="h-3 w-3" />
+                {subLabel}
+              </span>
+            )}
+            <span className="text-xs font-bold uppercase tracking-widest">{row.title}</span>
+            {row.isNew && (
+              <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-primary text-primary-foreground animate-pulse">
+                New
+              </span>
+            )}
+          </div>
           {row.actor && <span className="text-[10px] text-muted-foreground">by {row.actor}</span>}
         </div>
+
+        {row.changes && row.changes.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {row.changes.map((c, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-800 text-[10px] font-mono"
+              >
+                {c.dir === 'up' && <ArrowUp className="h-3 w-3" />}
+                {c.dir === 'down' && <ArrowDown className="h-3 w-3" />}
+                <span className="font-bold uppercase">{c.label}</span>
+                <span className="opacity-60">{c.from}</span>
+                <span>→</span>
+                <span className="font-bold">{c.to}</span>
+              </span>
+            ))}
+          </div>
+        )}
 
         {row.kind === 'vitals' && <VitalsRow v={row.data} />}
         {row.kind === 'attachment' && (
@@ -676,7 +710,10 @@ function LedgerRowView({
         {row.kind === 'payment' && (
           <div className="text-sm">
             <span className="font-bold font-mono text-emerald-600">+{naira(row.data.amount)}</span>{' '}
-            <span className="text-muted-foreground">via {row.data.method ?? 'cash'} · {row.data.ref}</span>
+            <span className="text-muted-foreground">
+              via {row.data.method ?? 'cash'} · {row.data.ref}
+              {row.data.total ? ` · of ${naira(row.data.total)}` : ''}
+            </span>
           </div>
         )}
         {row.kind === 'admission' && (

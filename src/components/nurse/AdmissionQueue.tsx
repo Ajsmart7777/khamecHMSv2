@@ -94,9 +94,14 @@ function AssignBedDialog({ admission, patient, onClose }: {
   const availableBeds = beds.filter((b) => b.room_id === roomId && b.status === 'available' && b.active);
 
   const sponsored = ['corporate', 'nhis', 'hmo', 'katchma', 'retainer', 'staff', 'staff_family'].includes(patient?.account_type);
+  const selectedWard = wards.find((w) => w.id === wardId);
+  const requiredMin = Number(selectedWard?.min_admission_deposit ?? 0);
+  const patientBalance = Number(patient?.balance ?? 0);
+  const depositShort = !sponsored && requiredMin > 0 && patientBalance < requiredMin;
+  const blocked = depositShort;
 
   const submit = async () => {
-    if (!bedId) return;
+    if (!bedId || blocked) return;
     setBusy(true);
     const ok = await assignBed(admission.id, bedId);
     setBusy(false);

@@ -12,6 +12,7 @@ import { uploadVisitAttachment, VisitStation } from '@/hooks/useVisitAttachments
 import { createSnapOrder, SnapOrderType, SnapTargetStation } from '@/hooks/useSnapOrders';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCanSnap } from '@/hooks/useCanSnap';
+import { usePatients } from '@/contexts/PatientContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Lock } from 'lucide-react';
 
@@ -43,6 +44,7 @@ export function SnapClinicalOrder({
   const { role } = useAuth();
   const { visit, refresh } = useActiveVisit(patientId);
   const { allowed, reason, loading: checking } = useCanSnap(patientId);
+  const { updatePatientStatus } = usePatients();
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -112,6 +114,12 @@ export function SnapClinicalOrder({
         note: note.trim(),
       });
       if (!snap) throw new Error('Snap order not created');
+
+      // Snap has been queued for Billing → move the patient card to Billing
+      // (unless a doctor routed a treatment back to the nurse for review).
+      if (target !== 'nurse') {
+        await updatePatientStatus(patientId, 'awaiting_billing').catch(() => null);
+      }
 
       toast.success('Sent to Billing', {
         description: `${orderType === 'lab' ? 'Lab test' : orderType === 'prescription' ? 'Prescription' : 'Treatment'} pending billing.`,

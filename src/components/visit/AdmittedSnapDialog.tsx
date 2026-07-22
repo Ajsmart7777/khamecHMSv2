@@ -89,13 +89,14 @@ export function AdmittedSnapDialog({
   };
 
   const addLine = (item: any) => {
-    const unit = Number(item.unit_price ?? item.price ?? 0);
+    const packQty = Number(item.pack_qty ?? 1) || 1;
+    const unit = Number(item.price ?? 0) / packQty;
     setLines((prev) => [...prev, {
       pricelist_id: item.id,
       name: item.name,
       size: item.size ?? null,
       category: item.category ?? '',
-      unit_price: unit,
+      unit_price: Math.round(unit * 100) / 100,
       qty: 1,
     }]);
     setPickerOpen(false);

@@ -50,6 +50,114 @@ const STATION_TONE: Record<string, string> = {
 const naira = (n: number | null | undefined) =>
   n == null ? '' : `₦${Number(n).toLocaleString()}`;
 
+// ---------- classification & deltas ----------
+type SnapSub =
+  | 'rx' | 'lab_request' | 'lab_result' | 'dispense'
+  | 'treatment' | 'vitals_photo' | 'other_snap';
+
+const SNAP_LABEL: Record<string, string> = {
+  rx: 'Prescription (Rx)',
+  lab_request: 'Lab Request',
+  lab_result: 'Lab Result',
+  dispense: 'Dispensed',
+  treatment: 'Treatment Order',
+  vitals_photo: 'Vitals Snap',
+  other_snap: 'Snap',
+  card_photo: 'Card Photo',
+  vitals_first: 'Vitals & Intake',
+  vitals_update: 'Vitals Update',
+  invoice_new: 'Invoice Issued',
+  invoice_partial: 'Invoice · Partly Paid',
+  invoice_paid: 'Invoice · Paid',
+  receipt_full: 'Receipt · Paid in Full',
+  receipt_partial: 'Receipt · Part Payment',
+  admission: 'Admission',
+  discharge: 'Discharge',
+};
+
+function classifySnap(s: any): SnapSub {
+  const t = String(s.order_type ?? '').toLowerCase();
+  const target = String(s.target_station ?? '').toLowerCase();
+  const source = String(s.source_role ?? '').toLowerCase();
+  if (t === 'lab_result' || (source === 'lab_tech' && target !== 'lab')) return 'lab_result';
+  if (t === 'prescription' || target === 'pharmacy') {
+    return s.status === 'fulfilled' || s.status === 'dispensed' ? 'dispense' : 'rx';
+  }
+  if (t === 'lab' || target === 'lab') return 'lab_request';
+  if (t === 'treatment') return 'treatment';
+  if (t === 'vitals') return 'vitals_photo';
+  return 'other_snap';
+}
+
+const VITAL_SPECS: { key: string; label: string; unit: string; higherIsWorse?: boolean }[] = [
+  { key: 'temperature', label: 'Temp', unit: '°C', higherIsWorse: true },
+  { key: 'pulse', label: 'Pulse', unit: 'bpm', higherIsWorse: true },
+  { key: 'spo2', label: 'SpO₂', unit: '%' },
+  { key: 'respiratory_rate', label: 'RR', unit: '/min', higherIsWorse: true },
+  { key: 'weight', label: 'Wt', unit: 'kg' },
+];
+
+function vitalsDeltas(cur: any, prev: any | null) {
+  if (!prev) return [];
+  const out: { label: string; from?: string | number; to?: string | number; dir?: 'up' | 'down' | 'flat' }[] = [];
+  for (const spec of VITAL_SPECS) {
+    const a = prev[spec.key], b = cur[spec.key];
+    if (a == null || b == null) continue;
+    const na = Number(a), nb = Number(b);
+    if (!Number.isFinite(na) || !Number.isFinite(nb) || na === nb) continue;
+    out.push({
+      label: spec.label,
+      from: `${a}${spec.unit}`,
+      to: `${b}${spec.unit}`,
+      dir: nb > na ? 'up' : 'down',
+    });
+  }
+  if (prev.blood_pressure && cur.blood_pressure && prev.blood_pressure !== cur.blood_pressure) {
+    out.push({ label: 'BP', from: prev.blood_pressure, to: cur.blood_pressure, dir: 'flat' });
+  }
+  return out;
+}
+
+const SUB_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  rx: Pill,
+  lab_request: FlaskConical,
+  lab_result: ClipboardList,
+  dispense: PackageCheck,
+  treatment: Stethoscope,
+  vitals_photo: Camera,
+  vitals_first: Activity,
+  vitals_update: Activity,
+  other_snap: Camera,
+  card_photo: Camera,
+  invoice_new: FileText,
+  invoice_partial: FileText,
+  invoice_paid: FileText,
+  receipt_full: Receipt,
+  receipt_partial: Receipt,
+  admission: BedDouble,
+  discharge: LogOut,
+};
+
+const SUB_TONE: Record<string, string> = {
+  rx: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  lab_request: 'bg-purple-50 text-purple-700 border-purple-200',
+  lab_result: 'bg-violet-50 text-violet-700 border-violet-200',
+  dispense: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  treatment: 'bg-sky-50 text-sky-700 border-sky-200',
+  vitals_photo: 'bg-teal-50 text-teal-700 border-teal-200',
+  vitals_first: 'bg-teal-50 text-teal-700 border-teal-200',
+  vitals_update: 'bg-teal-50 text-teal-700 border-teal-200',
+  card_photo: 'bg-slate-50 text-slate-700 border-slate-200',
+  other_snap: 'bg-slate-50 text-slate-700 border-slate-200',
+  invoice_new: 'bg-amber-50 text-amber-700 border-amber-200',
+  invoice_partial: 'bg-amber-50 text-amber-700 border-amber-200',
+  invoice_paid: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  receipt_full: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  receipt_partial: 'bg-amber-50 text-amber-700 border-amber-200',
+  admission: 'bg-blue-50 text-blue-700 border-blue-200',
+  discharge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+};
+
 // ---------- component ----------
 export function PatientLedgerCard({
   patient,

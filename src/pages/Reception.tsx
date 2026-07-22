@@ -55,6 +55,7 @@ import { patientSchema, paymentSchema } from '@/lib/validations';
 import { z } from 'zod';
 import { paymentAuditLogger } from '@/lib/auditLogger';
 import { useInvoices } from '@/hooks/useInvoices';
+import { useInsurance } from '@/hooks/useInsurance';
 import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { StandingOrderCaptureDialog } from '@/components/reception/StandingOrderCaptureDialog';
 import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
@@ -884,6 +885,7 @@ function PaymentForm({ onSubmit, onCancel, defaultAmount, invoiceNumber }: { onS
 
 function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
   const { addPatient } = usePatients();
+  const { providers } = useInsurance();
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
@@ -891,9 +893,20 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     gender: '' as 'male' | 'female' | '',
     address: '',
     age: '',
+    account_type: 'normal' as AccountType,
+    corporate_id: '',
+    insurance_provider: '',
+    insurance_plan: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const isSponsor = formData.account_type === 'corporate' || formData.account_type === 'retainer';
+  const isInsurance = ['nhis', 'hmo', 'katchma'].includes(formData.account_type);
+  const isStaffFamily = formData.account_type === 'staff_family';
+  const availablePlans = isInsurance
+    ? (providers.find(p => p.id === formData.insurance_provider)?.plans || []) as any[]
+    : [];
 
   const generateCardNumber = () => {
     const year = new Date().getFullYear();
@@ -915,6 +928,13 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     const ageNum = Number(formData.age);
     if (!formData.age || !Number.isInteger(ageNum) || ageNum < 0 || ageNum > 130) {
       e.age = 'Enter age between 0 and 130';
+    }
+    if (isSponsor && !formData.corporate_id) {
+      e.corporate_id = 'Select a sponsor';
+    }
+    if (isInsurance) {
+      if (!formData.insurance_provider) e.insurance_provider = 'Select provider';
+      if (!formData.insurance_plan) e.insurance_plan = 'Select plan';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -967,7 +987,10 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       occupation: formData.occupation.trim(),
       allergies: [],
       status: 'registered',
-      account_type: 'normal',
+      account_type: formData.account_type,
+      corporate_id: isSponsor ? formData.corporate_id : null,
+      insurance_provider: isInsurance ? (providers.find(p => p.id === formData.insurance_provider)?.name || null) : null,
+      insurance_plan: isInsurance ? formData.insurance_plan : null,
       balance: 0,
     } as any);
 
@@ -1057,6 +1080,83 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
           </div>
         </div>
       </div>
+
+      <div>
+        <h4 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Account Type</h4>
+        <Select
+          value={formData.account_type}
+          onValueChange={(v) => setFormData({ ...formData, account_type: v as AccountType, corporate_id: '', insurance_provider: '', insurance_plan: '' })}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select account type" />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(accountTypeConfig) as AccountType[]).map((k) => (
+              <SelectItem key={k} value={k}>{accountTypeConfig[k].label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground mt-1.5">{accountTypeConfig[formData.account_type].description}</p>
+
+        {isSponsor && (
+          <>
+            <CorporateSelector
+              value={formData.corporate_id}
+              onChange={(v) => setFormData({ ...formData, corporate_id: v })}
+              accountType={formData.account_type as 'corporate' | 'retainer'}
+            />
+            {errors.corporate_id && <p className="text-xs text-destructive mt-1">{errors.corporate_id}</p>}
+          </>
+        )}
+
+        {isInsurance && (
+          <div className="mt-4 p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3 animate-fade-in">
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Insurance Provider *</label>
+              <Select
+                value={formData.insurance_provider}
+                onValueChange={(v) => setFormData({ ...formData, insurance_provider: v, insurance_plan: '' })}
+              >
+                <SelectTrigger className={errors.insurance_provider ? 'border-destructive' : ''}>
+                  <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {providers.filter(p => p.status === 'active').map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.insurance_provider && <p className="text-xs text-destructive mt-1">{errors.insurance_provider}</p>}
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Plan *</label>
+              <Select
+                value={formData.insurance_plan}
+                onValueChange={(v) => setFormData({ ...formData, insurance_plan: v })}
+                disabled={!formData.insurance_provider}
+              >
+                <SelectTrigger className={errors.insurance_plan ? 'border-destructive' : ''}>
+                  <SelectValue placeholder={availablePlans.length ? 'Select plan' : 'No plans configured'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {availablePlans.map((pl: any, i: number) => {
+                    const name = typeof pl === 'string' ? pl : (pl?.name || pl?.plan || `Plan ${i + 1}`);
+                    return <SelectItem key={i} value={name}>{name}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+              {errors.insurance_plan && <p className="text-xs text-destructive mt-1">{errors.insurance_plan}</p>}
+            </div>
+          </div>
+        )}
+
+        {isStaffFamily && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Link this patient to a staff member in the Accountant module after registration (50% coverage applies).
+          </p>
+        )}
+      </div>
+
 
       <DialogFooter className="gap-2 sm:gap-0">
         <DialogClose asChild>

@@ -122,6 +122,18 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
     return () => { cancelled = true; };
   }, [snap.photo_path]);
 
+  // Live search as the user types (debounced), so "pan" matches "Panadol" instantly.
+  useEffect(() => {
+    const q = manualQuery.trim();
+    if (q.length === 0) { setManualMatches([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      const m = await fuzzyMatchPricelist(q, 8);
+      if (!cancelled) setManualMatches(m);
+    }, 150);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [manualQuery]);
+
   const doManualSearch = async () => {
     const m = await fuzzyMatchPricelist(manualQuery, 6);
     setManualMatches(m);
@@ -426,7 +438,7 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
           <div className="space-y-3">
             <div className="flex gap-2">
               <Input
-                placeholder="Search pricelist manually…"
+                placeholder="Type to search pricelist… (e.g. 'pan' finds Panadol)"
                 value={manualQuery}
                 onChange={(e) => setManualQuery(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && doManualSearch()}

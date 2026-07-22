@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Sparkles, Plus, RefreshCw } from 'lucide-react';
+import { Loader2, Sparkles, Plus, RefreshCw, ClipboardCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MatchedItem } from '@/hooks/useSnapOrders';
+import { SnapOcrReviewDialog } from './SnapOcrReviewDialog';
 
 interface Candidate {
   id: string;
@@ -35,6 +36,8 @@ export function SnapOcrPanel({
   const [matches, setMatches] = useState<OcrMatch[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [reviewed, setReviewed] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
 
   const load = async () => {
     const { data } = await supabase
@@ -48,6 +51,13 @@ export function SnapOcrPanel({
     setConfidence(Number(data.ocr_confidence ?? 0));
     setMatches(Array.isArray(data.ocr_matches) ? (data.ocr_matches as OcrMatch[]) : []);
     setError(data.ocr_error ?? null);
+    // Fetch reviewed flag separately since select above is fixed
+    supabase
+      .from('snap_orders')
+      .select('ocr_reviewed_at')
+      .eq('id', snapId)
+      .single<any>()
+      .then(({ data: r }) => setReviewed(!!r?.ocr_reviewed_at));
   };
 
   useEffect(() => {
@@ -91,16 +101,36 @@ export function SnapOcrPanel({
           <Sparkles className="h-3.5 w-3.5 text-primary" />
           AI Suggestions
           <Badge variant="outline" className="text-[10px] capitalize">{status}</Badge>
+          {reviewed && <Badge variant="secondary" className="text-[10px]">reviewed</Badge>}
           {confidence > 0 && (
             <span className="text-[10px] text-muted-foreground">
               conf {Math.round(confidence * 100)}%
             </span>
           )}
         </div>
-        <Button size="sm" variant="ghost" className="h-7" onClick={rerun} disabled={running || status === 'pending'}>
-          {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-        </Button>
+        <div className="flex items-center gap-1">
+          {status === 'done' && matches.length > 0 && (
+            <Button
+              size="sm"
+              variant={reviewed ? 'outline' : 'default'}
+              className="h-7"
+              onClick={() => setReviewOpen(true)}
+            >
+              <ClipboardCheck className="h-3 w-3 mr-1" />
+              {reviewed ? 'Re-review' : 'Review'}
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" className="h-7" onClick={rerun} disabled={running || status === 'pending'}>
+            {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          </Button>
+        </div>
       </div>
+
+      {status === 'done' && matches.length > 0 && !reviewed && (
+        <p className="text-[11px] text-warning">
+          Review each extracted line — accept, edit, or reject before adding to the invoice.
+        </p>
+      )}
 
       {status === 'pending' && (
         <p className="text-[11px] text-muted-foreground flex items-center gap-1">
@@ -145,6 +175,13 @@ export function SnapOcrPanel({
           <pre className="whitespace-pre-wrap font-mono mt-1">{text}</pre>
         </details>
       )}
+
+      <SnapOcrReviewDialog
+        snapId={snapId}
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+        onAcceptItems={(items) => items.forEach(onAddItem)}
+      />
     </div>
   );
 }

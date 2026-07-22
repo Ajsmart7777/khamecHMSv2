@@ -1008,6 +1008,14 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     setIsSubmitting(false);
 
     if (result) {
+      if (isStaffFamily && (result as any).id && formData.staff_id) {
+        const { error: linkErr } = await supabase
+          .from('staff_family_members')
+          .insert({ staff_id: formData.staff_id, patient_id: (result as any).id, relationship: 'family' });
+        if (linkErr) {
+          toast.error('Patient created but staff link failed', { description: linkErr.message });
+        }
+      }
       onSuccess();
     }
   };

@@ -36,6 +36,8 @@ import { logError } from '@/lib/errorHandler';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AdmissionQueue } from '@/components/nurse/AdmissionQueue';
 import { LabResultInbox } from '@/components/doctor/LabResultInbox';
+import { NurseTreatmentInbox } from '@/components/nurse/NurseTreatmentInbox';
+import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
 
 const NurseStation = () => {
   const { patients, loading, refreshPatients, updatePatientStatus, getPatientsByStatus } = usePatients();

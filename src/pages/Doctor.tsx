@@ -390,10 +390,6 @@ function ConsultationView({ patient, onComplete }: ConsultationViewProps) {
         <Button 
           variant="outline" 
           onClick={async () => {
-            if (!diagnosis) {
-              toast.error("Missing Diagnosis", { description: "Please enter a diagnosis." });
-              return;
-            }
             if (isSubmitting) return;
             setIsSubmitting(true);
             try {
@@ -499,7 +495,7 @@ function ConsultationView({ patient, onComplete }: ConsultationViewProps) {
           onOpenChange={(open) => setLabRequestData(open ? labRequestData : null)}
           patient={patient}
           tests={labRequestData.tests}
-          diagnosis={diagnosis}
+          diagnosis=""
           requestNumber={labRequestData.requestNumber}
           date={labRequestData.date}
         />

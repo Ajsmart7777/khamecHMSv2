@@ -2,20 +2,17 @@ import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
   Stethoscope, 
   Send, 
   User,
   FileText,
-  Plus,
-  Trash2,
   FlaskConical,
-  Pill,
   ClipboardList,
   BedDouble,
   CheckCircle,
+  Camera,
   Wifi,
   RefreshCw
 } from 'lucide-react';
@@ -223,11 +220,6 @@ interface ConsultationViewProps {
 function ConsultationView({ patient, onComplete }: ConsultationViewProps) {
   const { updatePatientStatus } = usePatients();
   const { createLabRequest } = useLabRequests();
-  const { createPrescription } = usePrescriptions();
-  const [prescriptions, setPrescriptions] = useState([
-    { id: 1, medication: '', dosage: '', frequency: '', duration: '', quantity: '' }
-  ]);
-  const [diagnosis, setDiagnosis] = useState('');
   const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false);
   const [isVitalsDialogOpen, setIsVitalsDialogOpen] = useState(false);
   const [isLabDialogOpen, setIsLabDialogOpen] = useState(false);
@@ -248,35 +240,6 @@ function ConsultationView({ patient, onComplete }: ConsultationViewProps) {
 
   const age = new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear();
 
-  const addPrescription = () => {
-    setPrescriptions([...prescriptions, { 
-      id: prescriptions.length + 1, 
-      medication: '', 
-      dosage: '', 
-      frequency: '', 
-      duration: '',
-      quantity: '' 
-    }]);
-    toast.info("Medication Added", {
-      description: "New medication line added to prescription.",
-    });
-  };
-
-  const removePrescription = (id: number) => {
-    if (prescriptions.length > 1) {
-      setPrescriptions(prescriptions.filter(p => p.id !== id));
-      toast.info("Medication Removed", {
-        description: "Medication line removed from prescription.",
-      });
-    }
-  };
-
-  const updatePrescription = (id: number, field: string, value: string) => {
-    setPrescriptions(prescriptions.map(p => 
-      p.id === id ? { ...p, [field]: value } : p
-    ));
-  };
-
   const generateRequestNumber = () => {
     const timestamp = Date.now().toString(36).toUpperCase();
     const random = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -292,27 +255,12 @@ function ConsultationView({ patient, onComplete }: ConsultationViewProps) {
     }
     
     const requestNumber = generateRequestNumber();
-    
-    // Save prescriptions to database if there are any with medications
-    const validPrescriptions = prescriptions.filter(p => p.medication.trim() !== '');
-    if (validPrescriptions.length > 0) {
-      const items = validPrescriptions.map(p => ({
-        medication: p.medication,
-        dosage: p.dosage,
-        frequency: p.frequency,
-        duration: p.duration,
-        quantity: parseInt(p.quantity) || 1,
-      }));
-      
-      await createPrescription(patient.id, diagnosis || 'Pending diagnosis', items);
-    }
-    
+
     // Save lab request to database
     const labRequest = await createLabRequest({
       patient_id: patient.id,
       request_number: requestNumber,
       tests: [...selectedLabTests],
-      diagnosis: diagnosis || undefined,
     });
     
     if (!labRequest) {
@@ -345,7 +293,7 @@ function ConsultationView({ patient, onComplete }: ConsultationViewProps) {
 
   const handleAdmitPatient = async () => {
     const { requestAdmission } = await import('@/hooks/useAdmissions');
-    const id = await requestAdmission({ patientId: patient.id, reason: diagnosis || undefined });
+    const id = await requestAdmission({ patientId: patient.id });
     if (!id) return;
     setIsAdmitDialogOpen(false);
     onComplete(patient.id, 'admitting');
@@ -353,29 +301,8 @@ function ConsultationView({ patient, onComplete }: ConsultationViewProps) {
 
   const handleSendToBilling = async () => {
     if (isSubmitting) return;
-    if (!diagnosis) {
-      toast.error("Missing Diagnosis", {
-        description: "Please enter a diagnosis before sending to billing.",
-      });
-      return;
-    }
-    
     setIsSubmitting(true);
     try {
-      // Save prescriptions to database if there are any with medications
-      const validPrescriptions = prescriptions.filter(p => p.medication.trim() !== '');
-      if (validPrescriptions.length > 0) {
-        const items = validPrescriptions.map(p => ({
-          medication: p.medication,
-          dosage: p.dosage,
-          frequency: p.frequency,
-          duration: p.duration,
-          quantity: parseInt(p.quantity) || 1,
-        }));
-        
-        await createPrescription(patient.id, diagnosis, items);
-      }
-      
       toast.success("Sent to Billing", {
         description: `${patient.first_name} ${patient.last_name}'s invoice is being generated.`,
       });
@@ -387,29 +314,8 @@ function ConsultationView({ patient, onComplete }: ConsultationViewProps) {
 
   const handleCompleteConsultation = async () => {
     if (isSubmitting) return;
-    if (!diagnosis) {
-      toast.error("Missing Diagnosis", {
-        description: "Please enter a diagnosis to complete consultation.",
-      });
-      return;
-    }
-    
     setIsSubmitting(true);
     try {
-      // Save prescriptions to database if there are any with medications
-      const validPrescriptions = prescriptions.filter(p => p.medication.trim() !== '');
-      if (validPrescriptions.length > 0) {
-        const items = validPrescriptions.map(p => ({
-          medication: p.medication,
-          dosage: p.dosage,
-          frequency: p.frequency,
-          duration: p.duration,
-          quantity: parseInt(p.quantity) || 1,
-        }));
-        
-        await createPrescription(patient.id, diagnosis, items);
-      }
-      
       toast.success("Consultation Completed", {
         description: `Consultation for ${patient.first_name} ${patient.last_name} has been completed.`,
       });
@@ -458,84 +364,17 @@ function ConsultationView({ patient, onComplete }: ConsultationViewProps) {
       </div>
 
       {/* Diagnosis */}
-      <div className="bg-card rounded-xl border border-border p-6">
-        <h3 className="font-semibold mb-4 flex items-center gap-2">
-          <Stethoscope className="h-5 w-5 text-module-doctor" />
-          Diagnosis & Notes
-        </h3>
-        <textarea 
-          className="w-full h-32 px-3 py-2 rounded-lg border border-input bg-background text-sm resize-none"
-          placeholder="Enter diagnosis and clinical notes..."
-          value={diagnosis}
-          onChange={(e) => setDiagnosis(e.target.value)}
-        />
-      </div>
-
-      {/* Prescriptions */}
-      <div className="bg-card rounded-xl border border-border p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold flex items-center gap-2">
-            <Pill className="h-5 w-5 text-module-pharmacy" />
-            Prescriptions
-          </h3>
-          <Button variant="outline" size="sm" onClick={addPrescription} className="press-effect">
-            <Plus className="h-4 w-4 mr-1" />
-            Add Medication
-          </Button>
+      <div className="bg-card rounded-xl border border-border p-6 text-center space-y-3">
+        <div className="mx-auto w-12 h-12 rounded-full bg-module-doctor/10 flex items-center justify-center">
+          <Camera className="h-6 w-6 text-module-doctor" />
         </div>
-
-        <div className="space-y-3">
-          {prescriptions.map((rx) => (
-            <div key={rx.id} className="grid grid-cols-12 gap-3 items-center p-3 bg-muted/30 rounded-lg animate-fade-in">
-              <div className="col-span-3">
-                <Input 
-                  placeholder="Medication name" 
-                  value={rx.medication}
-                  onChange={(e) => updatePrescription(rx.id, 'medication', e.target.value)}
-                />
-              </div>
-              <div className="col-span-2">
-                <Input 
-                  placeholder="Dosage" 
-                  value={rx.dosage}
-                  onChange={(e) => updatePrescription(rx.id, 'dosage', e.target.value)}
-                />
-              </div>
-              <div className="col-span-2">
-                <Input 
-                  placeholder="Frequency" 
-                  value={rx.frequency}
-                  onChange={(e) => updatePrescription(rx.id, 'frequency', e.target.value)}
-                />
-              </div>
-              <div className="col-span-2">
-                <Input 
-                  placeholder="Duration" 
-                  value={rx.duration}
-                  onChange={(e) => updatePrescription(rx.id, 'duration', e.target.value)}
-                />
-              </div>
-              <div className="col-span-2">
-                <Input 
-                  placeholder="Qty" 
-                  type="number" 
-                  value={rx.quantity}
-                  onChange={(e) => updatePrescription(rx.id, 'quantity', e.target.value)}
-                />
-              </div>
-              <div className="col-span-1">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="text-destructive hover:bg-destructive/10 press-effect"
-                  onClick={() => removePrescription(rx.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
+        <h3 className="font-semibold">Snap diagnosis & prescription</h3>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          Write Dx / Rx on the paper card and snap it. OCR will suggest pricelist & catalogue matches for Billing and Pharmacy automatically.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Use the <span className="font-medium">Snap Rx</span> and <span className="font-medium">Snap Lab Request</span> buttons above.
+        </p>
       </div>
 
       {/* Actions */}

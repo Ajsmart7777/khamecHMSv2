@@ -994,8 +994,9 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       status: 'registered',
       account_type: formData.account_type,
       corporate_id: isSponsor ? formData.corporate_id : null,
-      insurance_provider: isInsurance ? (providers.find(p => p.id === formData.insurance_provider)?.name || null) : null,
+      insurance_provider: isInsurance ? formData.insurance_provider.trim() : null,
       insurance_plan: isInsurance ? formData.insurance_plan : null,
+      enrollee_id: isInsurance ? formData.enrollee_id.trim() : null,
       balance: 0,
     } as any);
 

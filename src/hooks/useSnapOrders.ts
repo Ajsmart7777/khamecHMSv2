@@ -79,7 +79,10 @@ export async function createSnapOrder(input: {
     toast.error(`Snap order failed: ${error.message}`);
     return null;
   }
-  return data as unknown as SnapOrder;
+  // Fire-and-forget OCR: the edge function updates ocr_* fields when done.
+  const snap = data as unknown as SnapOrder;
+  supabase.functions.invoke('snap-ocr', { body: { snap_id: snap.id } }).catch(() => {});
+  return snap;
 }
 
 export function useSnapOrders(filter: {

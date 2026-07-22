@@ -116,6 +116,7 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
   const [showReject, setShowReject] = useState(false);
   const [manualQuery, setManualQuery] = useState('');
   const [manualMatches, setManualMatches] = useState<PricelistItem[]>([]);
+  const [activeIdx, setActiveIdx] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -130,7 +131,7 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
     let cancelled = false;
     const t = setTimeout(async () => {
       const m = await fuzzyMatchPricelist(q, 8);
-      if (!cancelled) setManualMatches(m);
+      if (!cancelled) { setManualMatches(m); setActiveIdx(0); }
     }, 150);
     return () => { cancelled = true; clearTimeout(t); };
   }, [manualQuery]);
@@ -146,6 +147,7 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
     }]);
     setManualQuery('');
     setManualMatches([]);
+    setActiveIdx(0);
   };
 
   const runOcr = async () => {

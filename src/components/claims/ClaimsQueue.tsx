@@ -9,6 +9,8 @@ import { FileText, Filter, Eye, Download, Loader2 } from 'lucide-react';
 import { useClaimsQueue, Visit } from '@/hooks/useVisits';
 import { usePatients } from '@/contexts/PatientContext';
 import { VisitEnvelopeDialog } from '@/components/visit/VisitEnvelopeDialog';
+import { PatientCardDialog } from '@/components/visit/PatientCardDialog';
+import { Patient } from '@/contexts/PatientContext';
 import { downloadClaimsPacketPdf, downloadBulkClaimsPacketsPdf } from '@/lib/claimsPacketPdf';
 import { toast } from 'sonner';
 

@@ -121,17 +121,20 @@ export function RealTimePatientList({
             <PatientStatusIndicator status={patient.status} size="sm" />
           </div>
           
-          <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center justify-between mt-2 gap-2">
             {showAccountType && (
               <Badge variant="secondary" className="text-[10px]">
                 {accountTypeLabels[patient.account_type]}
               </Badge>
             )}
-            {showBalance && (
-              <span className="text-sm font-medium">
-                ₦{patient.balance.toLocaleString()}
-              </span>
-            )}
+            <div className="flex items-center gap-2 ml-auto">
+              {showBalance && (
+                <span className="text-sm font-medium">
+                  ₦{patient.balance.toLocaleString()}
+                </span>
+              )}
+              <ViewCardButton patient={patient} />
+            </div>
           </div>
         </div>
       ))}

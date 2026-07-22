@@ -943,6 +943,9 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       if (!formData.insurance_plan) e.insurance_plan = 'Select plan';
       if (!formData.enrollee_id.trim()) e.enrollee_id = 'Enrollee ID is required';
     }
+    if ((isStaff || isStaffFamily) && !formData.staff_id) {
+      e.staff_id = 'Select the linked staff member';
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };

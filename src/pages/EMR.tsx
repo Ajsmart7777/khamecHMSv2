@@ -33,19 +33,21 @@ export default function EMR() {
             </Card>
           ) : (
             <>
-              <PatientHeaderCard patient={selected} />
-
-              <Tabs defaultValue="timeline" className="w-full">
+              <Tabs defaultValue="card" className="w-full">
                 <div className="overflow-x-auto -mx-1 px-1">
                   <TabsList className="w-max">
+                    <TabsTrigger value="card">Patient Card</TabsTrigger>
                     <TabsTrigger value="timeline">Timeline</TabsTrigger>
-                    <TabsTrigger value="visits">Visit Cards</TabsTrigger>
+                    <TabsTrigger value="visits">Visits</TabsTrigger>
                     <TabsTrigger value="vitals">Vitals</TabsTrigger>
                     <TabsTrigger value="external">External Rx</TabsTrigger>
                     <TabsTrigger value="attachments">Attachments</TabsTrigger>
                   </TabsList>
                 </div>
 
+                <TabsContent value="card" className="mt-4">
+                  <PatientLedgerCard patient={selected} />
+                </TabsContent>
                 <TabsContent value="timeline" className="mt-4">
                   <Card className="p-4"><EmrTimeline patientId={selected.id} /></Card>
                 </TabsContent>

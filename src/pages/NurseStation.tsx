@@ -178,22 +178,11 @@ interface VitalsFormProps {
 
 function VitalsForm({ patient, onComplete }: VitalsFormProps) {
   const { updatePatientStatus } = usePatients();
-  const [vitals, setVitals] = useState({
-    temperature: '',
-    bloodPressure: '',
-    pulse: '',
-    respiratoryRate: '',
-    weight: '',
-    height: '',
-    notes: ''
-  });
   const [assignedDoctor, setAssignedDoctor] = useState<'doctor1' | 'doctor2' | ''>('');
-  const [isSaving, setIsSaving] = useState(false);
   const [isCallDialogOpen, setIsCallDialogOpen] = useState(false);
 
   const handleCallPatient = async () => {
     setIsCallDialogOpen(true);
-    // Update status to with_nurse when called
     await updatePatientStatus(patient.id, 'with_nurse');
     toast.info("Calling Patient", {
       description: `Calling ${patient.first_name} ${patient.last_name} to the nurse station...`,
@@ -206,178 +195,31 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
     }, 2000);
   };
 
-  const saveVitalsToDb = async () => {
-    try {
-      const { error } = await supabase
-        .from('vitals')
-        .insert({
-          patient_id: patient.id,
-          temperature: vitals.temperature ? parseFloat(vitals.temperature) : null,
-          blood_pressure: vitals.bloodPressure || null,
-          pulse: vitals.pulse ? parseInt(vitals.pulse) : null,
-          respiratory_rate: vitals.respiratoryRate ? parseInt(vitals.respiratoryRate) : null,
-          weight: vitals.weight ? parseFloat(vitals.weight) : null,
-          height: vitals.height ? parseFloat(vitals.height) : null,
-          notes: vitals.notes || null,
-        });
-      if (error) throw error;
-      return true;
-    } catch (err) {
-      logError('Error saving vitals', err);
-      toast.error("Failed to save vitals to database");
-      return false;
-    }
-  };
-
-  const handleSaveDraft = async () => {
-    setIsSaving(true);
-    const saved = await saveVitalsToDb();
-    setIsSaving(false);
-    if (saved) {
-      toast.success("Draft Saved", {
-        description: "Vitals have been saved as draft.",
-      });
-    }
-  };
-
-  const handleSendToDoctor = async () => {
+  const handleSendToDoctor = () => {
     if (!assignedDoctor) {
       toast.error("Select a doctor", { description: "Choose Doctor 1 or Doctor 2 before sending." });
       return;
     }
-    if (!vitals.temperature || !vitals.bloodPressure || !vitals.pulse) {
-      toast.error("Incomplete Vitals", {
-        description: "Please record temperature, blood pressure, and pulse before sending.",
-      });
-      return;
-    }
-    const saved = await saveVitalsToDb();
-    if (saved) {
-      onComplete(patient.id, assignedDoctor);
-    }
+    onComplete(patient.id, assignedDoctor);
   };
-
-
-  const age = new Date().getFullYear() - new Date(patient.date_of_birth).getFullYear();
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Patient Info Header */}
-      <div className="bg-card rounded-xl border border-border p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-module-nurse/10 flex items-center justify-center">
-              <User className="h-6 w-6 text-module-nurse" />
-            </div>
-            <div>
-              <h2 className="font-semibold">{patient.first_name} {patient.last_name}</h2>
-              <p className="text-sm text-muted-foreground">{patient.card_number} • {patient.gender}, {age} years</p>
-            </div>
-            <PatientStatusIndicator status={patient.status} pulse />
-          </div>
+      {/* Snap-first vitals capture */}
+      <div className="bg-card rounded-xl border border-border p-6 text-center space-y-3">
+        <div className="mx-auto w-12 h-12 rounded-full bg-module-nurse/10 flex items-center justify-center">
+          <Camera className="h-6 w-6 text-module-nurse" />
+        </div>
+        <h3 className="font-semibold">Snap the vitals card</h3>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          Write vitals & notes on the paper card, then take a photo. The snap is the record — no typing required.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2 pt-2">
           <Button variant="outline" size="sm" onClick={handleCallPatient} className="press-effect">
             <Bell className="h-4 w-4 mr-2" />
             Call Patient
           </Button>
-        </div>
-      </div>
-
-      {/* Vitals Form */}
-      <div className="bg-card rounded-xl border border-border p-6">
-        <h3 className="font-semibold mb-6 flex items-center gap-2">
-          <ClipboardList className="h-5 w-5 text-module-nurse" />
-          Record Vitals
-        </h3>
-
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <Thermometer className="h-4 w-4 text-destructive" />
-              Temperature (°C)
-            </label>
-            <Input 
-              type="number" 
-              step="0.1" 
-              placeholder="36.5"
-              value={vitals.temperature}
-              onChange={(e) => setVitals({...vitals, temperature: e.target.value})}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <Heart className="h-4 w-4 text-destructive" />
-              Blood Pressure
-            </label>
-            <Input 
-              placeholder="120/80"
-              value={vitals.bloodPressure}
-              onChange={(e) => setVitals({...vitals, bloodPressure: e.target.value})}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <Heart className="h-4 w-4 text-accent" />
-              Pulse (bpm)
-            </label>
-            <Input 
-              type="number" 
-              placeholder="72"
-              value={vitals.pulse}
-              onChange={(e) => setVitals({...vitals, pulse: e.target.value})}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <Wind className="h-4 w-4 text-info" />
-              Respiratory Rate
-            </label>
-            <Input 
-              type="number" 
-              placeholder="16"
-              value={vitals.respiratoryRate}
-              onChange={(e) => setVitals({...vitals, respiratoryRate: e.target.value})}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <Scale className="h-4 w-4 text-primary" />
-              Weight (kg)
-            </label>
-            <Input 
-              type="number" 
-              step="0.1" 
-              placeholder="70"
-              value={vitals.weight}
-              onChange={(e) => setVitals({...vitals, weight: e.target.value})}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <Ruler className="h-4 w-4 text-primary" />
-              Height (cm)
-            </label>
-            <Input 
-              type="number" 
-              placeholder="170"
-              value={vitals.height}
-              onChange={(e) => setVitals({...vitals, height: e.target.value})}
-            />
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <label className="text-sm font-medium mb-2 block">Nurse Notes</label>
-          <textarea 
-            className="w-full h-24 px-3 py-2 rounded-lg border border-input bg-background text-sm resize-none"
-            placeholder="Enter any observations or notes..."
-            value={vitals.notes}
-            onChange={(e) => setVitals({...vitals, notes: e.target.value})}
-          />
+          <SnapToCard patientId={patient.id} station="nurse" defaultLabel="Nurse vitals & notes" />
         </div>
       </div>
 
@@ -398,25 +240,6 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
 
       {/* Actions */}
       <div className="flex justify-end gap-3">
-        <Button variant="outline" onClick={handleSaveDraft} disabled={isSaving} className="press-effect">
-          <Save className="h-4 w-4 mr-2" />
-          {isSaving ? 'Saving...' : 'Save as Draft'}
-        </Button>
-        <Button 
-          variant="outline" 
-          onClick={() => {
-            if (!assignedDoctor) {
-              toast.error("Select a doctor", { description: "Choose Doctor 1 or Doctor 2 first." });
-              return;
-            }
-            toast.info("Skipping vitals", { description: "Sending patient directly to doctor without vitals." });
-            onComplete(patient.id, assignedDoctor);
-          }} 
-          className="press-effect"
-        >
-          <Send className="h-4 w-4 mr-2" />
-          Skip Vitals → Doctor
-        </Button>
         <Button variant="module" onClick={handleSendToDoctor} className="press-effect">
           <Send className="h-4 w-4 mr-2" />
           Send to Doctor

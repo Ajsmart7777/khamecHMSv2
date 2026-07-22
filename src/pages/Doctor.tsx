@@ -161,6 +161,9 @@ const Doctor = () => {
           {/* Returned from Lab (snap results) */}
           <LabResultInbox />
 
+          {/* Admitted patients - in-ward snaps (bypass billing) */}
+          <AdmittedPatientsPanel sourceStation="doctor" title="Admitted Patients (In-Ward)" />
+
           {/* Lab Request Print Queue */}
           <LabRequestPrintQueue />
 

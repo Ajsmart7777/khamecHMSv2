@@ -9,6 +9,8 @@ import { FileText, Filter, Eye, Download, Loader2 } from 'lucide-react';
 import { useClaimsQueue, Visit } from '@/hooks/useVisits';
 import { usePatients } from '@/contexts/PatientContext';
 import { VisitEnvelopeDialog } from '@/components/visit/VisitEnvelopeDialog';
+import { PatientCardDialog } from '@/components/visit/PatientCardDialog';
+import { Patient } from '@/contexts/PatientContext';
 import { downloadClaimsPacketPdf, downloadBulkClaimsPacketsPdf } from '@/lib/claimsPacketPdf';
 import { toast } from 'sonner';
 
@@ -20,6 +22,7 @@ export function ClaimsQueue() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [open, setOpen] = useState<Visit | null>(null);
+  const [cardPatient, setCardPatient] = useState<Patient | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
 
@@ -193,8 +196,11 @@ export function ClaimsQueue() {
                             )}
                           </div>
                           <Badge variant="secondary" className="text-[10px]">pending</Badge>
-                          <Button size="sm" variant="outline" onClick={() => setOpen(v)}>
-                            <Eye className="h-3 w-3 mr-1" /> View
+                          <Button size="sm" variant="outline" onClick={() => p && setCardPatient(p)} disabled={!p}>
+                            <Eye className="h-3 w-3 mr-1" /> Card
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setOpen(v)}>
+                            Envelope
                           </Button>
                           <Button
                             size="sm"
@@ -218,6 +224,13 @@ export function ClaimsQueue() {
       )}
 
       <VisitEnvelopeDialog open={!!open} onOpenChange={(o) => !o && setOpen(null)} visit={open} />
+      {cardPatient && (
+        <PatientCardDialog
+          patient={cardPatient}
+          open={!!cardPatient}
+          onOpenChange={(o) => !o && setCardPatient(null)}
+        />
+      )}
     </div>
   );
 }

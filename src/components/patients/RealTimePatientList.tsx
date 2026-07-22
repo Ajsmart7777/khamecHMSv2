@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { PatientStatus, AccountType } from '@/types/hms';
 import { User, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ViewCardButton } from '@/components/visit/PatientCardDialog';
 
 interface RealTimePatientListProps {
   filterStatuses?: PatientStatus[];
@@ -120,17 +121,20 @@ export function RealTimePatientList({
             <PatientStatusIndicator status={patient.status} size="sm" />
           </div>
           
-          <div className="flex items-center justify-between mt-2">
+          <div className="flex items-center justify-between mt-2 gap-2">
             {showAccountType && (
               <Badge variant="secondary" className="text-[10px]">
                 {accountTypeLabels[patient.account_type]}
               </Badge>
             )}
-            {showBalance && (
-              <span className="text-sm font-medium">
-                ₦{patient.balance.toLocaleString()}
-              </span>
-            )}
+            <div className="flex items-center gap-2 ml-auto">
+              {showBalance && (
+                <span className="text-sm font-medium">
+                  ₦{patient.balance.toLocaleString()}
+                </span>
+              )}
+              <ViewCardButton patient={patient} />
+            </div>
           </div>
         </div>
       ))}

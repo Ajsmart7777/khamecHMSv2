@@ -13,6 +13,7 @@ export interface Ward {
   gender: WardGender;
   description: string | null;
   active: boolean;
+  min_admission_deposit: number;
   created_at: string;
   updated_at: string;
 }

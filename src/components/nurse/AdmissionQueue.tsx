@@ -94,9 +94,14 @@ function AssignBedDialog({ admission, patient, onClose }: {
   const availableBeds = beds.filter((b) => b.room_id === roomId && b.status === 'available' && b.active);
 
   const sponsored = ['corporate', 'nhis', 'hmo', 'katchma', 'retainer', 'staff', 'staff_family'].includes(patient?.account_type);
+  const selectedWard = wards.find((w) => w.id === wardId);
+  const requiredMin = Number(selectedWard?.min_admission_deposit ?? 0);
+  const patientBalance = Number(patient?.balance ?? 0);
+  const depositShort = !sponsored && requiredMin > 0 && patientBalance < requiredMin;
+  const blocked = depositShort;
 
   const submit = async () => {
-    if (!bedId) return;
+    if (!bedId || blocked) return;
     setBusy(true);
     const ok = await assignBed(admission.id, bedId);
     setBusy(false);
@@ -121,9 +126,14 @@ function AssignBedDialog({ admission, patient, onClose }: {
                   Balance: {fmtNaira(patient.balance)}
                 </Badge>
               </div>
-              {!sponsored && patient.balance <= 0 && (
+              {!sponsored && patientBalance <= 0 && (
                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                  ⚠ Normal patient with no deposit — advise reception to take a deposit. You can still assign the bed.
+                  ⚠ Send patient to Reception to deposit before bed can be assigned.
+                </p>
+              )}
+              {!sponsored && depositShort && patientBalance > 0 && (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  ⚠ Deposit short by {fmtNaira(requiredMin - patientBalance)} for {selectedWard?.name}. Top up at Reception.
                 </p>
               )}
               {sponsored && (
@@ -140,7 +150,10 @@ function AssignBedDialog({ admission, patient, onClose }: {
               <SelectTrigger><SelectValue placeholder="Select ward" /></SelectTrigger>
               <SelectContent>
                 {wards.filter((w) => w.active).map((w) => (
-                  <SelectItem key={w.id} value={w.id}>{w.name} · {w.gender}</SelectItem>
+                  <SelectItem key={w.id} value={w.id}>
+                    {w.name} · {w.gender}
+                    {w.min_admission_deposit > 0 && ` · min ${fmtNaira(w.min_admission_deposit)}`}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -182,8 +195,8 @@ function AssignBedDialog({ admission, patient, onClose }: {
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button onClick={submit} disabled={busy || !bedId}>
-            {busy ? 'Assigning…' : 'Assign Bed & Admit'}
+          <Button onClick={submit} disabled={busy || !bedId || blocked}>
+            {busy ? 'Assigning…' : blocked ? 'Deposit required' : 'Assign Bed & Admit'}
           </Button>
         </DialogFooter>
       </DialogContent>

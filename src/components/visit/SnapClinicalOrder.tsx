@@ -180,7 +180,7 @@ export function SnapClinicalOrder({
                   <RadioGroup
                     value={target}
                     onValueChange={(v) => setTarget(v as SnapTargetStation)}
-                    className="grid grid-cols-2 gap-2"
+                    className="grid grid-cols-3 gap-2"
                   >
                     <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
                       <RadioGroupItem value="pharmacy" />
@@ -190,7 +190,18 @@ export function SnapClinicalOrder({
                       <RadioGroupItem value="lab" />
                       <span className="text-sm">Lab</span>
                     </label>
+                    {sourceStation === 'doctor' && (
+                      <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
+                        <RadioGroupItem value="nurse" />
+                        <span className="text-sm">Nurse (review)</span>
+                      </label>
+                    )}
                   </RadioGroup>
+                  {target === 'nurse' && (
+                    <p className="text-xs text-muted-foreground">
+                      Nurse will review the snap and forward it to Billing.
+                    </p>
+                  )}
                 </div>
               )}
 

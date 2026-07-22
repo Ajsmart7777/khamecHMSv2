@@ -612,17 +612,6 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
           <Stethoscope className="h-5 w-5" />
           <span className="text-xs leading-tight text-center">Capture External Rx</span>
         </Button>
-
-        <Button
-          variant={activeVisit ? 'outline' : 'hero'}
-          className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-sm"
-          onClick={() => setIsCheckInOpen(true)}
-        >
-          <LogIn className="h-5 w-5" />
-          <span className="text-xs leading-tight text-center">
-            {activeVisit ? `Visit ${activeVisit.visit_number}` : 'Check In (Open Visit Card)'}
-          </span>
-        </Button>
       </div>
 
       {activeVisit && (

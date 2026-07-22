@@ -883,9 +883,14 @@ function PaymentForm({ onSubmit, onCancel, defaultAmount, invoiceNumber }: { onS
   );
 }
 
+const INSURANCE_PLANS: Record<string, string[]> = {
+  katchma: ['Katchma Basic', 'Katchma Standard'],
+  hmo: ['HMO Daily Claims', 'HMO Monthly Claims'],
+  nhis: ['NHIA Standard'],
+};
+
 function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
   const { addPatient } = usePatients();
-  const { providers } = useInsurance();
   const [formData, setFormData] = useState({
     full_name: '',
     phone: '',
@@ -897,6 +902,7 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     corporate_id: '',
     insurance_provider: '',
     insurance_plan: '',
+    enrollee_id: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -904,9 +910,7 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
   const isSponsor = formData.account_type === 'corporate' || formData.account_type === 'retainer';
   const isInsurance = ['nhis', 'hmo', 'katchma'].includes(formData.account_type);
   const isStaffFamily = formData.account_type === 'staff_family';
-  const availablePlans = isInsurance
-    ? (providers.find(p => p.id === formData.insurance_provider)?.plans || []) as any[]
-    : [];
+  const availablePlans = isInsurance ? (INSURANCE_PLANS[formData.account_type] || []) : [];
 
   const generateCardNumber = () => {
     const year = new Date().getFullYear();

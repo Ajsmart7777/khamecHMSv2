@@ -614,23 +614,6 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
         </Button>
       </div>
 
-      {activeVisit && (
-        <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-primary/30 bg-primary/5">
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">Active visit card</p>
-            <p className="text-sm font-mono font-semibold">{activeVisit.visit_number}</p>
-          </div>
-          <SnapToCard patientId={patient.id} station="reception" defaultLabel="Reception note" />
-        </div>
-      )}
-
-      <CheckInDialog
-        open={isCheckInOpen}
-        onOpenChange={setIsCheckInOpen}
-        patientId={patient.id}
-        patientName={`${patient.first_name} ${patient.last_name}`}
-      />
-
       {canUseBalance && (
         <div className="grid grid-cols-2 gap-4">
           <Button

@@ -126,9 +126,14 @@ function AssignBedDialog({ admission, patient, onClose }: {
                   Balance: {fmtNaira(patient.balance)}
                 </Badge>
               </div>
-              {!sponsored && patient.balance <= 0 && (
+              {!sponsored && patientBalance <= 0 && (
                 <p className="text-xs text-amber-700 dark:text-amber-400">
-                  ⚠ Normal patient with no deposit — advise reception to take a deposit. You can still assign the bed.
+                  ⚠ Send patient to Reception to deposit before bed can be assigned.
+                </p>
+              )}
+              {!sponsored && depositShort && patientBalance > 0 && (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  ⚠ Deposit short by {fmtNaira(requiredMin - patientBalance)} for {selectedWard?.name}. Top up at Reception.
                 </p>
               )}
               {sponsored && (

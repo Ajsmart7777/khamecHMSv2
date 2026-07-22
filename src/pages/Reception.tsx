@@ -937,8 +937,9 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       e.corporate_id = 'Select a sponsor';
     }
     if (isInsurance) {
-      if (!formData.insurance_provider) e.insurance_provider = 'Select provider';
+      if (!formData.insurance_provider.trim()) e.insurance_provider = 'Provider name is required';
       if (!formData.insurance_plan) e.insurance_plan = 'Select plan';
+      if (!formData.enrollee_id.trim()) e.enrollee_id = 'Enrollee ID is required';
     }
     setErrors(e);
     return Object.keys(e).length === 0;

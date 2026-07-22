@@ -9,6 +9,9 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { SnapOrder } from '@/hooks/useSnapOrders';
+import { useCanSnap } from '@/hooks/useCanSnap';
+import { Lock } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface Props {
   parentSnap: SnapOrder;
@@ -21,6 +24,7 @@ interface Props {
  */
 export function LabResultReturnButton({ parentSnap, onDone }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const { allowed, reason, loading: checking } = useCanSnap(parentSnap.patient_id);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [note, setNote] = useState('');
@@ -89,10 +93,26 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
     <>
       <input ref={inputRef} type="file" accept="image/*" capture="environment"
         onChange={onFile} className="hidden" />
-      <Button size="sm" onClick={() => inputRef.current?.click()}>
-        <Camera className="h-4 w-4 mr-2" />
-        Snap & Send Result
-      </Button>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-block">
+              <Button
+                size="sm"
+                onClick={() => inputRef.current?.click()}
+                disabled={!allowed || checking}
+                aria-disabled={!allowed}
+              >
+                {allowed ? <Camera className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
+                Snap & Send Result
+              </Button>
+            </span>
+          </TooltipTrigger>
+          {!allowed && reason && (
+            <TooltipContent side="top" className="max-w-xs">{reason}</TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
 
       <Dialog open={!!previewUrl} onOpenChange={(o) => !o && close()}>
         <DialogContent className="sm:max-w-md">

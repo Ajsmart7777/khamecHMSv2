@@ -2305,6 +2305,16 @@ export type Database = {
         }
         Returns: string
       }
+      discharge_admission: {
+        Args: {
+          _admission_id: string
+          _notes?: string
+          _settlement_amount?: number
+          _settlement_method?: string
+          _settlement_notes?: string
+        }
+        Returns: undefined
+      }
       generate_all_sponsor_statements: {
         Args: { _month: number; _year: number }
         Returns: number

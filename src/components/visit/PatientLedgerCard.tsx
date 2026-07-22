@@ -58,6 +58,8 @@ export function PatientLedgerCard({
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [stationFilter, setStationFilter] = useState<Set<string>>(new Set());
+
 
   const age = patient.date_of_birth
     ? differenceInYears(new Date(), new Date(patient.date_of_birth)) : null;
@@ -283,8 +285,22 @@ export function PatientLedgerCard({
           </div>
         ) : (
           <div>
+            <StationFilterBar
+              visits={visits}
+              selected={stationFilter}
+              onToggle={(s) => setStationFilter(prev => {
+                const next = new Set(prev);
+                if (s === '__all__') return new Set();
+                next.has(s) ? next.delete(s) : next.add(s);
+                return next;
+              })}
+            />
             {visits.map((lv, vi) => {
               const isCollapsed = collapsed[lv.visit.id];
+              const filteredRows = stationFilter.size === 0
+                ? lv.rows
+                : lv.rows.filter(r => stationFilter.has(r.station));
+              if (stationFilter.size > 0 && filteredRows.length === 0) return null;
               return (
                 <div key={lv.visit.id}>
                   {/* Visit divider */}
@@ -325,12 +341,12 @@ export function PatientLedgerCard({
                   {/* Rows */}
                   {!isCollapsed && (
                     <div className="divide-y divide-border">
-                      {lv.rows.length === 0 && (
+                      {filteredRows.length === 0 && (
                         <div className="px-4 py-6 text-center text-xs text-muted-foreground italic">
-                          No events recorded for this visit yet.
+                          {stationFilter.size > 0 ? 'No matching events for the selected stations.' : 'No events recorded for this visit yet.'}
                         </div>
                       )}
-                      {lv.rows.map(row => (
+                      {filteredRows.map(row => (
                         <LedgerRowView
                           key={row.id} row={row} thumbs={thumbs}
                           onOpenImage={setLightbox}
@@ -341,6 +357,7 @@ export function PatientLedgerCard({
                 </div>
               );
             })}
+
           </div>
         )}
 
@@ -383,6 +400,60 @@ function Chip({ children, mono, icon }: { children: React.ReactNode; mono?: bool
     </div>
   );
 }
+
+const FILTER_STATIONS = ['nurse', 'doctor', 'lab', 'pharmacy', 'billing', 'cashier'] as const;
+
+function StationFilterBar({
+  visits, selected, onToggle,
+}: {
+  visits: LedgerVisit[];
+  selected: Set<string>;
+  onToggle: (station: string) => void;
+}) {
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    visits.forEach(v => v.rows.forEach(r => { c[r.station] = (c[r.station] ?? 0) + 1; }));
+    return c;
+  }, [visits]);
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const active = selected.size > 0;
+
+  return (
+    <div className="px-4 py-2.5 border-b border-border bg-muted/30 flex items-center gap-1.5 flex-wrap">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mr-1">
+        Filter
+      </span>
+      <button
+        onClick={() => onToggle('__all__')}
+        className={`px-2 py-1 text-[10px] font-bold uppercase tracking-tight rounded border transition ${
+          !active
+            ? 'bg-foreground text-background border-foreground'
+            : 'bg-background text-foreground border-border hover:bg-muted'
+        }`}
+      >
+        All · {total}
+      </button>
+      {FILTER_STATIONS.map(s => {
+        const isOn = selected.has(s);
+        const count = counts[s] ?? 0;
+        const tone = STATION_TONE[s] ?? STATION_TONE.admin;
+        return (
+          <button
+            key={s}
+            onClick={() => onToggle(s)}
+            disabled={count === 0 && !isOn}
+            className={`px-2 py-1 text-[10px] font-bold uppercase tracking-tight rounded border capitalize transition ${
+              isOn ? tone + ' ring-2 ring-offset-1 ring-current' : 'bg-background text-muted-foreground border-border hover:bg-muted'
+            } ${count === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+          >
+            {s} · {count}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 
 function LastActivityBadge({ rows }: { rows: LedgerRow[] }) {
   const last = rows.length ? rows[rows.length - 1] : null;

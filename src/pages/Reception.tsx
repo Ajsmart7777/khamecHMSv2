@@ -929,6 +929,13 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     if (!formData.age || !Number.isInteger(ageNum) || ageNum < 0 || ageNum > 130) {
       e.age = 'Enter age between 0 and 130';
     }
+    if (isSponsor && !formData.corporate_id) {
+      e.corporate_id = 'Select a sponsor';
+    }
+    if (isInsurance) {
+      if (!formData.insurance_provider) e.insurance_provider = 'Select provider';
+      if (!formData.insurance_plan) e.insurance_plan = 'Select plan';
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };

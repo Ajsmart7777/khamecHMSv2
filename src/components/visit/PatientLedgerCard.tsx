@@ -306,9 +306,11 @@ export function PatientLedgerCard({
                         )}
                       </div>
                       <div className="flex items-center gap-2">
+                        <LastActivityBadge rows={lv.rows} />
                         <span className="text-[10px] font-mono text-slate-300 uppercase">
                           {lv.visit.status} · Charged {naira(lv.visit.total_charged)}
                         </span>
+
                         <Button
                           variant="ghost" size="sm"
                           className="h-6 text-slate-300 hover:text-white hover:bg-slate-800"

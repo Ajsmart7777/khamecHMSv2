@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { Camera, ScanText, Plus, Trash2, Send, XCircle, Loader2, Check, Pencil, SkipForward } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 import { SnapOcrPanel } from './SnapOcrPanel';
+import { highlightMatch } from '@/lib/highlightMatch';
 
 type ReviewStatus = 'pending' | 'approved' | 'skipped';
 interface ReviewLine {
@@ -454,7 +455,10 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
                     onClick={() => addManual(m)}
                     className="w-full text-left text-xs px-2 py-1 rounded hover:bg-primary/10 flex items-center justify-between"
                   >
-                    <span>{m.name}{m.size ? ` (${m.size})` : ''}</span>
+                    <span>
+                      {highlightMatch(m.name, manualQuery)}
+                      {m.size ? <> ({highlightMatch(m.size, manualQuery)})</> : null}
+                    </span>
                     <span className="font-mono">{fmt(m.price)}</span>
                   </button>
                 ))}

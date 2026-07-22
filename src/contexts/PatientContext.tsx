@@ -26,6 +26,7 @@ export interface Patient {
   insurance_policy_number?: string;
   insurance_plan?: string;
   staff_link_id?: string | null;
+  occupation?: string | null;
   assigned_doctor?: 'doctor1' | 'doctor2' | null;
   balance: number;
   registered_at: string;

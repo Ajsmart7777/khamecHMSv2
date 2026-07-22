@@ -20,6 +20,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
   const { admissions } = useAdmissions({ statuses: ['active'] });
   const { patients } = usePatients();
   const [snapFor, setSnapFor] = useState<{ id: string; name: string; balance: number } | null>(null);
+  const [dischargeFor, setDischargeFor] = useState<{ admissionId: string; patientId: string; name: string; balance: number } | null>(null);
 
   const patientOf = useMemo(() => {
     const m = new Map<string, any>();

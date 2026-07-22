@@ -83,9 +83,9 @@ export function usePricelist() {
 /** Fuzzy-match one query line against the pricelist. Returns top-N by trigram similarity. */
 export async function fuzzyMatchPricelist(query: string, limit = 5): Promise<PricelistItem[]> {
   const q = query.trim().toLowerCase();
-  if (q.length < 2) return [];
+  if (q.length < 1) return [];
   // Uses pg_trgm's ILIKE + similarity ranking via a two-word tokenized OR.
-  const tokens = q.split(/\s+/).filter(t => t.length >= 2).slice(0, 4);
+  const tokens = q.split(/\s+/).filter(t => t.length >= 1).slice(0, 4);
   if (tokens.length === 0) return [];
   const orExpr = tokens.map(t => `search_text.ilike.%${t.replace(/[%,()]/g, '')}%`).join(',');
   const { data, error } = await supabase

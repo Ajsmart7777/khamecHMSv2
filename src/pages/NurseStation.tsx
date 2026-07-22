@@ -36,6 +36,8 @@ import { logError } from '@/lib/errorHandler';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AdmissionQueue } from '@/components/nurse/AdmissionQueue';
 import { LabResultInbox } from '@/components/doctor/LabResultInbox';
+import { NurseTreatmentInbox } from '@/components/nurse/NurseTreatmentInbox';
+import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
 
 const NurseStation = () => {
   const { patients, loading, refreshPatients, updatePatientStatus, getPatientsByStatus } = usePatients();
@@ -82,6 +84,8 @@ const NurseStation = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <AdmissionQueue />
         <LabResultInbox />
+        <NurseTreatmentInbox />
+        <AdmittedPatientsPanel sourceStation="nurse" title="Admitted Patients (In-Ward Snap)" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">

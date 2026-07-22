@@ -49,6 +49,7 @@ import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { LabRequestPrintQueue } from '@/components/doctor/LabRequestPrintQueue';
 import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
 import { LabResultInbox } from '@/components/doctor/LabResultInbox';
+import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
 import { supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 import { PatientHistoryDialog } from '@/components/doctor/PatientHistoryDialog';
@@ -159,6 +160,9 @@ const Doctor = () => {
 
           {/* Returned from Lab (snap results) */}
           <LabResultInbox />
+
+          {/* Admitted patients - in-ward snaps (bypass billing) */}
+          <AdmittedPatientsPanel sourceStation="doctor" title="Admitted Patients (In-Ward)" />
 
           {/* Lab Request Print Queue */}
           <LabRequestPrintQueue />

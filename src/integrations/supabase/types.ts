@@ -1384,10 +1384,13 @@ export type Database = {
           billed_by: string | null
           created_at: string
           created_by: string | null
+          debt_amount: number
+          debt_reason: string | null
           fulfilled_at: string | null
           fulfilled_by: string | null
           id: string
           invoice_id: string | null
+          is_admitted_snap: boolean
           matched_items: Json
           note: string | null
           ocr_confidence: number | null
@@ -1414,10 +1417,13 @@ export type Database = {
           billed_by?: string | null
           created_at?: string
           created_by?: string | null
+          debt_amount?: number
+          debt_reason?: string | null
           fulfilled_at?: string | null
           fulfilled_by?: string | null
           id?: string
           invoice_id?: string | null
+          is_admitted_snap?: boolean
           matched_items?: Json
           note?: string | null
           ocr_confidence?: number | null
@@ -1444,10 +1450,13 @@ export type Database = {
           billed_by?: string | null
           created_at?: string
           created_by?: string | null
+          debt_amount?: number
+          debt_reason?: string | null
           fulfilled_at?: string | null
           fulfilled_by?: string | null
           id?: string
           invoice_id?: string | null
+          is_admitted_snap?: boolean
           matched_items?: Json
           note?: string | null
           ocr_confidence?: number | null
@@ -2235,6 +2244,7 @@ export type Database = {
           description: string | null
           gender: string
           id: string
+          min_admission_deposit: number
           name: string
           updated_at: string
           ward_type: string
@@ -2245,6 +2255,7 @@ export type Database = {
           description?: string | null
           gender?: string
           id?: string
+          min_admission_deposit?: number
           name: string
           updated_at?: string
           ward_type?: string
@@ -2255,6 +2266,7 @@ export type Database = {
           description?: string | null
           gender?: string
           id?: string
+          min_admission_deposit?: number
           name?: string
           updated_at?: string
           ward_type?: string
@@ -2279,6 +2291,20 @@ export type Database = {
         Returns: number
       }
       close_visit: { Args: { _visit_id: string }; Returns: undefined }
+      create_admitted_snap: {
+        Args: {
+          _allow_debt?: boolean
+          _debt_reason?: string
+          _items: Json
+          _note: string
+          _order_type: string
+          _patient_id: string
+          _photo_path: string
+          _target_station: string
+          _total: number
+        }
+        Returns: string
+      }
       generate_all_sponsor_statements: {
         Args: { _month: number; _year: number }
         Returns: number

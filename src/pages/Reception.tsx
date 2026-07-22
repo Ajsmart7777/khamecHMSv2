@@ -885,22 +885,12 @@ function PaymentForm({ onSubmit, onCancel, defaultAmount, invoiceNumber }: { onS
 function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
   const { addPatient } = usePatients();
   const [formData, setFormData] = useState({
-    first_name: '',
-    last_name: '',
-    date_of_birth: '',
-    gender: '' as 'male' | 'female' | '',
+    full_name: '',
     phone: '',
+    occupation: '',
+    gender: '' as 'male' | 'female' | '',
     address: '',
-    emergency_contact: '',
-    blood_group: '',
-    account_type: 'normal' as AccountType,
-    insurance_provider: '',
-    insurance_policy_number: '',
-    insurance_plan: '',
-    corporate_id: '',
-    staff_link_id: '',
-    family_staff_id: '',
-    family_staff_has_consent: false,
+    age: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -911,180 +901,128 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     return `KMC-${year}-${random}`;
   };
 
+  const validate = () => {
+    const e: Record<string, string> = {};
+    const name = formData.full_name.trim();
+    if (!name) e.full_name = 'Name is required';
+    else if (!/^[a-zA-Z\s'-]{2,100}$/.test(name)) e.full_name = 'Letters, spaces, hyphens, apostrophes only';
+    if (!/^[\d\s+()-]{7,20}$/.test(formData.phone.trim())) e.phone = 'Enter a valid phone number';
+    if (!formData.occupation.trim()) e.occupation = 'Occupation is required';
+    else if (formData.occupation.trim().length > 100) e.occupation = 'Max 100 characters';
+    if (!formData.gender) e.gender = 'Select gender';
+    if (!formData.address.trim()) e.address = 'Address is required';
+    else if (formData.address.trim().length > 500) e.address = 'Max 500 characters';
+    const ageNum = Number(formData.age);
+    if (!formData.age || !Number.isInteger(ageNum) || ageNum < 0 || ageNum > 130) {
+      e.age = 'Enter age between 0 and 130';
+    }
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
   const handleSubmit = async () => {
-    // Validate with Zod schema
-    try {
-      patientSchema.parse({
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        date_of_birth: formData.date_of_birth,
-        gender: formData.gender || undefined,
-        phone: formData.phone,
-        address: formData.address,
-        emergency_contact: formData.emergency_contact,
-        blood_group: formData.blood_group || undefined,
-        account_type: formData.account_type,
-        insurance_provider: formData.insurance_provider || undefined,
-        insurance_policy_number: formData.insurance_policy_number || undefined,
-        corporate_id: formData.corporate_id || undefined,
-      });
-      setErrors({});
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const newErrors: Record<string, string> = {};
-        error.errors.forEach((err) => {
-          if (err.path[0]) {
-            newErrors[err.path[0] as string] = err.message;
-          }
-        });
-        setErrors(newErrors);
-        toast.error('Please fix the validation errors');
-        return;
-      }
+    if (!validate()) {
+      toast.error('Please fix the validation errors');
+      return;
     }
 
     setIsSubmitting(true);
 
-    // Check for duplicate patient by phone number or name
+    // Split full name → first + last
+    const parts = formData.full_name.trim().split(/\s+/);
+    const first_name = parts.shift() || '';
+    const last_name = parts.length ? parts.join(' ') : '';
+
+    // Duplicate check by phone
     const { data: existingPatients } = await supabase
       .from('patients')
       .select('id, first_name, last_name, phone, card_number')
-      .or(`phone.eq.${formData.phone.trim()},and(first_name.ilike.${formData.first_name.trim()},last_name.ilike.${formData.last_name.trim()})`);
+      .eq('phone', formData.phone.trim());
 
     if (existingPatients && existingPatients.length > 0) {
       const match = existingPatients[0];
       toast.error('Patient already exists', {
-        description: `${match.first_name} ${match.last_name} (${match.card_number}) is already registered. Please search for the existing patient instead.`,
+        description: `${match.first_name} ${match.last_name} (${match.card_number}) is already registered with this phone.`,
         duration: 6000,
       });
       setIsSubmitting(false);
       return;
     }
-    
-    // Extra validation for staff / family accounts
-    if (formData.account_type === 'staff' && !formData.staff_link_id) {
-      toast.error('Please select the staff member this patient represents.');
-      setIsSubmitting(false);
-      return;
-    }
-    if (formData.account_type === 'staff_family' && !formData.family_staff_id) {
-      toast.error('Please select the staff this family member belongs to.');
-      setIsSubmitting(false);
-      return;
-    }
-    if ((formData.account_type === 'corporate' || formData.account_type === 'retainer') && !formData.corporate_id) {
-      toast.error(`Please select the ${formData.account_type === 'retainer' ? 'retainer sponsor' : 'corporate account'}.`);
-      setIsSubmitting(false);
-      return;
-    }
-    if (['katchma', 'hmo', 'nhis'].includes(formData.account_type)) {
-      if (!formData.insurance_plan || !formData.insurance_provider.trim() || !formData.insurance_policy_number.trim()) {
-        toast.error('Plan, provider name, and enrollee ID are required for insurance patients.');
-        setIsSubmitting(false);
-        return;
-      }
-    }
 
-    if (formData.account_type === 'staff_family') {
-      const { count } = await supabase
-        .from('staff_family_members')
-        .select('id', { count: 'exact', head: true })
-        .eq('staff_id', formData.family_staff_id);
-      if ((count ?? 0) >= 4) {
-        toast.error('This staff has already enrolled the maximum of 4 family members.');
-        setIsSubmitting(false);
-        return;
-      }
-    }
+    // Derive DOB from age (Jan 1 of birth year)
+    const birthYear = new Date().getFullYear() - Number(formData.age);
+    const date_of_birth = `${birthYear}-01-01`;
 
     const cardNumber = generateCardNumber();
     const result = await addPatient({
       card_number: cardNumber,
       mini_card_number: cardNumber.split('-').pop() || '',
-      first_name: formData.first_name.trim(),
-      last_name: formData.last_name.trim(),
-      date_of_birth: formData.date_of_birth,
+      first_name,
+      last_name,
+      date_of_birth,
       gender: formData.gender as 'male' | 'female',
       phone: formData.phone.trim(),
       address: formData.address.trim(),
-      emergency_contact: formData.emergency_contact.trim(),
-      blood_group: formData.blood_group || undefined,
+      emergency_contact: '',
+      occupation: formData.occupation.trim(),
       allergies: [],
       status: 'registered',
-      account_type: formData.account_type,
-      corporate_id: formData.corporate_id?.trim() || undefined,
-      insurance_provider: formData.insurance_provider?.trim() || undefined,
-      insurance_policy_number: formData.insurance_policy_number?.trim() || undefined,
-      insurance_plan: formData.insurance_plan?.trim() || undefined,
-      staff_link_id: formData.account_type === 'staff' ? formData.staff_link_id : null,
-      balance: 0
-    });
-
-    if (result && formData.account_type === 'staff_family') {
-      const { error: famErr } = await supabase
-        .from('staff_family_members')
-        .insert({
-          patient_id: result.id,
-          staff_id: formData.family_staff_id,
-          salary_deduction_consent: formData.family_staff_has_consent,
-        });
-      if (famErr) {
-        toast.error('Patient created but family enrollment failed', { description: famErr.message });
-      }
-    }
+      account_type: 'normal',
+      balance: 0,
+    } as any);
 
     setIsSubmitting(false);
-    
+
     if (result) {
       onSuccess();
     }
   };
 
-  const showInsuranceFields = ['katchma', 'hmo', 'nhis'].includes(formData.account_type);
-  const showCorporateFields = formData.account_type === 'corporate';
-  const showRetainerFields = formData.account_type === 'retainer';
-  const showStaffSelector = formData.account_type === 'staff';
-  const showFamilyStaffSelector = formData.account_type === 'staff_family';
-
   return (
     <div className="space-y-6 py-4">
-      {/* Personal Information */}
       <div>
-        <h4 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Personal Information</h4>
+        <h4 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Patient Details</h4>
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">First Name *</label>
-            <Input 
-              placeholder="First name" 
-              value={formData.first_name}
-              onChange={(e) => setFormData({...formData, first_name: e.target.value})}
-              className={errors.first_name ? 'border-destructive' : ''}
+          <div className="col-span-2">
+            <label className="text-sm font-medium mb-1.5 block">Full Name *</label>
+            <Input
+              placeholder="e.g. Auwal Musa"
+              value={formData.full_name}
+              onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+              className={errors.full_name ? 'border-destructive' : ''}
             />
-            {errors.first_name && <p className="text-xs text-destructive mt-1">{errors.first_name}</p>}
+            {errors.full_name && <p className="text-xs text-destructive mt-1">{errors.full_name}</p>}
           </div>
+
           <div>
-            <label className="text-sm font-medium mb-1.5 block">Last Name *</label>
-            <Input 
-              placeholder="Last name" 
-              value={formData.last_name}
-              onChange={(e) => setFormData({...formData, last_name: e.target.value})}
-              className={errors.last_name ? 'border-destructive' : ''}
+            <label className="text-sm font-medium mb-1.5 block">Phone No *</label>
+            <Input
+              placeholder="Phone number"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+              className={errors.phone ? 'border-destructive' : ''}
             />
-            {errors.last_name && <p className="text-xs text-destructive mt-1">{errors.last_name}</p>}
+            {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
           </div>
+
           <div>
-            <label className="text-sm font-medium mb-1.5 block">Date of Birth *</label>
-            <Input 
-              type="date" 
-              value={formData.date_of_birth}
-              onChange={(e) => setFormData({...formData, date_of_birth: e.target.value})}
-              className={errors.date_of_birth ? 'border-destructive' : ''}
+            <label className="text-sm font-medium mb-1.5 block">Age *</label>
+            <Input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={130}
+              placeholder="e.g. 39"
+              value={formData.age}
+              onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+              className={errors.age ? 'border-destructive' : ''}
             />
-            {errors.date_of_birth && <p className="text-xs text-destructive mt-1">{errors.date_of_birth}</p>}
+            {errors.age && <p className="text-xs text-destructive mt-1">{errors.age}</p>}
           </div>
+
           <div>
             <label className="text-sm font-medium mb-1.5 block">Gender *</label>
-            <Select value={formData.gender} onValueChange={(v) => setFormData({...formData, gender: v as 'male' | 'female'})}>
+            <Select value={formData.gender} onValueChange={(v) => setFormData({ ...formData, gender: v as 'male' | 'female' })}>
               <SelectTrigger className={errors.gender ? 'border-destructive' : ''}>
                 <SelectValue placeholder="Select gender" />
               </SelectTrigger>
@@ -1095,176 +1033,29 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
             </Select>
             {errors.gender && <p className="text-xs text-destructive mt-1">{errors.gender}</p>}
           </div>
+
           <div>
-            <label className="text-sm font-medium mb-1.5 block">Phone *</label>
-            <Input 
-              placeholder="Phone number" 
-              value={formData.phone}
-              onChange={(e) => setFormData({...formData, phone: e.target.value})}
-              className={errors.phone ? 'border-destructive' : ''}
+            <label className="text-sm font-medium mb-1.5 block">Occupation *</label>
+            <Input
+              placeholder="e.g. Teacher"
+              value={formData.occupation}
+              onChange={(e) => setFormData({ ...formData, occupation: e.target.value })}
+              className={errors.occupation ? 'border-destructive' : ''}
             />
-            {errors.phone && <p className="text-xs text-destructive mt-1">{errors.phone}</p>}
+            {errors.occupation && <p className="text-xs text-destructive mt-1">{errors.occupation}</p>}
           </div>
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Blood Group</label>
-            <Select value={formData.blood_group} onValueChange={(v) => setFormData({...formData, blood_group: v})}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select blood group" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="A+">A+</SelectItem>
-                <SelectItem value="A-">A-</SelectItem>
-                <SelectItem value="B+">B+</SelectItem>
-                <SelectItem value="B-">B-</SelectItem>
-                <SelectItem value="AB+">AB+</SelectItem>
-                <SelectItem value="AB-">AB-</SelectItem>
-                <SelectItem value="O+">O+</SelectItem>
-                <SelectItem value="O-">O-</SelectItem>
-              </SelectContent>
-            </Select>
+
+          <div className="col-span-2">
+            <label className="text-sm font-medium mb-1.5 block">Address *</label>
+            <Input
+              placeholder="Full address"
+              value={formData.address}
+              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+              className={errors.address ? 'border-destructive' : ''}
+            />
+            {errors.address && <p className="text-xs text-destructive mt-1">{errors.address}</p>}
           </div>
         </div>
-        <div className="mt-4">
-          <label className="text-sm font-medium mb-1.5 block">Address *</label>
-          <Input 
-            placeholder="Full address" 
-            value={formData.address}
-            onChange={(e) => setFormData({...formData, address: e.target.value})}
-            className={errors.address ? 'border-destructive' : ''}
-          />
-          {errors.address && <p className="text-xs text-destructive mt-1">{errors.address}</p>}
-        </div>
-        <div className="mt-4">
-          <label className="text-sm font-medium mb-1.5 block">Emergency Contact *</label>
-          <Input 
-            placeholder="Emergency contact name and phone" 
-            value={formData.emergency_contact}
-            onChange={(e) => setFormData({...formData, emergency_contact: e.target.value})}
-            className={errors.emergency_contact ? 'border-destructive' : ''}
-          />
-          {errors.emergency_contact && <p className="text-xs text-destructive mt-1">{errors.emergency_contact}</p>}
-        </div>
-      </div>
-
-      {/* Account Type */}
-      <div>
-        <h4 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Account Type</h4>
-        <div className="grid grid-cols-3 gap-3">
-          {(Object.entries(accountTypeConfig) as [AccountType, typeof accountTypeConfig[AccountType]][]).map(([type, config]) => (
-            <button
-              key={type}
-              onClick={() => setFormData({...formData, account_type: type})}
-              className={cn(
-                "p-3 rounded-lg border text-left transition-all hover:scale-[1.02]",
-                formData.account_type === type
-                  ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                  : "border-border hover:border-primary/50"
-              )}
-            >
-              <div className="flex items-center gap-2 mb-1">
-                {config.icon}
-                <span className="font-medium text-sm">{config.label}</span>
-              </div>
-              <p className="text-xs text-muted-foreground">{config.description}</p>
-            </button>
-          ))}
-        </div>
-
-        {/* Conditional Insurance Fields */}
-        {showInsuranceFields && (() => {
-          const planOptions: Record<string, string[]> = {
-            katchma: ['Katchma Basic', 'Katchma Standard'],
-            hmo: ['HMO Daily Claims', 'HMO Monthly Claims'],
-            nhis: ['NHIA Standard'],
-          };
-          const options = planOptions[formData.account_type] || [];
-          const providerLabel = formData.account_type === 'nhis' ? 'NHIA Office / Branch' : formData.account_type === 'katchma' ? 'Katchma Desk / Branch' : 'HMO Provider Name';
-          return (
-            <div className="grid grid-cols-2 gap-4 mt-4 p-4 rounded-lg bg-info/5 border border-info/20 animate-fade-in">
-              <div className="col-span-2">
-                <label className="text-sm font-medium mb-1.5 block">Plan *</label>
-                <Select value={formData.insurance_plan} onValueChange={(v) => setFormData({ ...formData, insurance_plan: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select plan" /></SelectTrigger>
-                  <SelectContent>
-                    {options.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">{providerLabel} *</label>
-                <Input
-                  placeholder="Provider name"
-                  value={formData.insurance_provider}
-                  onChange={(e) => setFormData({ ...formData, insurance_provider: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">Member / Enrollee ID *</label>
-                <Input
-                  placeholder="Enrollee ID"
-                  value={formData.insurance_policy_number}
-                  onChange={(e) => setFormData({ ...formData, insurance_policy_number: e.target.value })}
-                />
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Conditional Corporate Fields */}
-        {showCorporateFields && (
-          <CorporateSelector
-            accountType="corporate"
-            value={formData.corporate_id}
-            onChange={(v) => setFormData({...formData, corporate_id: v})}
-          />
-        )}
-
-        {/* Conditional Retainer Fields */}
-        {showRetainerFields && (
-          <CorporateSelector
-            accountType="retainer"
-            value={formData.corporate_id}
-            onChange={(v) => setFormData({...formData, corporate_id: v})}
-          />
-        )}
-
-        {/* Staff patient link */}
-        {showStaffSelector && (
-          <StaffSelector
-            label="Link to Staff Member"
-            helper="Staff patients are fully covered — no charges are billed."
-            value={formData.staff_link_id}
-            onChange={(id) => setFormData({ ...formData, staff_link_id: id })}
-          />
-        )}
-
-        {/* Staff family patient link */}
-        {showFamilyStaffSelector && (
-          <>
-            <StaffSelector
-              label="Belongs to Staff"
-              helper="Family members pay 50% — the rest is billed to the staff (deducted from salary if they consented)."
-              value={formData.family_staff_id}
-              onChange={(id, s) => setFormData({
-                ...formData,
-                family_staff_id: id,
-                family_staff_has_consent: s?.family_deduction_consent ?? false,
-              })}
-            />
-            {formData.family_staff_id && (
-              <div className={cn(
-                "mt-2 p-3 rounded-md text-xs border",
-                formData.family_staff_has_consent
-                  ? "bg-success/5 border-success/20 text-success-foreground"
-                  : "bg-warning/5 border-warning/20 text-warning-foreground"
-              )}>
-                {formData.family_staff_has_consent
-                  ? "✓ Staff consented to salary deduction — unpaid balance auto-queues for payroll."
-                  : "⚠ Staff has NOT consented to salary deduction — the 50% share must be collected at the cashier."}
-              </div>
-            )}
-          </>
-        )}
       </div>
 
       <DialogFooter className="gap-2 sm:gap-0">
@@ -1288,6 +1079,7 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     </div>
   );
 }
+
 
 function CorporateSelector({ value, onChange, accountType = 'corporate' }: { value: string; onChange: (v: string) => void; accountType?: 'corporate' | 'retainer' }) {
   const [accounts, setAccounts] = useState<{ id: string; company_name: string; status: string }[]>([]);

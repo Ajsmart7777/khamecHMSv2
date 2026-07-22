@@ -35,7 +35,7 @@ const fmt = (n: number) => `₦${Number(n || 0).toLocaleString()}`;
 export function DischargeDialog({
   admissionId, patientId, patientName, patientBalance, open, onOpenChange, onDischarged,
 }: Props) {
-  const { userRole } = useAuth();
+  const { role } = useAuth();
   const debt = Math.max(0, -patientBalance);
   const hasDebt = debt > 0;
 

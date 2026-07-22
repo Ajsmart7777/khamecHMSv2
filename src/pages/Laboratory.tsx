@@ -41,7 +41,7 @@ const Laboratory = () => {
   const { labRequests, loading: labLoading, updateLabRequest, refreshLabRequests } = useLabRequests();
   const [selectedRequest, setSelectedRequest] = useState<LabRequest | null>(null);
   const [isResultsDialogOpen, setIsResultsDialogOpen] = useState(false);
-  const [results, setResults] = useState({ value: '', interpretation: 'Normal' });
+  const [interpretation, setInterpretation] = useState('Normal');
 
   const loading = patientsLoading || labLoading;
 
@@ -71,27 +71,21 @@ const Laboratory = () => {
   };
 
   const handleSaveResults = async () => {
-    if (!results.value) {
-      toast.error('Missing Results', {
-        description: 'Please enter test results before saving.'
-      });
-      return;
-    }
     if (selectedRequest) {
       const success = await updateLabRequest(selectedRequest.id, { 
         status: 'completed',
-        results: { value: results.value, interpretation: results.interpretation },
+        results: { value: 'See snapped result', interpretation },
         completed_at: new Date().toISOString(),
       });
       
       if (success) {
         const patient = getPatient(selectedRequest.patient_id);
         toast.success('Results Saved', {
-          description: `Test results for ${patient?.first_name} ${patient?.last_name} have been saved.`
+          description: `Result for ${patient?.first_name} ${patient?.last_name} marked complete. Make sure you snapped the paper result.`
         });
       }
       setIsResultsDialogOpen(false);
-      setResults({ value: '', interpretation: 'Normal' });
+      setInterpretation('Normal');
       setSelectedRequest(null);
     }
   };
@@ -296,20 +290,17 @@ const Laboratory = () => {
           )}
           <div className="space-y-4 py-4">
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Results</label>
-              <textarea 
-                className="w-full h-32 px-3 py-2 rounded-lg border border-input bg-background text-sm resize-none"
-                placeholder="Enter test results..."
-                value={results.value}
-                onChange={(e) => setResults({...results, value: e.target.value})}
-              />
+              <label className="text-sm font-medium mb-1.5 block">Result Capture</label>
+              <div className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                Snap the paper lab result using the button above. The photo is the record — no typing required.
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium mb-1.5 block">Interpretation</label>
               <select 
                 className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm"
-                value={results.interpretation}
-                onChange={(e) => setResults({...results, interpretation: e.target.value})}
+                value={interpretation}
+                onChange={(e) => setInterpretation(e.target.value)}
               >
                 <option>Normal</option>
                 <option>Abnormal - Low</option>

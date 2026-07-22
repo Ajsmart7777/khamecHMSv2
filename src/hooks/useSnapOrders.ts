@@ -76,7 +76,10 @@ export async function createSnapOrder(input: {
     .select()
     .single();
   if (error) {
-    toast.error(`Snap order failed: ${error.message}`);
+    const isRls = /row-level security|policy/i.test(error.message);
+    toast.error(isRls
+      ? 'Not allowed: this patient is not currently at your station.'
+      : `Snap order failed: ${error.message}`);
     return null;
   }
   // Fire-and-forget OCR: the edge function updates ocr_* fields when done.

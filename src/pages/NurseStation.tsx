@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/dialog";
 import { usePatients, Patient } from '@/contexts/PatientContext';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
+import { supabase } from '@/integrations/supabase/client';
+import { logError } from '@/lib/errorHandler';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AdmissionQueue } from '@/components/nurse/AdmissionQueue';
 import { LabResultInbox } from '@/components/doctor/LabResultInbox';

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { StandingOrdersQueue } from '@/components/pharmacy/StandingOrdersQueue';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -277,6 +278,11 @@ const Pharmacy = () => {
       <div className="mb-6">
         <PharmacySnapQueue />
       </div>
+      {selectedPatient && (
+        <div className="mb-6">
+          <UniversalPatientHeader patient={selectedPatient} />
+        </div>
+      )}
 
       <div className="mb-6 bg-card rounded-xl border border-border p-4">
         <StandingOrdersQueue actorRole="pharmacist" />

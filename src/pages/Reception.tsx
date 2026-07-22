@@ -903,12 +903,14 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     insurance_provider: '',
     insurance_plan: '',
     enrollee_id: '',
+    staff_id: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isSponsor = formData.account_type === 'corporate' || formData.account_type === 'retainer';
   const isInsurance = ['nhis', 'hmo', 'katchma'].includes(formData.account_type);
+  const isStaff = formData.account_type === 'staff';
   const isStaffFamily = formData.account_type === 'staff_family';
   const availablePlans = isInsurance ? (INSURANCE_PLANS[formData.account_type] || []) : [];
 
@@ -940,6 +942,9 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       if (!formData.insurance_provider.trim()) e.insurance_provider = 'Provider name is required';
       if (!formData.insurance_plan) e.insurance_plan = 'Select plan';
       if (!formData.enrollee_id.trim()) e.enrollee_id = 'Enrollee ID is required';
+    }
+    if ((isStaff || isStaffFamily) && !formData.staff_id) {
+      e.staff_id = 'Select the linked staff member';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -1003,6 +1008,14 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     setIsSubmitting(false);
 
     if (result) {
+      if (isStaffFamily && (result as any).id && formData.staff_id) {
+        const { error: linkErr } = await supabase
+          .from('staff_family_members')
+          .insert({ staff_id: formData.staff_id, patient_id: (result as any).id, salary_deduction_consent: true });
+        if (linkErr) {
+          toast.error('Patient created but staff link failed', { description: linkErr.message });
+        }
+      }
       onSuccess();
     }
   };
@@ -1091,7 +1104,7 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
         <h4 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Account Type</h4>
         <Select
           value={formData.account_type}
-          onValueChange={(v) => setFormData({ ...formData, account_type: v as AccountType, corporate_id: '', insurance_provider: '', insurance_plan: '', enrollee_id: '' })}
+          onValueChange={(v) => setFormData({ ...formData, account_type: v as AccountType, corporate_id: '', insurance_provider: '', insurance_plan: '', enrollee_id: '', staff_id: '' })}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select account type" />
@@ -1157,10 +1170,18 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
           </div>
         )}
 
-        {isStaffFamily && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Link this patient to a staff member in the Accountant module after registration (50% coverage applies).
-          </p>
+        {(isStaff || isStaffFamily) && (
+          <>
+            <StaffSelector
+              value={formData.staff_id}
+              onChange={(id) => setFormData({ ...formData, staff_id: id })}
+              label={isStaff ? 'Staff Member' : 'Linked Staff (Family Sponsor)'}
+              helper={isStaff
+                ? 'Select the staff this patient record belongs to (fully covered).'
+                : 'Select the staff sponsor. 50% of invoices auto-deduct from their payroll (max 4 family members).'}
+            />
+            {errors.staff_id && <p className="text-xs text-destructive mt-1">{errors.staff_id}</p>}
+          </>
         )}
       </div>
 

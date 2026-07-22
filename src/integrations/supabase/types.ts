@@ -897,16 +897,17 @@ export type Database = {
           corporate_id: string | null
           created_at: string
           date_of_birth: string
-          emergency_contact: string
+          emergency_contact: string | null
           first_name: string
           gender: string
           id: string
           insurance_plan: string | null
           insurance_policy_number: string | null
           insurance_provider: string | null
-          last_name: string
+          last_name: string | null
           last_visit: string | null
           mini_card_number: string
+          occupation: string | null
           phone: string
           registered_at: string
           staff_link_id: string | null
@@ -924,16 +925,17 @@ export type Database = {
           corporate_id?: string | null
           created_at?: string
           date_of_birth: string
-          emergency_contact: string
+          emergency_contact?: string | null
           first_name: string
           gender: string
           id?: string
           insurance_plan?: string | null
           insurance_policy_number?: string | null
           insurance_provider?: string | null
-          last_name: string
+          last_name?: string | null
           last_visit?: string | null
           mini_card_number: string
+          occupation?: string | null
           phone: string
           registered_at?: string
           staff_link_id?: string | null
@@ -951,16 +953,17 @@ export type Database = {
           corporate_id?: string | null
           created_at?: string
           date_of_birth?: string
-          emergency_contact?: string
+          emergency_contact?: string | null
           first_name?: string
           gender?: string
           id?: string
           insurance_plan?: string | null
           insurance_policy_number?: string | null
           insurance_provider?: string | null
-          last_name?: string
+          last_name?: string | null
           last_visit?: string | null
           mini_card_number?: string
+          occupation?: string | null
           phone?: string
           registered_at?: string
           staff_link_id?: string | null

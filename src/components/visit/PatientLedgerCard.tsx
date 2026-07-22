@@ -2,7 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { differenceInYears } from 'date-fns';
-import { Loader2, X, ChevronDown, ChevronUp, Wallet, Droplet, Phone, Calendar, User } from 'lucide-react';
+import {
+  Loader2, X, ChevronDown, ChevronUp, Wallet, Droplet, Phone, Calendar, User,
+  Activity, Pill, FlaskConical, ClipboardList, Receipt, FileText, PackageCheck,
+  Stethoscope, BedDouble, LogOut, Camera, ArrowUp, ArrowDown, Sparkles,
+} from 'lucide-react';
 import { signedUrl } from '@/hooks/useVisitAttachments';
 import { snapPhotoUrl } from '@/hooks/useSnapOrders';
 import { Patient } from '@/contexts/PatientContext';
@@ -22,6 +26,9 @@ interface LedgerRow {
   title: string;
   actor?: string | null;
   data?: any;              // kind-specific
+  subkind?: string;        // rx | lab_request | lab_result | dispense | treatment | receipt | invoice_paid | invoice_partial ...
+  changes?: { label: string; from?: string | number; to?: string | number; dir?: 'up' | 'down' | 'flat' }[];
+  isNew?: boolean;         // for realtime highlight
 }
 
 interface LedgerVisit {
@@ -42,6 +49,114 @@ const STATION_TONE: Record<string, string> = {
 
 const naira = (n: number | null | undefined) =>
   n == null ? '' : `₦${Number(n).toLocaleString()}`;
+
+// ---------- classification & deltas ----------
+type SnapSub =
+  | 'rx' | 'lab_request' | 'lab_result' | 'dispense'
+  | 'treatment' | 'vitals_photo' | 'other_snap';
+
+const SNAP_LABEL: Record<string, string> = {
+  rx: 'Prescription (Rx)',
+  lab_request: 'Lab Request',
+  lab_result: 'Lab Result',
+  dispense: 'Dispensed',
+  treatment: 'Treatment Order',
+  vitals_photo: 'Vitals Snap',
+  other_snap: 'Snap',
+  card_photo: 'Card Photo',
+  vitals_first: 'Vitals & Intake',
+  vitals_update: 'Vitals Update',
+  invoice_new: 'Invoice Issued',
+  invoice_partial: 'Invoice · Partly Paid',
+  invoice_paid: 'Invoice · Paid',
+  receipt_full: 'Receipt · Paid in Full',
+  receipt_partial: 'Receipt · Part Payment',
+  admission: 'Admission',
+  discharge: 'Discharge',
+};
+
+function classifySnap(s: any): SnapSub {
+  const t = String(s.order_type ?? '').toLowerCase();
+  const target = String(s.target_station ?? '').toLowerCase();
+  const source = String(s.source_role ?? '').toLowerCase();
+  if (t === 'lab_result' || (source === 'lab_tech' && target !== 'lab')) return 'lab_result';
+  if (t === 'prescription' || target === 'pharmacy') {
+    return s.status === 'fulfilled' || s.status === 'dispensed' ? 'dispense' : 'rx';
+  }
+  if (t === 'lab' || target === 'lab') return 'lab_request';
+  if (t === 'treatment') return 'treatment';
+  if (t === 'vitals') return 'vitals_photo';
+  return 'other_snap';
+}
+
+const VITAL_SPECS: { key: string; label: string; unit: string; higherIsWorse?: boolean }[] = [
+  { key: 'temperature', label: 'Temp', unit: '°C', higherIsWorse: true },
+  { key: 'pulse', label: 'Pulse', unit: 'bpm', higherIsWorse: true },
+  { key: 'spo2', label: 'SpO₂', unit: '%' },
+  { key: 'respiratory_rate', label: 'RR', unit: '/min', higherIsWorse: true },
+  { key: 'weight', label: 'Wt', unit: 'kg' },
+];
+
+function vitalsDeltas(cur: any, prev: any | null) {
+  if (!prev) return [];
+  const out: { label: string; from?: string | number; to?: string | number; dir?: 'up' | 'down' | 'flat' }[] = [];
+  for (const spec of VITAL_SPECS) {
+    const a = prev[spec.key], b = cur[spec.key];
+    if (a == null || b == null) continue;
+    const na = Number(a), nb = Number(b);
+    if (!Number.isFinite(na) || !Number.isFinite(nb) || na === nb) continue;
+    out.push({
+      label: spec.label,
+      from: `${a}${spec.unit}`,
+      to: `${b}${spec.unit}`,
+      dir: nb > na ? 'up' : 'down',
+    });
+  }
+  if (prev.blood_pressure && cur.blood_pressure && prev.blood_pressure !== cur.blood_pressure) {
+    out.push({ label: 'BP', from: prev.blood_pressure, to: cur.blood_pressure, dir: 'flat' });
+  }
+  return out;
+}
+
+const SUB_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  rx: Pill,
+  lab_request: FlaskConical,
+  lab_result: ClipboardList,
+  dispense: PackageCheck,
+  treatment: Stethoscope,
+  vitals_photo: Camera,
+  vitals_first: Activity,
+  vitals_update: Activity,
+  other_snap: Camera,
+  card_photo: Camera,
+  invoice_new: FileText,
+  invoice_partial: FileText,
+  invoice_paid: FileText,
+  receipt_full: Receipt,
+  receipt_partial: Receipt,
+  admission: BedDouble,
+  discharge: LogOut,
+};
+
+const SUB_TONE: Record<string, string> = {
+  rx: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  lab_request: 'bg-purple-50 text-purple-700 border-purple-200',
+  lab_result: 'bg-violet-50 text-violet-700 border-violet-200',
+  dispense: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  treatment: 'bg-sky-50 text-sky-700 border-sky-200',
+  vitals_photo: 'bg-teal-50 text-teal-700 border-teal-200',
+  vitals_first: 'bg-teal-50 text-teal-700 border-teal-200',
+  vitals_update: 'bg-teal-50 text-teal-700 border-teal-200',
+  card_photo: 'bg-slate-50 text-slate-700 border-slate-200',
+  other_snap: 'bg-slate-50 text-slate-700 border-slate-200',
+  invoice_new: 'bg-amber-50 text-amber-700 border-amber-200',
+  invoice_partial: 'bg-amber-50 text-amber-700 border-amber-200',
+  invoice_paid: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  receipt_full: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  receipt_partial: 'bg-amber-50 text-amber-700 border-amber-200',
+  admission: 'bg-blue-50 text-blue-700 border-blue-200',
+  discharge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+};
 
 // ---------- component ----------
 export function PatientLedgerCard({
@@ -99,35 +214,61 @@ export function PatientLedgerCard({
       byVisit.get(key)!.push(row);
     };
 
-    (vt.data ?? []).forEach((v: any) => push(v.visit_id, {
-      id: `vt-${v.id}`, visitId: v.visit_id, at: v.created_at, kind: 'vitals',
-      station: 'nurse', title: 'Vitals & Intake', data: v,
-    }));
+    // Vitals — compute deltas vs prior reading
+    const vitalsSorted = [...(vt.data ?? [])].sort(
+      (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    vitalsSorted.forEach((v: any, idx: number) => {
+      const prev = idx > 0 ? vitalsSorted[idx - 1] : null;
+      push(v.visit_id, {
+        id: `vt-${v.id}`, visitId: v.visit_id, at: v.created_at, kind: 'vitals',
+        station: 'nurse', title: 'Vitals & Intake', data: v,
+        subkind: prev ? 'vitals_update' : 'vitals_first',
+        changes: vitalsDeltas(v, prev),
+      });
+    });
 
     (att.data ?? []).forEach((a: any) => push(a.visit_id, {
       id: `att-${a.id}`, visitId: a.visit_id, at: a.captured_at ?? a.created_at,
       kind: 'attachment', station: a.station ?? 'other',
       title: a.label || `${a.station ?? 'Card'} photo`,
       data: { path: a.storage_path, bucket: 'attachment' },
+      subkind: 'card_photo',
     }));
 
-    (snaps.data ?? []).forEach((s: any) => push(s.visit_id, {
-      id: `snap-${s.id}`, visitId: s.visit_id, at: s.created_at, kind: 'snap',
-      station: s.source_role ?? 'doctor',
-      title: `${(s.order_type ?? 'order').replace('_', ' ')} → ${s.target_station}`,
-      data: s,
-    }));
+    (snaps.data ?? []).forEach((s: any) => {
+      const sub = classifySnap(s);
+      push(s.visit_id, {
+        id: `snap-${s.id}`, visitId: s.visit_id, at: s.created_at, kind: 'snap',
+        station: s.source_role ?? 'doctor',
+        title: SNAP_LABEL[sub] ?? (s.order_type ?? 'Snap'),
+        data: s,
+        subkind: sub,
+      });
+      // Emit a "dispense" event separately when the pharmacy has fulfilled it
+      if (sub !== 'dispense' && s.status === 'fulfilled' && s.order_type === 'prescription') {
+        push(s.visit_id, {
+          id: `disp-${s.id}`, visitId: s.visit_id,
+          at: s.updated_at ?? s.created_at, kind: 'snap',
+          station: 'pharmacy', title: 'Dispensed', data: s, subkind: 'dispense',
+        });
+      }
+    });
 
     (invs.data ?? []).forEach((i: any) => {
+      const paid = Number(i.paid_amount ?? 0);
+      const total = Number(i.total_amount ?? 0);
+      const invSub = paid <= 0 ? 'invoice_new' : paid < total ? 'invoice_partial' : 'invoice_paid';
       push(i.visit_id, {
         id: `inv-${i.id}`, visitId: i.visit_id, at: i.created_at, kind: 'invoice',
-        station: 'billing', title: `Invoice ${i.invoice_number}`, data: i,
+        station: 'billing', title: `Invoice ${i.invoice_number}`, data: i, subkind: invSub,
       });
-      if (Number(i.paid_amount) > 0) push(i.visit_id, {
+      if (paid > 0) push(i.visit_id, {
         id: `pay-${i.id}`, visitId: i.visit_id, at: i.updated_at ?? i.created_at,
         kind: 'payment', station: 'cashier',
-        title: `Payment · ${i.payment_method ?? 'received'}`,
-        data: { amount: i.paid_amount, method: i.payment_method, ref: i.invoice_number },
+        title: paid >= total ? 'Receipt · Paid in Full' : 'Receipt · Part Payment',
+        data: { amount: paid, method: i.payment_method, ref: i.invoice_number, total },
+        subkind: paid >= total ? 'receipt_full' : 'receipt_partial',
       });
     });
 
@@ -137,11 +278,11 @@ export function PatientLedgerCard({
         id: `adm-${a.id}`, visitId: vid ?? '', at: a.admitted_at ?? a.created_at, kind: 'admission',
         station: 'nurse',
         title: `Admitted · ${a.wards?.name ?? 'Ward'}${a.beds?.bed_number ? ` · Bed ${a.beds.bed_number}` : ''}`,
-        data: a,
+        data: a, subkind: 'admission',
       });
       if (a.discharged_at) push(vid, {
         id: `dis-${a.id}`, visitId: vid ?? '', at: a.discharged_at, kind: 'discharge',
-        station: 'nurse', title: 'Discharged', data: a,
+        station: 'nurse', title: 'Discharged', data: a, subkind: 'discharge',
       });
     });
 
@@ -149,6 +290,11 @@ export function PatientLedgerCard({
       const rows = (byVisit.get(v.id) ?? []).sort(
         (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()
       );
+      // Mark rows added in the last 20s as "new" to highlight recent changes
+      const now = Date.now();
+      rows.forEach(r => {
+        if (now - new Date(r.at).getTime() < 20_000) r.isNew = true;
+      });
       return { visit: v, rows };
     });
 
@@ -496,9 +642,12 @@ function LedgerRowView({
   onOpenImage: (url: string) => void;
 }) {
   const tone = STATION_TONE[row.station] ?? STATION_TONE.admin;
+  const subTone = row.subkind ? SUB_TONE[row.subkind] : null;
+  const SubIcon = row.subkind ? SUB_ICON[row.subkind] ?? Sparkles : null;
+  const subLabel = row.subkind ? SNAP_LABEL[row.subkind] : null;
 
   return (
-    <div className="flex">
+    <div className={`flex transition-colors ${row.isNew ? 'bg-primary/5 animate-in fade-in' : ''}`}>
       {/* Date cell */}
       <div className="w-24 md:w-32 shrink-0 bg-muted/40 p-3 md:p-4 border-r border-border text-center">
         <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
@@ -515,9 +664,40 @@ function LedgerRowView({
       {/* Content cell */}
       <div className="flex-1 p-3 md:p-4 min-w-0">
         <div className="mb-2 flex items-center justify-between gap-2 flex-wrap">
-          <span className="text-xs font-bold uppercase tracking-widest">{row.title}</span>
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            {SubIcon && subTone && (
+              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-bold uppercase tracking-tight ${subTone}`}>
+                <SubIcon className="h-3 w-3" />
+                {subLabel}
+              </span>
+            )}
+            <span className="text-xs font-bold uppercase tracking-widest">{row.title}</span>
+            {row.isNew && (
+              <span className="text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded bg-primary text-primary-foreground animate-pulse">
+                New
+              </span>
+            )}
+          </div>
           {row.actor && <span className="text-[10px] text-muted-foreground">by {row.actor}</span>}
         </div>
+
+        {row.changes && row.changes.length > 0 && (
+          <div className="mb-2 flex flex-wrap gap-1.5">
+            {row.changes.map((c, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-amber-200 bg-amber-50 text-amber-800 text-[10px] font-mono"
+              >
+                {c.dir === 'up' && <ArrowUp className="h-3 w-3" />}
+                {c.dir === 'down' && <ArrowDown className="h-3 w-3" />}
+                <span className="font-bold uppercase">{c.label}</span>
+                <span className="opacity-60">{c.from}</span>
+                <span>→</span>
+                <span className="font-bold">{c.to}</span>
+              </span>
+            ))}
+          </div>
+        )}
 
         {row.kind === 'vitals' && <VitalsRow v={row.data} />}
         {row.kind === 'attachment' && (
@@ -530,7 +710,10 @@ function LedgerRowView({
         {row.kind === 'payment' && (
           <div className="text-sm">
             <span className="font-bold font-mono text-emerald-600">+{naira(row.data.amount)}</span>{' '}
-            <span className="text-muted-foreground">via {row.data.method ?? 'cash'} · {row.data.ref}</span>
+            <span className="text-muted-foreground">
+              via {row.data.method ?? 'cash'} · {row.data.ref}
+              {row.data.total ? ` · of ${naira(row.data.total)}` : ''}
+            </span>
           </div>
         )}
         {row.kind === 'admission' && (

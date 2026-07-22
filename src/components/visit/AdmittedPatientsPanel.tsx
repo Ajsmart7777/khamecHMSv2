@@ -93,6 +93,17 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
           sourceStation={sourceStation}
         />
       )}
+
+      {dischargeFor && (
+        <DischargeDialog
+          open
+          onOpenChange={(o) => !o && setDischargeFor(null)}
+          admissionId={dischargeFor.admissionId}
+          patientId={dischargeFor.patientId}
+          patientName={dischargeFor.name}
+          patientBalance={dischargeFor.balance}
+        />
+      )}
     </div>
   );
 }

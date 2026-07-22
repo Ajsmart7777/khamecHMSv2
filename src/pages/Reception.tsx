@@ -903,12 +903,14 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
     insurance_provider: '',
     insurance_plan: '',
     enrollee_id: '',
+    staff_id: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const isSponsor = formData.account_type === 'corporate' || formData.account_type === 'retainer';
   const isInsurance = ['nhis', 'hmo', 'katchma'].includes(formData.account_type);
+  const isStaff = formData.account_type === 'staff';
   const isStaffFamily = formData.account_type === 'staff_family';
   const availablePlans = isInsurance ? (INSURANCE_PLANS[formData.account_type] || []) : [];
 

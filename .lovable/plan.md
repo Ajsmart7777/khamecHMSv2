@@ -1,86 +1,51 @@
+## Goal
+Make every module transition the patient's `status` correctly, verify the write succeeded, and fix the specific Pharmacy bug where dispensing didn't move the patient to `discharged`. Inpatients (admitted) must NEVER be auto-discharged by Pharmacy — only outpatients.
 
-# EMR (Electronic Medical Records) — Centralized Patient Chart
+## Root causes to fix
 
-A dedicated, secure workspace that unifies every existing clinical touchpoint into a single patient chart, plus two new capabilities: structured SOAP notes and file attachments. **No existing feature is modified** — EMR only reads what already exists and adds two new tables + one bucket alongside.
+1. **Pharmacy auto-discharge is silently swallowed.**
+   - `confirmDispense` in `src/pages/Pharmacy.tsx` calls `updatePatientStatus(id, 'discharged')` but:
+     - It does not re-fetch the patient's current status, so a stale `admitted` patient still gets flipped (wrong for inpatients).
+     - It has no verification step — if the DB update fails silently (RLS, race with realtime, or the local `patients` cache is behind), the UI thinks it succeeded but the row on the server is unchanged.
+     - The `success` boolean from `updatePatientStatus` is only truthy when the local `patients.find(...)` matched — if the patient just moved states in realtime, the receipt still opens but the toast/log path is skipped.
 
-## Why this improves hospital functionality
+2. **No standardized transition helper.** Every page hand-rolls `updatePatientStatus(...)`, so we can't guarantee: (a) validity of the transition, (b) inpatient guard, (c) confirmation via re-read.
 
-- **One source of truth**: Doctors, nurses, lab, and pharmacy currently see their slice only. EMR shows the full longitudinal history in one place — faster diagnoses, fewer duplicate tests, safer prescribing (allergies + past Rx visible upfront).
-- **Continuity of care**: A returning patient's chart shows every past visit, vitals trend, lab results, dispensed meds, and prior diagnoses — critical for chronic-condition management.
-- **Clinical documentation**: Structured SOAP notes replace the single free-text `diagnosis` field with proper Subjective/Objective/Assessment/Plan sections tied to each visit.
-- **Attachments**: External scans, referral letters, X-rays, and imaging reports get a permanent home on the patient record instead of paper files.
-- **Auditability & security**: Every chart open is logged; RLS restricts to clinical staff only; attachments live in a private bucket with signed URLs.
-- **Zero disruption**: Reception, Billing, Pharmacy, Lab, Doctor workspaces keep working exactly as they do today.
+3. **Other modules have similar quiet failures** — Nurse → Doctor, Doctor → Lab/Pharmacy/Billing/Nurse, Lab → Doctor, Billing → Pharmacy — none verify the write landed; they only check the local return.
 
-## Scope (from your answers)
+## Changes
 
-- Full EMR: unified read of existing data + new SOAP notes + attachments
-- All clinical roles get full read access
-- New `/emr` workspace as the entry point
+### 1. Harden `updatePatientStatus` (src/contexts/PatientContext.tsx)
+- After `update()`, chain `.select('id,status').single()` and confirm the returned `status === status` sent. Return `false` + toast on mismatch.
+- Accept an optional `{ guardInpatient?: boolean }` — when true, refuse to set `discharged` if current row status is `admitted` (read fresh row first).
+- Emit a single audit entry only on confirmed success.
 
----
+### 2. Fix Pharmacy dispense (src/pages/Pharmacy.tsx `confirmDispense`)
+- Re-read the patient row (`supabase.from('patients').select('status').eq('id', ...).single()`) before deciding discharge.
+- If `status === 'admitted'` → skip status change, just mark prescription dispensed, show "Dispensed to inpatient — no discharge" toast.
+- Else → call the hardened `updatePatientStatus(id, 'discharged', { guardInpatient: true })`, verify success, then open the receipt.
+- Show a clear error toast if the status write fails, and do NOT clear the queue entry (so the pharmacist can retry).
 
-## Database (new only — nothing altered)
+### 3. Verify every other transition
+Wrap each existing call site with the same verify pattern (uses the hardened helper — no new logic per page):
+- `Reception.tsx`: `registered → waiting`, discharge button.
+- `NurseStation.tsx`: `waiting/registered → with_nurse`, `with_nurse → with_doctor`.
+- `Doctor.tsx`: `with_doctor → in_lab | awaiting_billing | at_pharmacy | with_nurse`.
+- `Laboratory.tsx`: `in_lab → with_doctor` on result return.
+- `Billing.tsx`: `awaiting_billing → awaiting_payment | at_pharmacy` after invoice/cashier.
+- Discharge dialog: confirm admission `active → discharged` and patient row aligns.
 
-**`consultation_notes`** — structured SOAP notes written by doctors
-- `patient_id`, `doctor_id`, `visit_date`
-- `subjective`, `objective`, `assessment`, `plan` (text)
-- `icd10_code` (optional), `follow_up_date` (optional)
-- `prescription_id` (optional link to existing prescription)
+For each, if the verify step fails, surface a red toast with the reason and leave the UI in the pre-transition state.
 
-**`emr_attachments`** — file metadata for uploaded documents
-- `patient_id`, `uploaded_by`, `file_path`, `file_name`, `mime_type`, `size_bytes`
-- `category` (scan / lab report / referral / imaging / other)
-- `description` (optional)
+### 4. Realtime sanity
+- After a successful transition, rely on the existing realtime subscription to refresh; also call `refreshPatients()` once as a fallback for the acting user so their own screen never lags behind their action.
 
-**Storage bucket**: `emr-attachments` (private, signed URLs)
+## Out of scope
+- No schema changes.
+- No new tables, RPCs, or roles.
+- No UI redesign — only correctness + toasts.
 
-**RLS**:
-- Read: any authenticated clinical role (doctor, doctor1, doctor2, nurse, lab_tech, pharmacist, admin, auditing)
-- Write consultation notes: doctor roles only
-- Upload attachments: doctor + nurse
-- Every chart open writes to `audit_logs` via existing `write_audit_log`
-
-## Workspace `/emr`
-
-New route gated to the clinical roles above, with sidebar entry.
-
-**Layout**:
-```text
-┌─ Patient search (name / card # / phone) ──────────────┐
-│                                                        │
-│  ┌─ Patient header card ──────────────────────────┐   │
-│  │ Name • Card # • Age/Gender • Blood group        │   │
-│  │ Allergies (red badges) • Account type • Balance │   │
-│  └────────────────────────────────────────────────┘   │
-│                                                        │
-│  Tabs: Timeline │ Vitals │ Consultations │ Prescriptions │ Labs │ External Rx │ Billing │ Attachments │
-└────────────────────────────────────────────────────────┘
-```
-
-- **Timeline**: merged chronological feed of every event (reuses the pattern from `PatientHistoryDialog`, expanded).
-- **Vitals**: table + simple trend chart (BP, temp, weight) using `recharts` (already installed).
-- **Consultations**: SOAP notes list; doctors get "New consultation" button.
-- **Prescriptions / Labs / External Rx / Billing**: read-only listings from existing tables.
-- **Attachments**: upload zone (drag/drop or file picker) + gallery with signed-URL previews and download.
-
-## Files added
-
-- `supabase/migrations/…` — 2 tables + policies + bucket policies
-- `src/hooks/useConsultationNotes.ts`
-- `src/hooks/useEmrAttachments.ts`
-- `src/pages/EMR.tsx`
-- `src/components/emr/PatientSearchBar.tsx`
-- `src/components/emr/PatientHeaderCard.tsx`
-- `src/components/emr/EmrTimeline.tsx`
-- `src/components/emr/VitalsTrendPanel.tsx`
-- `src/components/emr/ConsultationNotesPanel.tsx` (+ `NewConsultationDialog.tsx`)
-- `src/components/emr/AttachmentsPanel.tsx`
-- Route registration in `src/App.tsx` and sidebar entry in `AppSidebar.tsx` (additive only)
-
-## Explicitly out of scope
-
-- No changes to Reception, Doctor, Nurse, Lab, Pharmacy, Billing, Account pages
-- No changes to existing tables (`patients`, `vitals`, `prescriptions`, `lab_requests`, `invoices`, `standing_orders`)
-- No changes to existing hooks or contexts
-- Claims Management workflow (comes next, per your plan)
+## Acceptance
+- Outpatient Auwal: dispense at Pharmacy → row in DB shows `status = 'discharged'` and card updates everywhere in <2s.
+- Admitted patient: dispense at Pharmacy → prescription marked dispensed, `status` stays `admitted`, no false discharge.
+- Any failed transition anywhere surfaces a specific error toast and leaves state unchanged.

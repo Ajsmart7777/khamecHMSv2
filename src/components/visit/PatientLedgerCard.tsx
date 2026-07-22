@@ -384,6 +384,39 @@ function Chip({ children, mono, icon }: { children: React.ReactNode; mono?: bool
   );
 }
 
+function LastActivityBadge({ rows }: { rows: LedgerRow[] }) {
+  const last = rows.length ? rows[rows.length - 1] : null;
+  const [, force] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => force(n => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  if (!last) return null;
+  const ageMs = Date.now() - new Date(last.at).getTime();
+  const fresh = ageMs < 60_000;
+  const tone = STATION_TONE[last.station] ?? STATION_TONE.admin;
+  const rel = ageMs < 60_000
+    ? 'just now'
+    : ageMs < 3_600_000
+    ? `${Math.floor(ageMs / 60_000)}m ago`
+    : ageMs < 86_400_000
+    ? `${Math.floor(ageMs / 3_600_000)}h ago`
+    : `${Math.floor(ageMs / 86_400_000)}d ago`;
+  return (
+    <div className={`flex items-center gap-1.5 px-2 py-0.5 border rounded text-[10px] font-bold uppercase tracking-tight ${tone}`}>
+      <span className="relative flex h-2 w-2">
+        {fresh && (
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-60" />
+        )}
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-current" />
+      </span>
+      <span className="capitalize">{last.station}</span>
+      <span className="opacity-70 font-mono normal-case font-medium">· {rel}</span>
+    </div>
+  );
+}
+
+
 function LedgerRowView({
   row, thumbs, onOpenImage,
 }: {

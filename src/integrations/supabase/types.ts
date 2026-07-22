@@ -1584,6 +1584,9 @@ export type Database = {
           ocr_error: string | null
           ocr_matches: Json | null
           ocr_model: string | null
+          ocr_reviewed_at: string | null
+          ocr_reviewed_by: string | null
+          ocr_reviewed_lines: Json | null
           ocr_status: string | null
           ocr_text: string | null
           order_type: string
@@ -1624,6 +1627,9 @@ export type Database = {
           ocr_error?: string | null
           ocr_matches?: Json | null
           ocr_model?: string | null
+          ocr_reviewed_at?: string | null
+          ocr_reviewed_by?: string | null
+          ocr_reviewed_lines?: Json | null
           ocr_status?: string | null
           ocr_text?: string | null
           order_type: string
@@ -1664,6 +1670,9 @@ export type Database = {
           ocr_error?: string | null
           ocr_matches?: Json | null
           ocr_model?: string | null
+          ocr_reviewed_at?: string | null
+          ocr_reviewed_by?: string | null
+          ocr_reviewed_lines?: Json | null
           ocr_status?: string | null
           ocr_text?: string | null
           order_type?: string

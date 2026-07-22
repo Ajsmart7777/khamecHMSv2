@@ -114,69 +114,91 @@ const Pharmacy = () => {
   };
 
   const confirmDispense = async () => {
-    if (selectedPatientId && selectedPrescription) {
-      const patient = patients.find(p => p.id === selectedPatientId);
-      
-      // Mark all individual items as dispensed
-      if (selectedPrescription.items?.length) {
-        await Promise.all(
-          selectedPrescription.items.map(item => markItemDispensed(item.id, true))
-        );
-        
-        // Auto-deduct from inventory
-        await deductInventory(
-          selectedPrescription.items.map(i => ({ medication: i.medication, quantity: i.quantity }))
-        );
-      }
-      
-      // Mark prescription as dispensed
-      await updatePrescriptionStatus(selectedPrescription.id, 'dispensed');
-      
-      // Log audit event for pharmacy dispensing
-      await prescriptionAuditLogger(
-        'prescription_dispensed',
-        selectedPrescription.id,
-        { 
-          patient_id: selectedPatientId,
-          patient_name: patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown',
-          items_count: selectedPrescription.items?.length || 0,
-          medications: selectedPrescription.items?.map(i => i.medication) || []
-        }
+    if (!selectedPatientId || !selectedPrescription) return;
+    const patient = patients.find(p => p.id === selectedPatientId);
+
+    // Re-read fresh status so we don't wrongly discharge an inpatient
+    const { data: fresh, error: freshErr } = await supabase
+      .from('patients')
+      .select('status')
+      .eq('id', selectedPatientId)
+      .single();
+    if (freshErr) {
+      toast.error('Could not verify patient status', { description: freshErr.message });
+      return;
+    }
+    const isInpatient = fresh?.status === 'admitted';
+
+    // Mark all individual items as dispensed
+    if (selectedPrescription.items?.length) {
+      await Promise.all(
+        selectedPrescription.items.map(item => markItemDispensed(item.id, true))
       );
-      
-      // Mark as dispensed locally
-      setDispensedPatients(prev => new Set([...prev, selectedPatientId]));
-      
-      // After dispensing, discharge the patient (payment was already collected at Reception)
-      const success = await updatePatientStatus(selectedPatientId, 'discharged');
-      
-      if (success && patient) {
-        setIsDispenseDialogOpen(false);
-        
-        // Build receipt items from prescription
-        const receiptItems = (selectedPrescription.items || []).map(item => ({
-          name: item.medication,
-          dosage: item.dosage,
-          quantity: item.quantity,
-          instructions: `${item.frequency} for ${item.duration}`,
-        }));
-        
-        // Show dispense receipt
-        setDispenseReceiptData({
-          open: true,
-          patient,
-          receiptNumber: generateReceiptNumber(),
-          date: new Date(),
-          items: receiptItems.length > 0 ? receiptItems : [
-            { name: 'Medications dispensed', dosage: '-', quantity: 1, instructions: 'As prescribed' }
-          ],
-        });
+      await deductInventory(
+        selectedPrescription.items.map(i => ({ medication: i.medication, quantity: i.quantity }))
+      );
+    }
+
+    // Mark prescription as dispensed
+    const rxOk = await updatePrescriptionStatus(selectedPrescription.id, 'dispensed');
+    if (!rxOk) {
+      toast.error('Failed to mark prescription as dispensed');
+      return;
+    }
+
+    await prescriptionAuditLogger(
+      'prescription_dispensed',
+      selectedPrescription.id,
+      {
+        patient_id: selectedPatientId,
+        patient_name: patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown',
+        items_count: selectedPrescription.items?.length || 0,
+        medications: selectedPrescription.items?.map(i => i.medication) || [],
+        inpatient: isInpatient,
+      }
+    );
+
+    setDispensedPatients(prev => new Set([...prev, selectedPatientId]));
+
+    // Only auto-discharge outpatients. Inpatients stay admitted.
+    if (!isInpatient) {
+      const discharged = await updatePatientStatus(selectedPatientId, 'discharged', { guardInpatient: true });
+      if (!discharged) {
+        // Keep dialog open so pharmacist can retry
+        toast.error('Dispensed, but patient could not be auto-discharged. Please retry or discharge from Reception.');
+        return;
+      }
+    } else {
+      toast.success('Dispensed to inpatient', { description: 'Patient remains admitted.' });
+    }
+
+    setIsDispenseDialogOpen(false);
+
+    if (patient) {
+      const receiptItems = (selectedPrescription.items || []).map(item => ({
+        name: item.medication,
+        dosage: item.dosage,
+        quantity: item.quantity,
+        instructions: `${item.frequency} for ${item.duration}`,
+      }));
+
+      setDispenseReceiptData({
+        open: true,
+        patient,
+        receiptNumber: generateReceiptNumber(),
+        date: new Date(),
+        items: receiptItems.length > 0 ? receiptItems : [
+          { name: 'Medications dispensed', dosage: '-', quantity: 1, instructions: 'As prescribed' }
+        ],
+      });
+      if (!isInpatient) {
         toast.success('Medication Dispensed', {
           description: `Prescription for ${patient.first_name} ${patient.last_name} has been dispensed. Patient discharged.`
         });
-        setSelectedPrescription(null);
       }
     }
+    setSelectedPrescription(null);
+    refreshPatients();
   };
 
   const handleRequestStock = (patientId: string) => {

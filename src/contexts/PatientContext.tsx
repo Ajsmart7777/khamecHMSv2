@@ -40,7 +40,7 @@ interface PatientContextType {
   error: string | null;
   refreshPatients: () => Promise<void>;
   addPatient: (patient: Omit<Patient, 'id' | 'registered_at' | 'updated_at' | 'created_at'>) => Promise<Patient | null>;
-  updatePatientStatus: (patientId: string, status: PatientStatus) => Promise<boolean>;
+  updatePatientStatus: (patientId: string, status: PatientStatus, opts?: { guardInpatient?: boolean }) => Promise<boolean>;
   updatePatient: (patientId: string, updates: Partial<Patient>) => Promise<boolean>;
   getPatientsByStatus: (statuses: PatientStatus[]) => Patient[];
   getPatientById: (id: string) => Patient | undefined;
@@ -119,21 +119,50 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const updatePatientStatus = useCallback(async (patientId: string, status: PatientStatus): Promise<boolean> => {
+  const updatePatientStatus = useCallback(async (
+    patientId: string,
+    status: PatientStatus,
+    opts?: { guardInpatient?: boolean }
+  ): Promise<boolean> => {
     try {
-      const { error: updateError } = await supabase
+      // Read fresh row to guard against stale local cache
+      const { data: current, error: readErr } = await supabase
+        .from('patients')
+        .select('id, status, first_name, last_name')
+        .eq('id', patientId)
+        .single();
+      if (readErr || !current) {
+        throw readErr || new Error('Patient not found');
+      }
+
+      // Inpatient guard: refuse discharge if currently admitted
+      if (opts?.guardInpatient && status === 'discharged' && current.status === 'admitted') {
+        toast.info('Patient is admitted — discharge must be done from the ward.');
+        return false;
+      }
+
+      // No-op if already in target state
+      if (current.status === status) {
+        return true;
+      }
+
+      const { data: updated, error: updateError } = await supabase
         .from('patients')
         .update({ status, last_visit: new Date().toISOString() })
-        .eq('id', patientId);
+        .eq('id', patientId)
+        .select('id, status')
+        .single();
 
       if (updateError) throw updateError;
-      
+      if (!updated || updated.status !== status) {
+        throw new Error(`Status write not persisted (got: ${updated?.status ?? 'null'})`);
+      }
+
       // Log status change
-      patientAuditLogger('patient_status_changed', patientId, { new_status: status });
+      patientAuditLogger('patient_status_changed', patientId, { from: current.status, new_status: status });
 
       // Create notifications for key transitions
-      const patient = patients.find(p => p.id === patientId);
-      const patientName = patient ? `${patient.first_name} ${patient.last_name}` : 'Patient';
+      const patientName = `${current.first_name} ${current.last_name}`;
 
       const notifMap: Record<string, { title: string; message: string; type: string; target_role: string; link: string }> = {
         with_nurse: { title: 'Patient Sent to Nurse', message: `${patientName} is ready for vitals`, type: 'patient', target_role: 'nurse', link: '/nurse-station' },
@@ -156,15 +185,18 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
           resource_id: patientId,
         });
       }
-      
+
+      // Optimistic local update so acting user sees change instantly
+      setPatients(prev => prev.map(p => p.id === patientId ? { ...p, status } : p));
+
       return true;
     } catch (err) {
       logError('Error updating patient status', err);
       patientAuditLogger('patient_status_changed', patientId, { error: String(err) }, 'failure');
-      toast.error('Failed to update patient status');
+      toast.error(`Failed to update status → ${status}`, { description: String((err as Error)?.message ?? err) });
       return false;
     }
-  }, [patients]);
+  }, []);
 
   const updatePatient = useCallback(async (patientId: string, updates: Partial<Patient>): Promise<boolean> => {
     try {

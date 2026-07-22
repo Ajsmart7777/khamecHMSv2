@@ -2495,6 +2495,10 @@ export type Database = {
         }
         Returns: number
       }
+      can_add_snap_for_patient: {
+        Args: { _patient_id: string; _user_id: string }
+        Returns: boolean
+      }
       close_visit: { Args: { _visit_id: string }; Returns: undefined }
       create_admitted_snap: {
         Args: {

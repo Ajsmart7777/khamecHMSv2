@@ -63,113 +63,126 @@ export function PatientLedgerCard({
     ? differenceInYears(new Date(), new Date(patient.date_of_birth)) : null;
 
   // Load everything
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
+  const load = useMemo(() => async (showSpinner = false) => {
+    if (showSpinner) setLoading(true);
 
-      const { data: visitList } = await supabase
-        .from('visits')
-        .select('*')
-        .eq('patient_id', patient.id)
-        .order('opened_at', { ascending: false });
+    const { data: visitList } = await supabase
+      .from('visits')
+      .select('*')
+      .eq('patient_id', patient.id)
+      .order('opened_at', { ascending: false });
 
-      const vs = (visitList ?? []) as Visit[];
-      const visitIds = vs.map(v => v.id);
+    const vs = (visitList ?? []) as Visit[];
+    const visitIds = vs.map(v => v.id);
 
-      // Fetch all events in parallel, filtered to patient/visits
-      const [vt, att, snaps, invs, adms] = await Promise.all([
-        visitIds.length
-          ? supabase.from('vitals').select('*').in('visit_id', visitIds)
-          : Promise.resolve({ data: [] as any[] }),
-        visitIds.length
-          ? supabase.from('visit_attachments').select('*').in('visit_id', visitIds)
-          : Promise.resolve({ data: [] as any[] }),
-        supabase.from('snap_orders').select('*').eq('patient_id', patient.id),
-        visitIds.length
-          ? supabase.from('invoices').select('*, invoice_items(*)').in('visit_id', visitIds)
-          : Promise.resolve({ data: [] as any[] }),
-        supabase.from('admissions').select('*, wards(name), beds(bed_number), rooms(room_number)')
-          .eq('patient_id', patient.id),
-      ]);
+    const [vt, att, snaps, invs, adms] = await Promise.all([
+      visitIds.length
+        ? supabase.from('vitals').select('*').in('visit_id', visitIds)
+        : Promise.resolve({ data: [] as any[] }),
+      visitIds.length
+        ? supabase.from('visit_attachments').select('*').in('visit_id', visitIds)
+        : Promise.resolve({ data: [] as any[] }),
+      supabase.from('snap_orders').select('*').eq('patient_id', patient.id),
+      visitIds.length
+        ? supabase.from('invoices').select('*, invoice_items(*)').in('visit_id', visitIds)
+        : Promise.resolve({ data: [] as any[] }),
+      supabase.from('admissions').select('*, wards(name), beds(bed_number), rooms(room_number)')
+        .eq('patient_id', patient.id),
+    ]);
 
-      const byVisit = new Map<string, LedgerRow[]>();
-      const push = (vid: string | null, row: LedgerRow) => {
-        const key = vid ?? '__none__';
-        if (!byVisit.has(key)) byVisit.set(key, []);
-        byVisit.get(key)!.push(row);
-      };
+    const byVisit = new Map<string, LedgerRow[]>();
+    const push = (vid: string | null, row: LedgerRow) => {
+      const key = vid ?? '__none__';
+      if (!byVisit.has(key)) byVisit.set(key, []);
+      byVisit.get(key)!.push(row);
+    };
 
-      (vt.data ?? []).forEach((v: any) => push(v.visit_id, {
-        id: `vt-${v.id}`, visitId: v.visit_id, at: v.created_at, kind: 'vitals',
-        station: 'nurse', title: 'Vitals & Intake', data: v,
-      }));
+    (vt.data ?? []).forEach((v: any) => push(v.visit_id, {
+      id: `vt-${v.id}`, visitId: v.visit_id, at: v.created_at, kind: 'vitals',
+      station: 'nurse', title: 'Vitals & Intake', data: v,
+    }));
 
-      (att.data ?? []).forEach((a: any) => push(a.visit_id, {
-        id: `att-${a.id}`, visitId: a.visit_id, at: a.captured_at ?? a.created_at,
-        kind: 'attachment', station: a.station ?? 'other',
-        title: a.label || `${a.station ?? 'Card'} photo`,
-        data: { path: a.storage_path, bucket: 'attachment' },
-      }));
+    (att.data ?? []).forEach((a: any) => push(a.visit_id, {
+      id: `att-${a.id}`, visitId: a.visit_id, at: a.captured_at ?? a.created_at,
+      kind: 'attachment', station: a.station ?? 'other',
+      title: a.label || `${a.station ?? 'Card'} photo`,
+      data: { path: a.storage_path, bucket: 'attachment' },
+    }));
 
-      (snaps.data ?? []).forEach((s: any) => push(s.visit_id, {
-        id: `snap-${s.id}`, visitId: s.visit_id, at: s.created_at, kind: 'snap',
-        station: s.source_role ?? 'doctor',
-        title: `${(s.order_type ?? 'order').replace('_', ' ')} → ${s.target_station}`,
-        data: s,
-      }));
+    (snaps.data ?? []).forEach((s: any) => push(s.visit_id, {
+      id: `snap-${s.id}`, visitId: s.visit_id, at: s.created_at, kind: 'snap',
+      station: s.source_role ?? 'doctor',
+      title: `${(s.order_type ?? 'order').replace('_', ' ')} → ${s.target_station}`,
+      data: s,
+    }));
 
-      (invs.data ?? []).forEach((i: any) => {
-        push(i.visit_id, {
-          id: `inv-${i.id}`, visitId: i.visit_id, at: i.created_at, kind: 'invoice',
-          station: 'billing', title: `Invoice ${i.invoice_number}`, data: i,
-        });
-        if (Number(i.paid_amount) > 0) push(i.visit_id, {
-          id: `pay-${i.id}`, visitId: i.visit_id, at: i.updated_at ?? i.created_at,
-          kind: 'payment', station: 'cashier',
-          title: `Payment · ${i.payment_method ?? 'received'}`,
-          data: { amount: i.paid_amount, method: i.payment_method, ref: i.invoice_number },
-        });
+    (invs.data ?? []).forEach((i: any) => {
+      push(i.visit_id, {
+        id: `inv-${i.id}`, visitId: i.visit_id, at: i.created_at, kind: 'invoice',
+        station: 'billing', title: `Invoice ${i.invoice_number}`, data: i,
       });
-
-      (adms.data ?? []).forEach((a: any) => {
-        // attach to visit_id if present, else first open visit
-        const vid = a.visit_id ?? vs.find(v => v.status === 'open')?.id ?? vs[0]?.id ?? null;
-        push(vid, {
-          id: `adm-${a.id}`, visitId: vid ?? '', at: a.admitted_at ?? a.created_at, kind: 'admission',
-          station: 'nurse',
-          title: `Admitted · ${a.wards?.name ?? 'Ward'}${a.beds?.bed_number ? ` · Bed ${a.beds.bed_number}` : ''}`,
-          data: a,
-        });
-        if (a.discharged_at) push(vid, {
-          id: `dis-${a.id}`, visitId: vid ?? '', at: a.discharged_at, kind: 'discharge',
-          station: 'nurse', title: 'Discharged', data: a,
-        });
+      if (Number(i.paid_amount) > 0) push(i.visit_id, {
+        id: `pay-${i.id}`, visitId: i.visit_id, at: i.updated_at ?? i.created_at,
+        kind: 'payment', station: 'cashier',
+        title: `Payment · ${i.payment_method ?? 'received'}`,
+        data: { amount: i.paid_amount, method: i.payment_method, ref: i.invoice_number },
       });
+    });
 
-      const built: LedgerVisit[] = vs.map(v => {
-        const rows = (byVisit.get(v.id) ?? []).sort(
-          (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()
-        );
-        return { visit: v, rows };
+    (adms.data ?? []).forEach((a: any) => {
+      const vid = a.visit_id ?? vs.find(v => v.status === 'open')?.id ?? vs[0]?.id ?? null;
+      push(vid, {
+        id: `adm-${a.id}`, visitId: vid ?? '', at: a.admitted_at ?? a.created_at, kind: 'admission',
+        station: 'nurse',
+        title: `Admitted · ${a.wards?.name ?? 'Ward'}${a.beds?.bed_number ? ` · Bed ${a.beds.bed_number}` : ''}`,
+        data: a,
       });
+      if (a.discharged_at) push(vid, {
+        id: `dis-${a.id}`, visitId: vid ?? '', at: a.discharged_at, kind: 'discharge',
+        station: 'nurse', title: 'Discharged', data: a,
+      });
+    });
 
-      if (!cancelled) {
-        setVisits(built);
-        setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+    const built: LedgerVisit[] = vs.map(v => {
+      const rows = (byVisit.get(v.id) ?? []).sort(
+        (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()
+      );
+      return { visit: v, rows };
+    });
+
+    setVisits(built);
+    setLoading(false);
   }, [patient.id]);
 
-  // Realtime — refresh on any change to snap_orders/vitals/attachments/invoices for this patient
   useEffect(() => {
+    load(true);
+  }, [load]);
+
+  // Realtime — refresh on any change to related tables for this patient/visits
+  useEffect(() => {
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+    const bump = () => {
+      if (debounce) clearTimeout(debounce);
+      debounce = setTimeout(() => load(false), 250);
+    };
+
+    const patientFilter = `patient_id=eq.${patient.id}`;
     const ch = supabase
       .channel(`ledger-${patient.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders', filter: `patient_id=eq.${patient.id}` }, () => window.dispatchEvent(new CustomEvent('ledger-refresh')))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders', filter: patientFilter }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'visits', filter: patientFilter }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'admissions', filter: patientFilter }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices', filter: patientFilter }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vitals', filter: patientFilter }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'visit_attachments', filter: patientFilter }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_items' }, bump)
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [patient.id]);
+    return () => {
+      if (debounce) clearTimeout(debounce);
+      supabase.removeChannel(ch);
+    };
+  }, [patient.id, load]);
+
 
   // Signed URLs for thumbs
   useEffect(() => {

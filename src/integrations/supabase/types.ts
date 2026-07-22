@@ -1055,6 +1055,7 @@ export type Database = {
           created_at: string
           date_of_birth: string
           emergency_contact: string | null
+          enrollee_id: string | null
           first_name: string
           gender: string
           id: string
@@ -1083,6 +1084,7 @@ export type Database = {
           created_at?: string
           date_of_birth: string
           emergency_contact?: string | null
+          enrollee_id?: string | null
           first_name: string
           gender: string
           id?: string
@@ -1111,6 +1113,7 @@ export type Database = {
           created_at?: string
           date_of_birth?: string
           emergency_contact?: string | null
+          enrollee_id?: string | null
           first_name?: string
           gender?: string
           id?: string

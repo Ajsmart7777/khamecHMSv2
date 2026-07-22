@@ -2,20 +2,12 @@ import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
   Activity, 
   Send, 
-  User,
-  Thermometer,
-  Heart,
-  Wind,
-  Scale,
-  Ruler,
-  ClipboardList,
   Bell,
-  Save,
+  Camera,
   Wifi,
   RefreshCw
 } from 'lucide-react';
@@ -32,8 +24,6 @@ import {
 } from "@/components/ui/dialog";
 import { usePatients, Patient } from '@/contexts/PatientContext';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
-import { supabase } from '@/integrations/supabase/client';
-import { logError } from '@/lib/errorHandler';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AdmissionQueue } from '@/components/nurse/AdmissionQueue';
 import { LabResultInbox } from '@/components/doctor/LabResultInbox';

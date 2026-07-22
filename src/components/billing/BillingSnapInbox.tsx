@@ -444,18 +444,48 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
                 placeholder="Type to search pricelist… (e.g. 'pan' finds Panadol)"
                 value={manualQuery}
                 onChange={(e) => setManualQuery(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && doManualSearch()}
+                onKeyDown={(e) => {
+                  if (manualMatches.length > 0) {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setActiveIdx(i => Math.min(manualMatches.length - 1, i + 1));
+                      return;
+                    }
+                    if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setActiveIdx(i => Math.max(0, i - 1));
+                      return;
+                    }
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const pick = manualMatches[activeIdx] ?? manualMatches[0];
+                      if (pick) addManual(pick);
+                      return;
+                    }
+                    if (e.key === 'Escape') {
+                      e.preventDefault();
+                      setManualMatches([]);
+                      return;
+                    }
+                  } else if (e.key === 'Enter') {
+                    doManualSearch();
+                  }
+                }}
               />
               <Button size="sm" onClick={doManualSearch}>Search</Button>
             </div>
 
             {manualMatches.length > 0 && (
               <div className="border rounded-lg p-2 space-y-1 max-h-40 overflow-y-auto">
-                {manualMatches.map(m => (
+                {manualMatches.map((m, i) => (
                   <button
                     key={m.id}
                     onClick={() => addManual(m)}
-                    className="w-full text-left text-xs px-2 py-1 rounded hover:bg-primary/10 flex items-center justify-between"
+                    onMouseEnter={() => setActiveIdx(i)}
+                    ref={(el) => { if (el && i === activeIdx) el.scrollIntoView({ block: 'nearest' }); }}
+                    className={`w-full text-left text-xs px-2 py-1 rounded flex items-center justify-between ${
+                      i === activeIdx ? 'bg-primary/15 ring-1 ring-primary/40' : 'hover:bg-primary/10'
+                    }`}
                   >
                     <span>
                       {highlightMatch(m.name, manualQuery)}

@@ -1104,7 +1104,7 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
         <h4 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Account Type</h4>
         <Select
           value={formData.account_type}
-          onValueChange={(v) => setFormData({ ...formData, account_type: v as AccountType, corporate_id: '', insurance_provider: '', insurance_plan: '', enrollee_id: '' })}
+          onValueChange={(v) => setFormData({ ...formData, account_type: v as AccountType, corporate_id: '', insurance_provider: '', insurance_plan: '', enrollee_id: '', staff_id: '' })}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select account type" />

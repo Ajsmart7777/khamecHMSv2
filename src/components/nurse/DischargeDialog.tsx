@@ -45,7 +45,7 @@ export function DischargeDialog({
   const [settlementNotes, setSettlementNotes] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const canWaive = userRole === 'accountant' || userRole === 'admin';
+  const canWaive = role === 'accountant' || role === 'admin';
   const payMethods: Method[] = ['cash', 'pos', 'transfer'];
   const amountNum = Number(amount) || 0;
   const collectShort = payMethods.includes(method) && hasDebt && amountNum < debt;

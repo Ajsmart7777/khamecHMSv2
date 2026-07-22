@@ -401,6 +401,60 @@ function Chip({ children, mono, icon }: { children: React.ReactNode; mono?: bool
   );
 }
 
+const FILTER_STATIONS = ['nurse', 'doctor', 'lab', 'pharmacy', 'billing', 'cashier'] as const;
+
+function StationFilterBar({
+  visits, selected, onToggle,
+}: {
+  visits: LedgerVisit[];
+  selected: Set<string>;
+  onToggle: (station: string) => void;
+}) {
+  const counts = useMemo(() => {
+    const c: Record<string, number> = {};
+    visits.forEach(v => v.rows.forEach(r => { c[r.station] = (c[r.station] ?? 0) + 1; }));
+    return c;
+  }, [visits]);
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const active = selected.size > 0;
+
+  return (
+    <div className="px-4 py-2.5 border-b border-border bg-muted/30 flex items-center gap-1.5 flex-wrap">
+      <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mr-1">
+        Filter
+      </span>
+      <button
+        onClick={() => onToggle('__all__')}
+        className={`px-2 py-1 text-[10px] font-bold uppercase tracking-tight rounded border transition ${
+          !active
+            ? 'bg-foreground text-background border-foreground'
+            : 'bg-background text-foreground border-border hover:bg-muted'
+        }`}
+      >
+        All · {total}
+      </button>
+      {FILTER_STATIONS.map(s => {
+        const isOn = selected.has(s);
+        const count = counts[s] ?? 0;
+        const tone = STATION_TONE[s] ?? STATION_TONE.admin;
+        return (
+          <button
+            key={s}
+            onClick={() => onToggle(s)}
+            disabled={count === 0 && !isOn}
+            className={`px-2 py-1 text-[10px] font-bold uppercase tracking-tight rounded border capitalize transition ${
+              isOn ? tone + ' ring-2 ring-offset-1 ring-current' : 'bg-background text-muted-foreground border-border hover:bg-muted'
+            } ${count === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}
+          >
+            {s} · {count}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+
 function LastActivityBadge({ rows }: { rows: LedgerRow[] }) {
   const last = rows.length ? rows[rows.length - 1] : null;
   const [, force] = useState(0);

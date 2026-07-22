@@ -285,8 +285,22 @@ export function PatientLedgerCard({
           </div>
         ) : (
           <div>
+            <StationFilterBar
+              visits={visits}
+              selected={stationFilter}
+              onToggle={(s) => setStationFilter(prev => {
+                const next = new Set(prev);
+                if (s === '__all__') return new Set();
+                next.has(s) ? next.delete(s) : next.add(s);
+                return next;
+              })}
+            />
             {visits.map((lv, vi) => {
               const isCollapsed = collapsed[lv.visit.id];
+              const filteredRows = stationFilter.size === 0
+                ? lv.rows
+                : lv.rows.filter(r => stationFilter.has(r.station));
+              if (stationFilter.size > 0 && filteredRows.length === 0) return null;
               return (
                 <div key={lv.visit.id}>
                   {/* Visit divider */}
@@ -327,12 +341,12 @@ export function PatientLedgerCard({
                   {/* Rows */}
                   {!isCollapsed && (
                     <div className="divide-y divide-border">
-                      {lv.rows.length === 0 && (
+                      {filteredRows.length === 0 && (
                         <div className="px-4 py-6 text-center text-xs text-muted-foreground italic">
-                          No events recorded for this visit yet.
+                          {stationFilter.size > 0 ? 'No matching events for the selected stations.' : 'No events recorded for this visit yet.'}
                         </div>
                       )}
-                      {lv.rows.map(row => (
+                      {filteredRows.map(row => (
                         <LedgerRowView
                           key={row.id} row={row} thumbs={thumbs}
                           onOpenImage={setLightbox}
@@ -343,6 +357,7 @@ export function PatientLedgerCard({
                 </div>
               );
             })}
+
           </div>
         )}
 

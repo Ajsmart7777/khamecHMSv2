@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { PatientStatus, AccountType } from '@/types/hms';
 import { User, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ViewCardButton } from '@/components/visit/PatientCardDialog';
 
 interface RealTimePatientListProps {
   filterStatuses?: PatientStatus[];

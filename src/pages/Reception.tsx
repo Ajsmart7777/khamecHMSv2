@@ -55,7 +55,7 @@ import { patientSchema, paymentSchema } from '@/lib/validations';
 import { z } from 'zod';
 import { paymentAuditLogger } from '@/lib/auditLogger';
 import { useInvoices } from '@/hooks/useInvoices';
-import { useInsurance } from '@/hooks/useInsurance';
+
 import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { StandingOrderCaptureDialog } from '@/components/reception/StandingOrderCaptureDialog';
 import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';

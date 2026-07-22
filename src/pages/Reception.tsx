@@ -1170,10 +1170,18 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
           </div>
         )}
 
-        {isStaffFamily && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Link this patient to a staff member in the Accountant module after registration (50% coverage applies).
-          </p>
+        {(isStaff || isStaffFamily) && (
+          <>
+            <StaffSelector
+              value={formData.staff_id}
+              onChange={(id) => setFormData({ ...formData, staff_id: id })}
+              label={isStaff ? 'Staff Member' : 'Linked Staff (Family Sponsor)'}
+              helper={isStaff
+                ? 'Select the staff this patient record belongs to (fully covered).'
+                : 'Select the staff sponsor. 50% of invoices auto-deduct from their payroll (max 4 family members).'}
+            />
+            {errors.staff_id && <p className="text-xs text-destructive mt-1">{errors.staff_id}</p>}
+          </>
         )}
       </div>
 

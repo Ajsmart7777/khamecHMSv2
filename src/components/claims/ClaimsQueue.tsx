@@ -224,6 +224,13 @@ export function ClaimsQueue() {
       )}
 
       <VisitEnvelopeDialog open={!!open} onOpenChange={(o) => !o && setOpen(null)} visit={open} />
+      {cardPatient && (
+        <PatientCardDialog
+          patient={cardPatient}
+          open={!!cardPatient}
+          onOpenChange={(o) => !o && setCardPatient(null)}
+        />
+      )}
     </div>
   );
 }

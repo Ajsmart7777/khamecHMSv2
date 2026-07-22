@@ -195,8 +195,8 @@ function AssignBedDialog({ admission, patient, onClose }: {
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button onClick={submit} disabled={busy || !bedId}>
-            {busy ? 'Assigning…' : 'Assign Bed & Admit'}
+          <Button onClick={submit} disabled={busy || !bedId || blocked}>
+            {busy ? 'Assigning…' : blocked ? 'Deposit required' : 'Assign Bed & Admit'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1118,20 +1118,13 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
         {isInsurance && (
           <div className="mt-4 p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3 animate-fade-in">
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Insurance Provider *</label>
-              <Select
+              <label className="text-sm font-medium mb-1.5 block">Provider Name *</label>
+              <Input
+                placeholder="e.g. Hygeia HMO"
                 value={formData.insurance_provider}
-                onValueChange={(v) => setFormData({ ...formData, insurance_provider: v, insurance_plan: '' })}
-              >
-                <SelectTrigger className={errors.insurance_provider ? 'border-destructive' : ''}>
-                  <SelectValue placeholder="Select provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  {providers.filter(p => p.status === 'active').map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                onChange={(e) => setFormData({ ...formData, insurance_provider: e.target.value })}
+                className={errors.insurance_provider ? 'border-destructive' : ''}
+              />
               {errors.insurance_provider && <p className="text-xs text-destructive mt-1">{errors.insurance_provider}</p>}
             </div>
             <div>
@@ -1139,19 +1132,27 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
               <Select
                 value={formData.insurance_plan}
                 onValueChange={(v) => setFormData({ ...formData, insurance_plan: v })}
-                disabled={!formData.insurance_provider}
               >
                 <SelectTrigger className={errors.insurance_plan ? 'border-destructive' : ''}>
-                  <SelectValue placeholder={availablePlans.length ? 'Select plan' : 'No plans configured'} />
+                  <SelectValue placeholder="Select plan" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availablePlans.map((pl: any, i: number) => {
-                    const name = typeof pl === 'string' ? pl : (pl?.name || pl?.plan || `Plan ${i + 1}`);
-                    return <SelectItem key={i} value={name}>{name}</SelectItem>;
-                  })}
+                  {availablePlans.map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               {errors.insurance_plan && <p className="text-xs text-destructive mt-1">{errors.insurance_plan}</p>}
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Enrollee ID *</label>
+              <Input
+                placeholder="Enrollee / member number"
+                value={formData.enrollee_id}
+                onChange={(e) => setFormData({ ...formData, enrollee_id: e.target.value })}
+                className={errors.enrollee_id ? 'border-destructive' : ''}
+              />
+              {errors.enrollee_id && <p className="text-xs text-destructive mt-1">{errors.enrollee_id}</p>}
             </div>
           </div>
         )}

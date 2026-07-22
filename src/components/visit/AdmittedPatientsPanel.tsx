@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { BedDouble, Camera, User2, Wallet } from 'lucide-react';
+import { BedDouble, Camera, LogOut, User2, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAdmissions } from '@/hooks/useAdmissions';
 import { usePatients } from '@/contexts/PatientContext';
 import { AdmittedSnapDialog } from './AdmittedSnapDialog';
+import { DischargeDialog } from '@/components/nurse/DischargeDialog';
 
 interface Props {
   sourceStation: 'nurse' | 'doctor';

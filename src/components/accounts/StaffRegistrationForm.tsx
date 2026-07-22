@@ -25,6 +25,7 @@ interface Props {
 const SYSTEM_ROLES: { value: string; label: string }[] = [
   { value: 'receptionist', label: 'Receptionist' },
   { value: 'nurse', label: 'Nurse' },
+  { value: 'anc', label: 'ANC (Antenatal Care)' },
   { value: 'doctor1', label: 'Doctor 1' },
   { value: 'doctor2', label: 'Doctor 2' },
   { value: 'lab_tech', label: 'Lab Technician' },

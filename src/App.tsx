@@ -25,6 +25,7 @@ import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import Claims from "./pages/Claims";
 import EMR from "./pages/EMR";
+import ANC from "./pages/ANC";
 
 const queryClient = new QueryClient();
 
@@ -95,8 +96,13 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="/emr" element={
-                  <ProtectedRoute allowedRoles={['doctor', 'doctor1', 'doctor2', 'nurse', 'lab_tech', 'pharmacist', 'admin']}>
+                  <ProtectedRoute allowedRoles={['doctor', 'doctor1', 'doctor2', 'nurse', 'lab_tech', 'pharmacist', 'anc', 'admin']}>
                     <EMR />
+                  </ProtectedRoute>
+                } />
+                <Route path="/anc" element={
+                  <ProtectedRoute allowedRoles={['anc', 'admin']}>
+                    <ANC />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin" element={

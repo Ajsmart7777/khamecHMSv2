@@ -58,6 +58,8 @@ export function PatientLedgerCard({
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [stationFilter, setStationFilter] = useState<Set<string>>(new Set());
+
 
   const age = patient.date_of_birth
     ? differenceInYears(new Date(), new Date(patient.date_of_birth)) : null;

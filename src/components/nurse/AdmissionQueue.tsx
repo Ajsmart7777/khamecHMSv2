@@ -150,7 +150,10 @@ function AssignBedDialog({ admission, patient, onClose }: {
               <SelectTrigger><SelectValue placeholder="Select ward" /></SelectTrigger>
               <SelectContent>
                 {wards.filter((w) => w.active).map((w) => (
-                  <SelectItem key={w.id} value={w.id}>{w.name} · {w.gender}</SelectItem>
+                  <SelectItem key={w.id} value={w.id}>
+                    {w.name} · {w.gender}
+                    {w.min_admission_deposit > 0 && ` · min ${fmtNaira(w.min_admission_deposit)}`}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

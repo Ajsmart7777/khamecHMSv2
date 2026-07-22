@@ -61,15 +61,22 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                     ₦{bal.toLocaleString()}
                   </Badge>
                 </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => setSnapFor({ id: a.patient_id, name: `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim(), balance: bal })}
-                >
-                  <Camera className="h-3.5 w-3.5 mr-2" />
-                  In-Ward Snap (deduct balance)
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSnapFor({ id: a.patient_id, name: `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim(), balance: bal })}
+                  >
+                    <Camera className="h-3.5 w-3.5 mr-1.5" /> In-Ward Snap
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setDischargeFor({ admissionId: a.id, patientId: a.patient_id, name: `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim(), balance: bal })}
+                  >
+                    <LogOut className="h-3.5 w-3.5 mr-1.5" /> Discharge
+                  </Button>
+                </div>
               </div>
             );
           })}

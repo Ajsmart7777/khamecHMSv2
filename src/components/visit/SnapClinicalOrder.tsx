@@ -11,6 +11,9 @@ import { useActiveVisit, openOrResumeVisit } from '@/hooks/useVisits';
 import { uploadVisitAttachment, VisitStation } from '@/hooks/useVisitAttachments';
 import { createSnapOrder, SnapOrderType, SnapTargetStation } from '@/hooks/useSnapOrders';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCanSnap } from '@/hooks/useCanSnap';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Lock } from 'lucide-react';
 
 interface Props {
   patientId: string;
@@ -39,6 +42,7 @@ export function SnapClinicalOrder({
 }: Props) {
   const { role } = useAuth();
   const { visit, refresh } = useActiveVisit(patientId);
+  const { allowed, reason, loading: checking } = useCanSnap(patientId);
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -130,15 +134,30 @@ export function SnapClinicalOrder({
         onChange={onFile}
         className="hidden"
       />
-      <Button
-        variant={variant}
-        size={size}
-        className={className}
-        onClick={() => inputRef.current?.click()}
-      >
-        <Camera className="h-4 w-4 mr-2" />
-        {label}
-      </Button>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={allowed ? '' : 'inline-block'}>
+              <Button
+                variant={variant}
+                size={size}
+                className={className}
+                onClick={() => inputRef.current?.click()}
+                disabled={!allowed || checking}
+                aria-disabled={!allowed}
+              >
+                {allowed
+                  ? <Camera className="h-4 w-4 mr-2" />
+                  : <Lock className="h-4 w-4 mr-2" />}
+                {label}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          {!allowed && reason && (
+            <TooltipContent side="top" className="max-w-xs">{reason}</TooltipContent>
+          )}
+        </Tooltip>
+      </TooltipProvider>
 
       <Dialog open={!!previewUrl} onOpenChange={(o) => !o && close()}>
         <DialogContent className="sm:max-w-lg">

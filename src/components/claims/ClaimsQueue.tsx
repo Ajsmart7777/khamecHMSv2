@@ -22,6 +22,7 @@ export function ClaimsQueue() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [open, setOpen] = useState<Visit | null>(null);
+  const [cardPatient, setCardPatient] = useState<Patient | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
 

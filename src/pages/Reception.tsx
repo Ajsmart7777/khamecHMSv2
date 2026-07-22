@@ -987,7 +987,10 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
       occupation: formData.occupation.trim(),
       allergies: [],
       status: 'registered',
-      account_type: 'normal',
+      account_type: formData.account_type,
+      corporate_id: isSponsor ? formData.corporate_id : null,
+      insurance_provider: isInsurance ? (providers.find(p => p.id === formData.insurance_provider)?.name || null) : null,
+      insurance_plan: isInsurance ? formData.insurance_plan : null,
       balance: 0,
     } as any);
 

@@ -196,8 +196,11 @@ export function ClaimsQueue() {
                             )}
                           </div>
                           <Badge variant="secondary" className="text-[10px]">pending</Badge>
-                          <Button size="sm" variant="outline" onClick={() => setOpen(v)}>
-                            <Eye className="h-3 w-3 mr-1" /> View
+                          <Button size="sm" variant="outline" onClick={() => p && setCardPatient(p)} disabled={!p}>
+                            <Eye className="h-3 w-3 mr-1" /> Card
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setOpen(v)}>
+                            Envelope
                           </Button>
                           <Button
                             size="sm"

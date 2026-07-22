@@ -3,6 +3,7 @@ import { Card } from '@/components/ui/card';
 import { AlertTriangle, Droplet, User, Wallet } from 'lucide-react';
 import { Patient } from '@/contexts/PatientContext';
 import { format, differenceInYears } from 'date-fns';
+import { ViewCardButton } from '@/components/visit/PatientCardDialog';
 
 export function PatientHeaderCard({ patient }: { patient: Patient }) {
   const age = patient.date_of_birth

@@ -244,6 +244,27 @@ export type Database = {
           },
         ]
       }
+      app_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -1557,6 +1578,13 @@ export type Database = {
           matched_items: Json
           note: string | null
           ocr_confidence: number | null
+          ocr_corrected_at: string | null
+          ocr_corrected_by: string | null
+          ocr_corrected_text: string | null
+          ocr_error: string | null
+          ocr_matches: Json | null
+          ocr_model: string | null
+          ocr_status: string | null
           ocr_text: string | null
           order_type: string
           original_sender_role: string | null
@@ -1590,6 +1618,13 @@ export type Database = {
           matched_items?: Json
           note?: string | null
           ocr_confidence?: number | null
+          ocr_corrected_at?: string | null
+          ocr_corrected_by?: string | null
+          ocr_corrected_text?: string | null
+          ocr_error?: string | null
+          ocr_matches?: Json | null
+          ocr_model?: string | null
+          ocr_status?: string | null
           ocr_text?: string | null
           order_type: string
           original_sender_role?: string | null
@@ -1623,6 +1658,13 @@ export type Database = {
           matched_items?: Json
           note?: string | null
           ocr_confidence?: number | null
+          ocr_corrected_at?: string | null
+          ocr_corrected_by?: string | null
+          ocr_corrected_text?: string | null
+          ocr_error?: string | null
+          ocr_matches?: Json | null
+          ocr_model?: string | null
+          ocr_status?: string | null
           ocr_text?: string | null
           order_type?: string
           original_sender_role?: string | null
@@ -2515,6 +2557,16 @@ export type Database = {
         Returns: boolean
       }
       is_authenticated_staff: { Args: never; Returns: boolean }
+      match_catalogue: {
+        Args: { _limit?: number; _query: string }
+        Returns: {
+          id: string
+          name: string
+          price: number
+          score: number
+          source: string
+        }[]
+      }
       next_statement_number: {
         Args: { _month: number; _year: number }
         Returns: string

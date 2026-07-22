@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Camera, ScanText, Plus, Trash2, Send, XCircle, Loader2, Check, Pencil, SkipForward } from 'lucide-react';
 import Tesseract from 'tesseract.js';
+import { SnapOcrPanel } from './SnapOcrPanel';
 
 type ReviewStatus = 'pending' | 'approved' | 'skipped';
 interface ReviewLine {
@@ -309,6 +310,11 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
                 placeholder="OCR text will appear here"
               />
             )}
+
+            <SnapOcrPanel
+              snapId={snap.id}
+              onAddItem={(it) => setItems(prev => [...prev, it])}
+            />
 
             {lines.length > 0 && (() => {
               const pending = lines.filter(l => l.status === 'pending').length;

@@ -68,12 +68,10 @@ export function AdmittedSnapDialog({
   const insufficient = shortfall > 0;
 
   const filteredPricelist = useMemo(() => {
-    if (orderType === 'lab') return pricelist.filter((p: any) => (p.category ?? '').toLowerCase().includes('lab'));
-    if (orderType === 'prescription') return pricelist.filter((p: any) => {
-      const c = (p.category ?? '').toLowerCase();
-      return c.includes('drug') || c.includes('pharm') || c.includes('med');
-    });
-    return pricelist;
+    const active = pricelist.filter((p: any) => p.active !== false);
+    if (orderType === 'lab') return active.filter((p: any) => ['lab', 'imaging'].includes(p.category));
+    if (orderType === 'prescription') return active.filter((p: any) => String(p.category ?? '').startsWith('drug') || p.category === 'consumable');
+    return active;
   }, [pricelist, orderType]);
 
   const reset = () => {

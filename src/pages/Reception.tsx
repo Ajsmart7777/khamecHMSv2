@@ -136,12 +136,25 @@ const Reception = () => {
 
   const handleSendToNurse = async (preferredDoctor?: 'doctor1' | 'doctor2') => {
     if (!selectedPatient) return;
-    // Prevent sending if already beyond 'registered' status
-    if (selectedPatient.status !== 'registered') {
-      toast.error('Patient already sent', {
-        description: `${selectedPatient.first_name} ${selectedPatient.last_name} has already been sent (status: ${selectedPatient.status}).`
+    const isNewVisit = selectedPatient.status === 'discharged';
+    // Prevent sending if already mid-visit (not registered and not discharged)
+    if (selectedPatient.status !== 'registered' && !isNewVisit) {
+      toast.error('Patient already in an active visit', {
+        description: `${selectedPatient.first_name} ${selectedPatient.last_name} status: ${selectedPatient.status}.`
       });
       return;
+    }
+
+    // Starting a fresh visit for a discharged patient: clear prior doctor assignment.
+    if (isNewVisit) {
+      const { error: resetError } = await supabase
+        .from('patients')
+        .update({ assigned_doctor: null })
+        .eq('id', selectedPatient.id);
+      if (resetError) {
+        toast.error('Failed to start new visit');
+        return;
+      }
     }
 
     // Optional pre-assignment of a specific doctor from Reception.
@@ -161,7 +174,7 @@ const Reception = () => {
       const label = preferredDoctor === 'doctor1' ? ' (pre-assigned to Doctor 1)'
                     : preferredDoctor === 'doctor2' ? ' (pre-assigned to Doctor 2)'
                     : '';
-      toast.success(`${selectedPatient.first_name} ${selectedPatient.last_name} sent to Nurse Station${label}`, {
+      toast.success(`${selectedPatient.first_name} ${selectedPatient.last_name} ${isNewVisit ? 'started new visit — sent to Nurse Station' : 'sent to Nurse Station'}${label}`, {
         description: 'Patient is now in the queue',
         icon: <CheckCircle2 className="h-4 w-4 text-success" />
       });

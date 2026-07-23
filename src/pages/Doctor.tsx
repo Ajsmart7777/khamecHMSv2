@@ -8,16 +8,6 @@ import { cn } from '@/lib/utils';
 import { SnapClinicalOrder } from '@/components/visit/SnapClinicalOrder';
 import { usePatients } from '@/contexts/PatientContext';
 import { toast } from 'sonner';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { BedDouble } from 'lucide-react';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
 import { useLabRequests } from '@/hooks/useLabRequests';

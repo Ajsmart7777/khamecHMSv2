@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { toast } from 'sonner';
 import { useActiveVisit, openOrResumeVisit } from '@/hooks/useVisits';
 import { uploadVisitAttachment, VisitStation } from '@/hooks/useVisitAttachments';
+import { InAppCameraDialog } from './InAppCameraDialog';
+import { isMobileWithCamera } from '@/lib/isMobile';
 
 interface SnapToCardProps {
   patientId: string;
@@ -38,17 +40,27 @@ export function SnapToCard({
   const [file, setFile] = useState<File | null>(null);
   const [label, setLabel] = useState(defaultLabel);
   const [busy, setBusy] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const isMobile = isMobileWithCamera();
 
-  const handlePick = () => inputRef.current?.click();
+  const handlePick = () => {
+    if (isMobile) setCameraOpen(true);
+    else inputRef.current?.click();
+  };
 
-  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  const acceptFile = (f: File) => {
+    if (!f.type.startsWith('image/')) { toast.error('Please select an image file'); return; }
     setFile(f);
     setPreviewUrl(URL.createObjectURL(f));
     setLabel(defaultLabel);
-    // clear so same file can be re-selected
-    e.target.value = '';
+    setCameraOpen(false);
+  };
+
+  const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) { e.target.value = ''; return; }
+    acceptFile(f);
+    requestAnimationFrame(() => { try { e.target.value = ''; } catch {} });
   };
 
   const closePreview = () => {
@@ -95,9 +107,13 @@ export function SnapToCard({
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         onChange={onFile}
         className="hidden"
+      />
+      <InAppCameraDialog
+        open={cameraOpen}
+        onCancel={() => setCameraOpen(false)}
+        onCapture={acceptFile}
       />
       <Button variant={variant} size={size} onClick={handlePick} className={className}>
         <Camera className="h-4 w-4 mr-2" />

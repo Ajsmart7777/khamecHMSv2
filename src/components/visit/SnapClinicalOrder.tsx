@@ -35,6 +35,7 @@ interface Props {
   size?: 'sm' | 'default' | 'lg';
   className?: string;
   label?: string;
+  onSent?: () => void;
 }
 
 /**
@@ -50,6 +51,7 @@ export function SnapClinicalOrder({
   size = 'default',
   className,
   label = 'Snap & Send to Billing',
+  onSent,
 }: Props) {
   const { role } = useAuth();
   const { visit, refresh } = useActiveVisit(patientId);
@@ -182,6 +184,7 @@ export function SnapClinicalOrder({
         });
       }
       close();
+      onSent?.();
     } catch (e: any) {
       toast.error(e.message ?? 'Failed to send snap');
     } finally {

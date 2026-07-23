@@ -294,11 +294,11 @@ export function SnapClinicalOrder({
                   <div>
                     <span className="text-muted-foreground">Patient: </span>
                     <span className="font-semibold text-foreground">
-                      {patient?.name ?? 'Unknown'}
+                      {patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown'}
                     </span>
-                    {patient?.patient_number && (
+                    {patient?.card_number && (
                       <span className="ml-2 font-mono text-xs text-muted-foreground">
-                        {patient.patient_number}
+                        {patient.card_number}
                       </span>
                     )}
                   </div>

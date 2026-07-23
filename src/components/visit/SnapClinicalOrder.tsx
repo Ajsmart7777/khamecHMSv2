@@ -89,26 +89,32 @@ export function SnapClinicalOrder({
       e.target.value = '';
       return;
     }
+    acceptFile(f);
+    requestAnimationFrame(() => {
+      try { e.target.value = ''; } catch {}
+    });
+  };
+
+  const acceptFile = (f: File) => {
     try {
       const url = URL.createObjectURL(f);
-      // Clean up any lingering blob from a previous aborted snap.
       if (rawUrl) URL.revokeObjectURL(rawUrl);
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(null);
       setFile(null);
       setRawFile(f);
       setRawUrl(url);
+      setCameraOpen(false);
       setCropOpen(true);
-      // Reset input AFTER state is queued, so a lost/re-fired change on mobile
-      // still delivers the file object we've already captured.
-      requestAnimationFrame(() => {
-        try { e.target.value = ''; } catch {}
-      });
     } catch (err) {
       console.error('[SnapClinicalOrder] failed to open captured photo', err);
       toast.error('Could not open the photo — please try again');
     }
   };
+
+  const isMobile = typeof navigator !== 'undefined'
+    && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+    && !!navigator.mediaDevices?.getUserMedia;
 
   const close = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);

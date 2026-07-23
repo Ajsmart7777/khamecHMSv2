@@ -19,9 +19,23 @@ export function SnapCropDialog({ open, imageUrl, originalFile, onCancel, onConfi
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
   const [pixels, setPixels] = useState<Area | null>(null);
+  const [imgReady, setImgReady] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const onComplete = useCallback((_: Area, px: Area) => setPixels(px), []);
+
+  // Prime a "whole image" crop area so the Confirm button works even if the
+  // user never drags — critical on mobile where onCropComplete can be slow to
+  // fire after the dialog first mounts.
+  const onMediaLoaded = useCallback((size: { naturalWidth: number; naturalHeight: number }) => {
+    setImgReady(true);
+    setPixels((prev) => prev ?? {
+      x: 0,
+      y: 0,
+      width: size.naturalWidth,
+      height: size.naturalHeight,
+    });
+  }, []);
 
   const confirm = async () => {
     if (!pixels) return;
@@ -60,8 +74,14 @@ export function SnapCropDialog({ open, imageUrl, originalFile, onCancel, onConfi
             onZoomChange={setZoom}
             onRotationChange={setRotation}
             onCropComplete={onComplete}
+            onMediaLoaded={onMediaLoaded}
             restrictPosition={false}
           />
+          {!imgReady && (
+            <div className="absolute inset-0 flex items-center justify-center text-white/70 text-xs pointer-events-none">
+              Loading photo…
+            </div>
+          )}
         </div>
 
         <div className="space-y-3 pt-1 shrink-0">

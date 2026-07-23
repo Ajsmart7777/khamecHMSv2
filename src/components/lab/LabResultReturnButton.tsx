@@ -13,7 +13,7 @@ import { useCanSnap } from '@/hooks/useCanSnap';
 import { Lock } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
-import { isMobileWithCamera } from '@/lib/isMobile';
+import { hasInAppCamera } from '@/lib/isMobile';
 
 interface Props {
   parentSnap: SnapOrder;
@@ -32,7 +32,7 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
-  const isMobile = isMobileWithCamera();
+  const hasCam = hasInAppCamera();
 
   const acceptFile = (f: File) => {
     if (!f.type.startsWith('image/')) {
@@ -131,7 +131,7 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
               <Button
                 size="sm"
                 onClick={() => {
-                  if (isMobile) setCameraOpen(true);
+                  if (hasCam) setCameraOpen(true);
                   else inputRef.current?.click();
                 }}
                 disabled={!allowed || checking}

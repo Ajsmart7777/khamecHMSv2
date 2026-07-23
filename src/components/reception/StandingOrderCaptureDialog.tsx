@@ -11,7 +11,7 @@ import { useStandingOrders } from '@/hooks/useStandingOrders';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
-import { isMobileWithCamera } from '@/lib/isMobile';
+import { hasInAppCamera } from '@/lib/isMobile';
 
 interface Props {
   open: boolean;
@@ -41,7 +41,7 @@ export function StandingOrderCaptureDialog({ open, onOpenChange, presetPatientId
   const [search, setSearch] = useState('');
   const cameraRef = useRef<HTMLInputElement>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
-  const isMobile = isMobileWithCamera();
+  const hasCam = hasInAppCamera();
 
   useEffect(() => {
     if (open) {
@@ -184,13 +184,13 @@ export function StandingOrderCaptureDialog({ open, onOpenChange, presetPatientId
             <Label>Order photo</Label>
             {!preview ? (
               <div
-              onClick={() => { if (isMobile) setCameraOpen(true); else cameraRef.current?.click(); }}
+              onClick={() => { if (hasCam) setCameraOpen(true); else cameraRef.current?.click(); }}
                 className="mt-1.5 flex flex-col items-start gap-2 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/20 px-4 py-4 cursor-pointer hover:bg-muted/40 transition"
               >
                 <p className="text-sm text-muted-foreground">Attach photo of the paper order</p>
               <Button type="button" variant="outline" size="sm" onClick={(e) => {
                 e.stopPropagation();
-                if (isMobile) setCameraOpen(true);
+                if (hasCam) setCameraOpen(true);
                 else cameraRef.current?.click();
               }}>
                   <Camera className="h-4 w-4 mr-1.5" /> Take photo

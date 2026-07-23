@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { useActiveVisit, openOrResumeVisit } from '@/hooks/useVisits';
 import { uploadVisitAttachment, VisitStation } from '@/hooks/useVisitAttachments';
 import { InAppCameraDialog } from './InAppCameraDialog';
-import { isMobileWithCamera } from '@/lib/isMobile';
+import { hasInAppCamera } from '@/lib/isMobile';
 
 interface SnapToCardProps {
   patientId: string;
@@ -41,10 +41,10 @@ export function SnapToCard({
   const [label, setLabel] = useState(defaultLabel);
   const [busy, setBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
-  const isMobile = isMobileWithCamera();
+  const hasCam = hasInAppCamera();
 
   const handlePick = () => {
-    if (isMobile) setCameraOpen(true);
+    if (hasCam) setCameraOpen(true);
     else inputRef.current?.click();
   };
 

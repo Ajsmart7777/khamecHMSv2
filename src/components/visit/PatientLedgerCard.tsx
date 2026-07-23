@@ -431,6 +431,7 @@ export function PatientLedgerCard({
           </div>
         ) : (
           <div>
+            <LatestVitalsPanel visits={visits} />
             <StationFilterBar
               visits={visits}
               selected={stationFilter}

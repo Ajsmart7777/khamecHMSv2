@@ -544,25 +544,27 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
           </Button>
         )}
 
-        {patient.status === 'registered' ? (
+        {(patient.status === 'registered' || patient.status === 'discharged') ? (
         <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
           <DialogTrigger asChild>
             <Button 
-              variant="module" 
+              variant={patient.status === 'discharged' ? 'hero' : 'module'}
               className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
             >
-              <Send className="h-5 w-5" />
-              <span>Send to Nurse</span>
+              {patient.status === 'discharged' ? <RefreshCw className="h-5 w-5" /> : <Send className="h-5 w-5" />}
+              <span>{patient.status === 'discharged' ? 'Start New Visit' : 'Send to Nurse'}</span>
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Send className="h-5 w-5 text-primary" />
-                Send to Nurse Station
+                {patient.status === 'discharged' ? <RefreshCw className="h-5 w-5 text-primary" /> : <Send className="h-5 w-5 text-primary" />}
+                {patient.status === 'discharged' ? 'Start New Visit' : 'Send to Nurse Station'}
               </DialogTitle>
               <DialogDescription>
-                Send {patient.first_name} {patient.last_name} to the nurse station for vitals?
+                {patient.status === 'discharged'
+                  ? `Begin a fresh visit for ${patient.first_name} ${patient.last_name} and send them to the nurse station for vitals?`
+                  : `Send ${patient.first_name} ${patient.last_name} to the nurse station for vitals?`}
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">

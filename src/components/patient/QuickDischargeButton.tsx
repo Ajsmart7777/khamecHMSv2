@@ -34,12 +34,14 @@ export function QuickDischargeButton({
     const ok = await updatePatientStatus(patientId, 'discharged');
     if (ok) {
       const { data: userRes } = await supabase.auth.getUser();
-      await supabase.rpc('write_audit_log' as any, {
-        _action: 'quick_discharge',
-        _resource_type: 'patient',
-        _resource_id: patientId,
-        _details: { reason: reason || null, actor: userRes.user?.id ?? null },
-      }).catch(() => {});
+      try {
+        await (supabase as any).rpc('write_audit_log', {
+          _action: 'quick_discharge',
+          _resource_type: 'patient',
+          _resource_id: patientId,
+          _details: { reason: reason || null, actor: userRes.user?.id ?? null },
+        });
+      } catch { /* audit is best-effort */ }
       toast.success('Patient discharged', {
         description: patientName ? `${patientName} has been discharged.` : undefined,
       });

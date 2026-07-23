@@ -5,20 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   Stethoscope, 
-  Send, 
-  User,
   FileText,
-  FlaskConical,
   ClipboardList,
-  BedDouble,
-  CheckCircle,
-  Camera,
   Wifi,
   RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
-import { SnapToCard } from '@/components/visit/SnapToCard';
 import { SnapClinicalOrder } from '@/components/visit/SnapClinicalOrder';
 import {
   Dialog,
@@ -28,20 +20,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { usePatients, Patient } from '@/contexts/PatientContext';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
-import { PatientStatus } from '@/types/hms';
-import { PrintableLabRequestDialog } from '@/components/receipts/PrintableLabRequestDialog';
 import { useLabRequests } from '@/hooks/useLabRequests';
 import { LabRequestPrintQueue } from '@/components/doctor/LabRequestPrintQueue';
 import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';

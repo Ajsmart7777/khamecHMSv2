@@ -24,7 +24,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCanSnap } from '@/hooks/useCanSnap';
 import { usePatients } from '@/contexts/PatientContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Lock } from 'lucide-react';
+import { Lock, Crop } from 'lucide-react';
+import { SnapCropDialog } from './SnapCropDialog';
 
 interface Props {
   patientId: string;
@@ -60,6 +61,9 @@ export function SnapClinicalOrder({
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [rawUrl, setRawUrl] = useState<string | null>(null);
+  const [rawFile, setRawFile] = useState<File | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
   const [orderType, setOrderType] = useState<SnapOrderType>(defaultOrderType);
   const [target, setTarget] = useState<SnapTargetStation>(
     defaultTarget ?? (defaultOrderType === 'lab' ? 'lab' : 'pharmacy'),
@@ -77,15 +81,21 @@ export function SnapClinicalOrder({
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    setFile(f);
-    setPreviewUrl(URL.createObjectURL(f));
+    const url = URL.createObjectURL(f);
+    setRawFile(f);
+    setRawUrl(url);
+    setCropOpen(true);
     e.target.value = '';
   };
 
   const close = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (rawUrl) URL.revokeObjectURL(rawUrl);
     setPreviewUrl(null);
     setFile(null);
+    setRawUrl(null);
+    setRawFile(null);
+    setCropOpen(false);
     setNote('');
     setConfirmOpen(false);
   };
@@ -194,8 +204,21 @@ export function SnapClinicalOrder({
 
           {previewUrl && (
             <div className="space-y-4">
-              <div className="rounded-lg overflow-hidden bg-muted flex items-center justify-center max-h-[40vh]">
-                <img src={previewUrl} alt="preview" className="max-h-[40vh] object-contain" />
+              <div className="space-y-2">
+                <div className="rounded-lg overflow-hidden bg-muted flex items-center justify-center max-h-[40vh]">
+                  <img src={previewUrl} alt="preview" className="max-h-[40vh] object-contain" />
+                </div>
+                {rawUrl && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCropOpen(true)}
+                    disabled={busy}
+                  >
+                    <Crop className="h-3.5 w-3.5 mr-1" /> Re-crop
+                  </Button>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -281,6 +304,28 @@ export function SnapClinicalOrder({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {rawUrl && rawFile && (
+        <SnapCropDialog
+          open={cropOpen}
+          imageUrl={rawUrl}
+          originalFile={rawFile}
+          onCancel={() => {
+            // If user cancels the initial crop (no preview yet), abort entirely.
+            if (!previewUrl) {
+              close();
+            } else {
+              setCropOpen(false);
+            }
+          }}
+          onConfirm={(croppedFile, croppedUrl) => {
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            setFile(croppedFile);
+            setPreviewUrl(croppedUrl);
+            setCropOpen(false);
+          }}
+        />
+      )}
 
       <AlertDialog open={confirmOpen} onOpenChange={(o) => !busy && setConfirmOpen(o)}>
         <AlertDialogContent>

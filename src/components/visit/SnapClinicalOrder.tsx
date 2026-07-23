@@ -157,27 +157,26 @@ export function SnapClinicalOrder({
         station: sourceStation,
       }).catch(() => null);
 
-      // 3. Create snap_order row for billing queue
-      const snap = await createSnapOrder({
-        patientId,
-        visitId,
-        orderType,
-        targetStation: target,
-        sourceRole: role ?? sourceStation,
-        photoPath: path,
-        note: note.trim(),
-      });
-      if (!snap) throw new Error('Snap order not created');
-
-      // Route the patient card:
-      //  - target=nurse  → send patient back to nurse queue
-      //  - otherwise     → queue for Billing (payment flips it to Pharmacy/Lab)
+      // 3. Create snap_order row for billing queue.
+      //    For target=nurse we skip snap_order creation so the patient shows up
+      //    in the main Nurse Patient Queue (not the Treatment Review inbox).
+      //    The photo is already attached to the visit envelope above.
       if (target === 'nurse') {
         await updatePatientStatus(patientId, 'with_nurse').catch(() => null);
         toast.success('Sent back to Nurse', {
-          description: 'Nurse will pick up the card for the next action.',
+          description: 'Patient is back in the nurse queue.',
         });
       } else {
+        const snap = await createSnapOrder({
+          patientId,
+          visitId,
+          orderType,
+          targetStation: target,
+          sourceRole: role ?? sourceStation,
+          photoPath: path,
+          note: note.trim(),
+        });
+        if (!snap) throw new Error('Snap order not created');
         await updatePatientStatus(patientId, 'awaiting_billing').catch(() => null);
         toast.success('Sent to Billing', {
           description: `${orderType === 'lab' ? 'Lab test' : orderType === 'prescription' ? 'Prescription' : 'Treatment'} pending billing.`,

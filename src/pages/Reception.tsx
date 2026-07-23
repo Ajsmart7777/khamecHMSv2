@@ -564,6 +564,20 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
                   </div>
                 </div>
               </div>
+              <div className="mt-4 space-y-2">
+                <label className="text-sm font-medium">Pre-assign Doctor (optional)</label>
+                <Select value={preferredDoctor} onValueChange={(v) => setPreferredDoctor(v as 'doctor1' | 'doctor2' | 'none')}>
+                  <SelectTrigger><SelectValue placeholder="Let the nurse decide" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Let the nurse decide</SelectItem>
+                    <SelectItem value="doctor1">Doctor 1</SelectItem>
+                    <SelectItem value="doctor2">Doctor 2</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  If chosen, the patient will land in the selected doctor's queue after vitals.
+                </p>
+              </div>
             </div>
             <DialogFooter className="gap-2 sm:gap-0">
               <DialogClose asChild>

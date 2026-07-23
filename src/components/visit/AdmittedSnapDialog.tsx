@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { usePricelist } from '@/hooks/usePricelist';
 import { InAppCameraDialog } from './InAppCameraDialog';
-import { isMobileWithCamera } from '@/lib/isMobile';
+import { hasInAppCamera } from '@/lib/isMobile';
 
 type OrderType = 'prescription' | 'lab' | 'treatment';
 type Target = 'pharmacy' | 'lab' | 'nurse' | 'doctor';
@@ -65,7 +65,7 @@ export function AdmittedSnapDialog({
   const [debtReason, setDebtReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
-  const isMobile = isMobileWithCamera();
+  const hasCam = hasInAppCamera();
 
   const acceptFile = (f: File) => {
     if (!f.type.startsWith('image/')) { toast.error('Please select an image file'); return; }
@@ -214,7 +214,7 @@ export function AdmittedSnapDialog({
               </div>
             ) : (
               <Button variant="outline" className="w-full" onClick={() => {
-                if (isMobile) setCameraOpen(true);
+                if (hasCam) setCameraOpen(true);
                 else inputRef.current?.click();
               }}>
                 <Camera className="h-4 w-4 mr-2" /> Take photo

@@ -24,6 +24,7 @@ import { usePatients } from '@/contexts/PatientContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { SnapCropDialog } from './SnapCropDialog';
 import { InAppCameraDialog } from './InAppCameraDialog';
+import { hasInAppCamera } from '@/lib/isMobile';
 
 interface Props {
   patientId: string;
@@ -112,9 +113,7 @@ export function SnapClinicalOrder({
     }
   };
 
-  const isMobile = typeof navigator !== 'undefined'
-    && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-    && !!navigator.mediaDevices?.getUserMedia;
+  const hasCam = hasInAppCamera();
 
   const close = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -208,7 +207,7 @@ export function SnapClinicalOrder({
                 size={size}
                 className={className}
                 onClick={() => {
-                  if (isMobile) setCameraOpen(true);
+                  if (hasCam) setCameraOpen(true);
                   else inputRef.current?.click();
                 }}
                 disabled={!allowed || checking}

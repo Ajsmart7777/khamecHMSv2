@@ -23,6 +23,7 @@ import { useCanSnap } from '@/hooks/useCanSnap';
 import { usePatients } from '@/contexts/PatientContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { SnapCropDialog } from './SnapCropDialog';
+import { InAppCameraDialog } from './InAppCameraDialog';
 
 interface Props {
   patientId: string;
@@ -61,6 +62,7 @@ export function SnapClinicalOrder({
   const [rawUrl, setRawUrl] = useState<string | null>(null);
   const [rawFile, setRawFile] = useState<File | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [orderType] = useState<SnapOrderType>(defaultOrderType);
   const [target] = useState<SnapTargetStation>(
     defaultTarget ?? (defaultOrderType === 'lab' ? 'lab' : 'pharmacy'),

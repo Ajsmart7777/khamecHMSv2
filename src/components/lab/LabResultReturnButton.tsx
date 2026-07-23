@@ -100,6 +100,22 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
       } as any);
       if (error) throw error;
 
+      // Mark the original lab request as fulfilled so it disappears
+      // from the lab workspace queue immediately after the result is sent.
+      try {
+        const { data: userData2 } = await supabase.auth.getUser();
+        await supabase
+          .from('snap_orders')
+          .update({
+            status: 'fulfilled',
+            fulfilled_by: userData2.user?.id ?? null,
+            fulfilled_at: new Date().toISOString(),
+          } as any)
+          .eq('id', parentSnap.id);
+      } catch (fulfillErr) {
+        console.warn('Could not mark parent lab snap fulfilled', fulfillErr);
+      }
+
       // Return patient to sender's queue so they can take the next action
       // (e.g., nurse may need to send another lab request, Rx, or route to doctor)
       try {

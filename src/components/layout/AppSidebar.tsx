@@ -40,7 +40,8 @@ const allMenuItems = [
   { id: 'reception', label: 'Reception', icon: Users, path: '/reception', color: 'text-module-reception', roles: ['receptionist', 'admin'] },
   { id: 'nurse', label: 'Nurse Station', icon: Activity, path: '/nurse', color: 'text-module-nurse', roles: ['nurse', 'admin'] },
   { id: 'anc', label: 'ANC Clinic', icon: Baby, path: '/anc', color: 'text-pink-500', roles: ['anc', 'admin'] },
-  { id: 'doctor', label: 'Doctor', icon: Stethoscope, path: '/doctor', color: 'text-module-doctor', roles: ['doctor1', 'doctor2', 'admin'] },
+  { id: 'doctor1', label: 'Doctor 1', icon: Stethoscope, path: '/doctor?as=doctor1', color: 'text-module-doctor', roles: ['doctor1', 'admin'] },
+  { id: 'doctor2', label: 'Doctor 2', icon: Stethoscope, path: '/doctor?as=doctor2', color: 'text-module-doctor', roles: ['doctor2', 'admin'] },
   { id: 'emr', label: 'EMR', icon: FileText, path: '/emr', color: 'text-primary', roles: ['doctor1', 'doctor2', 'nurse', 'lab_tech', 'pharmacist', 'admin'] },
   { id: 'lab', label: 'Laboratory', icon: FlaskConical, path: '/lab', color: 'text-module-lab', roles: ['lab_tech', 'admin'] },
   { id: 'billing', label: 'Billing', icon: Receipt, path: '/billing', color: 'text-module-billing', roles: ['billing', 'admin'] },
@@ -110,7 +111,10 @@ export function AppSidebar({ isMobile = false, onNavigate }: AppSidebarProps) {
       <nav className="flex-1 py-4 px-3 overflow-y-auto">
         <ul className="space-y-1">
           {menuItems.map((item) => {
-            const isActive = location.pathname === item.path;
+            const [itemPath, itemQuery] = item.path.split('?');
+            const isActive =
+              location.pathname === itemPath &&
+              (itemQuery ? location.search.includes(itemQuery) : true);
             const Icon = item.icon;
             return (
               <li key={item.id}>

@@ -28,12 +28,15 @@ import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel'
 import { PatientHistoryDialog } from '@/components/doctor/PatientHistoryDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { useSearchParams } from 'react-router-dom';
 
 const Doctor = () => {
   const { patients, loading, refreshPatients, getPatientsByStatus } = usePatients();
   const { updatePatientStatus } = usePatients();
   const { labRequests } = useLabRequests();
   const { role, user } = useAuth();
+  const [searchParams] = useSearchParams();
+  const asParam = searchParams.get('as');
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);
@@ -62,7 +65,10 @@ const Doctor = () => {
   }, [user?.id]);
 
   const myDoctorKey: 'doctor1' | 'doctor2' | null =
-    role === 'doctor1' ? 'doctor1' : role === 'doctor2' ? 'doctor2' : null;
+    role === 'doctor1' ? 'doctor1'
+    : role === 'doctor2' ? 'doctor2'
+    : role === 'admin' && (asParam === 'doctor1' || asParam === 'doctor2') ? asParam
+    : null;
 
   const baseQueue = getPatientsByStatus(['with_doctor']);
   const scopedQueue = myDoctorKey

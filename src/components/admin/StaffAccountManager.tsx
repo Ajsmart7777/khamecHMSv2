@@ -44,7 +44,8 @@ interface CreatedCredential {
 
 const roleOptions: { value: AppRole; label: string }[] = [
   { value: 'admin', label: 'Admin' },
-  { value: 'doctor', label: 'Doctor' },
+  { value: 'doctor1', label: 'Doctor 1' },
+  { value: 'doctor2', label: 'Doctor 2' },
   { value: 'nurse', label: 'Nurse' },
   { value: 'anc', label: 'ANC' },
   { value: 'receptionist', label: 'Receptionist' },

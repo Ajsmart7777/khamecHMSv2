@@ -71,11 +71,20 @@ export function SnapClinicalOrder({
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    // Reset the input immediately so re-selecting the same photo re-fires change.
-    e.target.value = '';
-    if (!f) return;
+    console.log('[SnapClinicalOrder] onFile fired', {
+      hasFile: !!f,
+      name: f?.name,
+      type: f?.type,
+      size: f?.size,
+    });
+    if (!f) {
+      // Some mobile browsers fire change with empty files after camera cancel.
+      e.target.value = '';
+      return;
+    }
     if (!f.type.startsWith('image/')) {
       toast.error('Please select an image file');
+      e.target.value = '';
       return;
     }
     try {
@@ -88,6 +97,11 @@ export function SnapClinicalOrder({
       setRawFile(f);
       setRawUrl(url);
       setCropOpen(true);
+      // Reset input AFTER state is queued, so a lost/re-fired change on mobile
+      // still delivers the file object we've already captured.
+      requestAnimationFrame(() => {
+        try { e.target.value = ''; } catch {}
+      });
     } catch (err) {
       console.error('[SnapClinicalOrder] failed to open captured photo', err);
       toast.error('Could not open the photo — please try again');
@@ -173,7 +187,6 @@ export function SnapClinicalOrder({
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         onChange={onFile}
         className="hidden"
       />

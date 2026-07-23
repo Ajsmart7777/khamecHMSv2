@@ -204,8 +204,21 @@ export function SnapClinicalOrder({
 
           {previewUrl && (
             <div className="space-y-4">
-              <div className="rounded-lg overflow-hidden bg-muted flex items-center justify-center max-h-[40vh]">
-                <img src={previewUrl} alt="preview" className="max-h-[40vh] object-contain" />
+              <div className="space-y-2">
+                <div className="rounded-lg overflow-hidden bg-muted flex items-center justify-center max-h-[40vh]">
+                  <img src={previewUrl} alt="preview" className="max-h-[40vh] object-contain" />
+                </div>
+                {rawUrl && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCropOpen(true)}
+                    disabled={busy}
+                  >
+                    <Crop className="h-3.5 w-3.5 mr-1" /> Re-crop
+                  </Button>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -291,6 +304,28 @@ export function SnapClinicalOrder({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {rawUrl && rawFile && (
+        <SnapCropDialog
+          open={cropOpen}
+          imageUrl={rawUrl}
+          originalFile={rawFile}
+          onCancel={() => {
+            // If user cancels the initial crop (no preview yet), abort entirely.
+            if (!previewUrl) {
+              close();
+            } else {
+              setCropOpen(false);
+            }
+          }}
+          onConfirm={(croppedFile, croppedUrl) => {
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            setFile(croppedFile);
+            setPreviewUrl(croppedUrl);
+            setCropOpen(false);
+          }}
+        />
+      )}
 
       <AlertDialog open={confirmOpen} onOpenChange={(o) => !busy && setConfirmOpen(o)}>
         <AlertDialogContent>

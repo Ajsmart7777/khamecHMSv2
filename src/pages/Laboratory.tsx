@@ -359,6 +359,35 @@ const Laboratory = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Doctor Routing Dialog (when patient has no assigned doctor yet) */}
+      <Dialog open={!!doctorRoutingRequest} onOpenChange={(open) => !open && setDoctorRoutingRequest(null)}>
+        <DialogContent className="sm:max-w-md animate-scale-in">
+          <DialogHeader>
+            <DialogTitle>Route to Doctor</DialogTitle>
+            <DialogDescription>
+              This patient has no assigned doctor yet. Select which doctor should receive the lab results.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-2">
+            <label className="text-sm font-medium">Assign Doctor</label>
+            <Select value={routingDoctor} onValueChange={(v) => setRoutingDoctor(v as 'doctor1' | 'doctor2')}>
+              <SelectTrigger><SelectValue placeholder="Select Doctor 1 or Doctor 2" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="doctor1">Doctor 1</SelectItem>
+                <SelectItem value="doctor2">Doctor 2</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDoctorRoutingRequest(null)}>Cancel</Button>
+            <Button onClick={handleConfirmDoctorRouting} disabled={!routingDoctor}>
+              <Send className="h-4 w-4 mr-1" />
+              Send to Doctor
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 };

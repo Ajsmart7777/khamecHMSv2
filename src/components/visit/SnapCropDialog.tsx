@@ -28,10 +28,15 @@ export function SnapCropDialog({ open, imageUrl, originalFile, onCancel, onConfi
     setBusy(true);
     try {
       const { blob, url } = await cropImage(imageUrl, pixels, rotation);
-      const cropped = new File([blob], originalFile.name.replace(/\.[^.]+$/, '') + '-cropped.jpg', {
-        type: 'image/jpeg',
-      });
+      const safeName = (originalFile.name || 'snap').replace(/\.[^.]+$/, '') + '-cropped.jpg';
+      const cropped = new File([blob], safeName, { type: 'image/jpeg' });
       onConfirm(cropped, url);
+    } catch (err) {
+      console.error('[SnapCropDialog] crop failed', err);
+      // Fallback: send the original file so the flow doesn't get stuck on mobile.
+      try {
+        onConfirm(originalFile, imageUrl);
+      } catch {}
     } finally {
       setBusy(false);
     }
@@ -108,25 +113,59 @@ async function cropImage(src: string, area: Area, rotation: number): Promise<{ b
   const bW = img.width * cos + img.height * sin;
   const bH = img.width * sin + img.height * cos;
 
-  // Render rotated source to an offscreen canvas first
+  // iOS Safari has a hard canvas cap (~4096px per side / 16.7M px total).
+  // Downscale the working canvas so drawImage doesn't silently produce a
+  // blank image or fail to return a blob.
+  const IOS_CAP = 4096;
+  const scale = Math.min(1, IOS_CAP / Math.max(bW, bH));
+  const sW = Math.round(bW * scale);
+  const sH = Math.round(bH * scale);
+
   const src2 = document.createElement('canvas');
-  src2.width = bW;
-  src2.height = bH;
-  const sctx = src2.getContext('2d')!;
-  sctx.translate(bW / 2, bH / 2);
+  src2.width = sW;
+  src2.height = sH;
+  const sctx = src2.getContext('2d');
+  if (!sctx) throw new Error('Canvas 2D unavailable');
+  sctx.translate(sW / 2, sH / 2);
   sctx.rotate(rad);
-  sctx.drawImage(img, -img.width / 2, -img.height / 2);
-
-  // Crop from the rotated canvas
-  const out = document.createElement('canvas');
-  out.width = area.width;
-  out.height = area.height;
-  const octx = out.getContext('2d')!;
-  octx.drawImage(src2, area.x, area.y, area.width, area.height, 0, 0, area.width, area.height);
-
-  const blob: Blob = await new Promise((res) =>
-    out.toBlob((b) => res(b as Blob), 'image/jpeg', 0.92),
+  sctx.drawImage(
+    img,
+    (-img.width * scale) / 2,
+    (-img.height * scale) / 2,
+    img.width * scale,
+    img.height * scale,
   );
+
+  const outW = Math.max(1, Math.round(area.width * scale));
+  const outH = Math.max(1, Math.round(area.height * scale));
+  const out = document.createElement('canvas');
+  out.width = outW;
+  out.height = outH;
+  const octx = out.getContext('2d');
+  if (!octx) throw new Error('Canvas 2D unavailable');
+  octx.drawImage(
+    src2,
+    area.x * scale,
+    area.y * scale,
+    area.width * scale,
+    area.height * scale,
+    0,
+    0,
+    outW,
+    outH,
+  );
+
+  const blob: Blob = await new Promise((res, rej) => {
+    try {
+      out.toBlob(
+        (b) => (b ? res(b) : rej(new Error('toBlob returned null'))),
+        'image/jpeg',
+        0.9,
+      );
+    } catch (e) {
+      rej(e);
+    }
+  });
   return { blob, url: URL.createObjectURL(blob) };
 }
 

@@ -320,12 +320,13 @@ function EmptyState({ onNewPatient }: { onNewPatient: () => void }) {
   );
 }
 
-function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Patient; onClose: () => void; onSendToNurse: () => void }) {
+function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Patient; onClose: () => void; onSendToNurse: (preferredDoctor?: 'doctor1' | 'doctor2') => void }) {
   const { updatePatient, updatePatientStatus } = usePatients();
   const { getInvoicesForPatient, recordPayment } = useInvoices();
   const { getPrescriptionsForPatient } = usePrescriptions();
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
+  const [preferredDoctor, setPreferredDoctor] = useState<'doctor1' | 'doctor2' | 'none'>('none');
   const [isJourneyOpen, setIsJourneyOpen] = useState(false);
   const [isStandingOrderOpen, setIsStandingOrderOpen] = useState(false);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
@@ -417,8 +418,9 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   };
 
   const handleConfirmSend = () => {
-    onSendToNurse();
+    onSendToNurse(preferredDoctor === 'none' ? undefined : preferredDoctor);
     setIsSendDialogOpen(false);
+    setPreferredDoctor('none');
   };
 
   return (

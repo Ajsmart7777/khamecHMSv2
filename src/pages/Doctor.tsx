@@ -236,6 +236,27 @@ const Doctor = () => {
               </div>
 
               <div className="pt-1">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={async () => {
+                    const ok = await updatePatientStatus(selectedPatient.id, 'with_nurse');
+                    if (ok) {
+                      toast.success('Sent back to Nurse', {
+                        description: 'Patient added to the nurse queue.',
+                      });
+                      setSelectedPatientId(null);
+                    } else {
+                      toast.error('Failed to send patient to nurse');
+                    }
+                  }}
+                >
+                  <ClipboardList className="h-4 w-4 mr-2" />
+                  Send to Nurse (no snap)
+                </Button>
+              </div>
+
+              <div className="pt-1">
                 <QuickDischargeButton
                   patientId={selectedPatient.id}
                   patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}

@@ -29,6 +29,7 @@ import { PatientHistoryDialog } from '@/components/doctor/PatientHistoryDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useSearchParams } from 'react-router-dom';
+import { QuickDischargeButton } from '@/components/patient/QuickDischargeButton';
 
 const Doctor = () => {
   const { patients, loading, refreshPatients, getPatientsByStatus } = usePatients();
@@ -232,6 +233,16 @@ const Doctor = () => {
                   <BedDouble className="h-4 w-4 mr-2" />
                   Admit Patient (Awaiting Room)
                 </Button>
+              </div>
+
+              <div className="pt-1">
+                <QuickDischargeButton
+                  patientId={selectedPatient.id}
+                  patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
+                  onDischarged={() => setSelectedPatientId(null)}
+                  variant="outline"
+                  className="w-full"
+                />
               </div>
             </div>
           ) : (

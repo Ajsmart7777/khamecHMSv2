@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
@@ -27,30 +27,55 @@ import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
 import { PatientHistoryDialog } from '@/components/doctor/PatientHistoryDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 const Doctor = () => {
   const { patients, loading, refreshPatients, getPatientsByStatus } = usePatients();
   const { updatePatientStatus } = usePatients();
   const { labRequests } = useLabRequests();
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);
   const [admitting, setAdmitting] = useState(false);
+  const [pendingLabReturnPatientIds, setPendingLabReturnPatientIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    const load = async () => {
+      const { data } = await supabase
+        .from('snap_orders')
+        .select('patient_id')
+        .eq('order_type', 'lab_result')
+        .eq('returned_to', user.id)
+        .eq('status', 'returned');
+      if (cancelled) return;
+      setPendingLabReturnPatientIds(new Set((data ?? []).map((r: any) => r.patient_id)));
+    };
+    load();
+    const ch = supabase
+      .channel(`doctor-lab-return-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders' }, load)
+      .subscribe();
+    return () => { cancelled = true; supabase.removeChannel(ch); };
+  }, [user?.id]);
 
   const myDoctorKey: 'doctor1' | 'doctor2' | null =
     role === 'doctor1' ? 'doctor1' : role === 'doctor2' ? 'doctor2' : null;
 
   const baseQueue = getPatientsByStatus(['with_doctor']);
-  const doctorQueue = myDoctorKey
+  const scopedQueue = myDoctorKey
     ? baseQueue.filter(p => p.assigned_doctor === myDoctorKey)
     : baseQueue;
-  const labReturnedPatients = patients.filter(
-    p =>
-      p.status === 'with_doctor' &&
-      (!myDoctorKey || p.assigned_doctor === myDoctorKey) &&
-      labRequests.some(lr => lr.patient_id === p.id && lr.status === 'completed'),
+  const labReturnedPatients = scopedQueue.filter(p =>
+    pendingLabReturnPatientIds.has(p.id) ||
+    labRequests.some(lr => lr.patient_id === p.id && lr.status === 'completed'),
   );
+  // Lab-returned patients live only in the "Returned from Lab" inbox,
+  // not in the consultation queue.
+  const labReturnIds = new Set(labReturnedPatients.map(p => p.id));
+  const doctorQueue = scopedQueue.filter(p => !labReturnIds.has(p.id));
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
   const handleAdmit = async () => {

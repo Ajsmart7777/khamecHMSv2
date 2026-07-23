@@ -39,12 +39,12 @@ export function SnapCropDialog({ open, imageUrl, originalFile, onCancel, onConfi
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && !busy && onCancel()}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-2xl max-h-[95vh] flex flex-col p-4 sm:p-6 gap-3">
+        <DialogHeader className="shrink-0">
           <DialogTitle>Crop photo</DialogTitle>
         </DialogHeader>
 
-        <div className="relative w-full h-[55vh] bg-black rounded-lg overflow-hidden">
+        <div className="relative w-full flex-1 min-h-[220px] h-[45vh] sm:h-[55vh] bg-black rounded-lg overflow-hidden touch-none">
           <Cropper
             image={imageUrl}
             crop={crop}
@@ -59,7 +59,7 @@ export function SnapCropDialog({ open, imageUrl, originalFile, onCancel, onConfi
           />
         </div>
 
-        <div className="space-y-3 pt-2">
+        <div className="space-y-3 pt-1 shrink-0">
           <div className="flex items-center gap-3">
             <span className="text-xs w-14 text-muted-foreground">Zoom</span>
             <Slider
@@ -86,7 +86,7 @@ export function SnapCropDialog({ open, imageUrl, originalFile, onCancel, onConfi
           </div>
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter className="gap-2 shrink-0">
           <Button variant="ghost" onClick={onCancel} disabled={busy}>
             <X className="h-4 w-4 mr-2" /> Cancel
           </Button>

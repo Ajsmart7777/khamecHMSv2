@@ -214,7 +214,7 @@ export function SnapClinicalOrder({
           if (!o) close();
         }}
       >
-        <AlertDialogContent className="sm:max-w-lg">
+        <AlertDialogContent className="sm:max-w-lg max-h-[95vh] overflow-y-auto p-4 sm:p-6">
           <AlertDialogHeader>
             <AlertDialogTitle>
               Confirm: Snap → {target === 'pharmacy' ? 'Pharmacy' : target === 'lab' ? 'Lab' : 'Nurse'}

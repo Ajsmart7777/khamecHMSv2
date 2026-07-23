@@ -42,15 +42,16 @@ const Doctor = () => {
     role === 'doctor1' ? 'doctor1' : role === 'doctor2' ? 'doctor2' : null;
 
   const baseQueue = getPatientsByStatus(['with_doctor']);
-  const doctorQueue = myDoctorKey
+  const scopedQueue = myDoctorKey
     ? baseQueue.filter(p => p.assigned_doctor === myDoctorKey)
     : baseQueue;
-  const labReturnedPatients = patients.filter(
-    p =>
-      p.status === 'with_doctor' &&
-      (!myDoctorKey || p.assigned_doctor === myDoctorKey) &&
-      labRequests.some(lr => lr.patient_id === p.id && lr.status === 'completed'),
+  const labReturnedPatients = scopedQueue.filter(p =>
+    labRequests.some(lr => lr.patient_id === p.id && lr.status === 'completed'),
   );
+  // Lab-returned patients live only in the "Returned from Lab" inbox,
+  // not in the consultation queue.
+  const labReturnIds = new Set(labReturnedPatients.map(p => p.id));
+  const doctorQueue = scopedQueue.filter(p => !labReturnIds.has(p.id));
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
   const handleAdmit = async () => {

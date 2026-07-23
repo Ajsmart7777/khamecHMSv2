@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useActiveVisit, openOrResumeVisit } from '@/hooks/useVisits';
 import { uploadVisitAttachment, VisitStation } from '@/hooks/useVisitAttachments';
 import { InAppCameraDialog } from './InAppCameraDialog';
+import { SnapCropDialog } from './SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
 
 interface SnapToCardProps {
@@ -38,6 +39,9 @@ export function SnapToCard({
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [rawFile, setRawFile] = useState<File | null>(null);
+  const [rawUrl, setRawUrl] = useState<string | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
   const [label, setLabel] = useState(defaultLabel);
   const [busy, setBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -50,10 +54,12 @@ export function SnapToCard({
 
   const acceptFile = (f: File) => {
     if (!f.type.startsWith('image/')) { toast.error('Please select an image file'); return; }
-    setFile(f);
-    setPreviewUrl(URL.createObjectURL(f));
+    if (rawUrl) URL.revokeObjectURL(rawUrl);
+    setRawFile(f);
+    setRawUrl(URL.createObjectURL(f));
     setLabel(defaultLabel);
     setCameraOpen(false);
+    setCropOpen(true);
   };
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,8 +71,12 @@ export function SnapToCard({
 
   const closePreview = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (rawUrl) URL.revokeObjectURL(rawUrl);
     setPreviewUrl(null);
     setFile(null);
+    setRawFile(null);
+    setRawUrl(null);
+    setCropOpen(false);
   };
 
   const attach = async () => {
@@ -115,6 +125,20 @@ export function SnapToCard({
         onCancel={() => setCameraOpen(false)}
         onCapture={acceptFile}
       />
+      {rawUrl && rawFile && (
+        <SnapCropDialog
+          open={cropOpen}
+          imageUrl={rawUrl}
+          originalFile={rawFile}
+          onCancel={closePreview}
+          onConfirm={(croppedFile, croppedUrl) => {
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            setFile(croppedFile);
+            setPreviewUrl(croppedUrl);
+            setCropOpen(false);
+          }}
+        />
+      )}
       <Button variant={variant} size={size} onClick={handlePick} className={className}>
         <Camera className="h-4 w-4 mr-2" />
         Snap to Card

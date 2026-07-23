@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { usePricelist } from '@/hooks/usePricelist';
 import { InAppCameraDialog } from './InAppCameraDialog';
+import { SnapCropDialog } from './SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
 
 type OrderType = 'prescription' | 'lab' | 'treatment';
@@ -65,14 +66,18 @@ export function AdmittedSnapDialog({
   const [debtReason, setDebtReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [rawFile, setRawFile] = useState<File | null>(null);
+  const [rawUrl, setRawUrl] = useState<string | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
   const hasCam = hasInAppCamera();
 
   const acceptFile = (f: File) => {
     if (!f.type.startsWith('image/')) { toast.error('Please select an image file'); return; }
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setFile(f);
-    setPreviewUrl(URL.createObjectURL(f));
+    if (rawUrl) URL.revokeObjectURL(rawUrl);
+    setRawFile(f);
+    setRawUrl(URL.createObjectURL(f));
     setCameraOpen(false);
+    setCropOpen(true);
   };
 
   const total = useMemo(() => lines.reduce((s, l) => s + l.unit_price * l.qty, 0), [lines]);
@@ -88,7 +93,9 @@ export function AdmittedSnapDialog({
 
   const reset = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (rawUrl) URL.revokeObjectURL(rawUrl);
     setFile(null); setPreviewUrl(null); setNote(''); setLines([]);
+    setRawFile(null); setRawUrl(null); setCropOpen(false);
     setAllowDebt(false); setDebtReason('');
   };
 

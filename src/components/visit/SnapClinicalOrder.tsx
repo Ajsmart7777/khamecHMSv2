@@ -4,6 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -45,6 +55,8 @@ export function SnapClinicalOrder({
   const { visit, refresh } = useActiveVisit(patientId);
   const { allowed, reason, loading: checking } = useCanSnap(patientId);
   const { updatePatientStatus } = usePatients();
+  const { getPatientById } = usePatients();
+  const patient = getPatientById(patientId);
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -54,6 +66,7 @@ export function SnapClinicalOrder({
   );
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const onOrderTypeChange = (v: SnapOrderType) => {
     setOrderType(v);
@@ -74,6 +87,7 @@ export function SnapClinicalOrder({
     setPreviewUrl(null);
     setFile(null);
     setNote('');
+    setConfirmOpen(false);
   };
 
   const submit = async () => {
@@ -260,13 +274,74 @@ export function SnapClinicalOrder({
             <Button variant="ghost" onClick={close} disabled={busy}>
               <X className="h-4 w-4 mr-2" /> Cancel
             </Button>
-            <Button onClick={submit} disabled={busy}>
+            <Button onClick={() => setConfirmOpen(true)} disabled={busy}>
               <Send className="h-4 w-4 mr-2" />
-              {busy ? 'Sending…' : 'Send to Billing'}
+              {busy ? 'Sending…' : 'Review & Send'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmOpen} onOpenChange={(o) => !busy && setConfirmOpen(o)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Confirm: Snap → {target === 'pharmacy' ? 'Pharmacy' : target === 'lab' ? 'Lab' : 'Nurse'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <div className="rounded-md border p-3 bg-muted/40 space-y-1">
+                  <div>
+                    <span className="text-muted-foreground">Patient: </span>
+                    <span className="font-semibold text-foreground">
+                      {patient?.name ?? 'Unknown'}
+                    </span>
+                    {patient?.patient_number && (
+                      <span className="ml-2 font-mono text-xs text-muted-foreground">
+                        {patient.patient_number}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Order type: </span>
+                    <span className="font-medium capitalize text-foreground">{orderType}</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Destination: </span>
+                    <span className="font-medium capitalize text-foreground">
+                      {target === 'nurse' ? 'Nurse (review)' : target}
+                    </span>
+                  </div>
+                  {note.trim() && (
+                    <div>
+                      <span className="text-muted-foreground">Note: </span>
+                      <span className="text-foreground">{note.trim()}</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {target === 'nurse'
+                    ? 'The patient card will move back to the Nurse queue for the next action.'
+                    : `Billing will price this snap; once paid it appears in ${target}.`}
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={async (e) => {
+                e.preventDefault();
+                await submit();
+                setConfirmOpen(false);
+              }}
+            >
+              {busy ? 'Sending…' : 'Confirm & Send'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

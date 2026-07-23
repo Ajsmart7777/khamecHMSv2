@@ -25,6 +25,7 @@ import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { NurseTreatmentInbox } from '@/components/nurse/NurseTreatmentInbox';
 import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
 import { AwaitingRoomPanel } from '@/components/nurse/AwaitingRoomPanel';
+import { QuickDischargeButton } from '@/components/patient/QuickDischargeButton';
 
 const NurseStation = () => {
   const { patients, loading, refreshPatients, updatePatientStatus, getPatientsByStatus } = usePatients();
@@ -157,6 +158,14 @@ const NurseStation = () => {
                   label="Snap Rx / Treatment"
                   variant="outline"
                   size="sm"
+                />
+                <QuickDischargeButton
+                  patientId={selectedPatient.id}
+                  patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
+                  onDischarged={() => setSelectedPatientId(null)}
+                  variant="outline"
+                  className="h-9"
+                  label="Discharge"
                 />
               </div>
               <VitalsForm

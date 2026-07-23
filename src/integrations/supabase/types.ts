@@ -268,6 +268,7 @@ export type Database = {
       audit_logs: {
         Row: {
           action: string
+          actor_role: string | null
           created_at: string
           details: Json | null
           error_message: string | null
@@ -281,6 +282,7 @@ export type Database = {
         }
         Insert: {
           action: string
+          actor_role?: string | null
           created_at?: string
           details?: Json | null
           error_message?: string | null
@@ -294,6 +296,7 @@ export type Database = {
         }
         Update: {
           action?: string
+          actor_role?: string | null
           created_at?: string
           details?: Json | null
           error_message?: string | null
@@ -2523,6 +2526,7 @@ export type Database = {
         }
         Returns: string
       }
+      current_actor_role: { Args: { _user_id: string }; Returns: string }
       discharge_admission: {
         Args: {
           _admission_id: string

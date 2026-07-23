@@ -143,13 +143,30 @@ const Reception = () => {
       });
       return;
     }
-    
+
+    // Optional pre-assignment of a specific doctor from Reception.
+    if (preferredDoctor) {
+      const { error: assignError } = await supabase
+        .from('patients')
+        .update({ assigned_doctor: preferredDoctor })
+        .eq('id', selectedPatient.id);
+      if (assignError) {
+        toast.error('Failed to pre-assign doctor');
+        return;
+      }
+    }
+
     const success = await updatePatientStatus(selectedPatient.id, 'waiting');
     if (success) {
-      toast.success(`${selectedPatient.first_name} ${selectedPatient.last_name} sent to Nurse Station`, {
+      const label = preferredDoctor === 'doctor1' ? ' (pre-assigned to Doctor 1)'
+                    : preferredDoctor === 'doctor2' ? ' (pre-assigned to Doctor 2)'
+                    : '';
+      toast.success(`${selectedPatient.first_name} ${selectedPatient.last_name} sent to Nurse Station${label}`, {
         description: 'Patient is now in the queue',
         icon: <CheckCircle2 className="h-4 w-4 text-success" />
       });
+      setPreferredDoctor(undefined);
+      setIsSendDialogOpen(false);
     }
   };
 

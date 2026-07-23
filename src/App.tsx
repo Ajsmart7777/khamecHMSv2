@@ -56,7 +56,7 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="/doctor" element={
-                  <ProtectedRoute allowedRoles={['doctor', 'doctor1', 'doctor2', 'admin']}>
+                  <ProtectedRoute allowedRoles={['doctor1', 'doctor2', 'admin']}>
                     <Doctor />
                   </ProtectedRoute>
                 } />
@@ -96,7 +96,7 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="/emr" element={
-                  <ProtectedRoute allowedRoles={['doctor', 'doctor1', 'doctor2', 'nurse', 'lab_tech', 'pharmacist', 'anc', 'admin']}>
+                  <ProtectedRoute allowedRoles={['doctor1', 'doctor2', 'nurse', 'lab_tech', 'pharmacist', 'anc', 'admin']}>
                     <EMR />
                   </ProtectedRoute>
                 } />

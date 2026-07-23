@@ -25,7 +25,7 @@ import { useEmrAttachments } from '@/hooks/useEmrAttachments';
 import { useAuth } from '@/contexts/AuthContext';
 
 const CATEGORIES = ['scan', 'lab_report', 'referral', 'imaging', 'other'];
-const UPLOAD_ROLES = ['doctor', 'doctor1', 'doctor2', 'nurse', 'admin'];
+const UPLOAD_ROLES = ['doctor1', 'doctor2', 'nurse', 'admin'];
 
 export function AttachmentsPanel({ patientId }: { patientId: string }) {
   const { attachments, loading, uploadAttachment, getSignedUrl } = useEmrAttachments(patientId);

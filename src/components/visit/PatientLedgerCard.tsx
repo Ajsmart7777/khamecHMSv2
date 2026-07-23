@@ -749,6 +749,43 @@ function VitalsRow({ v }: { v: any }) {
   );
 }
 
+function LatestVitalsPanel({ visits }: { visits: LedgerVisit[] }) {
+  const latest = useMemo(() => {
+    let best: { v: any; at: string; visitNo: number } | null = null;
+    visits.forEach((lv, idx) => {
+      lv.rows.forEach(r => {
+        if (r.kind !== 'vitals') return;
+        if (!best || new Date(r.at).getTime() > new Date(best.at).getTime()) {
+          best = { v: r.data, at: r.at, visitNo: visits.length - idx };
+        }
+      });
+    });
+    return best;
+  }, [visits]);
+
+  if (!latest) return null;
+
+  return (
+    <div className="px-4 py-3 border-b-2 border-border bg-teal-50/50">
+      <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <Activity className="h-4 w-4 text-teal-700" />
+          <span className="text-[10px] font-bold uppercase tracking-widest text-teal-900">
+            Latest Vitals
+          </span>
+          <span className="text-[10px] font-mono text-muted-foreground">
+            · {format(new Date(latest.at), 'dd MMM · HH:mm')}
+          </span>
+        </div>
+        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Replaces on next reading
+        </span>
+      </div>
+      <VitalsRow v={latest.v} />
+    </div>
+  );
+}
+
 function SnapPhoto({ url, label, onOpen }: { url?: string; label: string; onOpen: (u: string) => void }) {
   return (
     <div

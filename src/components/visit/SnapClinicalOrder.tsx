@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react';
-import { Camera, Send, X, FlaskConical, Pill, ClipboardList } from 'lucide-react';
+import { Camera, Send, Lock, Crop } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +13,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useActiveVisit, openOrResumeVisit } from '@/hooks/useVisits';
@@ -24,7 +22,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCanSnap } from '@/hooks/useCanSnap';
 import { usePatients } from '@/contexts/PatientContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Lock, Crop } from 'lucide-react';
 import { SnapCropDialog } from './SnapCropDialog';
 
 interface Props {
@@ -64,19 +61,13 @@ export function SnapClinicalOrder({
   const [rawUrl, setRawUrl] = useState<string | null>(null);
   const [rawFile, setRawFile] = useState<File | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
-  const [orderType, setOrderType] = useState<SnapOrderType>(defaultOrderType);
-  const [target, setTarget] = useState<SnapTargetStation>(
+  const [orderType] = useState<SnapOrderType>(defaultOrderType);
+  const [target] = useState<SnapTargetStation>(
     defaultTarget ?? (defaultOrderType === 'lab' ? 'lab' : 'pharmacy'),
   );
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-
-  const onOrderTypeChange = (v: SnapOrderType) => {
-    setOrderType(v);
-    if (v === 'lab') setTarget('lab');
-    else if (v === 'prescription') setTarget('pharmacy');
-  };
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -196,145 +187,49 @@ export function SnapClinicalOrder({
         </Tooltip>
       </TooltipProvider>
 
-      <Dialog open={!!previewUrl} onOpenChange={(o) => !o && close()}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Send Order to Billing</DialogTitle>
-          </DialogHeader>
-
-          {previewUrl && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="rounded-lg overflow-hidden bg-muted flex items-center justify-center max-h-[40vh]">
-                  <img src={previewUrl} alt="preview" className="max-h-[40vh] object-contain" />
-                </div>
-                {rawUrl && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCropOpen(true)}
-                    disabled={busy}
-                  >
-                    <Crop className="h-3.5 w-3.5 mr-1" /> Re-crop
-                  </Button>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Order Type</Label>
-                <RadioGroup
-                  value={orderType}
-                  onValueChange={(v) => onOrderTypeChange(v as SnapOrderType)}
-                  className="grid grid-cols-3 gap-2"
-                >
-                  <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
-                    <RadioGroupItem value="prescription" />
-                    <Pill className="h-4 w-4" /> <span className="text-sm">Prescription</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
-                    <RadioGroupItem value="lab" />
-                    <FlaskConical className="h-4 w-4" /> <span className="text-sm">Lab</span>
-                  </label>
-                  <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
-                    <RadioGroupItem value="treatment" />
-                    <ClipboardList className="h-4 w-4" /> <span className="text-sm">Treatment</span>
-                  </label>
-                </RadioGroup>
-              </div>
-
-              {orderType === 'treatment' && (
-                <div className="space-y-2">
-                  <Label>Route to</Label>
-                  <RadioGroup
-                    value={target}
-                    onValueChange={(v) => setTarget(v as SnapTargetStation)}
-                    className="grid grid-cols-3 gap-2"
-                  >
-                    <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
-                      <RadioGroupItem value="pharmacy" />
-                      <span className="text-sm">Pharmacy</span>
-                    </label>
-                    <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
-                      <RadioGroupItem value="lab" />
-                      <span className="text-sm">Lab</span>
-                    </label>
-                    {sourceStation === 'doctor' && (
-                      <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
-                        <RadioGroupItem value="nurse" />
-                        <span className="text-sm">Nurse (review)</span>
-                      </label>
-                    )}
-                  </RadioGroup>
-                  {target === 'nurse' && (
-                    <p className="text-xs text-muted-foreground">
-                      Nurse will review the snap and forward it to Billing.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <Label htmlFor="snap-note">Note for billing (optional)</Label>
-                <Input
-                  id="snap-note"
-                  placeholder="e.g. urgent, patient waiting"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  maxLength={200}
-                />
-              </div>
-
-              <p className="text-xs text-muted-foreground">
-                Billing will OCR the image, price it, and collect payment.
-                Once paid, this order appears in <span className="font-medium capitalize">{target}</span>.
-                {visit && <> · Visit: <span className="font-mono">{visit.visit_number}</span></>}
-              </p>
-            </div>
-          )}
-
-          <DialogFooter className="gap-2">
-            <Button variant="ghost" onClick={close} disabled={busy}>
-              <X className="h-4 w-4 mr-2" /> Cancel
-            </Button>
-            <Button onClick={() => setConfirmOpen(true)} disabled={busy}>
-              <Send className="h-4 w-4 mr-2" />
-              {busy ? 'Sending…' : 'Review & Send'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {rawUrl && rawFile && (
         <SnapCropDialog
           open={cropOpen}
           imageUrl={rawUrl}
           originalFile={rawFile}
           onCancel={() => {
-            // If user cancels the initial crop (no preview yet), abort entirely.
-            if (!previewUrl) {
-              close();
-            } else {
-              setCropOpen(false);
-            }
+            // Cancelling crop aborts the snap.
+            close();
           }}
           onConfirm={(croppedFile, croppedUrl) => {
             if (previewUrl) URL.revokeObjectURL(previewUrl);
             setFile(croppedFile);
             setPreviewUrl(croppedUrl);
             setCropOpen(false);
+            // Go straight to confirm-and-send.
+            setConfirmOpen(true);
           }}
         />
       )}
 
-      <AlertDialog open={confirmOpen} onOpenChange={(o) => !busy && setConfirmOpen(o)}>
-        <AlertDialogContent>
+      <AlertDialog
+        open={confirmOpen}
+        onOpenChange={(o) => {
+          if (busy) return;
+          if (!o) close();
+        }}
+      >
+        <AlertDialogContent className="sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>
               Confirm: Snap → {target === 'pharmacy' ? 'Pharmacy' : target === 'lab' ? 'Lab' : 'Nurse'}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-2 text-sm">
+                {previewUrl && (
+                  <div className="rounded-lg overflow-hidden bg-muted flex items-center justify-center max-h-[35vh]">
+                    <img
+                      src={previewUrl}
+                      alt="cropped snap"
+                      className="max-h-[35vh] object-contain"
+                    />
+                  </div>
+                )}
                 <div className="rounded-md border p-3 bg-muted/40 space-y-1">
                   <div>
                     <span className="text-muted-foreground">Patient: </span>
@@ -357,12 +252,27 @@ export function SnapClinicalOrder({
                       {target === 'nurse' ? 'Nurse (review)' : target}
                     </span>
                   </div>
-                  {note.trim() && (
+                  {visit && (
                     <div>
-                      <span className="text-muted-foreground">Note: </span>
-                      <span className="text-foreground">{note.trim()}</span>
+                      <span className="text-muted-foreground">Visit: </span>
+                      <span className="font-mono text-xs text-foreground">
+                        {visit.visit_number}
+                      </span>
                     </div>
                   )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="snap-note-confirm" className="text-xs">
+                    Note (optional)
+                  </Label>
+                  <Input
+                    id="snap-note-confirm"
+                    placeholder="e.g. urgent, patient waiting"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    maxLength={200}
+                    disabled={busy}
+                  />
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {target === 'nurse'
@@ -372,16 +282,28 @@ export function SnapClinicalOrder({
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={busy}>Go back</AlertDialogCancel>
+          <AlertDialogFooter className="gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setConfirmOpen(false);
+                setCropOpen(true);
+              }}
+              disabled={busy || !rawUrl}
+            >
+              <Crop className="h-3.5 w-3.5 mr-1" /> Re-crop
+            </Button>
+            <AlertDialogCancel disabled={busy} onClick={close}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={busy}
               onClick={async (e) => {
                 e.preventDefault();
                 await submit();
-                setConfirmOpen(false);
               }}
             >
+              <Send className="h-3.5 w-3.5 mr-1" />
               {busy ? 'Sending…' : 'Confirm & Send'}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -212,6 +212,20 @@ export function AdmittedSnapDialog({
             <Label>Photo of the paper order *</Label>
             <input ref={inputRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
             <InAppCameraDialog open={cameraOpen} onCancel={() => setCameraOpen(false)} onCapture={acceptFile} />
+            {rawUrl && rawFile && (
+              <SnapCropDialog
+                open={cropOpen}
+                imageUrl={rawUrl}
+                originalFile={rawFile}
+                onCancel={() => { setCropOpen(false); if (rawUrl) URL.revokeObjectURL(rawUrl); setRawUrl(null); setRawFile(null); }}
+                onConfirm={(croppedFile, croppedUrl) => {
+                  if (previewUrl) URL.revokeObjectURL(previewUrl);
+                  setFile(croppedFile);
+                  setPreviewUrl(croppedUrl);
+                  setCropOpen(false);
+                }}
+              />
+            )}
             {previewUrl ? (
               <div className="relative rounded-lg overflow-hidden bg-muted max-h-64">
                 <img src={previewUrl} alt="preview" className="w-full max-h-64 object-contain" />

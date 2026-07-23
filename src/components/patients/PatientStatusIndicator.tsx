@@ -80,6 +80,12 @@ const statusConfig: Record<PatientStatus, {
     icon: CheckCircle,
     color: 'text-success'
   },
+  awaiting_room: {
+    label: 'Awaiting Room',
+    variant: 'info',
+    icon: BedDouble,
+    color: 'text-module-nurse'
+  },
 };
 
 interface PatientStatusIndicatorProps {

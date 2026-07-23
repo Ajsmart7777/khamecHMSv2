@@ -15,6 +15,7 @@ const statusConfig: Record<PatientStatus, { label: string; variant: 'default' | 
   at_pharmacy: { label: 'At Pharmacy', variant: 'info' },
   admitted: { label: 'Admitted', variant: 'default' },
   discharged: { label: 'Discharged', variant: 'success' },
+  awaiting_room: { label: 'Awaiting Room', variant: 'info' },
 };
 
 const accountTypeLabels: Record<AccountType, string> = {

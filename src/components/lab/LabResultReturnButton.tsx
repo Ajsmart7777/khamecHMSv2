@@ -77,6 +77,18 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
       } as any);
       if (error) throw error;
 
+      // Return patient to sender's queue so they can take the next action
+      // (e.g., nurse may need to send another lab request, Rx, or route to doctor)
+      try {
+        const newStatus = targetStation === 'nurse' ? 'with_nurse' : 'with_doctor';
+        await supabase
+          .from('patients')
+          .update({ status: newStatus, last_visit: new Date().toISOString() })
+          .eq('id', parentSnap.patient_id);
+      } catch (statusErr) {
+        console.warn('Could not update patient status after lab return', statusErr);
+      }
+
       toast.success('Result sent back', {
         description: `Delivered to ${senderRole}.`,
       });

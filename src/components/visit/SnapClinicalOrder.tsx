@@ -124,6 +124,7 @@ export function SnapClinicalOrder({
     setRawUrl(null);
     setRawFile(null);
     setCropOpen(false);
+    setCameraOpen(false);
     setNote('');
     setConfirmOpen(false);
   };
@@ -206,7 +207,10 @@ export function SnapClinicalOrder({
                 variant={variant}
                 size={size}
                 className={className}
-                onClick={() => inputRef.current?.click()}
+                onClick={() => {
+                  if (isMobile) setCameraOpen(true);
+                  else inputRef.current?.click();
+                }}
                 disabled={!allowed || checking}
                 aria-disabled={!allowed}
               >

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlaskConical, Check } from 'lucide-react';
+import { FlaskConical, Check, BedDouble } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { usePatients } from '@/contexts/PatientContext';
 import { SnapOrder, snapPhotoUrl } from '@/hooks/useSnapOrders';
 import { toast } from 'sonner';
+import { SnapClinicalOrder } from '@/components/visit/SnapClinicalOrder';
 
 /**
  * "Returned from Lab" inbox for the current doctor/nurse.
@@ -17,10 +18,11 @@ import { toast } from 'sonner';
  */
 export function LabResultInbox() {
   const { user } = useAuth();
-  const { patients } = usePatients();
+  const { patients, updatePatientStatus } = usePatients();
   const [items, setItems] = useState<SnapOrder[]>([]);
   const [selected, setSelected] = useState<SnapOrder | null>(null);
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
+  const [admitting, setAdmitting] = useState(false);
 
   const nameOf = useMemo(() => {
     const m = new Map<string, string>();
@@ -58,15 +60,25 @@ export function LabResultInbox() {
     snapPhotoUrl(selected.photo_path).then(setSignedUrl);
   }, [selected]);
 
-  const acknowledge = async (id: string) => {
+  const acknowledge = async (id: string, silent = false) => {
     const { error } = await supabase
       .from('snap_orders')
       .update({ status: 'acknowledged', ack_by: user?.id, ack_at: new Date().toISOString() } as any)
       .eq('id', id);
-    if (error) { toast.error(error.message); return; }
-    toast.success('Result acknowledged');
+    if (error) { if (!silent) toast.error(error.message); return; }
+    if (!silent) toast.success('Result acknowledged');
     if (selected?.id === id) setSelected(null);
     refresh();
+  };
+
+  const admit = async (patientId: string, snapId: string) => {
+    setAdmitting(true);
+    const ok = await updatePatientStatus(patientId, 'awaiting_room');
+    setAdmitting(false);
+    if (ok) {
+      await acknowledge(snapId, true);
+      toast.success('Patient admitted to Awaiting Room');
+    }
   };
 
   return (
@@ -103,7 +115,7 @@ export function LabResultInbox() {
       )}
 
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Lab Result — {selected && nameOf.get(selected.patient_id)}</DialogTitle>
           </DialogHeader>
@@ -122,10 +134,57 @@ export function LabResultInbox() {
                   <p className="text-sm">{selected.note}</p>
                 </div>
               )}
-              <div className="flex justify-end">
-                <Button onClick={() => acknowledge(selected.id)}>
-                  <Check className="h-4 w-4 mr-1" /> Acknowledge
-                </Button>
+
+              <div className="border-t pt-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Next action for this patient
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <SnapClinicalOrder
+                    patientId={selected.patient_id}
+                    sourceStation="doctor"
+                    defaultOrderType="prescription"
+                    defaultTarget="pharmacy"
+                    label="Snap → Pharmacy"
+                    variant="default"
+                    className="w-full"
+                    onSent={() => acknowledge(selected.id, true)}
+                  />
+                  <SnapClinicalOrder
+                    patientId={selected.patient_id}
+                    sourceStation="doctor"
+                    defaultOrderType="lab"
+                    defaultTarget="lab"
+                    label="Snap → Lab (again)"
+                    variant="default"
+                    className="w-full"
+                    onSent={() => acknowledge(selected.id, true)}
+                  />
+                  <SnapClinicalOrder
+                    patientId={selected.patient_id}
+                    sourceStation="doctor"
+                    defaultOrderType="treatment"
+                    defaultTarget="nurse"
+                    label="Snap → Nurse"
+                    variant="outline"
+                    className="w-full"
+                    onSent={() => acknowledge(selected.id, true)}
+                  />
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    disabled={admitting}
+                    onClick={() => admit(selected.patient_id, selected.id)}
+                  >
+                    <BedDouble className="h-4 w-4 mr-2" />
+                    {admitting ? 'Admitting…' : 'Admit Patient'}
+                  </Button>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <Button variant="ghost" size="sm" onClick={() => acknowledge(selected.id)}>
+                    <Check className="h-4 w-4 mr-1" /> Acknowledge only
+                  </Button>
+                </div>
               </div>
             </div>
           )}

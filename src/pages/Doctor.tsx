@@ -33,8 +33,7 @@ const Doctor = () => {
   const { patients, loading, refreshPatients, getPatientsByStatus } = usePatients();
   const { updatePatientStatus } = usePatients();
   const { labRequests } = useLabRequests();
-  const { role } = useAuth();
-  const { user } = useAuth();
+  const { role, user } = useAuth();
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);

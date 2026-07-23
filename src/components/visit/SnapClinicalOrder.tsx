@@ -115,15 +115,20 @@ export function SnapClinicalOrder({
       });
       if (!snap) throw new Error('Snap order not created');
 
-      // Snap has been queued for Billing → move the patient card to Billing
-      // (unless a doctor routed a treatment back to the nurse for review).
-      if (target !== 'nurse') {
+      // Route the patient card:
+      //  - target=nurse  → send patient back to nurse queue
+      //  - otherwise     → queue for Billing (payment flips it to Pharmacy/Lab)
+      if (target === 'nurse') {
+        await updatePatientStatus(patientId, 'with_nurse').catch(() => null);
+        toast.success('Sent back to Nurse', {
+          description: 'Nurse will pick up the card for the next action.',
+        });
+      } else {
         await updatePatientStatus(patientId, 'awaiting_billing').catch(() => null);
+        toast.success('Sent to Billing', {
+          description: `${orderType === 'lab' ? 'Lab test' : orderType === 'prescription' ? 'Prescription' : 'Treatment'} pending billing.`,
+        });
       }
-
-      toast.success('Sent to Billing', {
-        description: `${orderType === 'lab' ? 'Lab test' : orderType === 'prescription' ? 'Prescription' : 'Treatment'} pending billing.`,
-      });
       close();
     } catch (e: any) {
       toast.error(e.message ?? 'Failed to send snap');

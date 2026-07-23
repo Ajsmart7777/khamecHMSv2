@@ -118,17 +118,19 @@ const Pharmacy = () => {
     if (!selectedPatientId || !selectedPrescription) return;
     const patient = patients.find(p => p.id === selectedPatientId);
 
-    // Re-read fresh status so we don't wrongly discharge an inpatient
-    const { data: fresh, error: freshErr } = await supabase
-      .from('patients')
-      .select('status')
-      .eq('id', selectedPatientId)
-      .single();
-    if (freshErr) {
-      toast.error('Could not verify patient status', { description: freshErr.message });
+    // Determine inpatient status by checking for an active admission
+    // (patient status alone can be transient e.g. 'at_pharmacy' while admitted)
+    const { data: activeAdm, error: admErr } = await supabase
+      .from('admissions')
+      .select('id')
+      .eq('patient_id', selectedPatientId)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (admErr) {
+      toast.error('Could not verify admission status', { description: admErr.message });
       return;
     }
-    const isInpatient = fresh?.status === 'admitted';
+    const isInpatient = !!activeAdm;
 
     // Mark all individual items as dispensed
     if (selectedPrescription.items?.length) {

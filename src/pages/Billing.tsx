@@ -338,80 +338,8 @@ const Billing = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Pending Bills */}
+        {/* Cashier + Recent Invoices */}
         <div className="lg:col-span-1 space-y-4">
-          <div className="bg-card rounded-xl border border-border p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold">Patients to Bill</h3>
-              <Badge variant="billing">{billingPatients.length}</Badge>
-            </div>
-
-            <div className="space-y-2">
-              {billingPatients.map((patient) => {
-                const invoiceStatus = getPatientInvoiceStatus(patient.id);
-                return (
-                  <div
-                    key={patient.id}
-                    onClick={() => setSelectedPatientId(patient.id)}
-                    className={`p-3 rounded-lg border cursor-pointer transition-all hover-lift ${
-                      selectedPatientId === patient.id 
-                        ? 'border-module-billing bg-module-billing/5' 
-                        : 'border-border hover:border-module-billing/50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="font-medium text-sm">{patient.first_name} {patient.last_name}</p>
-                      {invoiceStatus.status === 'none' ? (
-                        <Badge variant="warning" className="text-[10px]">
-                          <AlertCircle className="h-3 w-3 mr-1" />
-                          Needs Invoice
-                        </Badge>
-                      ) : invoiceStatus.status === 'pending' ? (
-                        <Badge variant="outline" className="text-[10px]">
-                          <Clock className="h-3 w-3 mr-1" />
-                          Invoiced
-                        </Badge>
-                      ) : invoiceStatus.status === 'partial' ? (
-                        <Badge variant="warning" className="text-[10px]">
-                          Partial
-                        </Badge>
-                      ) : (
-                        <Badge variant="success" className="text-[10px]">
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          Paid
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs text-muted-foreground">{patient.card_number}</p>
-                      {patient.account_type === 'corporate' && (
-                        <Badge variant="outline" className="text-[9px] px-1.5 py-0">
-                          <Building2 className="h-2.5 w-2.5 mr-0.5" />
-                          Corporate
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="mt-1 flex items-center justify-between">
-                      <PatientStatusIndicator status={patient.status} size="sm" />
-                      {invoiceStatus.invoice && (
-                        <p className="text-sm font-semibold text-foreground">
-                          ₦{invoiceStatus.invoice.total_amount.toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-
-              {billingPatients.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Receipt className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No pending bills</p>
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* Cashier Panel */}
           <CashierPanel />
 

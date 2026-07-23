@@ -11,6 +11,7 @@ import { useStandingOrders } from '@/hooks/useStandingOrders';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
+import { SnapCropDialog } from '@/components/visit/SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
 
 interface Props {
@@ -41,6 +42,9 @@ export function StandingOrderCaptureDialog({ open, onOpenChange, presetPatientId
   const [search, setSearch] = useState('');
   const cameraRef = useRef<HTMLInputElement>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [rawFile, setRawFile] = useState<File | null>(null);
+  const [rawUrl, setRawUrl] = useState<string | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
   const hasCam = hasInAppCamera();
 
   useEffect(() => {
@@ -52,6 +56,9 @@ export function StandingOrderCaptureDialog({ open, onOpenChange, presetPatientId
       setPhoto(null);
       setPreview(null);
       setSearch('');
+      setRawFile(null);
+      setRawUrl(null);
+      setCropOpen(false);
     }
   }, [open, presetPatientId]);
 
@@ -70,8 +77,10 @@ export function StandingOrderCaptureDialog({ open, onOpenChange, presetPatientId
       toast.error('Image must be under 10MB');
       return;
     }
-    setPhoto(file);
-    setPreview(URL.createObjectURL(file));
+    if (rawUrl) URL.revokeObjectURL(rawUrl);
+    setRawFile(file);
+    setRawUrl(URL.createObjectURL(file));
+    setCropOpen(true);
   };
 
   const filteredPatients = patients.filter(p => {
@@ -222,6 +231,24 @@ export function StandingOrderCaptureDialog({ open, onOpenChange, presetPatientId
               onCancel={() => setCameraOpen(false)}
               onCapture={(f) => { handleFile(f); setCameraOpen(false); }}
             />
+            {rawUrl && rawFile && (
+              <SnapCropDialog
+                open={cropOpen}
+                imageUrl={rawUrl}
+                originalFile={rawFile}
+                onCancel={() => {
+                  setCropOpen(false);
+                  if (rawUrl) URL.revokeObjectURL(rawUrl);
+                  setRawUrl(null); setRawFile(null);
+                }}
+                onConfirm={(croppedFile, croppedUrl) => {
+                  if (preview) URL.revokeObjectURL(preview);
+                  setPhoto(croppedFile);
+                  setPreview(croppedUrl);
+                  setCropOpen(false);
+                }}
+              />
+            )}
           </div>
 
           {/* Notes */}

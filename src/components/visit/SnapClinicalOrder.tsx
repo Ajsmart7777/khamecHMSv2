@@ -71,12 +71,27 @@ export function SnapClinicalOrder({
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (!f) return;
-    const url = URL.createObjectURL(f);
-    setRawFile(f);
-    setRawUrl(url);
-    setCropOpen(true);
+    // Reset the input immediately so re-selecting the same photo re-fires change.
     e.target.value = '';
+    if (!f) return;
+    if (!f.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    try {
+      const url = URL.createObjectURL(f);
+      // Clean up any lingering blob from a previous aborted snap.
+      if (rawUrl) URL.revokeObjectURL(rawUrl);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setPreviewUrl(null);
+      setFile(null);
+      setRawFile(f);
+      setRawUrl(url);
+      setCropOpen(true);
+    } catch (err) {
+      console.error('[SnapClinicalOrder] failed to open captured photo', err);
+      toast.error('Could not open the photo — please try again');
+    }
   };
 
   const close = () => {
@@ -201,8 +216,16 @@ export function SnapClinicalOrder({
             setFile(croppedFile);
             setPreviewUrl(croppedUrl);
             setCropOpen(false);
-            // Go straight to confirm-and-send.
-            setConfirmOpen(true);
+            // Radix locks body pointer-events while a Dialog is open. On mobile,
+            // opening a second dialog on the same tick can leave the lock stuck.
+            // Defer the confirm dialog until the crop dialog has fully unmounted.
+            setTimeout(() => {
+              // Safety net: force-clear any leftover pointer-events lock.
+              if (typeof document !== 'undefined') {
+                document.body.style.pointerEvents = '';
+              }
+              setConfirmOpen(true);
+            }, 150);
           }}
         />
       )}

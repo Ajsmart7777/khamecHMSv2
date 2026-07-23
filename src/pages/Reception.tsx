@@ -134,7 +134,7 @@ const Reception = () => {
 
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
-  const handleSendToNurse = async () => {
+  const handleSendToNurse = async (preferredDoctor?: 'doctor1' | 'doctor2') => {
     if (!selectedPatient) return;
     // Prevent sending if already beyond 'registered' status
     if (selectedPatient.status !== 'registered') {
@@ -143,10 +143,25 @@ const Reception = () => {
       });
       return;
     }
-    
+
+    // Optional pre-assignment of a specific doctor from Reception.
+    if (preferredDoctor) {
+      const { error: assignError } = await supabase
+        .from('patients')
+        .update({ assigned_doctor: preferredDoctor })
+        .eq('id', selectedPatient.id);
+      if (assignError) {
+        toast.error('Failed to pre-assign doctor');
+        return;
+      }
+    }
+
     const success = await updatePatientStatus(selectedPatient.id, 'waiting');
     if (success) {
-      toast.success(`${selectedPatient.first_name} ${selectedPatient.last_name} sent to Nurse Station`, {
+      const label = preferredDoctor === 'doctor1' ? ' (pre-assigned to Doctor 1)'
+                    : preferredDoctor === 'doctor2' ? ' (pre-assigned to Doctor 2)'
+                    : '';
+      toast.success(`${selectedPatient.first_name} ${selectedPatient.last_name} sent to Nurse Station${label}`, {
         description: 'Patient is now in the queue',
         icon: <CheckCircle2 className="h-4 w-4 text-success" />
       });
@@ -305,12 +320,13 @@ function EmptyState({ onNewPatient }: { onNewPatient: () => void }) {
   );
 }
 
-function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Patient; onClose: () => void; onSendToNurse: () => void }) {
+function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Patient; onClose: () => void; onSendToNurse: (preferredDoctor?: 'doctor1' | 'doctor2') => void }) {
   const { updatePatient, updatePatientStatus } = usePatients();
   const { getInvoicesForPatient, recordPayment } = useInvoices();
   const { getPrescriptionsForPatient } = usePrescriptions();
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
+  const [preferredDoctor, setPreferredDoctor] = useState<'doctor1' | 'doctor2' | 'none'>('none');
   const [isJourneyOpen, setIsJourneyOpen] = useState(false);
   const [isStandingOrderOpen, setIsStandingOrderOpen] = useState(false);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
@@ -402,8 +418,9 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   };
 
   const handleConfirmSend = () => {
-    onSendToNurse();
+    onSendToNurse(preferredDoctor === 'none' ? undefined : preferredDoctor);
     setIsSendDialogOpen(false);
+    setPreferredDoctor('none');
   };
 
   return (
@@ -546,6 +563,20 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
                     <p className="text-sm text-muted-foreground">{patient.card_number}</p>
                   </div>
                 </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                <label className="text-sm font-medium">Pre-assign Doctor (optional)</label>
+                <Select value={preferredDoctor} onValueChange={(v) => setPreferredDoctor(v as 'doctor1' | 'doctor2' | 'none')}>
+                  <SelectTrigger><SelectValue placeholder="Let the nurse decide" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Let the nurse decide</SelectItem>
+                    <SelectItem value="doctor1">Doctor 1</SelectItem>
+                    <SelectItem value="doctor2">Doctor 2</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  If chosen, the patient will land in the selected doctor's queue after vitals.
+                </p>
               </div>
             </div>
             <DialogFooter className="gap-2 sm:gap-0">

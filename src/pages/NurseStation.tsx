@@ -181,7 +181,9 @@ interface VitalsFormProps {
 }
 
 function VitalsForm({ patient, onComplete }: VitalsFormProps) {
-  const [assignedDoctor, setAssignedDoctor] = useState<'doctor1' | 'doctor2' | ''>('');
+  const [assignedDoctor, setAssignedDoctor] = useState<'doctor1' | 'doctor2' | ''>(
+    (patient.assigned_doctor as 'doctor1' | 'doctor2' | undefined) ?? ''
+  );
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');
   const [systolic, setSystolic] = useState('');

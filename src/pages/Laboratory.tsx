@@ -29,6 +29,14 @@ import {
 import { usePatients } from '@/contexts/PatientContext';
 import { useLabRequests, LabRequest } from '@/hooks/useLabRequests';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 const statusConfig = {
   pending: { label: 'Pending', color: 'warning', icon: Clock },
@@ -42,6 +50,8 @@ const Laboratory = () => {
   const [selectedRequest, setSelectedRequest] = useState<LabRequest | null>(null);
   const [isResultsDialogOpen, setIsResultsDialogOpen] = useState(false);
   const [interpretation, setInterpretation] = useState('Normal');
+  const [doctorRoutingRequest, setDoctorRoutingRequest] = useState<LabRequest | null>(null);
+  const [routingDoctor, setRoutingDoctor] = useState<'doctor1' | 'doctor2' | ''>('');
 
   const loading = patientsLoading || labLoading;
 
@@ -92,13 +102,44 @@ const Laboratory = () => {
 
   const handleSendToDoctor = async (request: LabRequest) => {
     const patient = getPatient(request.patient_id);
-    if (patient) {
-      const success = await updatePatientStatus(patient.id, 'with_doctor');
-      if (success) {
-        toast.success('Results Sent', {
-          description: `Lab results for ${patient?.first_name} ${patient?.last_name} have been sent to doctor.`
-        });
-      }
+    if (!patient) return;
+    // If the patient has no assigned doctor yet, ask the lab tech which doctor to route to.
+    if (!patient.assigned_doctor) {
+      setRoutingDoctor('');
+      setDoctorRoutingRequest(request);
+      return;
+    }
+    const success = await updatePatientStatus(patient.id, 'with_doctor');
+    if (success) {
+      toast.success('Results Sent', {
+        description: `Lab results for ${patient.first_name} ${patient.last_name} routed to ${
+          patient.assigned_doctor === 'doctor1' ? 'Doctor 1' : 'Doctor 2'
+        }.`,
+      });
+    }
+  };
+
+  const handleConfirmDoctorRouting = async () => {
+    if (!doctorRoutingRequest || !routingDoctor) return;
+    const patient = getPatient(doctorRoutingRequest.patient_id);
+    if (!patient) return;
+    const { error: assignError } = await supabase
+      .from('patients')
+      .update({ assigned_doctor: routingDoctor })
+      .eq('id', patient.id);
+    if (assignError) {
+      toast.error('Failed to assign doctor');
+      return;
+    }
+    const success = await updatePatientStatus(patient.id, 'with_doctor');
+    if (success) {
+      toast.success('Results Sent', {
+        description: `Lab results for ${patient.first_name} ${patient.last_name} routed to ${
+          routingDoctor === 'doctor1' ? 'Doctor 1' : 'Doctor 2'
+        }.`,
+      });
+      setDoctorRoutingRequest(null);
+      setRoutingDoctor('');
     }
   };
 
@@ -314,6 +355,35 @@ const Laboratory = () => {
             <Button onClick={handleSaveResults} className="press-effect">
               <CheckCircle className="h-4 w-4 mr-1" />
               Save & Complete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Doctor Routing Dialog (when patient has no assigned doctor yet) */}
+      <Dialog open={!!doctorRoutingRequest} onOpenChange={(open) => !open && setDoctorRoutingRequest(null)}>
+        <DialogContent className="sm:max-w-md animate-scale-in">
+          <DialogHeader>
+            <DialogTitle>Route to Doctor</DialogTitle>
+            <DialogDescription>
+              This patient has no assigned doctor yet. Select which doctor should receive the lab results.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-2">
+            <label className="text-sm font-medium">Assign Doctor</label>
+            <Select value={routingDoctor} onValueChange={(v) => setRoutingDoctor(v as 'doctor1' | 'doctor2')}>
+              <SelectTrigger><SelectValue placeholder="Select Doctor 1 or Doctor 2" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="doctor1">Doctor 1</SelectItem>
+                <SelectItem value="doctor2">Doctor 2</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDoctorRoutingRequest(null)}>Cancel</Button>
+            <Button onClick={handleConfirmDoctorRouting} disabled={!routingDoctor}>
+              <Send className="h-4 w-4 mr-1" />
+              Send to Doctor
             </Button>
           </DialogFooter>
         </DialogContent>

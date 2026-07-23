@@ -255,6 +255,12 @@ export function SnapClinicalOrder({
         />
       )}
 
+      <InAppCameraDialog
+        open={cameraOpen}
+        onCancel={() => setCameraOpen(false)}
+        onCapture={(f) => acceptFile(f)}
+      />
+
       <AlertDialog
         open={confirmOpen}
         onOpenChange={(o) => {

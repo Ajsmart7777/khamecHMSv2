@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSnapOrders, SnapOrder, snapPhotoUrl, markSnapFulfilled } from '@/hooks/useSnapOrders';
 import { usePatients } from '@/contexts/PatientContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -69,6 +71,7 @@ export function SnapFulfillDialog({
 }: { snap: SnapOrder; onClose: () => void; patientName: string; kind: 'pharmacy' | 'lab' }) {
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { updatePatientStatus } = usePatients();
 
   useEffect(() => {
     let cancelled = false;
@@ -79,6 +82,25 @@ export function SnapFulfillDialog({
   const fulfill = async () => {
     setBusy(true);
     const ok = await markSnapFulfilled(snap.id);
+    if (ok) {
+      // Pharmacy = final station for outpatients. If not admitted, auto-discharge.
+      if (kind === 'pharmacy') {
+        const { data: adm } = await supabase
+          .from('admissions')
+          .select('id')
+          .eq('patient_id', snap.patient_id)
+          .eq('status', 'active')
+          .maybeSingle();
+        if (!adm) {
+          const discharged = await updatePatientStatus(
+            snap.patient_id, 'discharged', { guardInpatient: true },
+          );
+          if (!discharged) {
+            toast.error('Dispensed, but patient could not be auto-discharged. Retry from Reception.');
+          }
+        }
+      }
+    }
     setBusy(false);
     if (ok) onClose();
   };

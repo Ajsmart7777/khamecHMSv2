@@ -37,9 +37,10 @@ const NurseStation = () => {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   
   // Filter patients that are waiting or with nurse
-  // Include patients returned from lab so the nurse can take the next action
-  // (another lab request, prescription, route to doctor, etc.)
-  const nurseQueue = getPatientsByStatus(['waiting', 'with_nurse', 'lab_results_ready']);
+  // Patients returned from lab are set back to 'with_nurse' so their card
+  // stays in the queue and the nurse can take the next action (another lab
+  // request, prescription, route to doctor, etc.).
+  const nurseQueue = getPatientsByStatus(['waiting', 'with_nurse']);
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
   const handlePatientComplete = async (patientId: string, assignedDoctor: 'doctor1' | 'doctor2') => {

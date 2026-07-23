@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { PricelistValidationReport } from './PricelistValidationReport';
 
 const CATEGORIES: { value: PricelistCategory; label: string }[] = [
   { value: 'drug_tablet', label: 'Drug — Tablet' },
@@ -64,6 +65,7 @@ export function PricelistManager() {
           </SelectContent>
         </Select>
         <Button onClick={openNew}><Plus className="h-4 w-4 mr-1.5" /> Add Item</Button>
+        <PricelistValidationReport />
       </div>
 
       <div className="text-xs text-muted-foreground">

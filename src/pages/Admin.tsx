@@ -523,7 +523,8 @@ const Admin = () => {
                   value={editForm.role}
                   onChange={(e) => setEditForm({...editForm, role: e.target.value as UserRole})}
                 >
-                  <option value="doctor">Doctor</option>
+                  <option value="doctor1">Doctor 1</option>
+                  <option value="doctor2">Doctor 2</option>
                   <option value="nurse">Nurse</option>
                   <option value="reception">Reception</option>
                   <option value="pharmacy">Pharmacy</option>
@@ -597,7 +598,8 @@ const Admin = () => {
                   value={editForm.role}
                   onChange={(e) => setEditForm({...editForm, role: e.target.value as UserRole})}
                 >
-                  <option value="doctor">Doctor</option>
+                  <option value="doctor1">Doctor 1</option>
+                  <option value="doctor2">Doctor 2</option>
                   <option value="nurse">Nurse</option>
                   <option value="reception">Reception</option>
                   <option value="pharmacy">Pharmacy</option>

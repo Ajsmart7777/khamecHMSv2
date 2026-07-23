@@ -51,7 +51,7 @@ interface StaffManagementDialogProps {
   onImportStaff: (staffList: Omit<Staff, 'id'>[]) => Promise<number>;
 }
 
-const ROLES: UserRole[] = ['reception', 'nurse', 'doctor', 'lab', 'billing', 'pharmacy', 'store', 'account', 'auditing', 'admin'];
+const ROLES: UserRole[] = ['reception', 'nurse', 'doctor1', 'doctor2', 'lab', 'billing', 'pharmacy', 'store', 'account', 'auditing', 'admin'];
 
 const emptyNewStaff = {
   employeeId: '',

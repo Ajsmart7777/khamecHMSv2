@@ -6,27 +6,20 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Activity, 
   Send, 
-  Bell,
-  Camera,
   Wifi,
   RefreshCw
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { SnapToCard } from '@/components/visit/SnapToCard';
 import { SnapClinicalOrder } from '@/components/visit/SnapClinicalOrder';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { usePatients, Patient } from '@/contexts/PatientContext';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
 import { supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { AdmissionQueue } from '@/components/nurse/AdmissionQueue';
 import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { NurseTreatmentInbox } from '@/components/nurse/NurseTreatmentInbox';
@@ -163,7 +156,6 @@ const NurseStation = () => {
                   variant="outline"
                   size="sm"
                 />
-                <SnapToCard patientId={selectedPatient.id} station="nurse" defaultLabel="Nurse vitals note" />
               </div>
               <VitalsForm
                 patient={selectedPatient}
@@ -189,27 +181,80 @@ interface VitalsFormProps {
 }
 
 function VitalsForm({ patient, onComplete }: VitalsFormProps) {
-  const { updatePatientStatus } = usePatients();
   const [assignedDoctor, setAssignedDoctor] = useState<'doctor1' | 'doctor2' | ''>('');
-  const [isCallDialogOpen, setIsCallDialogOpen] = useState(false);
+  const [weight, setWeight] = useState('');
+  const [height, setHeight] = useState('');
+  const [systolic, setSystolic] = useState('');
+  const [diastolic, setDiastolic] = useState('');
+  const [temperature, setTemperature] = useState('');
+  const [pulse, setPulse] = useState('');
+  const [respiratoryRate, setRespiratoryRate] = useState('');
+  const [spo2, setSpo2] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
-  const handleCallPatient = async () => {
-    setIsCallDialogOpen(true);
-    await updatePatientStatus(patient.id, 'with_nurse');
-    toast.info("Calling Patient", {
-      description: `Calling ${patient.first_name} ${patient.last_name} to the nurse station...`,
+  const bmi = (() => {
+    const w = parseFloat(weight);
+    const h = parseFloat(height);
+    if (!w || !h) return null;
+    const m = h / 100;
+    return +(w / (m * m)).toFixed(1);
+  })();
+
+  const bmiCategory = (() => {
+    if (bmi == null) return '';
+    if (bmi < 18.5) return 'Underweight';
+    if (bmi < 25) return 'Normal';
+    if (bmi < 30) return 'Overweight';
+    return 'Obese';
+  })();
+
+  const resetForm = () => {
+    setWeight(''); setHeight(''); setSystolic(''); setDiastolic('');
+    setTemperature(''); setPulse(''); setRespiratoryRate(''); setSpo2(''); setNotes('');
+  };
+
+  const handleSaveVitals = async () => {
+    // Require at least one field
+    if (!weight && !height && !systolic && !diastolic && !temperature && !pulse && !respiratoryRate && !spo2 && !notes) {
+      toast.error('Enter at least one vital before saving');
+      return;
+    }
+    setSaving(true);
+    const { data: userRes } = await supabase.auth.getUser();
+    const bp = systolic && diastolic ? `${systolic}/${diastolic}` : (systolic || diastolic || null);
+    const composedNotes = [
+      spo2 ? `SpO2: ${spo2}%` : null,
+      bmi != null ? `BMI: ${bmi} (${bmiCategory})` : null,
+      notes.trim() || null,
+    ].filter(Boolean).join(' • ') || null;
+
+    const { error } = await supabase.from('vitals').insert({
+      patient_id: patient.id,
+      weight: weight ? parseFloat(weight) : null,
+      height: height ? parseFloat(height) : null,
+      blood_pressure: bp,
+      temperature: temperature ? parseFloat(temperature) : null,
+      pulse: pulse ? parseInt(pulse) : null,
+      respiratory_rate: respiratoryRate ? parseInt(respiratoryRate) : null,
+      notes: composedNotes,
+      recorded_by: userRes.user?.id ?? null,
     });
-    setTimeout(() => {
-      setIsCallDialogOpen(false);
-      toast.success("Patient Called", {
-        description: `${patient.first_name} ${patient.last_name} has been notified.`,
-      });
-    }, 2000);
+    setSaving(false);
+    if (error) {
+      logError('Failed to save vitals', error);
+      toast.error('Failed to save vitals', { description: error.message });
+      return;
+    }
+    toast.success('Vitals saved to patient card');
+    setLastSavedAt(new Date());
+    resetForm();
   };
 
   const handleSendToDoctor = () => {
     if (!assignedDoctor) {
-      toast.error("Select a doctor", { description: "Choose Doctor 1 or Doctor 2 before sending." });
+      toast.error('Select a doctor', { description: 'Choose Doctor 1 or Doctor 2 before sending.' });
       return;
     }
     onComplete(patient.id, assignedDoctor);
@@ -217,21 +262,70 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Snap-first vitals capture */}
-      <div className="bg-card rounded-xl border border-border p-6 text-center space-y-3">
-        <div className="mx-auto w-12 h-12 rounded-full bg-module-nurse/10 flex items-center justify-center">
-          <Camera className="h-6 w-6 text-module-nurse" />
+      {/* Typed vitals capture */}
+      <div className="bg-card rounded-xl border border-border p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold flex items-center gap-2">
+              <Activity className="h-4 w-4 text-module-nurse" /> Record Vitals
+            </h3>
+            <p className="text-xs text-muted-foreground">Fill any subset — leave unknown fields blank.</p>
+          </div>
+          {lastSavedAt && (
+            <span className="text-xs text-success">Saved {lastSavedAt.toLocaleTimeString()}</span>
+          )}
         </div>
-        <h3 className="font-semibold">Snap the vitals card</h3>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto">
-          Write vitals & notes on the paper card, then take a photo. The snap is the record — no typing required.
-        </p>
-        <div className="flex flex-wrap justify-center gap-2 pt-2">
-          <Button variant="outline" size="sm" onClick={handleCallPatient} className="press-effect">
-            <Bell className="h-4 w-4 mr-2" />
-            Call Patient
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div>
+            <Label className="text-xs">Weight (kg)</Label>
+            <Input type="number" inputMode="decimal" step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="70" />
+          </div>
+          <div>
+            <Label className="text-xs">Height (cm)</Label>
+            <Input type="number" inputMode="decimal" step="0.1" value={height} onChange={(e) => setHeight(e.target.value)} placeholder="170" />
+          </div>
+          <div className="col-span-2">
+            <Label className="text-xs">Blood Pressure (mmHg)</Label>
+            <div className="flex items-center gap-2">
+              <Input type="number" inputMode="numeric" value={systolic} onChange={(e) => setSystolic(e.target.value)} placeholder="120" />
+              <span className="text-muted-foreground">/</span>
+              <Input type="number" inputMode="numeric" value={diastolic} onChange={(e) => setDiastolic(e.target.value)} placeholder="80" />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">Temp (°C)</Label>
+            <Input type="number" inputMode="decimal" step="0.1" value={temperature} onChange={(e) => setTemperature(e.target.value)} placeholder="36.8" />
+          </div>
+          <div>
+            <Label className="text-xs">Pulse (bpm)</Label>
+            <Input type="number" inputMode="numeric" value={pulse} onChange={(e) => setPulse(e.target.value)} placeholder="72" />
+          </div>
+          <div>
+            <Label className="text-xs">Resp. Rate</Label>
+            <Input type="number" inputMode="numeric" value={respiratoryRate} onChange={(e) => setRespiratoryRate(e.target.value)} placeholder="16" />
+          </div>
+          <div>
+            <Label className="text-xs">SpO₂ (%)</Label>
+            <Input type="number" inputMode="numeric" value={spo2} onChange={(e) => setSpo2(e.target.value)} placeholder="98" />
+          </div>
+        </div>
+
+        {bmi != null && (
+          <div className="text-sm bg-muted/40 rounded-md px-3 py-2">
+            <span className="font-medium">BMI:</span> {bmi} <span className="text-muted-foreground">({bmiCategory})</span>
+          </div>
+        )}
+
+        <div>
+          <Label className="text-xs">Notes (optional)</Label>
+          <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any observations..." />
+        </div>
+
+        <div className="flex justify-end">
+          <Button variant="module" onClick={handleSaveVitals} disabled={saving} className="press-effect">
+            {saving ? 'Saving...' : 'Save Vitals to Card'}
           </Button>
-          <SnapToCard patientId={patient.id} station="nurse" defaultLabel="Nurse vitals & notes" />
         </div>
       </div>
 
@@ -250,33 +344,12 @@ function VitalsForm({ patient, onComplete }: VitalsFormProps) {
         </Select>
       </div>
 
-      {/* Actions */}
       <div className="flex justify-end gap-3">
         <Button variant="module" onClick={handleSendToDoctor} className="press-effect">
           <Send className="h-4 w-4 mr-2" />
           Send to Doctor
         </Button>
       </div>
-
-      {/* Call Patient Dialog */}
-      <Dialog open={isCallDialogOpen} onOpenChange={setIsCallDialogOpen}>
-        <DialogContent className="animate-scale-in">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Bell className="h-5 w-5 text-module-nurse animate-pulse" />
-              Calling Patient
-            </DialogTitle>
-            <DialogDescription>
-              Notifying {patient.first_name} {patient.last_name} to come to the nurse station...
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-center py-8">
-            <div className="w-16 h-16 rounded-full bg-module-nurse/20 flex items-center justify-center animate-pulse">
-              <Bell className="h-8 w-8 text-module-nurse" />
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

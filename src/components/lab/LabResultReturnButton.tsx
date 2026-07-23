@@ -13,6 +13,7 @@ import { useCanSnap } from '@/hooks/useCanSnap';
 import { Lock } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
+import { SnapCropDialog } from '@/components/visit/SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
 
 interface Props {
@@ -29,6 +30,9 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
   const { allowed, reason, loading: checking } = useCanSnap(parentSnap.patient_id);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [rawFile, setRawFile] = useState<File | null>(null);
+  const [rawUrl, setRawUrl] = useState<string | null>(null);
+  const [cropOpen, setCropOpen] = useState(false);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -39,10 +43,11 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
       toast.error('Please select an image file');
       return;
     }
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setFile(f);
-    setPreviewUrl(URL.createObjectURL(f));
+    if (rawUrl) URL.revokeObjectURL(rawUrl);
+    setRawFile(f);
+    setRawUrl(URL.createObjectURL(f));
     setCameraOpen(false);
+    setCropOpen(true);
   };
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,8 +59,12 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
 
   const close = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
+    if (rawUrl) URL.revokeObjectURL(rawUrl);
     setPreviewUrl(null);
     setFile(null);
+    setRawFile(null);
+    setRawUrl(null);
+    setCropOpen(false);
     setNote('');
   };
 
@@ -124,6 +133,20 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
         onCancel={() => setCameraOpen(false)}
         onCapture={acceptFile}
       />
+      {rawUrl && rawFile && (
+        <SnapCropDialog
+          open={cropOpen}
+          imageUrl={rawUrl}
+          originalFile={rawFile}
+          onCancel={close}
+          onConfirm={(croppedFile, croppedUrl) => {
+            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            setFile(croppedFile);
+            setPreviewUrl(croppedUrl);
+            setCropOpen(false);
+          }}
+        />
+      )}
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>

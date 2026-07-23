@@ -23,6 +23,7 @@ import { useCanSnap } from '@/hooks/useCanSnap';
 import { usePatients } from '@/contexts/PatientContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { SnapCropDialog } from './SnapCropDialog';
+import { InAppCameraDialog } from './InAppCameraDialog';
 
 interface Props {
   patientId: string;
@@ -61,6 +62,7 @@ export function SnapClinicalOrder({
   const [rawUrl, setRawUrl] = useState<string | null>(null);
   const [rawFile, setRawFile] = useState<File | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [orderType] = useState<SnapOrderType>(defaultOrderType);
   const [target] = useState<SnapTargetStation>(
     defaultTarget ?? (defaultOrderType === 'lab' ? 'lab' : 'pharmacy'),
@@ -87,26 +89,32 @@ export function SnapClinicalOrder({
       e.target.value = '';
       return;
     }
+    acceptFile(f);
+    requestAnimationFrame(() => {
+      try { e.target.value = ''; } catch {}
+    });
+  };
+
+  const acceptFile = (f: File) => {
     try {
       const url = URL.createObjectURL(f);
-      // Clean up any lingering blob from a previous aborted snap.
       if (rawUrl) URL.revokeObjectURL(rawUrl);
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(null);
       setFile(null);
       setRawFile(f);
       setRawUrl(url);
+      setCameraOpen(false);
       setCropOpen(true);
-      // Reset input AFTER state is queued, so a lost/re-fired change on mobile
-      // still delivers the file object we've already captured.
-      requestAnimationFrame(() => {
-        try { e.target.value = ''; } catch {}
-      });
     } catch (err) {
       console.error('[SnapClinicalOrder] failed to open captured photo', err);
       toast.error('Could not open the photo — please try again');
     }
   };
+
+  const isMobile = typeof navigator !== 'undefined'
+    && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+    && !!navigator.mediaDevices?.getUserMedia;
 
   const close = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -116,6 +124,7 @@ export function SnapClinicalOrder({
     setRawUrl(null);
     setRawFile(null);
     setCropOpen(false);
+    setCameraOpen(false);
     setNote('');
     setConfirmOpen(false);
   };
@@ -198,7 +207,10 @@ export function SnapClinicalOrder({
                 variant={variant}
                 size={size}
                 className={className}
-                onClick={() => inputRef.current?.click()}
+                onClick={() => {
+                  if (isMobile) setCameraOpen(true);
+                  else inputRef.current?.click();
+                }}
                 disabled={!allowed || checking}
                 aria-disabled={!allowed}
               >
@@ -242,6 +254,12 @@ export function SnapClinicalOrder({
           }}
         />
       )}
+
+      <InAppCameraDialog
+        open={cameraOpen}
+        onCancel={() => setCameraOpen(false)}
+        onCapture={(f) => acceptFile(f)}
+      />
 
       <AlertDialog
         open={confirmOpen}

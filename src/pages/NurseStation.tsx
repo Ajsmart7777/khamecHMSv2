@@ -21,28 +21,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AdmissionQueue } from '@/components/nurse/AdmissionQueue';
+import { AdmissionCaptureDialog } from '@/components/nurse/AdmissionCaptureDialog';
 import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { NurseTreatmentInbox } from '@/components/nurse/NurseTreatmentInbox';
 import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
 import { AwaitingRoomPanel } from '@/components/nurse/AwaitingRoomPanel';
 import { QuickDischargeButton } from '@/components/patient/QuickDischargeButton';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { BedDouble } from 'lucide-react';
 
 const NurseStation = () => {
   const { patients, loading, refreshPatients, updatePatientStatus, getPatientsByStatus } = usePatients();
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [admitOpen, setAdmitOpen] = useState(false);
-  const [admitting, setAdmitting] = useState(false);
   
   // Filter patients that are waiting or with nurse
   // Patients returned from lab are set back to 'with_nurse' so their card
@@ -57,20 +47,6 @@ const NurseStation = () => {
     ).values()
   );
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
-
-  const handleAdmit = async () => {
-    if (!selectedPatient) return;
-    setAdmitting(true);
-    const ok = await updatePatientStatus(selectedPatient.id, 'awaiting_room');
-    setAdmitting(false);
-    if (ok) {
-      toast.success('Patient admitted to Awaiting Room', {
-        description: `${selectedPatient.first_name} ${selectedPatient.last_name} is now under nurse observation.`,
-      });
-      setAdmitOpen(false);
-      setSelectedPatientId(null);
-    }
-  };
 
   const handlePatientComplete = async (patientId: string, assignedDoctor: 'doctor1' | 'doctor2') => {
     const patient = patients.find(p => p.id === patientId);
@@ -219,30 +195,15 @@ const NurseStation = () => {
         </div>
       </div>
 
-      <AlertDialog open={admitOpen} onOpenChange={(o) => !admitting && setAdmitOpen(o)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Admit patient to Awaiting Room?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {selectedPatient
-                ? `${selectedPatient.first_name} ${selectedPatient.last_name} will be moved to the Awaiting Room for observation and bed assignment.`
-                : ''}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={admitting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={admitting}
-              onClick={(e) => {
-                e.preventDefault();
-                handleAdmit();
-              }}
-            >
-              {admitting ? 'Admitting…' : 'Confirm Admit'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {selectedPatient && (
+        <AdmissionCaptureDialog
+          open={admitOpen}
+          onOpenChange={setAdmitOpen}
+          patientId={selectedPatient.id}
+          patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
+          onAdmitted={() => setSelectedPatientId(null)}
+        />
+      )}
     </MainLayout>
   );
 };

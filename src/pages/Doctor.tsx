@@ -8,16 +8,6 @@ import { cn } from '@/lib/utils';
 import { SnapClinicalOrder } from '@/components/visit/SnapClinicalOrder';
 import { usePatients } from '@/contexts/PatientContext';
 import { toast } from 'sonner';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { BedDouble } from 'lucide-react';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
 import { useLabRequests } from '@/hooks/useLabRequests';
@@ -25,6 +15,7 @@ import { LabRequestPrintQueue } from '@/components/doctor/LabRequestPrintQueue';
 import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
 import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
+import { AdmissionCaptureDialog } from '@/components/nurse/AdmissionCaptureDialog';
 import { PatientHistoryDialog } from '@/components/doctor/PatientHistoryDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -41,7 +32,6 @@ const Doctor = () => {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);
-  const [admitting, setAdmitting] = useState(false);
   const [pendingLabReturnPatientIds, setPendingLabReturnPatientIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -84,20 +74,6 @@ const Doctor = () => {
   const labReturnIds = new Set(labReturnedPatients.map(p => p.id));
   const doctorQueue = scopedQueue.filter(p => !labReturnIds.has(p.id));
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
-
-  const handleAdmit = async () => {
-    if (!selectedPatient) return;
-    setAdmitting(true);
-    const ok = await updatePatientStatus(selectedPatient.id, 'awaiting_room');
-    setAdmitting(false);
-    if (ok) {
-      toast.success('Patient admitted to Awaiting Room', {
-        description: `${selectedPatient.first_name} ${selectedPatient.last_name} is now under nurse observation.`,
-      });
-      setAdmitOpen(false);
-      setSelectedPatientId(null);
-    }
-  };
 
   return (
     <MainLayout title="Doctor's Console" subtitle="Snap the paper card and route the patient">
@@ -165,7 +141,11 @@ const Doctor = () => {
           </div>
 
           <LabResultInbox />
-          <AdmittedPatientsPanel sourceStation="doctor" title="Admitted Patients (In-Ward)" />
+          <AdmittedPatientsPanel
+            sourceStation="doctor"
+            title="My Admitted Patients"
+            assignedDoctor={myDoctorKey ?? undefined}
+          />
           <LabRequestPrintQueue />
           <LabResultsViewer />
         </div>
@@ -284,49 +264,15 @@ const Doctor = () => {
         />
       )}
 
-      <AlertDialog open={admitOpen} onOpenChange={(o) => !admitting && setAdmitOpen(o)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Admit patient to Awaiting Room?</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2 text-sm">
-                <div className="rounded-md border p-3 bg-muted/40">
-                  <div>
-                    <span className="text-muted-foreground">Patient: </span>
-                    <span className="font-semibold text-foreground">
-                      {selectedPatient
-                        ? `${selectedPatient.first_name} ${selectedPatient.last_name}`
-                        : ''}
-                    </span>
-                    {selectedPatient?.card_number && (
-                      <span className="ml-2 font-mono text-xs text-muted-foreground">
-                        {selectedPatient.card_number}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  The patient will move from your queue to the Nurse station's
-                  <span className="font-medium"> Awaiting Room</span> panel for
-                  observation. Nurses can send them back to you at any time.
-                </p>
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={admitting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={admitting}
-              onClick={(e) => {
-                e.preventDefault();
-                handleAdmit();
-              }}
-            >
-              {admitting ? 'Admitting…' : 'Confirm Admit'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {selectedPatient && (
+        <AdmissionCaptureDialog
+          open={admitOpen}
+          onOpenChange={setAdmitOpen}
+          patientId={selectedPatient.id}
+          patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
+          onAdmitted={() => setSelectedPatientId(null)}
+        />
+      )}
     </MainLayout>
   );
 };

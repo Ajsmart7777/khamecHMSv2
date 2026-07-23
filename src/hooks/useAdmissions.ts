@@ -2,7 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
-export type AdmissionStatus = 'waiting_assignment' | 'active' | 'discharged' | 'cancelled';
+export type AdmissionStatus =
+  | 'waiting_assignment'
+  | 'active'
+  | 'ready_for_discharge'
+  | 'discharged'
+  | 'cancelled';
 
 export interface Admission {
   id: string;
@@ -17,6 +22,11 @@ export interface Admission {
   discharged_at: string | null;
   discharge_notes: string | null;
   discharged_by: string | null;
+  admission_snap_path?: string | null;
+  admission_note?: string | null;
+  ready_for_discharge_at?: string | null;
+  ready_for_discharge_by?: string | null;
+  discharge_order_snap_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -49,22 +59,48 @@ export function useAdmissions(filter: { statuses?: AdmissionStatus[]; patientId?
   return { admissions, loading, refresh };
 }
 
-export async function requestAdmission(input: { patientId: string; visitId?: string | null; reason?: string }): Promise<string | null> {
-  const { data: userData } = await supabase.auth.getUser();
-  const { data, error } = await supabase
-    .from('admissions')
-    .insert({
-      patient_id: input.patientId,
-      visit_id: input.visitId ?? null,
-      admitting_doctor: userData.user?.id ?? null,
-      reason: input.reason ?? null,
-      status: 'waiting_assignment',
-    })
-    .select('id')
-    .single();
-  if (error) { toast.error(`Admission failed: ${error.message}`); return null; }
-  toast.success('Patient sent to Nurse for bed assignment');
-  return data.id;
+export async function requestAdmission(input: {
+  patientId: string;
+  visitId?: string | null;
+  reason?: string;
+  photoPath: string;
+  note?: string;
+}): Promise<string | null> {
+  const { data, error } = await supabase.rpc('request_admission', {
+    _patient_id: input.patientId,
+    _reason: input.reason ?? null,
+    _photo_path: input.photoPath,
+    _note: input.note ?? null,
+    _visit_id: input.visitId ?? null,
+  });
+  if (error) {
+    toast.error(`Admission failed: ${error.message}`);
+    return null;
+  }
+  toast.success('Admission opened — sent to Nurse for bed assignment');
+  return data as string;
+}
+
+export async function markReadyForDischarge(admissionId: string, snapId: string | null, note?: string): Promise<boolean> {
+  const { error } = await supabase.rpc('mark_ready_for_discharge', {
+    _admission_id: admissionId,
+    _snap_id: snapId,
+    _note: note ?? null,
+  });
+  if (error) { toast.error(error.message); return false; }
+  toast.success('Discharge order signed — nurse notified');
+  return true;
+}
+
+export async function forwardSnapToBilling(sourceSnapId: string, target: 'pharmacy' | 'lab', note?: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('forward_snap_to_billing', {
+    _source_snap_id: sourceSnapId,
+    _target_station: target,
+    _note: note ?? null,
+  });
+  if (error) { toast.error(error.message); return null; }
+  toast.success(`Forwarded to Billing → ${target === 'lab' ? 'Lab' : 'Pharmacy'}`);
+  return data as string;
 }
 
 export async function assignBed(admissionId: string, bedId: string): Promise<boolean> {

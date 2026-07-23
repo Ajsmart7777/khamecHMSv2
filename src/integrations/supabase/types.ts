@@ -16,48 +16,63 @@ export type Database = {
     Tables: {
       admissions: {
         Row: {
+          admission_note: string | null
+          admission_snap_path: string | null
           admitted_at: string | null
           admitting_doctor: string | null
           assigned_by_nurse: string | null
           bed_id: string | null
           created_at: string
           discharge_notes: string | null
+          discharge_order_snap_id: string | null
           discharged_at: string | null
           discharged_by: string | null
           id: string
           patient_id: string
+          ready_for_discharge_at: string | null
+          ready_for_discharge_by: string | null
           reason: string | null
           status: string
           updated_at: string
           visit_id: string | null
         }
         Insert: {
+          admission_note?: string | null
+          admission_snap_path?: string | null
           admitted_at?: string | null
           admitting_doctor?: string | null
           assigned_by_nurse?: string | null
           bed_id?: string | null
           created_at?: string
           discharge_notes?: string | null
+          discharge_order_snap_id?: string | null
           discharged_at?: string | null
           discharged_by?: string | null
           id?: string
           patient_id: string
+          ready_for_discharge_at?: string | null
+          ready_for_discharge_by?: string | null
           reason?: string | null
           status?: string
           updated_at?: string
           visit_id?: string | null
         }
         Update: {
+          admission_note?: string | null
+          admission_snap_path?: string | null
           admitted_at?: string | null
           admitting_doctor?: string | null
           assigned_by_nurse?: string | null
           bed_id?: string | null
           created_at?: string
           discharge_notes?: string | null
+          discharge_order_snap_id?: string | null
           discharged_at?: string | null
           discharged_by?: string | null
           id?: string
           patient_id?: string
+          ready_for_discharge_at?: string | null
+          ready_for_discharge_by?: string | null
           reason?: string | null
           status?: string
           updated_at?: string
@@ -1576,6 +1591,7 @@ export type Database = {
           fulfilled_at: string | null
           fulfilled_by: string | null
           id: string
+          intent: string | null
           invoice_id: string | null
           is_admitted_snap: boolean
           matched_items: Json
@@ -1619,6 +1635,7 @@ export type Database = {
           fulfilled_at?: string | null
           fulfilled_by?: string | null
           id?: string
+          intent?: string | null
           invoice_id?: string | null
           is_admitted_snap?: boolean
           matched_items?: Json
@@ -1662,6 +1679,7 @@ export type Database = {
           fulfilled_at?: string | null
           fulfilled_by?: string | null
           id?: string
+          intent?: string | null
           invoice_id?: string | null
           is_admitted_snap?: boolean
           matched_items?: Json
@@ -2537,6 +2555,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      forward_snap_to_billing: {
+        Args: {
+          _note?: string
+          _source_snap_id: string
+          _target_station: string
+        }
+        Returns: string
+      }
       generate_all_sponsor_statements: {
         Args: { _month: number; _year: number }
         Returns: number
@@ -2574,6 +2600,10 @@ export type Database = {
         Returns: boolean
       }
       is_authenticated_staff: { Args: never; Returns: boolean }
+      mark_ready_for_discharge: {
+        Args: { _admission_id: string; _note?: string; _snap_id?: string }
+        Returns: undefined
+      }
       match_catalogue: {
         Args: { _limit?: number; _query: string }
         Returns: {
@@ -2599,6 +2629,16 @@ export type Database = {
         Returns: string
       }
       recalc_visit_totals: { Args: { _visit_id: string }; Returns: undefined }
+      request_admission: {
+        Args: {
+          _note?: string
+          _patient_id: string
+          _photo_path: string
+          _reason: string
+          _visit_id?: string
+        }
+        Returns: string
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       write_audit_log: {

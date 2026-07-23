@@ -134,7 +134,7 @@ const Reception = () => {
 
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
-  const handleSendToNurse = async () => {
+  const handleSendToNurse = async (preferredDoctor?: 'doctor1' | 'doctor2') => {
     if (!selectedPatient) return;
     // Prevent sending if already beyond 'registered' status
     if (selectedPatient.status !== 'registered') {
@@ -165,8 +165,6 @@ const Reception = () => {
         description: 'Patient is now in the queue',
         icon: <CheckCircle2 className="h-4 w-4 text-success" />
       });
-      setPreferredDoctor(undefined);
-      setIsSendDialogOpen(false);
     }
   };
 

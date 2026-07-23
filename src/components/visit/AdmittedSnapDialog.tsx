@@ -17,6 +17,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { usePricelist } from '@/hooks/usePricelist';
+import { InAppCameraDialog } from './InAppCameraDialog';
+import { isMobileWithCamera } from '@/lib/isMobile';
 
 type OrderType = 'prescription' | 'lab' | 'treatment';
 type Target = 'pharmacy' | 'lab' | 'nurse' | 'doctor';
@@ -62,6 +64,16 @@ export function AdmittedSnapDialog({
   const [allowDebt, setAllowDebt] = useState(false);
   const [debtReason, setDebtReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const isMobile = isMobileWithCamera();
+
+  const acceptFile = (f: File) => {
+    if (!f.type.startsWith('image/')) { toast.error('Please select an image file'); return; }
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setFile(f);
+    setPreviewUrl(URL.createObjectURL(f));
+    setCameraOpen(false);
+  };
 
   const total = useMemo(() => lines.reduce((s, l) => s + l.unit_price * l.qty, 0), [lines]);
   const shortfall = Math.max(0, total - patientBalance);
@@ -82,10 +94,9 @@ export function AdmittedSnapDialog({
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
-    setPreviewUrl(URL.createObjectURL(f));
-    e.target.value = '';
+    if (!f) { e.target.value = ''; return; }
+    acceptFile(f);
+    requestAnimationFrame(() => { try { e.target.value = ''; } catch {} });
   };
 
   const addLine = (item: any) => {
@@ -192,7 +203,8 @@ export function AdmittedSnapDialog({
           {/* Photo */}
           <div className="space-y-2">
             <Label>Photo of the paper order *</Label>
-            <input ref={inputRef} type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
+            <input ref={inputRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
+            <InAppCameraDialog open={cameraOpen} onCancel={() => setCameraOpen(false)} onCapture={acceptFile} />
             {previewUrl ? (
               <div className="relative rounded-lg overflow-hidden bg-muted max-h-64">
                 <img src={previewUrl} alt="preview" className="w-full max-h-64 object-contain" />
@@ -201,7 +213,10 @@ export function AdmittedSnapDialog({
                 </Button>
               </div>
             ) : (
-              <Button variant="outline" className="w-full" onClick={() => inputRef.current?.click()}>
+              <Button variant="outline" className="w-full" onClick={() => {
+                if (isMobile) setCameraOpen(true);
+                else inputRef.current?.click();
+              }}>
                 <Camera className="h-4 w-4 mr-2" /> Take photo
               </Button>
             )}

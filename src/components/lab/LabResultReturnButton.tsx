@@ -12,6 +12,8 @@ import { SnapOrder } from '@/hooks/useSnapOrders';
 import { useCanSnap } from '@/hooks/useCanSnap';
 import { Lock } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
+import { isMobileWithCamera } from '@/lib/isMobile';
 
 interface Props {
   parentSnap: SnapOrder;
@@ -29,13 +31,25 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const isMobile = isMobileWithCamera();
+
+  const acceptFile = (f: File) => {
+    if (!f.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setFile(f);
+    setPreviewUrl(URL.createObjectURL(f));
+    setCameraOpen(false);
+  };
 
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (!f) return;
-    setFile(f);
-    setPreviewUrl(URL.createObjectURL(f));
-    e.target.value = '';
+    if (!f) { e.target.value = ''; return; }
+    acceptFile(f);
+    requestAnimationFrame(() => { try { e.target.value = ''; } catch {} });
   };
 
   const close = () => {
@@ -103,15 +117,23 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
 
   return (
     <>
-      <input ref={inputRef} type="file" accept="image/*" capture="environment"
+      <input ref={inputRef} type="file" accept="image/*"
         onChange={onFile} className="hidden" />
+      <InAppCameraDialog
+        open={cameraOpen}
+        onCancel={() => setCameraOpen(false)}
+        onCapture={acceptFile}
+      />
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
             <span className="inline-block">
               <Button
                 size="sm"
-                onClick={() => inputRef.current?.click()}
+                onClick={() => {
+                  if (isMobile) setCameraOpen(true);
+                  else inputRef.current?.click();
+                }}
                 disabled={!allowed || checking}
                 aria-disabled={!allowed}
               >

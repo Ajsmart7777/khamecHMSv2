@@ -24,7 +24,8 @@ export type PatientStatus =
   | 'awaiting_payment'
   | 'at_pharmacy'
   | 'admitted'
-  | 'discharged';
+  | 'discharged'
+  | 'awaiting_room';
 
 export type PaymentMethod = 'cash' | 'pos' | 'insurance' | 'corporate' | 'individual_balance';
 

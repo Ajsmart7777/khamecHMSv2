@@ -1,0 +1,2 @@
+ALTER TABLE public.patients DROP CONSTRAINT patients_status_check;
+ALTER TABLE public.patients ADD CONSTRAINT patients_status_check CHECK (status = ANY (ARRAY['registered'::text, 'waiting'::text, 'with_nurse'::text, 'with_doctor'::text, 'in_lab'::text, 'awaiting_billing'::text, 'awaiting_payment'::text, 'at_pharmacy'::text, 'admitted'::text, 'discharged'::text, 'awaiting_room'::text]));

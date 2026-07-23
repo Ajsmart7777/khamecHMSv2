@@ -24,6 +24,7 @@ import { AdmissionQueue } from '@/components/nurse/AdmissionQueue';
 import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { NurseTreatmentInbox } from '@/components/nurse/NurseTreatmentInbox';
 import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
+import { AwaitingRoomPanel } from '@/components/nurse/AwaitingRoomPanel';
 
 const NurseStation = () => {
   const { patients, loading, refreshPatients, updatePatientStatus, getPatientsByStatus } = usePatients();
@@ -79,6 +80,7 @@ const NurseStation = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <AdmissionQueue />
+        <AwaitingRoomPanel />
         <LabResultInbox />
         <NurseTreatmentInbox />
         <AdmittedPatientsPanel sourceStation="nurse" title="Admitted Patients (In-Ward Snap)" />

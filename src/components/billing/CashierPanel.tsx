@@ -26,6 +26,7 @@ import { usePatients } from '@/contexts/PatientContext';
 import { paymentAuditLogger } from '@/lib/auditLogger';
 import { supabase } from '@/integrations/supabase/client';
 import { copayPercent, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
+import { PrintableReceiptDialog } from '@/components/receipts/PrintableReceiptDialog';
 
 const DEBT_ELIGIBLE = new Set(['normal', 'staff', 'staff_family']);
 
@@ -40,6 +41,22 @@ export function CashierPanel() {
   const [balanceAmount, setBalanceAmount] = useState('');
   const [markDebt, setMarkDebt] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [receipt, setReceipt] = useState<{
+    patient: any;
+    amount: number;
+    paymentMethod: string;
+    receiptNumber: string;
+    date: Date;
+    newBalance: number;
+    breakdown: {
+      invoiceNumber: string;
+      invoiceTotal: number;
+      sponsorCovered: number;
+      patientCopay: number;
+      sponsorLabel: string | null;
+      copayPct: number;
+    };
+  } | null>(null);
 
   const pending = getPendingInvoices();
 
@@ -146,6 +163,22 @@ export function CashierPanel() {
         await updatePatientStatus(selected.patient_id, 'at_pharmacy');
         toast.success('Acknowledged — sent to Claims', {
           description: `${selected.invoice_number} · Sponsor covers ₦${remaining.toLocaleString()}`,
+        });
+        setReceipt({
+          patient: selectedPatient,
+          amount: 0,
+          paymentMethod: 'sponsor_claim',
+          receiptNumber: selected.invoice_number,
+          date: new Date(),
+          newBalance: patientBalance,
+          breakdown: {
+            invoiceNumber: selected.invoice_number,
+            invoiceTotal,
+            sponsorCovered: invoiceTotal,
+            patientCopay: 0,
+            sponsorLabel: sponsorLabel(selectedPatient),
+            copayPct: 0,
+          },
         });
         setSelected(null);
       } catch (err: any) {
@@ -273,6 +306,24 @@ export function CashierPanel() {
         { description: `${selected.invoice_number} · ${parts.join(' + ')}` }
       );
 
+      // Open printable receipt with a clean breakdown.
+      setReceipt({
+        patient: selectedPatient,
+        amount: cash + bal,
+        paymentMethod: bal > 0 && cash === 0 ? 'balance' : method,
+        receiptNumber: selected.invoice_number,
+        date: new Date(),
+        newBalance: Number(patientBalance) - bal - (!sponsored && shortfall > 0 ? shortfall : 0),
+        breakdown: {
+          invoiceNumber: selected.invoice_number,
+          invoiceTotal,
+          sponsorCovered: sponsored ? split.coveredAmount : 0,
+          patientCopay: sponsored ? split.copayAmount : invoiceTotal,
+          sponsorLabel: sponsored ? sponsorLabel(selectedPatient) : null,
+          copayPct: sponsored ? split.copayPct : 100,
+        },
+      });
+
       setSelected(null);
       setCashAmount('');
       setBalanceAmount('');
@@ -354,10 +405,24 @@ export function CashierPanel() {
                   ₦{bal.toLocaleString()}
                 </span>
               </p>
-              {spon && (
-                <p className="text-[11px] text-muted-foreground">
-                  Total ₦{Number(inv.total_amount).toLocaleString()} · Sponsor covers ₦
-                  {s.coveredAmount.toLocaleString()}
+              {spon ? (
+                <div className="mt-1.5 grid grid-cols-3 gap-1 text-[10px] rounded-md border border-border/60 bg-muted/40 p-1.5">
+                  <div>
+                    <div className="text-muted-foreground">Total</div>
+                    <div className="font-semibold">₦{Number(inv.total_amount).toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Sponsor</div>
+                    <div className="font-semibold text-primary">₦{s.coveredAmount.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Copay ({s.copayPct}%)</div>
+                    <div className="font-semibold">₦{s.copayAmount.toLocaleString()}</div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Total ₦{Number(inv.total_amount).toLocaleString()}
                 </p>
               )}
               <div className="mt-2 flex items-center justify-between gap-2">
@@ -618,6 +683,20 @@ export function CashierPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {receipt && (
+        <PrintableReceiptDialog
+          open={!!receipt}
+          onOpenChange={(o) => !o && setReceipt(null)}
+          patient={receipt.patient}
+          amount={receipt.amount}
+          paymentMethod={receipt.paymentMethod}
+          receiptNumber={receipt.receiptNumber}
+          date={receipt.date}
+          newBalance={receipt.newBalance}
+          breakdown={receipt.breakdown}
+        />
+      )}
     </div>
   );
 }

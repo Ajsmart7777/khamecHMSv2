@@ -188,14 +188,14 @@ export function ResetDemoDataDialog({ open, onOpenChange }: Props) {
 
     if (errors.length) {
       toast({
-        title: 'Reset completed with errors',
+        title: 'Purge completed with errors',
         description: `${clearedTables} tables cleared. ${errors.length} error(s). Check console.`,
         variant: 'destructive',
       });
       console.error('Reset errors:', errors);
     } else {
       toast({
-        title: 'Demo data reset',
+        title: 'Clinical data purged',
         description: `Cleared ${clearedTables} table(s) across ${selected.size} module(s).`,
       });
     }
@@ -218,11 +218,12 @@ export function ResetDemoDataDialog({ open, onOpenChange }: Props) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-destructive" />
-            Reset demo data
+            Purge clinical data
           </DialogTitle>
           <DialogDescription>
-            Select the modules to clear. Staff, roles, wards/rooms/beds, pricelist,
-            corporate accounts and insurance providers are preserved.
+            Irreversible. Select the modules to permanently delete. Staff, roles,
+            wards/rooms/beds, pricelist, corporate accounts and insurance providers
+            are preserved.
           </DialogDescription>
         </DialogHeader>
 
@@ -282,12 +283,12 @@ export function ResetDemoDataDialog({ open, onOpenChange }: Props) {
             {busy ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Resetting…
+                Purging…
               </>
             ) : (
               <>
                 <Trash2 className="h-4 w-4 mr-2" />
-                Reset selected ({selected.size})
+                Purge selected ({selected.size})
               </>
             )}
           </Button>

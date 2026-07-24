@@ -322,6 +322,7 @@ export function CashierPanel() {
           patientCopay: sponsored ? split.copayAmount : invoiceTotal,
           sponsorLabel: sponsored ? sponsorLabel(selectedPatient) : null,
           copayPct: sponsored ? split.copayPct : 100,
+          owedAfter: !sponsored && shortfall > 0 ? shortfall : 0,
         },
       });
 

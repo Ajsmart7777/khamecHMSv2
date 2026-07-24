@@ -19,7 +19,7 @@ import {
   WifiOff,
   RefreshCw
 } from 'lucide-react';
-import { mockInventory } from '@/data/mockData';
+import { useInventory } from '@/hooks/useInventory';
 import { toast } from 'sonner';
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { PharmacySnapQueue } from '@/components/pharmacy/PharmacySnapQueue';
@@ -51,6 +51,7 @@ import { getPendingWorkflowStation, workflowStationLabel } from '@/lib/workflowR
 
 const Pharmacy = () => {
   const { patients, loading, updatePatientStatus, getPatientsByStatus, refreshPatients } = usePatients();
+  const { items: inventoryItems } = useInventory();
   const { prescriptions, updatePrescriptionStatus, markItemDispensed, getPendingPrescriptions, refreshPrescriptions } = usePrescriptions();
   const [searchQuery, setSearchQuery] = useState('');
   const [isDispenseDialogOpen, setIsDispenseDialogOpen] = useState(false);
@@ -69,7 +70,7 @@ const Pharmacy = () => {
   // Get pending prescriptions from database
   const pendingPrescriptions = getPendingPrescriptions();
 
-  const lowStockItems = mockInventory.filter(item => item.quantity <= item.minStock && item.location === 'pharmacy');
+  const lowStockItems = inventoryItems.filter(item => item.quantity <= item.min_stock && item.location === 'pharmacy');
 
   const getPatientForPrescription = (patientId: string) => {
     return patients.find(p => p.id === patientId);
@@ -250,12 +251,12 @@ const Pharmacy = () => {
 
   const handleStockSearch = () => {
     if (!searchQuery) return;
-    const found = mockInventory.find(i => 
+    const found = inventoryItems.find(i => 
       i.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
     if (found) {
       toast.success(found.name, {
-        description: `Stock: ${found.quantity} units | Min: ${found.minStock} | Location: ${found.location}`
+        description: `Stock: ${found.quantity} units | Min: ${found.min_stock} | Location: ${found.location}`
       });
     } else {
       toast.error('Not Found', {
@@ -452,12 +453,12 @@ const Pharmacy = () => {
                     key={item.id} 
                     className="flex items-center justify-between p-3 bg-warning/10 rounded-lg border border-warning/20 cursor-pointer hover:bg-warning/20 transition-colors"
                     onClick={() => toast.success(item.name, { 
-                      description: `Current stock: ${item.quantity} units. Minimum required: ${item.minStock} units.` 
+                      description: `Current stock: ${item.quantity} units. Minimum required: ${item.min_stock} units.` 
                     })}
                   >
                     <div>
                       <p className="font-medium text-sm">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">Min: {item.minStock} units</p>
+                      <p className="text-xs text-muted-foreground">Min: {item.min_stock} units</p>
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-warning">{item.quantity}</p>

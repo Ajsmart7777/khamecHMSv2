@@ -21,8 +21,8 @@ import {
 } from '@/hooks/useVisits';
 import { usePatients } from '@/contexts/PatientContext';
 import { VisitEnvelopeDialog } from '@/components/visit/VisitEnvelopeDialog';
-import { PatientCardDialog } from '@/components/visit/PatientCardDialog';
 import { Patient } from '@/contexts/PatientContext';
+import { ClaimDetailDialog } from './ClaimDetailDialog';
 import { downloadClaimsPacketPdf, downloadBulkClaimsPacketsPdf } from '@/lib/claimsPacketPdf';
 import { toast } from 'sonner';
 
@@ -37,7 +37,7 @@ export function ClaimsQueue() {
   const [to, setTo] = useState('');
   const [tab, setTab] = useState<'pending' | 'info_requested' | 'rejected' | 'settled'>('pending');
   const [open, setOpen] = useState<Visit | null>(null);
-  const [cardPatient, setCardPatient] = useState<Patient | null>(null);
+  const [detailVisit, setDetailVisit] = useState<Visit | null>(null);
   const [settleTarget, setSettleTarget] = useState<Visit | null>(null);
   const [settleNotes, setSettleNotes] = useState('');
   const [settling, setSettling] = useState(false);
@@ -326,8 +326,8 @@ export function ClaimsQueue() {
                               {v.claim_reason_code.replace(/_/g, ' ')}
                             </Badge>
                           )}
-                          <Button size="sm" variant="outline" onClick={() => p && setCardPatient(p)} disabled={!p}>
-                            <Eye className="h-3 w-3 mr-1" /> Card
+                          <Button size="sm" variant="outline" onClick={() => setDetailVisit(v)}>
+                            <Eye className="h-3 w-3 mr-1" /> Review Claim
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => setOpen(v)}>
                             Envelope
@@ -393,13 +393,15 @@ export function ClaimsQueue() {
       </Tabs>
 
       <VisitEnvelopeDialog open={!!open} onOpenChange={(o) => !o && setOpen(null)} visit={open} />
-      {cardPatient && (
-        <PatientCardDialog
-          patient={cardPatient}
-          open={!!cardPatient}
-          onOpenChange={(o) => !o && setCardPatient(null)}
-        />
-      )}
+      <ClaimDetailDialog
+        visit={detailVisit}
+        open={!!detailVisit}
+        onOpenChange={(o) => !o && setDetailVisit(null)}
+        onSettle={(v) => { setSettleTarget(v); setSettleNotes(''); }}
+        onReject={(v) => { setActionTarget({ visit: v, kind: 'reject' }); setReasonCode(''); setReasonNotes(''); }}
+        onRequestInfo={(v) => { setActionTarget({ visit: v, kind: 'info' }); setReasonCode(''); setReasonNotes(''); }}
+        onReopen={(v) => { setReopenTarget(v); setReopenReason(''); }}
+      />
 
       <AlertDialog open={!!settleTarget} onOpenChange={(o) => !o && setSettleTarget(null)}>
         <AlertDialogContent>

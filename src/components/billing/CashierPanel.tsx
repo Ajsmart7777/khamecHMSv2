@@ -422,10 +422,15 @@ export function CashierPanel() {
                 {patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown patient'}
               </p>
               <p className="text-[11px] text-muted-foreground">
-                {patient?.card_number} · Balance{' '}
-                <span className={bal < 0 ? 'text-destructive font-semibold' : bal > 0 ? 'text-success font-semibold' : ''}>
-                  ₦{bal.toLocaleString()}
-                </span>
+                {patient?.card_number}
+                {patient && hasWallet(patient) && (
+                  <>
+                    {' · Balance '}
+                    <span className={bal < 0 ? 'text-destructive font-semibold' : bal > 0 ? 'text-success font-semibold' : ''}>
+                      ₦{bal.toLocaleString()}
+                    </span>
+                  </>
+                )}
               </p>
               {spon ? (
                 <div className="mt-1.5 grid grid-cols-3 gap-1 text-[10px] rounded-md border border-border/60 bg-muted/40 p-1.5">

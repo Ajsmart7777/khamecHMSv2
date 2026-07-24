@@ -762,6 +762,7 @@ export type Database = {
           coverage_percentage: number
           created_at: string
           email: string | null
+          hmo_code: string | null
           id: string
           max_coverage_amount: number
           name: string
@@ -779,6 +780,7 @@ export type Database = {
           coverage_percentage?: number
           created_at?: string
           email?: string | null
+          hmo_code?: string | null
           id?: string
           max_coverage_amount?: number
           name: string
@@ -796,6 +798,7 @@ export type Database = {
           coverage_percentage?: number
           created_at?: string
           email?: string | null
+          hmo_code?: string | null
           id?: string
           max_coverage_amount?: number
           name?: string
@@ -2498,6 +2501,8 @@ export type Database = {
           opened_by: string | null
           patient_id: string
           presenting_complaint: string | null
+          sponsor_auth: Json
+          sponsor_auth_captured_at: string | null
           sponsor_type: string | null
           status: Database["public"]["Enums"]["visit_status"]
           total_charged: number
@@ -2526,6 +2531,8 @@ export type Database = {
           opened_by?: string | null
           patient_id: string
           presenting_complaint?: string | null
+          sponsor_auth?: Json
+          sponsor_auth_captured_at?: string | null
           sponsor_type?: string | null
           status?: Database["public"]["Enums"]["visit_status"]
           total_charged?: number
@@ -2554,6 +2561,8 @@ export type Database = {
           opened_by?: string | null
           patient_id?: string
           presenting_complaint?: string | null
+          sponsor_auth?: Json
+          sponsor_auth_captured_at?: string | null
           sponsor_type?: string | null
           status?: Database["public"]["Enums"]["visit_status"]
           total_charged?: number

@@ -372,9 +372,16 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   };
 
   const handleRecordPayment = async (amount: number, method: string) => {
-    const newBalance = patient.balance + amount;
     const receiptNumber = generateReceiptNumber();
-    
+
+    // Sponsored / insured patients settle at the Cashier — never at Reception —
+    // and their wallet must never be touched.
+    if (!canUseBalance) {
+      toast.error('Sponsored patients settle at the Cashier, not Reception');
+      setIsPaymentOpen(false);
+      return;
+    }
+
     // If there's a pending invoice, record payment against it
     let isInvoiceFullyPaid = false;
     if (pendingInvoice) {
@@ -382,9 +389,10 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
       const newPaidAmount = pendingInvoice.paid_amount + amount;
       isInvoiceFullyPaid = newPaidAmount >= pendingInvoice.total_amount;
     }
-    
-    const success = await updatePatient(patient.id, { balance: newBalance });
-    if (success) {
+
+    // Recording an invoice payment must NOT credit the wallet — payments close
+    // invoices, they don't top up. Top-ups go through BalanceRequestDialog.
+    {
       setIsPaymentOpen(false);
       // Show receipt dialog
       setReceiptData({
@@ -393,7 +401,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
         method,
         receiptNumber,
         date: new Date(),
-        newBalance,
+        newBalance: Number(patient.balance || 0),
       });
       
       // Auto-route patient after full payment
@@ -418,7 +426,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
           amount,
           payment_method: method,
           previous_balance: patient.balance,
-          new_balance: newBalance
+          new_balance: patient.balance,
         }
       );
       
@@ -508,7 +516,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
 
       {/* Actions */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {pendingInvoice ? (
+        {pendingInvoice && canUseBalance ? (
           <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
             <DialogTrigger asChild>
               <Button 
@@ -532,6 +540,16 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
               <PaymentForm onSubmit={handleRecordPayment} onCancel={() => setIsPaymentOpen(false)} defaultAmount={pendingInvoice.total_amount - pendingInvoice.paid_amount} invoiceNumber={pendingInvoice.invoice_number} />
             </DialogContent>
           </Dialog>
+        ) : pendingInvoice && !canUseBalance ? (
+          <Button
+            variant="module"
+            className="h-20 flex-col gap-2 opacity-60 cursor-not-allowed"
+            disabled
+            title="Sponsored patients pay copay at the Cashier"
+          >
+            <CreditCard className="h-5 w-5" />
+            <span>Pay at Cashier</span>
+          </Button>
         ) : (
           <Button 
             variant="module" 

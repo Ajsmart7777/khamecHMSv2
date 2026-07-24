@@ -27,9 +27,10 @@ import { ExpiryBadge } from './ExpiryBadge';
 import { downloadClaimsPacketPdf, downloadBulkClaimsPacketsPdf } from '@/lib/claimsPacketPdf';
 import { toast } from 'sonner';
 
-// Claims manager scope: insured/scheme patients only.
+// Claims manager scope: external insurance schemes only (NHIA, HMO, Katchma).
 // Corporate & retainer are handled by the Accountant module.
-const INSURED_SPONSORS = ['nhia', 'hmo', 'katchma', 'staff', 'staff_family'] as const;
+// Staff care is free (no claim). Staff family pays 50% out-of-pocket (no claim).
+const INSURED_SPONSORS = ['nhia', 'hmo', 'katchma'] as const;
 
 export function ClaimsQueue() {
   const { getPatientById } = usePatients();

@@ -453,12 +453,12 @@ const Pharmacy = () => {
                     key={item.id} 
                     className="flex items-center justify-between p-3 bg-warning/10 rounded-lg border border-warning/20 cursor-pointer hover:bg-warning/20 transition-colors"
                     onClick={() => toast.success(item.name, { 
-                      description: `Current stock: ${item.quantity} units. Minimum required: ${item.minStock} units.` 
+                      description: `Current stock: ${item.quantity} units. Minimum required: ${item.min_stock} units.` 
                     })}
                   >
                     <div>
                       <p className="font-medium text-sm">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">Min: {item.minStock} units</p>
+                      <p className="text-xs text-muted-foreground">Min: {item.min_stock} units</p>
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-warning">{item.quantity}</p>

@@ -95,6 +95,29 @@ export function useInvoices() {
       const invoiceNumber = generateInvoiceNumber();
       const totalAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
+      // Auto-tag invoice with sponsor info from patient so corporate/retainer
+      // claims surface immediately in the Accountant module.
+      const { data: patient } = await supabase
+        .from('patients')
+        .select('account_type, corporate_id, insurance_provider, insurance_plan')
+        .eq('id', patientId)
+        .maybeSingle();
+
+      const acct = (patient?.account_type || '').toLowerCase();
+      let sponsorType: string | null = null;
+      let corporateAccountId: string | null = null;
+      if (acct === 'corporate') {
+        sponsorType = 'corporate';
+        corporateAccountId = patient?.corporate_id ?? null;
+      } else if (acct === 'retainer') {
+        sponsorType = 'retainer';
+        corporateAccountId = patient?.corporate_id ?? null;
+      } else if (acct === 'insurance' || patient?.insurance_provider) {
+        sponsorType = 'insurance';
+      } else if (acct && acct !== 'cash' && acct !== 'normal') {
+        sponsorType = acct;
+      }
+
       const { data: invoice, error: invoiceError } = await supabase
         .from('invoices')
         .insert({
@@ -103,6 +126,8 @@ export function useInvoices() {
           total_amount: totalAmount,
           status: 'pending',
           notes: notes || null,
+          sponsor_type: sponsorType,
+          corporate_account_id: corporateAccountId,
         })
         .select()
         .single();

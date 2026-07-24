@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTasks, TaskSource } from '@/hooks/useTasks';
 import { usePatients } from '@/contexts/PatientContext';
@@ -6,10 +6,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, ListChecks, Hand, X, Search, FilterX, ExternalLink } from 'lucide-react';
+import { RefreshCw, ListChecks, Hand, X, Search, FilterX, ExternalLink, AlertTriangle, Inbox, Wifi, WifiOff } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -89,12 +90,29 @@ export function TasksPanel({
   emptyMessage = 'No open tasks.',
   maxHeight = '420px',
 }: TasksPanelProps) {
-  const { tasks, loading, error, refresh, claimTask, releaseTask } = useTasks({ role, userId, status, source, patientId });
+  const {
+    tasks,
+    loading,
+    error,
+    initialized,
+    lastUpdatedAt,
+    connected,
+    refresh,
+    claimTask,
+    releaseTask,
+  } = useTasks({ role, userId, status, source, patientId });
   const { patients } = usePatients();
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [, setNowTick] = useState(0);
+
+  // Tick every 30s so relative timestamps and urgency chips stay fresh.
+  useEffect(() => {
+    const id = setInterval(() => setNowTick(t => t + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
   const [query, setQuery] = useState('');
   const [assignFilter, setAssignFilter] = useState<AssignFilter>('all');
   const [statusFilter, setStatusFilter] = useState<string | 'all'>('all');
@@ -208,6 +226,18 @@ export function TasksPanel({
           {filtersActive && visible.length !== tasks.length && (
             <span className="text-[10px] text-muted-foreground font-normal">of {tasks.length}</span>
           )}
+          <span
+            className={`inline-flex items-center gap-1 text-[10px] font-normal ${connected ? 'text-emerald-600' : 'text-muted-foreground'}`}
+            title={connected ? 'Live updates connected' : 'Live updates reconnecting'}
+          >
+            {connected ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+            {connected ? 'Live' : 'Offline'}
+          </span>
+          {lastUpdatedAt && (
+            <span className="text-[10px] text-muted-foreground font-normal">
+              · updated {formatDistanceToNow(lastUpdatedAt, { addSuffix: true })}
+            </span>
+          )}
         </CardTitle>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
@@ -314,9 +344,60 @@ export function TasksPanel({
             )}
           </div>
         </div>
-        {error && <div className="text-sm text-destructive mb-2">{error}</div>}
-        {visible.length === 0 && !loading ? (
-          <div className="text-sm text-muted-foreground py-4 text-center">{emptyMessage}</div>
+        {error && (
+          <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium text-destructive">Couldn't load tasks</div>
+              <div className="text-xs text-destructive/80 truncate">{error}</div>
+            </div>
+            <Button size="sm" variant="outline" onClick={refresh} disabled={loading}>
+              <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />
+              Retry
+            </Button>
+          </div>
+        )}
+        {!initialized && loading ? (
+          <div className="space-y-1" aria-busy="true" aria-live="polite">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="w-full px-3 py-2 rounded-md border flex items-center gap-3">
+                <Skeleton className="h-5 w-14 rounded" />
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <Skeleton className="h-3.5 w-2/5" />
+                  <Skeleton className="h-3 w-3/5" />
+                </div>
+                <div className="flex flex-col items-end gap-1.5">
+                  <Skeleton className="h-3 w-12" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+                <Skeleton className="h-7 w-16 rounded" />
+              </div>
+            ))}
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="flex flex-col items-center justify-center text-center py-8 gap-2">
+            <Inbox className="w-8 h-8 text-muted-foreground/60" />
+            <div className="text-sm font-medium">
+              {tasks.length === 0
+                ? emptyMessage
+                : 'No tasks match your filters'}
+            </div>
+            <div className="text-xs text-muted-foreground max-w-xs">
+              {tasks.length === 0
+                ? 'New work will appear here automatically as staff move patients through the workflow.'
+                : `Hiding ${tasks.length} task${tasks.length === 1 ? '' : 's'}. Adjust or clear filters to see more.`}
+            </div>
+            {tasks.length > 0 && filtersActive && (
+              <Button size="sm" variant="outline" onClick={clearFilters} className="mt-1">
+                <FilterX className="w-3.5 h-3.5 mr-1" /> Clear filters
+              </Button>
+            )}
+            {tasks.length === 0 && (
+              <Button size="sm" variant="ghost" onClick={refresh} disabled={loading} className="mt-1">
+                <RefreshCw className={`w-3.5 h-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} /> Refresh
+              </Button>
+            )}
+          </div>
         ) : (
           <div className="space-y-1 overflow-y-auto" style={{ maxHeight }}>
             {visible.map(t => {

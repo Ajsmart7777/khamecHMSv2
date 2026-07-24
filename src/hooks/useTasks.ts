@@ -42,6 +42,9 @@ export function useTasks(opts: UseTasksOpts = {}) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const [connected, setConnected] = useState(false);
 
   const fetchTasks = async () => {
     setLoading(true);
@@ -53,8 +56,13 @@ export function useTasks(opts: UseTasksOpts = {}) {
     if (status) q = Array.isArray(status) ? q.in('status', status) : q.eq('status', status);
     if (source) q = Array.isArray(source) ? q.in('source', source) : q.eq('source', source);
     const { data, error } = await q;
-    if (error) setError(error.message);
-    else setTasks((data ?? []) as unknown as Task[]);
+    if (error) {
+      setError(error.message);
+    } else {
+      setTasks((data ?? []) as unknown as Task[]);
+      setLastUpdatedAt(new Date());
+    }
+    setInitialized(true);
     setLoading(false);
   };
 
@@ -71,8 +79,11 @@ export function useTasks(opts: UseTasksOpts = {}) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders' }, fetchTasks)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_requests' }, fetchTasks)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_claims' }, fetchTasks)
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+      .subscribe((s) => setConnected(s === 'SUBSCRIBED'));
+    return () => {
+      setConnected(false);
+      supabase.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, userId, patientId, JSON.stringify(status), JSON.stringify(source), enabled]);
 
@@ -94,5 +105,15 @@ export function useTasks(opts: UseTasksOpts = {}) {
     return data as unknown as boolean;
   };
 
-  return { tasks, loading, error, refresh: fetchTasks, claimTask, releaseTask };
+  return {
+    tasks,
+    loading,
+    error,
+    initialized,
+    lastUpdatedAt,
+    connected,
+    refresh: fetchTasks,
+    claimTask,
+    releaseTask,
+  };
 }

@@ -31,6 +31,8 @@ const SYSTEM_ROLES: { value: string; label: string }[] = [
   { value: 'lab_tech', label: 'Lab Technician' },
   { value: 'pharmacist', label: 'Pharmacist' },
   { value: 'billing', label: 'Billing / Cashier' },
+  { value: 'cashier', label: 'Cashier' },
+  { value: 'claims_manager', label: 'Claims Manager' },
   { value: 'store', label: 'Store' },
   { value: 'accountant', label: 'Accountant' },
   { value: 'admin', label: 'Admin' },

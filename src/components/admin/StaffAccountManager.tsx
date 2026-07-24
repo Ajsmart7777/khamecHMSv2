@@ -52,6 +52,9 @@ const roleOptions: { value: AppRole; label: string }[] = [
   { value: 'lab_tech', label: 'Lab Tech' },
   { value: 'pharmacist', label: 'Pharmacist' },
   { value: 'billing', label: 'Billing' },
+  { value: 'cashier', label: 'Cashier' },
+  { value: 'claims_manager', label: 'Claims Manager' },
+  { value: 'accountant', label: 'Accountant' },
   { value: 'store', label: 'Store' },
 ];
 
@@ -64,6 +67,9 @@ const roleBadgeColor: Record<string, string> = {
   lab_tech: 'bg-orange-500/10 text-orange-600 border-orange-200',
   pharmacist: 'bg-teal-500/10 text-teal-600 border-teal-200',
   billing: 'bg-yellow-500/10 text-yellow-600 border-yellow-200',
+  cashier: 'bg-amber-500/10 text-amber-600 border-amber-200',
+  claims_manager: 'bg-rose-500/10 text-rose-600 border-rose-200',
+  accountant: 'bg-emerald-500/10 text-emerald-600 border-emerald-200',
   store: 'bg-indigo-500/10 text-indigo-600 border-indigo-200',
 };
 

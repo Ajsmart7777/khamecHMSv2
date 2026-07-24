@@ -12,7 +12,7 @@ import { snapPhotoUrl } from '@/hooks/useSnapOrders';
 import { Patient } from '@/contexts/PatientContext';
 import { Visit } from '@/hooks/useVisits';
 import { Button } from '@/components/ui/button';
-import { copayPercent, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
+import { copayPercent, hasWallet, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
 
 // ---------- types ----------
 type RowKind =
@@ -358,6 +358,7 @@ export function PatientLedgerCard({
   }, [visits]); // eslint-disable-line
 
   const outstanding = Number(patient.balance ?? 0);
+  const showWallet = hasWallet(patient);
 
   return (
     <div className="w-full">
@@ -403,15 +404,31 @@ export function PatientLedgerCard({
           </div>
           <div className="text-right flex items-start gap-3">
             <div>
-              <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1 justify-end">
-                <Wallet className="h-3 w-3" /> Account Balance
-              </div>
-              <div className={`text-2xl md:text-3xl font-bold font-mono ${outstanding < 0 ? 'text-destructive' : 'text-foreground'}`}>
-                ₦{outstanding.toLocaleString()}
-              </div>
-              <div className="text-[10px] text-muted-foreground font-medium">
-                Updated {format(new Date(), 'dd MMM yyyy')}
-              </div>
+              {showWallet ? (
+                <>
+                  <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1 justify-end">
+                    <Wallet className="h-3 w-3" /> Account Balance
+                  </div>
+                  <div className={`text-2xl md:text-3xl font-bold font-mono ${outstanding < 0 ? 'text-destructive' : 'text-foreground'}`}>
+                    ₦{outstanding.toLocaleString()}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground font-medium">
+                    Updated {format(new Date(), 'dd MMM yyyy')}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1 justify-end">
+                    Sponsor
+                  </div>
+                  <div className="text-lg md:text-xl font-bold text-primary">
+                    {sponsorLabel(patient)}
+                  </div>
+                  <div className="text-[10px] text-muted-foreground font-medium">
+                    Settled via sponsor · no wallet
+                  </div>
+                </>
+              )}
             </div>
             {onClose && (
               <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8">

@@ -23,10 +23,13 @@ export interface Visit {
   force_new_reason: string | null;
   created_at: string;
   updated_at: string;
-  claim_status?: 'pending' | 'settled' | 'not_applicable';
+  claim_status?: 'pending' | 'settled' | 'not_applicable' | 'rejected' | 'info_requested';
   claim_settled_at?: string | null;
   claim_settled_by?: string | null;
   claim_notes?: string | null;
+  claim_reason_code?: string | null;
+  claim_last_action_at?: string | null;
+  claim_last_action_by?: string | null;
 }
 
 /** Find the currently open visit for a patient (or null). */
@@ -159,7 +162,7 @@ export function useClaimsQueue(filters?: {
   sponsorType?: string | null;
   from?: string;
   to?: string;
-  claimStatus?: 'pending' | 'settled';
+  claimStatus?: 'pending' | 'settled' | 'rejected' | 'info_requested';
   sponsors?: string[];
 }) {
   const [visits, setVisits] = useState<Visit[]>([]);
@@ -221,3 +224,52 @@ export async function reopenClaim(visitId: string, reason: string): Promise<void
   });
   if (error) throw error;
 }
+
+/** Mark an insured visit's claim as rejected (claims_manager / admin). */
+export async function markClaimRejected(
+  visitId: string,
+  reasonCode: string,
+  notes?: string
+): Promise<void> {
+  const { error } = await supabase.rpc('mark_claim_rejected', {
+    _visit_id: visitId,
+    _reason_code: reasonCode,
+    _notes: notes ?? null,
+  });
+  if (error) throw error;
+}
+
+/** Request more information from the patient/scheme for a claim. */
+export async function requestClaimInfo(
+  visitId: string,
+  reasonCode: string,
+  notes?: string
+): Promise<void> {
+  const { error } = await supabase.rpc('request_claim_info', {
+    _visit_id: visitId,
+    _reason_code: reasonCode,
+    _notes: notes ?? null,
+  });
+  if (error) throw error;
+}
+
+export const CLAIM_REJECT_REASON_CODES = [
+  { code: 'coverage_expired', label: 'Coverage expired' },
+  { code: 'service_not_covered', label: 'Service not covered by plan' },
+  { code: 'missing_authorization', label: 'Missing pre-authorization' },
+  { code: 'duplicate_claim', label: 'Duplicate claim' },
+  { code: 'patient_ineligible', label: 'Patient ineligible / not enrolled' },
+  { code: 'pricing_dispute', label: 'Pricing / tariff dispute' },
+  { code: 'invalid_diagnosis', label: 'Invalid or missing diagnosis' },
+  { code: 'other', label: 'Other (see notes)' },
+] as const;
+
+export const CLAIM_INFO_REASON_CODES = [
+  { code: 'missing_id_card', label: 'Missing scheme ID card / proof' },
+  { code: 'wrong_enrollee_id', label: 'Wrong enrollee ID' },
+  { code: 'plan_mismatch', label: 'Plan on record does not match' },
+  { code: 'need_referral', label: 'Referral letter required' },
+  { code: 'need_authorization', label: 'Pre-authorization code required' },
+  { code: 'clarify_diagnosis', label: 'Clarify diagnosis / prescription' },
+  { code: 'other', label: 'Other (see notes)' },
+] as const;

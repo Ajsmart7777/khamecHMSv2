@@ -4,11 +4,13 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import {
   Loader2, X, Download, CheckCircle2, XCircle, HelpCircle, RotateCcw,
-  FileText, Activity, Receipt, Paperclip, History, ShieldCheck, User, Phone, Calendar,
+  FileText, Activity, Receipt, Paperclip, History, ShieldCheck, User, Phone, Calendar, KeyRound, Save,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -18,6 +20,12 @@ import { usePatientVisits } from '@/hooks/useVisits';
 import { splitInvoice, sponsorLabel } from '@/lib/copay';
 import { evaluateClaimRequirements, isReadyToSubmit } from '@/lib/claimRequirements';
 import { ClaimDocsChecklist } from './ClaimDocsChecklist';
+import { CopyButton } from './CopyButton';
+import { ExpiryBadge } from './ExpiryBadge';
+import {
+  detectHmoCode, encounterCodeLabel, encounterCodePlaceholder,
+  type SponsorAuth,
+} from '@/lib/hmoAuth';
 import { downloadClaimsPacketPdf } from '@/lib/claimsPacketPdf';
 import { signedUrl } from '@/hooks/useVisitAttachments';
 import { cn } from '@/lib/utils';
@@ -43,6 +51,7 @@ interface Bundle {
   attachments: any[];
   emrAttachments: any[];
   audit: any[];
+  provider: { name: string | null; hmo_code: string | null } | null;
 }
 
 export function ClaimDetailDialog({
@@ -63,7 +72,7 @@ export function ClaimDetailDialog({
     (async () => {
       setLoading(true);
       try {
-        const [pRes, iRes, itRes, vRes, rxRes, rxIRes, lRes, aRes, eaRes, auRes] = await Promise.all([
+        const [pRes, iRes, itRes, vRes, rxRes, rxIRes, lRes, aRes, eaRes, auRes, prRes] = await Promise.all([
           supabase.from('patients').select('*').eq('id', visit.patient_id).maybeSingle(),
           supabase.from('invoices').select('*').eq('visit_id', visit.id).order('created_at'),
           supabase.from('invoice_items').select('*'),
@@ -74,12 +83,17 @@ export function ClaimDetailDialog({
           supabase.from('visit_attachments').select('*').eq('visit_id', visit.id).order('captured_at', { ascending: false }),
           supabase.from('emr_attachments').select('*').eq('patient_id', visit.patient_id).order('created_at', { ascending: false }),
           supabase.rpc('get_visit_audit_trail', { _visit_id: visit.id }),
+          supabase.from('insurance_providers').select('name, hmo_code'),
         ]);
         if (cancelled) return;
-        const invoiceIds = new Set((iRes.data ?? []).map((x: any) => x.id));
-        const rxIds = new Set((rxRes.data ?? []).map((x: any) => x.id));
+        const patientRow: any = pRes.data;
+        const providers = (prRes.data ?? []) as Array<{ name: string; hmo_code: string | null }>;
+        const providerName = patientRow?.insurance_provider ?? visit.insurance_plan ?? null;
+        const matched = providerName
+          ? providers.find((p) => p.name?.toLowerCase().trim() === String(providerName).toLowerCase().trim())
+          : null;
         setBundle({
-          patient: pRes.data,
+          patient: patientRow,
           invoices: (iRes.data ?? []).map((inv: any) => ({
             ...inv,
             items: (itRes.data ?? []).filter((it: any) => it.invoice_id === inv.id),
@@ -93,6 +107,7 @@ export function ClaimDetailDialog({
           attachments: aRes.data ?? [],
           emrAttachments: eaRes.data ?? [],
           audit: auRes.data ?? [],
+          provider: matched ? { name: matched.name, hmo_code: matched.hmo_code } : null,
         });
       } catch (e: any) {
         toast.error(e?.message ?? 'Failed to load claim details');
@@ -151,6 +166,15 @@ export function ClaimDetailDialog({
   const canSettle = visit.claim_status === 'pending' || visit.claim_status === 'info_requested';
   const canReopen = visit.claim_status === 'rejected' || visit.claim_status === 'settled';
 
+  const hmoCode = detectHmoCode({
+    providerHmoCode: bundle?.provider?.hmo_code,
+    providerName: bundle?.provider?.name ?? bundle?.patient?.insurance_provider ?? null,
+    insurancePlan: visit.insurance_plan,
+  });
+  const codeLabel = encounterCodeLabel(hmoCode, visit.sponsor_type);
+  const sponsorAuth: SponsorAuth = ((visit as any).sponsor_auth ?? {}) as SponsorAuth;
+  const savedCode = sponsorAuth.code ?? '';
+
   const claimBadgeTone: Record<string, string> = {
     pending: 'bg-blue-100 text-blue-800',
     info_requested: 'bg-amber-100 text-amber-800',
@@ -199,12 +223,48 @@ export function ClaimDetailDialog({
                 {visit.claim_reason_code && (
                   <Badge variant="outline" className="text-xs">{visit.claim_reason_code.replace(/_/g, ' ')}</Badge>
                 )}
+                {(canSettle || !isTerminal) && <ExpiryBadge openedAt={visit.opened_at} />}
+              </div>
+              <div className="mt-1.5 flex items-center gap-3 flex-wrap text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <span className="uppercase">Patient ID</span>
+                  <span className="font-mono text-foreground">{patient?.card_number ?? '—'}</span>
+                  <CopyButton value={patient?.card_number} label="Patient ID" />
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="uppercase">Visit</span>
+                  <span className="font-mono text-foreground">{visit.visit_number}</span>
+                  <CopyButton value={visit.visit_number} label="Visit number" />
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="uppercase">Bill Total</span>
+                  <span className="text-foreground">₦{totalCharged.toLocaleString()}</span>
+                  <CopyButton value={String(totalCharged)} label="Bill total" />
+                </span>
+                {savedCode && (
+                  <span className="flex items-center gap-1">
+                    <span className="uppercase">Code</span>
+                    <span className="font-mono text-foreground">{savedCode}</span>
+                    <CopyButton value={savedCode} label={codeLabel} />
+                  </span>
+                )}
               </div>
             </div>
             <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
               <X className="h-4 w-4" />
             </Button>
           </div>
+
+          {/* HMO Encounter / Pre-Auth Code panel */}
+          {(visit.sponsor_type ?? '').toLowerCase() === 'hmo' || hmoCode ? (
+            <EncounterCodePanel
+              visitId={visit.id}
+              label={codeLabel}
+              placeholder={encounterCodePlaceholder(hmoCode)}
+              initial={sponsorAuth}
+              readOnly={isTerminal}
+            />
+          ) : null}
 
           {/* Financial summary strip */}
           <div className="grid grid-cols-4 gap-2 text-center">
@@ -358,6 +418,96 @@ function SummaryTab({ visit, bundle }: { visit: Visit; bundle: Bundle }) {
           <div>Clinicians involved: <span className="text-muted-foreground">{doctors.length || '—'}</span></div>
         </div>
       </Card>
+    </div>
+  );
+}
+
+// -------- Encounter Code panel --------
+function EncounterCodePanel({
+  visitId, label, placeholder, initial, readOnly,
+}: {
+  visitId: string;
+  label: string;
+  placeholder: string;
+  initial: SponsorAuth;
+  readOnly?: boolean;
+}) {
+  const [code, setCode] = useState(initial.code ?? '');
+  const [notes, setNotes] = useState(initial.notes ?? '');
+  const [saving, setSaving] = useState(false);
+  const dirty = (code ?? '') !== (initial.code ?? '') || (notes ?? '') !== (initial.notes ?? '');
+
+  useEffect(() => {
+    setCode(initial.code ?? '');
+    setNotes(initial.notes ?? '');
+  }, [initial.code, initial.notes, visitId]);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const payload: SponsorAuth = {
+        code: code.trim() || undefined,
+        notes: notes.trim() || undefined,
+        captured_at: new Date().toISOString(),
+      };
+      const { error } = await supabase
+        .from('visits')
+        .update({
+          sponsor_auth: payload as any,
+          sponsor_auth_captured_at: new Date().toISOString(),
+        } as any)
+        .eq('id', visitId);
+      if (error) throw error;
+      toast.success('Encounter code saved');
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Could not save code');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-blue-200 bg-blue-50/40 p-3">
+      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+        <div className="flex items-center gap-2 text-sm font-semibold text-blue-900">
+          <KeyRound className="h-4 w-4" />
+          {label}
+        </div>
+        {initial.captured_at && (
+          <span className="text-[10px] text-muted-foreground">
+            Last updated {format(new Date(initial.captured_at), 'MMM d, yyyy HH:mm')}
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-[1fr,1fr,auto] gap-2 items-start">
+        <div className="flex items-center gap-1">
+          <Input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder={placeholder}
+            disabled={readOnly}
+            className="font-mono"
+          />
+          <CopyButton value={code} label={label} />
+        </div>
+        <Textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Notes for the sponsor portal (optional)"
+          rows={1}
+          disabled={readOnly}
+          className="min-h-[38px]"
+        />
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={readOnly || saving || !dirty}
+          className="whitespace-nowrap"
+        >
+          {saving ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+          Save code
+        </Button>
+      </div>
     </div>
   );
 }

@@ -1,171 +1,77 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Shield, 
   Users,
-  Settings,
-  FileText,
   Bell,
-  Lock,
   UserPlus,
-  Eye,
-  Edit,
   Trash2,
-  X,
-  Check,
   ClipboardList,
   AlertTriangle,
   BedDouble,
+  BedSingle,
+  Package,
 } from 'lucide-react';
 import { AuditLogsViewer } from '@/components/admin/AuditLogsViewer';
 import { StaffAccountManager } from '@/components/admin/StaffAccountManager';
 import { ErrorLogsViewer } from '@/components/admin/ErrorLogsViewer';
 import { WardsRoomsManager } from '@/components/admin/WardsRoomsManager';
 import { ResetDemoDataDialog } from '@/components/admin/ResetDemoDataDialog';
-
-import { mockStaff } from '@/data/mockData';
-import { Staff, UserRole } from '@/types/hms';
+import { useStaff } from '@/hooks/useStaff';
+import { useInventory } from '@/hooks/useInventory';
 import { StatsCard } from '@/components/dashboard/StatsCard';
-import { toast } from '@/hooks/use-toast';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { formatDistanceToNow } from 'date-fns';
 
-const systemAlerts = [
-  { id: 1, message: 'Low stock alert: Insulin Syringes below minimum', type: 'warning', time: '10 mins ago' },
-  { id: 2, message: 'New staff registration pending approval', type: 'info', time: '1 hour ago' },
-  { id: 3, message: 'Daily backup completed successfully', type: 'success', time: '2 hours ago' },
-];
+type SystemAlert = {
+  id: string;
+  message: string;
+  type: 'warning' | 'info' | 'error';
+  time: string;
+};
 
 const Admin = () => {
-  const [staff, setStaff] = useState(mockStaff);
-  const [selectedUser, setSelectedUser] = useState<typeof mockStaff[0] | null>(null);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
-  const [editForm, setEditForm] = useState<{ firstName: string; lastName: string; email: string; role: UserRole; department: string; phone: string }>({ firstName: '', lastName: '', email: '', role: 'nurse', department: '', phone: '' });
+  const { staff } = useStaff();
+  const { items: inventoryItems } = useInventory();
+  const [activeAdmissions, setActiveAdmissions] = useState(0);
+  const [recentErrors, setRecentErrors] = useState<{ id: string; error_type: string; error_message: string; created_at: string }[]>([]);
 
-  const handleView = (user: typeof mockStaff[0]) => {
-    setSelectedUser(user);
-    setIsViewDialogOpen(true);
-  };
+  const totalStaff = staff.length;
+  const pendingAccounts = staff.filter(s => !s.isSystemUser && s.status === 'active').length;
+  const lowStockItems = inventoryItems.filter(i => i.quantity <= i.min_stock);
 
-  const handleEdit = (user: typeof mockStaff[0]) => {
-    setSelectedUser(user);
-    setEditForm({
-      firstName: user.firstName,
-      lastName: user.lastName,
-      email: user.email,
-      role: user.role as typeof editForm.role,
-      department: user.department,
-      phone: user.phone
-    });
-    setIsEditDialogOpen(true);
-  };
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const [{ count }, { data: errs }] = await Promise.all([
+        supabase.from('admissions').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('error_logs').select('id, error_type, error_message, created_at').order('created_at', { ascending: false }).limit(3),
+      ]);
+      if (cancelled) return;
+      setActiveAdmissions(count ?? 0);
+      setRecentErrors(errs ?? []);
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
-  const handleSaveEdit = () => {
-    if (selectedUser) {
-      setStaff(staff.map(s => s.id === selectedUser.id ? { 
-        ...s, 
-        firstName: editForm.firstName,
-        lastName: editForm.lastName,
-        email: editForm.email,
-        role: editForm.role as Staff['role'],
-        department: editForm.department,
-        phone: editForm.phone || s.phone
-      } : s));
-      toast({
-        title: "User Updated",
-        description: `${editForm.firstName} ${editForm.lastName}'s profile has been updated.`,
-      });
-      setIsEditDialogOpen(false);
-    }
-  };
-
-  const handleDelete = (user: typeof mockStaff[0]) => {
-    setSelectedUser(user);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const confirmDelete = () => {
-    if (selectedUser) {
-      setStaff(staff.filter(s => s.id !== selectedUser.id));
-      toast({
-        title: "User Deleted",
-        description: `${selectedUser.firstName} ${selectedUser.lastName} has been removed from the system.`,
-        variant: "destructive",
-      });
-      setIsDeleteDialogOpen(false);
-    }
-  };
-
-  const handleAddUser = () => {
-    setEditForm({ firstName: '', lastName: '', email: '', role: 'nurse', department: 'Nursing', phone: '' });
-    setIsAddDialogOpen(true);
-  };
-
-  const confirmAddUser = () => {
-    const newUser: Staff = {
-      id: `staff-${Date.now()}`,
-      employeeId: `EMP-${Date.now().toString().slice(-6)}`,
-      firstName: editForm.firstName,
-      lastName: editForm.lastName,
-      email: editForm.email,
-      phone: editForm.phone || '08000000000',
-      role: editForm.role as Staff['role'],
-      department: editForm.department,
-      status: 'active',
-      salary: 150000,
-      hireDate: new Date().toISOString().split('T')[0],
-    };
-    setStaff([...staff, newUser]);
-    toast({
-      title: "User Added",
-      description: `${editForm.firstName} ${editForm.lastName} has been added to the system.`,
-    });
-    setIsAddDialogOpen(false);
-  };
-
-  const handleSettingsClick = (setting: string) => {
-    toast({
-      title: `${setting}`,
-      description: `Opening ${setting.toLowerCase()}...`,
-    });
-  };
-
-  const handleGenerateReport = () => {
-    toast({
-      title: "Generating Report",
-      description: "Admin report is being generated. This may take a moment.",
-    });
-    setTimeout(() => {
-      toast({
-        title: "Report Ready",
-        description: "Admin report has been generated and is ready for download.",
-      });
-    }, 2000);
-  };
+  const systemAlerts: SystemAlert[] = [
+    ...lowStockItems.slice(0, 3).map((i) => ({
+      id: `stock-${i.id}`,
+      message: `Low stock: ${i.name} (${i.quantity} / min ${i.min_stock})`,
+      type: 'warning' as const,
+      time: i.last_restocked ? `Restocked ${formatDistanceToNow(new Date(i.last_restocked), { addSuffix: true })}` : 'No restock recorded',
+    })),
+    ...recentErrors.map((e) => ({
+      id: `err-${e.id}`,
+      message: `${e.error_type}: ${e.error_message.slice(0, 80)}`,
+      type: 'error' as const,
+      time: formatDistanceToNow(new Date(e.created_at), { addSuffix: true }),
+    })),
+  ];
 
   return (
     <MainLayout title="Admin Panel" subtitle="System administration and user management">
@@ -201,205 +107,119 @@ const Admin = () => {
           {/* Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
-          title="Total Users"
-          value={staff.length}
+          title="Total Staff"
+          value={totalStaff}
           icon={Users}
           color="text-module-admin"
         />
         <StatsCard
-          title="Active Sessions"
-          value="8"
-          icon={Eye}
+          title="Login-enabled Accounts"
+          value={staff.filter(s => s.isSystemUser).length}
+          icon={UserPlus}
           color="text-success"
         />
         <StatsCard
-          title="Pending Approvals"
-          value="3"
-          icon={Bell}
+          title="Low Stock Items"
+          value={lowStockItems.length}
+          icon={Package}
           color="text-warning"
         />
         <StatsCard
-          title="System Health"
-          value="99.9%"
-          icon={Shield}
+          title="Active Admissions"
+          value={activeAdmissions}
+          icon={BedSingle}
           color="text-primary"
         />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* User Management */}
-        <div className="lg:col-span-2">
-          <div className="bg-card rounded-xl border border-border">
-            <div className="p-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Users className="h-5 w-5 text-module-admin" />
-                User Management
-              </h3>
-              <Button size="sm" onClick={handleAddUser} className="press-effect">
-                <UserPlus className="h-4 w-4 mr-1" />
-                Add User
-              </Button>
+        {/* Staff summary — full CRUD lives in the Accounts tab */}
+        <div className="lg:col-span-2 bg-card rounded-xl border border-border p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Users className="h-5 w-5 text-module-admin" />
+              Staff Overview
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Manage accounts in the <strong>Accounts</strong> tab
+            </p>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
+              <p className="text-xs text-muted-foreground">Active</p>
+              <p className="text-2xl font-bold">{staff.filter(s => s.status === 'active').length}</p>
             </div>
-
-            {/* Mobile Card View */}
-            <div className="md:hidden space-y-3 p-4">
-              {staff.map((staffMember) => (
-                <div key={staffMember.id} className="bg-muted/30 rounded-lg p-3 border border-border/50 animate-fade-in">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="min-w-0">
-                      <p className="font-medium text-sm truncate">{staffMember.firstName} {staffMember.lastName}</p>
-                      <p className="text-xs text-muted-foreground truncate">{staffMember.email}</p>
-                    </div>
-                    <Badge variant={staffMember.status === 'active' ? 'success' : 'warning'} className="text-[10px] shrink-0">
-                      {staffMember.status}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-border/50">
-                    <div className="flex items-center gap-2">
-                      <Badge variant={staffMember.role as any} className="text-[10px]">{staffMember.role}</Badge>
-                      <span className="text-xs text-muted-foreground">{staffMember.department}</span>
-                    </div>
-                    <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleView(staffMember)}>
-                        <Eye className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEdit(staffMember)}>
-                        <Edit className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => handleDelete(staffMember)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
+              <p className="text-xs text-muted-foreground">On Leave</p>
+              <p className="text-2xl font-bold">{staff.filter(s => s.status === 'on_leave').length}</p>
             </div>
-
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Employee</th>
-                    <th>Role</th>
-                    <th>Department</th>
-                    <th>Status</th>
-                    <th className="text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {staff.map((staffMember) => (
-                    <tr key={staffMember.id} className="animate-fade-in">
-                      <td>
-                        <div>
-                          <p className="font-medium">{staffMember.firstName} {staffMember.lastName}</p>
-                          <p className="text-xs text-muted-foreground">{staffMember.email}</p>
-                        </div>
-                      </td>
-                      <td>
-                        <Badge variant={staffMember.role as any}>{staffMember.role}</Badge>
-                      </td>
-                      <td>{staffMember.department}</td>
-                      <td>
-                        <Badge variant={staffMember.status === 'active' ? 'success' : 'warning'}>
-                          {staffMember.status}
-                        </Badge>
-                      </td>
-                      <td>
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 hover-lift" onClick={() => handleView(staffMember)}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 hover-lift" onClick={() => handleEdit(staffMember)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover-lift" onClick={() => handleDelete(staffMember)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
+              <p className="text-xs text-muted-foreground">Inactive</p>
+              <p className="text-2xl font-bold">{staff.filter(s => s.status === 'inactive').length}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
+              <p className="text-xs text-muted-foreground">With Login</p>
+              <p className="text-2xl font-bold">{staff.filter(s => s.isSystemUser).length}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
+              <p className="text-xs text-muted-foreground">Without Login</p>
+              <p className="text-2xl font-bold">{pendingAccounts}</p>
+            </div>
+            <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
+              <p className="text-xs text-muted-foreground">Departments</p>
+              <p className="text-2xl font-bold">{new Set(staff.map(s => s.department)).size}</p>
             </div>
           </div>
         </div>
 
-        {/* System Alerts & Settings */}
+        {/* System Alerts & danger zone */}
         <div className="space-y-6">
-          {/* System Alerts */}
           <div className="bg-card rounded-xl border border-border p-4">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <Bell className="h-5 w-5 text-module-admin" />
               System Alerts
             </h3>
 
-            <div className="space-y-3">
-              {systemAlerts.map((alert) => (
-                <div 
-                  key={alert.id} 
-                  className={`p-3 rounded-lg border cursor-pointer transition-all hover:scale-[1.02] ${
-                    alert.type === 'warning' ? 'bg-warning/10 border-warning/30' :
-                    alert.type === 'success' ? 'bg-success/10 border-success/30' :
-                    'bg-info/10 border-info/30'
-                  }`}
-                  onClick={() => toast({ title: "Alert Details", description: alert.message })}
-                >
-                  <p className="text-sm font-medium">{alert.message}</p>
-                  <p className="text-xs text-muted-foreground mt-1">{alert.time}</p>
-                </div>
-              ))}
-            </div>
+            {systemAlerts.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No active alerts. Stock and errors are within normal range.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {systemAlerts.map((alert) => (
+                  <div 
+                    key={alert.id} 
+                    className={`p-3 rounded-lg border ${
+                      alert.type === 'error' ? 'bg-destructive/10 border-destructive/30' :
+                      alert.type === 'warning' ? 'bg-warning/10 border-warning/30' :
+                      'bg-info/10 border-info/30'
+                    }`}
+                  >
+                    <p className="text-sm font-medium break-words">{alert.message}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{alert.time}</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Quick Settings */}
           <div className="bg-card rounded-xl border border-border p-4">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <Settings className="h-5 w-5 text-module-admin" />
-              Quick Settings
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Danger Zone
             </h3>
-
-            <div className="space-y-2">
-              <Button 
-                variant="outline" 
-                className="w-full justify-start hover-lift"
-                onClick={() => handleSettingsClick('Security Settings')}
-              >
-                <Lock className="h-4 w-4 mr-2" />
-                Security Settings
-              </Button>
-              <Button 
-                variant="outline" 
-                className="w-full justify-start hover-lift"
-                onClick={() => handleSettingsClick('System Logs')}
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                System Logs
-              </Button>
-              <Button 
-                variant="outline" 
-                className="w-full justify-start hover-lift"
-                onClick={() => handleSettingsClick('General Settings')}
-              >
-                <Settings className="h-4 w-4 mr-2" />
-                General Settings
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start hover-lift text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
-                onClick={() => setIsResetDialogOpen(true)}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Reset Demo Data
-              </Button>
-            </div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Permanently deletes selected clinical data. Staff, wards, pricelist and sponsors are preserved.
+            </p>
+            <Button
+              variant="outline"
+              className="w-full justify-start hover-lift text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setIsResetDialogOpen(true)}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Purge Clinical Data
+            </Button>
           </div>
-
-          <Button variant="hero" className="w-full press-effect" onClick={handleGenerateReport}>
-            <FileText className="h-4 w-4 mr-2" />
-            Generate Admin Report
-          </Button>
         </div>
       </div>
         </TabsContent>
@@ -448,220 +268,6 @@ const Admin = () => {
       </Tabs>
 
       <ResetDemoDataDialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen} />
-
-      {/* View User Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="animate-scale-in">
-          <DialogHeader>
-            <DialogTitle>User Details</DialogTitle>
-            <DialogDescription>Viewing user profile information</DialogDescription>
-          </DialogHeader>
-          {selectedUser && (
-            <div className="space-y-4 py-4">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-module-admin/10 flex items-center justify-center">
-                  <Users className="h-8 w-8 text-module-admin" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-lg">{selectedUser.firstName} {selectedUser.lastName}</h3>
-                  <p className="text-muted-foreground">{selectedUser.email}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-                <div>
-                  <p className="text-sm text-muted-foreground">Role</p>
-                  <p className="font-medium capitalize">{selectedUser.role}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Department</p>
-                  <p className="font-medium">{selectedUser.department}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
-                  <Badge variant={selectedUser.status === 'active' ? 'success' : 'warning'}>
-                    {selectedUser.status}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Hire Date</p>
-                  <p className="font-medium">{selectedUser.hireDate}</p>
-                </div>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsViewDialogOpen(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit User Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="animate-scale-in">
-          <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>Update user profile information</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">First Name</label>
-                <Input 
-                  value={editForm.firstName}
-                  onChange={(e) => setEditForm({...editForm, firstName: e.target.value})}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Last Name</label>
-                <Input 
-                  value={editForm.lastName}
-                  onChange={(e) => setEditForm({...editForm, lastName: e.target.value})}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
-              <Input 
-                type="email"
-                value={editForm.email}
-                onChange={(e) => setEditForm({...editForm, email: e.target.value})}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Role</label>
-                <select 
-                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm"
-                  value={editForm.role}
-                  onChange={(e) => setEditForm({...editForm, role: e.target.value as UserRole})}
-                >
-                  <option value="doctor1">Doctor 1</option>
-                  <option value="doctor2">Doctor 2</option>
-                  <option value="nurse">Nurse</option>
-                  <option value="reception">Reception</option>
-                  <option value="pharmacy">Pharmacy</option>
-                  <option value="lab">Lab</option>
-                  <option value="admin">Admin</option>
-                  <option value="billing">Billing</option>
-                  <option value="store">Store</option>
-                  <option value="account">Account</option>
-                  <option value="auditing">Auditing</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Department</label>
-                <Input 
-                  value={editForm.department}
-                  onChange={(e) => setEditForm({...editForm, department: e.target.value})}
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveEdit} className="press-effect">
-              <Check className="h-4 w-4 mr-1" />
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add User Dialog */}
-      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent className="animate-scale-in">
-          <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
-            <DialogDescription>Create a new user account</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">First Name</label>
-                <Input 
-                  value={editForm.firstName}
-                  onChange={(e) => setEditForm({...editForm, firstName: e.target.value})}
-                  placeholder="Enter first name"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Last Name</label>
-                <Input 
-                  value={editForm.lastName}
-                  onChange={(e) => setEditForm({...editForm, lastName: e.target.value})}
-                  placeholder="Enter last name"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Email</label>
-              <Input 
-                type="email"
-                value={editForm.email}
-                onChange={(e) => setEditForm({...editForm, email: e.target.value})}
-                placeholder="Enter email address"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Role</label>
-                <select 
-                  className="w-full h-10 px-3 rounded-lg border border-input bg-background text-sm"
-                  value={editForm.role}
-                  onChange={(e) => setEditForm({...editForm, role: e.target.value as UserRole})}
-                >
-                  <option value="doctor1">Doctor 1</option>
-                  <option value="doctor2">Doctor 2</option>
-                  <option value="nurse">Nurse</option>
-                  <option value="reception">Reception</option>
-                  <option value="pharmacy">Pharmacy</option>
-                  <option value="lab">Lab</option>
-                  <option value="admin">Admin</option>
-                  <option value="billing">Billing</option>
-                  <option value="store">Store</option>
-                  <option value="account">Account</option>
-                  <option value="auditing">Auditing</option>
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Department</label>
-                <Input 
-                  value={editForm.department}
-                  onChange={(e) => setEditForm({...editForm, department: e.target.value})}
-                  placeholder="Enter department"
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
-            <Button onClick={confirmAddUser} className="press-effect" disabled={!editForm.firstName || !editForm.lastName || !editForm.email}>
-              <UserPlus className="h-4 w-4 mr-1" />
-              Add User
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Confirmation */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent className="animate-scale-in">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete User</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {selectedUser?.firstName} {selectedUser?.lastName}? 
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              <Trash2 className="h-4 w-4 mr-1" />
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </MainLayout>
   );
 };

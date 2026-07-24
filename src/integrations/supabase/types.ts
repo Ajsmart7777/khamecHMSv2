@@ -2479,7 +2479,11 @@ export type Database = {
       visits: {
         Row: {
           cancel_reason: string | null
+          claim_last_action_at: string | null
+          claim_last_action_by: string | null
           claim_notes: string | null
+          claim_reason_code: string | null
+          claim_reason_details: Json
           claim_settled_at: string | null
           claim_settled_by: string | null
           claim_status: string
@@ -2503,7 +2507,11 @@ export type Database = {
         }
         Insert: {
           cancel_reason?: string | null
+          claim_last_action_at?: string | null
+          claim_last_action_by?: string | null
           claim_notes?: string | null
+          claim_reason_code?: string | null
+          claim_reason_details?: Json
           claim_settled_at?: string | null
           claim_settled_by?: string | null
           claim_status?: string
@@ -2527,7 +2535,11 @@ export type Database = {
         }
         Update: {
           cancel_reason?: string | null
+          claim_last_action_at?: string | null
+          claim_last_action_by?: string | null
           claim_notes?: string | null
+          claim_reason_code?: string | null
+          claim_reason_details?: Json
           claim_settled_at?: string | null
           claim_settled_by?: string | null
           claim_status?: string
@@ -2790,6 +2802,10 @@ export type Database = {
         Returns: boolean
       }
       is_authenticated_staff: { Args: never; Returns: boolean }
+      mark_claim_rejected: {
+        Args: { _notes?: string; _reason_code: string; _visit_id: string }
+        Returns: undefined
+      }
       mark_claim_settled: {
         Args: { _notes?: string; _visit_id: string }
         Returns: undefined
@@ -2844,6 +2860,10 @@ export type Database = {
           _visit_id?: string
         }
         Returns: string
+      }
+      request_claim_info: {
+        Args: { _notes?: string; _reason_code: string; _visit_id: string }
+        Returns: undefined
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }

@@ -39,6 +39,7 @@ import { useInvoices } from '@/hooks/useInvoices';
 import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { useCorporateAccounts, CorporateAccount } from '@/hooks/useCorporateAccounts';
 import { supabase } from '@/integrations/supabase/client';
+import { nextStationForInvoice } from '@/lib/workflowRouting';
 // BalanceRequestsPanel moved to /cashier
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { SettleDischargeDialog } from '@/components/billing/SettleDischargeDialog';
@@ -254,7 +255,10 @@ const Billing = () => {
         }
       }
 
-      await updatePatientStatus(selectedPatientId, payViaCorporate ? 'at_pharmacy' : 'awaiting_payment');
+      const nextStatus = payViaCorporate
+        ? await nextStationForInvoice(invoice.id, selectedPatientId)
+        : 'awaiting_payment';
+      await updatePatientStatus(selectedPatientId, nextStatus);
 
       await paymentAuditLogger(
         'payment_received',

@@ -58,8 +58,7 @@ import { patientSchema, paymentSchema } from '@/lib/validations';
 import { z } from 'zod';
 import { paymentAuditLogger } from '@/lib/auditLogger';
 import { useInvoices } from '@/hooks/useInvoices';
-
-import { usePrescriptions } from '@/hooks/usePrescriptions';
+import { nextStationForInvoice, workflowStationLabel } from '@/lib/workflowRouting';
 import { StandingOrderCaptureDialog } from '@/components/reception/StandingOrderCaptureDialog';
 import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
 import { PatientBalanceHistory } from '@/components/reception/PatientBalanceHistory';
@@ -339,7 +338,6 @@ function EmptyState({ onNewPatient }: { onNewPatient: () => void }) {
 function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Patient; onClose: () => void; onSendToNurse: (preferredDoctor?: 'doctor1' | 'doctor2') => void }) {
   const { updatePatient, updatePatientStatus } = usePatients();
   const { getInvoicesForPatient, recordPayment } = useInvoices();
-  const { getPrescriptionsForPatient } = usePrescriptions();
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [preferredDoctor, setPreferredDoctor] = useState<'doctor1' | 'doctor2' | 'none'>('none');
@@ -400,18 +398,13 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
       
       // Auto-route patient after full payment
       if (isInvoiceFullyPaid) {
-        const patientPrescriptions = getPrescriptionsForPatient(patient.id);
-        const hasPendingMedications = patientPrescriptions.some(
-          p => p.status === 'pending' && p.items && p.items.some(item => !item.dispensed)
+        const nextStation = await nextStationForInvoice(pendingInvoice.id, patient.id, 'discharged');
+        await updatePatientStatus(patient.id, nextStation);
+        toast.info(
+          nextStation === 'discharged'
+            ? 'Patient discharged — no pending station work'
+            : `Patient routed to ${workflowStationLabel(nextStation)}`,
         );
-        
-        if (hasPendingMedications) {
-          await updatePatientStatus(patient.id, 'at_pharmacy');
-          toast.info('Patient routed to Pharmacy for medication pickup');
-        } else {
-          await updatePatientStatus(patient.id, 'discharged');
-          toast.info('Patient auto-discharged (no pending medications)');
-        }
       }
       
       // Log audit event for payment received

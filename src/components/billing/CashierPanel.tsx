@@ -27,30 +27,37 @@ import { paymentAuditLogger } from '@/lib/auditLogger';
 import { supabase } from '@/integrations/supabase/client';
 import { copayPercent, hasWallet, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
 import { PrintableReceiptDialog } from '@/components/receipts/PrintableReceiptDialog';
+import { nextStationForInvoice, workflowStationLabel } from '@/lib/workflowRouting';
 
 // Only walk-in cash patients can carry a shortfall on their patient balance.
 // Sponsored/insured/staff accounts settle via the sponsor — never on the
 // patient's wallet.
 const DEBT_ELIGIBLE = new Set(['normal', 'cash', '']);
 
-// After payment, route the patient back to the station that requested the
-// service (lab tests → back to lab, pharmacy meds → pharmacy). Falls back to
-// pharmacy which is the historical outpatient terminal station.
-async function nextStationForInvoice(invoiceId: string): Promise<'in_lab' | 'at_pharmacy'> {
-  const { data } = await supabase
-    .from('snap_orders')
-    .select('target_station, created_at')
-    .eq('invoice_id', invoiceId)
-    .order('created_at', { ascending: false });
-  const stations = (data || []).map((r: any) => r.target_station);
-  // If ANY of the paid orders are lab, keep the patient in lab so tests run
-  // before they are discharged/dispensed.
-  if (stations.includes('lab')) return 'in_lab';
-  return 'at_pharmacy';
+async function settleInvoiceAsPaid(
+  invoiceId: string,
+  totalAmount: number,
+  paymentMethod: string,
+  notes?: string,
+) {
+  const updatePayload: Record<string, any> = {
+    paid_amount: totalAmount,
+    status: 'paid',
+    payment_method: paymentMethod,
+    paid_at: new Date().toISOString(),
+  };
+  if (notes) updatePayload.notes = notes;
+
+  const { error } = await supabase
+    .from('invoices')
+    .update(updatePayload)
+    .eq('id', invoiceId);
+
+  if (error) throw new Error(`Failed to settle invoice: ${error.message}`);
 }
 
 export function CashierPanel() {
-  const { getPendingInvoices, recordPayment, refreshInvoices } = useInvoices();
+  const { getPendingInvoices, refreshInvoices } = useInvoices();
   const { patients, updatePatientStatus, refreshPatients } = usePatients() as any;
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Invoice | null>(null);
@@ -168,10 +175,12 @@ export function CashierPanel() {
       setBusy(true);
       try {
         const remaining = invoiceTotal - alreadyPaid;
-        if (remaining > 0) {
-          const ok = await recordPayment(selected.id, remaining, 'sponsor_claim');
-          if (!ok) throw new Error('Failed to settle sponsor claim');
-        }
+        await settleInvoiceAsPaid(
+          selected.id,
+          invoiceTotal,
+          'sponsor_claim',
+          `Sponsor fully covered · ${sponsorLabel(selectedPatient)}`,
+        );
         await refreshInvoices();
         await paymentAuditLogger('payment_received', selected.invoice_number, {
           patient_id: selected.patient_id,
@@ -181,11 +190,11 @@ export function CashierPanel() {
           covered_amount: remaining,
           copay_amount: 0,
         });
-        const nextStation = await nextStationForInvoice(selected.id);
+        const nextStation = await nextStationForInvoice(selected.id, selected.patient_id);
         await updatePatientStatus(selected.patient_id, nextStation);
         toast.success('Acknowledged — sent to Claims', {
           description: `${selected.invoice_number} · Sponsor covers ₦${remaining.toLocaleString()} · ${
-            nextStation === 'in_lab' ? 'Patient routed back to Lab' : 'Patient routed to Pharmacy'
+            `Patient routed to ${workflowStationLabel(nextStation)}`
           }`,
         });
         setReceipt({
@@ -234,7 +243,9 @@ export function CashierPanel() {
 
     setBusy(true);
     try {
-      // 1. Deduct from patient balance first (if any)
+      // 1. Deduct from patient balance first (if any). The invoice itself is
+      // closed once at the end so mixed balance + cash + sponsor payments do
+      // not overwrite each other with stale paid_amount values.
       if (bal > 0) {
         const { error: balErr } = await supabase.rpc('adjust_patient_balance', {
           _patient_id: selected.patient_id,
@@ -245,30 +256,12 @@ export function CashierPanel() {
           _notes: `Applied to invoice ${selected.invoice_number}`,
         });
         if (balErr) throw new Error(`Balance deduction failed: ${balErr.message}`);
-
-        const ok = await recordPayment(selected.id, bal, 'balance');
-        if (!ok) throw new Error('Failed to record balance payment on invoice');
       }
 
-      // 2. Record cash/POS/transfer portion
-      if (cash > 0) {
-        const ok = await recordPayment(selected.id, cash, method);
-        if (!ok) throw new Error('Failed to record cash payment');
-      }
-
-      // 3. Handle debt shortfall
+      // 2. Handle debt shortfall for cash patients. The invoice is still
+      // settled; the unpaid portion becomes patient debt instead of blocking
+      // the workflow.
       if (!sponsored && shortfall > 0) {
-        const { error: closeErr } = await supabase
-          .from('invoices')
-          .update({
-            paid_amount: Number(selected.total_amount),
-            status: 'paid',
-            paid_at: new Date().toISOString(),
-            notes: `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`,
-          })
-          .eq('id', selected.id);
-        if (closeErr) throw new Error(`Failed to close invoice: ${closeErr.message}`);
-
         const { error: debtErr } = await supabase.rpc('adjust_patient_balance', {
           _patient_id: selected.patient_id,
           _delta: -shortfall,
@@ -280,15 +273,19 @@ export function CashierPanel() {
         if (debtErr) throw new Error(`Failed to record debt: ${debtErr.message}`);
       }
 
-      // Sponsored: after copay is collected, book the sponsor portion so the
-      // invoice becomes fully paid and flows to the Claims queue.
-      if (sponsored) {
-        const coveredRemaining = invoiceTotal - alreadyPaid - bal - cash;
-        if (coveredRemaining > 0) {
-          const ok = await recordPayment(selected.id, coveredRemaining, 'sponsor_claim');
-          if (!ok) throw new Error('Failed to settle sponsor portion');
-        }
-      }
+      // 3. Close the invoice once. This reliably fires the backend paid-order
+      // sync, which moves linked lab/pharmacy snaps into their station queues.
+      const paymentMethod = sponsored
+        ? 'sponsor_claim'
+        : bal > 0 && cash === 0
+        ? 'balance'
+        : method;
+      const notes = sponsored
+        ? `Copay collected; sponsor claim routed to Claims · ${sponsorLabel(selectedPatient)}`
+        : shortfall > 0
+        ? `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`
+        : undefined;
+      await settleInvoiceAsPaid(selected.id, invoiceTotal, paymentMethod, notes);
 
       await refreshInvoices();
       if (typeof refreshPatients === 'function') await refreshPatients();
@@ -312,7 +309,7 @@ export function CashierPanel() {
 
       // Route the patient to the correct next station based on what was billed
       // (lab tests → back to Lab; meds/other → Pharmacy).
-      const nextStation = await nextStationForInvoice(selected.id);
+      const nextStation = await nextStationForInvoice(selected.id, selected.patient_id);
       await updatePatientStatus(selected.patient_id, nextStation);
 
       const parts: string[] = [];
@@ -325,7 +322,7 @@ export function CashierPanel() {
         sponsored
           ? 'Copay collected — sent to Claims'
           : shortfall > 0 ? 'Partial payment recorded' : 'Payment recorded',
-        { description: `${selected.invoice_number} · ${parts.join(' + ')}` }
+        { description: `${selected.invoice_number} · ${parts.join(' + ')} · routed to ${workflowStationLabel(nextStation)}` }
       );
 
       // Open printable receipt with a clean breakdown.

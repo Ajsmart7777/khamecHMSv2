@@ -46,6 +46,8 @@ import { usePatients, Patient } from '@/contexts/PatientContext';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
 import { PrintableDispenseReceiptDialog } from '@/components/receipts/PrintableDispenseReceiptDialog';
 import { usePrescriptions, Prescription } from '@/hooks/usePrescriptions';
+import { PatientStatus } from '@/types/hms';
+import { getPendingWorkflowStation, workflowStationLabel } from '@/lib/workflowRouting';
 
 const Pharmacy = () => {
   const { patients, loading, updatePatientStatus, getPatientsByStatus, refreshPatients } = usePatients();
@@ -165,12 +167,21 @@ const Pharmacy = () => {
 
     setDispensedPatients(prev => new Set([...prev, selectedPatientId]));
 
-    // Only auto-discharge outpatients. Inpatients stay admitted.
+    // Only auto-discharge outpatients when no other paid lab/pharmacy work is
+    // still open. If lab is pending, route there instead of falsely discharging.
+    let nextStatus: PatientStatus = 'discharged';
     if (!isInpatient) {
-      const discharged = await updatePatientStatus(selectedPatientId, 'discharged', { guardInpatient: true });
-      if (!discharged) {
+      try {
+        nextStatus = (await getPendingWorkflowStation(selectedPatientId)) ?? 'discharged';
+      } catch (err: any) {
+        toast.error('Could not verify pending workflow', { description: err?.message });
+        return;
+      }
+
+      const routed = await updatePatientStatus(selectedPatientId, nextStatus, { guardInpatient: true });
+      if (!routed) {
         // Keep dialog open so pharmacist can retry
-        toast.error('Dispensed, but patient could not be auto-discharged. Please retry or discharge from Reception.');
+        toast.error('Dispensed, but patient could not be routed. Please refresh and retry.');
         return;
       }
     } else {
@@ -198,7 +209,7 @@ const Pharmacy = () => {
       });
       if (!isInpatient) {
         toast.success('Medication Dispensed', {
-          description: `Prescription for ${patient.first_name} ${patient.last_name} has been dispensed. Patient discharged.`
+          description: `Prescription for ${patient.first_name} ${patient.last_name} has been dispensed. Patient routed to ${workflowStationLabel(nextStatus)}.`
         });
       }
     }

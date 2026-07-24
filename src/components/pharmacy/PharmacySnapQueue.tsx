@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { CheckCircle, Pill } from 'lucide-react';
+import { PatientStatus } from '@/types/hms';
+import { getPendingWorkflowStation, workflowStationLabel } from '@/lib/workflowRouting';
 
 const fmt = (n: number) => `₦${n.toLocaleString()}`;
 
@@ -92,11 +94,22 @@ export function SnapFulfillDialog({
           .eq('status', 'active')
           .maybeSingle();
         if (!adm) {
-          const discharged = await updatePatientStatus(
-            snap.patient_id, 'discharged', { guardInpatient: true },
+          let nextStatus: PatientStatus = 'discharged';
+          try {
+            nextStatus = (await getPendingWorkflowStation(snap.patient_id)) ?? 'discharged';
+          } catch (err: any) {
+            toast.error('Could not verify pending workflow', { description: err?.message });
+            setBusy(false);
+            return;
+          }
+
+          const routed = await updatePatientStatus(
+            snap.patient_id, nextStatus, { guardInpatient: true },
           );
-          if (!discharged) {
-            toast.error('Dispensed, but patient could not be auto-discharged. Retry from Reception.');
+          if (!routed) {
+            toast.error('Dispensed, but patient could not be routed. Refresh and retry.');
+          } else {
+            toast.info(`Patient routed to ${workflowStationLabel(nextStatus)}`);
           }
         }
       }

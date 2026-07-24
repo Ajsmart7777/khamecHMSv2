@@ -8,8 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { FileText, Filter, Eye, Download, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react';
-import { useClaimsQueue, Visit, markClaimSettled } from '@/hooks/useVisits';
+import { FileText, Filter, Eye, Download, Loader2, CheckCircle2, ShieldCheck, XCircle, HelpCircle, RotateCcw } from 'lucide-react';
+import {
+  useClaimsQueue,
+  Visit,
+  markClaimSettled,
+  markClaimRejected,
+  requestClaimInfo,
+  reopenClaim,
+  CLAIM_REJECT_REASON_CODES,
+  CLAIM_INFO_REASON_CODES,
+} from '@/hooks/useVisits';
 import { usePatients } from '@/contexts/PatientContext';
 import { VisitEnvelopeDialog } from '@/components/visit/VisitEnvelopeDialog';
 import { PatientCardDialog } from '@/components/visit/PatientCardDialog';
@@ -26,12 +35,19 @@ export function ClaimsQueue() {
   const [sponsorType, setSponsorType] = useState<string>('all');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
-  const [tab, setTab] = useState<'pending' | 'settled'>('pending');
+  const [tab, setTab] = useState<'pending' | 'info_requested' | 'rejected' | 'settled'>('pending');
   const [open, setOpen] = useState<Visit | null>(null);
   const [cardPatient, setCardPatient] = useState<Patient | null>(null);
   const [settleTarget, setSettleTarget] = useState<Visit | null>(null);
   const [settleNotes, setSettleNotes] = useState('');
   const [settling, setSettling] = useState(false);
+  const [actionTarget, setActionTarget] = useState<{ visit: Visit; kind: 'reject' | 'info' } | null>(null);
+  const [reasonCode, setReasonCode] = useState('');
+  const [reasonNotes, setReasonNotes] = useState('');
+  const [submittingAction, setSubmittingAction] = useState(false);
+  const [reopenTarget, setReopenTarget] = useState<Visit | null>(null);
+  const [reopenReason, setReopenReason] = useState('');
+  const [reopening, setReopening] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
 
@@ -89,6 +105,53 @@ export function ClaimsQueue() {
     }
   }
 
+  async function confirmAction() {
+    if (!actionTarget) return;
+    if (!reasonCode) {
+      toast.error('Please select a reason code');
+      return;
+    }
+    setSubmittingAction(true);
+    try {
+      if (actionTarget.kind === 'reject') {
+        await markClaimRejected(actionTarget.visit.id, reasonCode, reasonNotes.trim() || undefined);
+        toast.success('Claim marked as rejected');
+      } else {
+        await requestClaimInfo(actionTarget.visit.id, reasonCode, reasonNotes.trim() || undefined);
+        toast.success('Information request logged');
+      }
+      setActionTarget(null);
+      setReasonCode('');
+      setReasonNotes('');
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Action failed');
+    } finally {
+      setSubmittingAction(false);
+    }
+  }
+
+  async function confirmReopen() {
+    if (!reopenTarget) return;
+    if (reopenReason.trim().length < 3) {
+      toast.error('Please provide a reason (min 3 chars)');
+      return;
+    }
+    setReopening(true);
+    try {
+      await reopenClaim(reopenTarget.id, reopenReason.trim());
+      toast.success('Claim reopened to pending');
+      setReopenTarget(null);
+      setReopenReason('');
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Reopen failed');
+    } finally {
+      setReopening(false);
+    }
+  }
+
+  const activeReasonCodes =
+    actionTarget?.kind === 'reject' ? CLAIM_REJECT_REASON_CODES : CLAIM_INFO_REASON_CODES;
+
   const grouped = useMemo(() => {
     const map: Record<string, Visit[]> = {};
     for (const v of visits) {
@@ -117,9 +180,11 @@ export function ClaimsQueue() {
         </div>
       </Card>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as 'pending' | 'settled')}>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
         <TabsList>
           <TabsTrigger value="pending">Pending Claims</TabsTrigger>
+          <TabsTrigger value="info_requested">Info Requested</TabsTrigger>
+          <TabsTrigger value="rejected">Rejected</TabsTrigger>
           <TabsTrigger value="settled">Settled</TabsTrigger>
         </TabsList>
         <TabsContent value={tab} className="mt-4 space-y-4">
@@ -158,7 +223,9 @@ export function ClaimsQueue() {
 
       <div className="grid grid-cols-3 gap-3">
         <Card className="p-4">
-          <p className="text-xs text-muted-foreground">{tab === 'pending' ? 'Pending claims' : 'Settled claims'}</p>
+          <p className="text-xs text-muted-foreground capitalize">
+            {tab.replace('_', ' ')} claims
+          </p>
           <p className="text-2xl font-bold">{visits.length}</p>
         </Card>
         <Card className="p-4">
@@ -190,10 +257,8 @@ export function ClaimsQueue() {
       ) : visits.length === 0 ? (
         <Card className="p-10 text-center text-muted-foreground">
           <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">
-            {tab === 'pending'
-              ? 'No pending insured claims. Discharged insured patients appear here automatically.'
-              : 'No settled claims in this range.'}
+          <p className="text-sm capitalize">
+            No {tab.replace('_', ' ')} claims in this range.
           </p>
         </Card>
       ) : (
@@ -247,11 +312,20 @@ export function ClaimsQueue() {
                             )}
                           </div>
                           <Badge
-                            variant={tab === 'settled' ? 'default' : 'secondary'}
+                            variant={
+                              tab === 'settled' ? 'default'
+                              : tab === 'rejected' ? 'destructive'
+                              : 'secondary'
+                            }
                             className="text-[10px] capitalize"
                           >
-                            {tab}
+                            {tab.replace('_', ' ')}
                           </Badge>
+                          {v.claim_reason_code && tab !== 'pending' && tab !== 'settled' && (
+                            <Badge variant="outline" className="text-[10px]">
+                              {v.claim_reason_code.replace(/_/g, ' ')}
+                            </Badge>
+                          )}
                           <Button size="sm" variant="outline" onClick={() => p && setCardPatient(p)} disabled={!p}>
                             <Eye className="h-3 w-3 mr-1" /> Card
                           </Button>
@@ -269,13 +343,40 @@ export function ClaimsQueue() {
                               : <Download className="h-3 w-3 mr-1" />}
                             Packet
                           </Button>
-                          {tab === 'pending' && (
+                          {(tab === 'pending' || tab === 'info_requested') && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => { setActionTarget({ visit: v, kind: 'info' }); setReasonCode(''); setReasonNotes(''); }}
+                                className="border-amber-500 text-amber-700 hover:bg-amber-50"
+                              >
+                                <HelpCircle className="h-3 w-3 mr-1" /> Request Info
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => { setActionTarget({ visit: v, kind: 'reject' }); setReasonCode(''); setReasonNotes(''); }}
+                                className="border-red-500 text-red-700 hover:bg-red-50"
+                              >
+                                <XCircle className="h-3 w-3 mr-1" /> Reject
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => { setSettleTarget(v); setSettleNotes(''); }}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                              >
+                                <CheckCircle2 className="h-3 w-3 mr-1" /> Mark Settled
+                              </Button>
+                            </>
+                          )}
+                          {(tab === 'rejected' || tab === 'settled') && (
                             <Button
                               size="sm"
-                              onClick={() => { setSettleTarget(v); setSettleNotes(''); }}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                              variant="outline"
+                              onClick={() => { setReopenTarget(v); setReopenReason(''); }}
                             >
-                              <CheckCircle2 className="h-3 w-3 mr-1" /> Mark Settled
+                              <RotateCcw className="h-3 w-3 mr-1" /> Reopen
                             </Button>
                           )}
                         </div>
@@ -343,6 +444,102 @@ export function ClaimsQueue() {
             >
               {settling ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle2 className="h-3 w-3 mr-1" />}
               Confirm Settle
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!actionTarget} onOpenChange={(o) => !o && setActionTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {actionTarget?.kind === 'reject' ? 'Reject this claim?' : 'Request more information?'}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3 text-sm">
+                <p>
+                  Visit <span className="font-mono">{actionTarget?.visit.visit_number}</span>
+                  {actionTarget?.visit.insurance_plan && ` · ${actionTarget.visit.insurance_plan}`}
+                </p>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Reason code *</label>
+                  <Select value={reasonCode} onValueChange={setReasonCode}>
+                    <SelectTrigger><SelectValue placeholder="Select a reason code" /></SelectTrigger>
+                    <SelectContent>
+                      {activeReasonCodes.map((r) => (
+                        <SelectItem key={r.code} value={r.code}>{r.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Notes (optional)</label>
+                  <Textarea
+                    placeholder={
+                      actionTarget?.kind === 'reject'
+                        ? 'Detailed rejection notes for the audit log & patient card…'
+                        : 'What information is needed from the patient / scheme?'
+                    }
+                    value={reasonNotes}
+                    onChange={(e) => setReasonNotes(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+                <p className="text-xs text-amber-700">
+                  This action will be written to the audit log and shown on the patient card.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={submittingAction}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmAction(); }}
+              disabled={submittingAction || !reasonCode}
+              className={
+                actionTarget?.kind === 'reject'
+                  ? 'bg-red-600 hover:bg-red-700'
+                  : 'bg-amber-600 hover:bg-amber-700'
+              }
+            >
+              {submittingAction
+                ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                : actionTarget?.kind === 'reject'
+                  ? <XCircle className="h-3 w-3 mr-1" />
+                  : <HelpCircle className="h-3 w-3 mr-1" />}
+              {actionTarget?.kind === 'reject' ? 'Confirm Reject' : 'Send Info Request'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!reopenTarget} onOpenChange={(o) => !o && setReopenTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reopen this claim?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  This will move visit <span className="font-mono">{reopenTarget?.visit_number}</span> back
+                  to <strong>pending</strong> for re-review. A reason is required and audit-logged.
+                </p>
+                <Textarea
+                  placeholder="Reason for reopening (required)"
+                  value={reopenReason}
+                  onChange={(e) => setReopenReason(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={reopening}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); confirmReopen(); }}
+              disabled={reopening || reopenReason.trim().length < 3}
+            >
+              {reopening ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <RotateCcw className="h-3 w-3 mr-1" />}
+              Confirm Reopen
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

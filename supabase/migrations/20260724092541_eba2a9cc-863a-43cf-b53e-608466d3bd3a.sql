@@ -1,0 +1,1 @@
+ALTER VIEW public.v_tasks SET (security_invoker = true);

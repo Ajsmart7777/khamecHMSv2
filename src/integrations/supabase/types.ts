@@ -2619,7 +2619,23 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_tasks: {
+        Row: {
+          assigned_role: string | null
+          assigned_user_id: string | null
+          created_at: string | null
+          patient_id: string | null
+          payload: Json | null
+          priority: number | null
+          source: string | null
+          source_id: string | null
+          status: string | null
+          task_id: string | null
+          updated_at: string | null
+          visit_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       adjust_patient_balance: {

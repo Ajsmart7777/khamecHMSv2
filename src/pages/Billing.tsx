@@ -37,7 +37,7 @@ import { useInvoices } from '@/hooks/useInvoices';
 import { usePrescriptions } from '@/hooks/usePrescriptions';
 import { useCorporateAccounts, CorporateAccount } from '@/hooks/useCorporateAccounts';
 import { supabase } from '@/integrations/supabase/client';
-import { BalanceRequestsPanel } from '@/components/billing/BalanceRequestsPanel';
+// BalanceRequestsPanel moved to /cashier
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { SettleDischargeDialog } from '@/components/billing/SettleDischargeDialog';
 import { BillingSnapInbox } from '@/components/billing/BillingSnapInbox';

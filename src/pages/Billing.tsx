@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { TasksPanel } from '@/components/tasks/TasksPanel';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -307,6 +308,7 @@ const Billing = () => {
 
   return (
     <MainLayout title="Billing" subtitle="Invoice generation and payment tracking">
+      <TasksPanel role="billing" status={['pending', 'in_progress']} onSelectPatient={setSelectedPatientId} />
       {/* Connection Status */}
       <div className="mb-4 flex items-center gap-2">
         {loading ? (

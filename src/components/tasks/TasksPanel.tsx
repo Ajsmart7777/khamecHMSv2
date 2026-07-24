@@ -12,6 +12,16 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -109,6 +119,7 @@ export function TasksPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState<null | 'claim' | 'release'>(null);
   const [, setNowTick] = useState(0);
 
   // Tick every 30s so relative timestamps and urgency chips stay fresh.
@@ -262,6 +273,30 @@ export function TasksPanel({
     if (ok) toast.success(`${action === 'claim' ? 'Claimed' : 'Released'} ${ok} task${ok === 1 ? '' : 's'}`);
     if (fail) toast.error(`${fail} task${fail === 1 ? '' : 's'} failed`);
   };
+
+  // Break selection into buckets so the confirmation modal can explain what
+  // will change vs. what will be skipped because of role/ownership rules.
+  const alreadyClaimedByOthers = selectedTasks.filter(
+    t => t.payload?.claimed && (!user?.id || t.payload?.claimed_by !== user.id),
+  );
+  const alreadyMine = selectedTasks.filter(
+    t => t.payload?.claimed && user?.id && t.payload?.claimed_by === user.id,
+  );
+  const notClaimed = selectedTasks.filter(t => !t.payload?.claimed);
+
+  const confirmItems = bulkConfirm === 'claim' ? bulkClaimable : bulkReleasable;
+  const confirmSkipped =
+    bulkConfirm === 'claim'
+      ? [
+          { count: alreadyMine.length, reason: 'already claimed by you' },
+          { count: alreadyClaimedByOthers.length, reason: 'claimed by another staff member' },
+        ].filter(x => x.count > 0)
+      : bulkConfirm === 'release'
+        ? [
+            { count: notClaimed.length, reason: 'not currently claimed' },
+            { count: alreadyClaimedByOthers.length, reason: 'claimed by another staff member (only they can release)' },
+          ].filter(x => x.count > 0)
+        : [];
 
   const openTask = (t: (typeof tasks)[number]) => {
     const route = taskTargetRoute(t);
@@ -425,7 +460,7 @@ export function TasksPanel({
                   variant="default"
                   className="h-7"
                   disabled={bulkBusy || bulkClaimable.length === 0}
-                  onClick={() => runBulk(bulkClaimable, 'claim')}
+                  onClick={() => setBulkConfirm('claim')}
                 >
                   <Hand className="w-3.5 h-3.5 mr-1" />
                   Claim {bulkClaimable.length > 0 ? `(${bulkClaimable.length})` : ''}
@@ -435,7 +470,7 @@ export function TasksPanel({
                   variant="outline"
                   className="h-7"
                   disabled={bulkBusy || bulkReleasable.length === 0}
-                  onClick={() => runBulk(bulkReleasable, 'release')}
+                  onClick={() => setBulkConfirm('release')}
                 >
                   <X className="w-3.5 h-3.5 mr-1" />
                   Release {bulkReleasable.length > 0 ? `(${bulkReleasable.length})` : ''}

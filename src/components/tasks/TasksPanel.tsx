@@ -12,6 +12,16 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -109,6 +119,7 @@ export function TasksPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState<null | 'claim' | 'release'>(null);
   const [, setNowTick] = useState(0);
 
   // Tick every 30s so relative timestamps and urgency chips stay fresh.
@@ -263,6 +274,30 @@ export function TasksPanel({
     if (fail) toast.error(`${fail} task${fail === 1 ? '' : 's'} failed`);
   };
 
+  // Break selection into buckets so the confirmation modal can explain what
+  // will change vs. what will be skipped because of role/ownership rules.
+  const alreadyClaimedByOthers = selectedTasks.filter(
+    t => t.payload?.claimed && (!user?.id || t.payload?.claimed_by !== user.id),
+  );
+  const alreadyMine = selectedTasks.filter(
+    t => t.payload?.claimed && user?.id && t.payload?.claimed_by === user.id,
+  );
+  const notClaimed = selectedTasks.filter(t => !t.payload?.claimed);
+
+  const confirmItems = bulkConfirm === 'claim' ? bulkClaimable : bulkReleasable;
+  const confirmSkipped =
+    bulkConfirm === 'claim'
+      ? [
+          { count: alreadyMine.length, reason: 'already claimed by you' },
+          { count: alreadyClaimedByOthers.length, reason: 'claimed by another staff member' },
+        ].filter(x => x.count > 0)
+      : bulkConfirm === 'release'
+        ? [
+            { count: notClaimed.length, reason: 'not currently claimed' },
+            { count: alreadyClaimedByOthers.length, reason: 'claimed by another staff member (only they can release)' },
+          ].filter(x => x.count > 0)
+        : [];
+
   const openTask = (t: (typeof tasks)[number]) => {
     const route = taskTargetRoute(t);
     const params = new URLSearchParams();
@@ -278,6 +313,7 @@ export function TasksPanel({
   };
 
   return (
+    <>
     <Card className="mb-4">
       <CardHeader className="flex flex-row items-center justify-between py-3">
         <CardTitle className="text-base flex items-center gap-2">
@@ -425,7 +461,7 @@ export function TasksPanel({
                   variant="default"
                   className="h-7"
                   disabled={bulkBusy || bulkClaimable.length === 0}
-                  onClick={() => runBulk(bulkClaimable, 'claim')}
+                  onClick={() => setBulkConfirm('claim')}
                 >
                   <Hand className="w-3.5 h-3.5 mr-1" />
                   Claim {bulkClaimable.length > 0 ? `(${bulkClaimable.length})` : ''}
@@ -435,7 +471,7 @@ export function TasksPanel({
                   variant="outline"
                   className="h-7"
                   disabled={bulkBusy || bulkReleasable.length === 0}
-                  onClick={() => runBulk(bulkReleasable, 'release')}
+                  onClick={() => setBulkConfirm('release')}
                 >
                   <X className="w-3.5 h-3.5 mr-1" />
                   Release {bulkReleasable.length > 0 ? `(${bulkReleasable.length})` : ''}
@@ -587,5 +623,54 @@ export function TasksPanel({
         )}
       </CardContent>
     </Card>
+    <AlertDialog open={!!bulkConfirm} onOpenChange={(o) => !o && setBulkConfirm(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {bulkConfirm === 'claim' ? 'Claim selected tasks?' : 'Release selected tasks?'}
+          </AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="font-medium text-foreground">{confirmItems.length}</span>{' '}
+                of {selectedTasks.length} selected task{selectedTasks.length === 1 ? '' : 's'} will be{' '}
+                {bulkConfirm === 'claim' ? 'claimed by you' : 'released'}.
+              </div>
+              {confirmSkipped.length > 0 && (
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Skipped by role/ownership rules:</div>
+                  <ul className="list-disc pl-5 text-xs text-muted-foreground space-y-0.5">
+                    {confirmSkipped.map((s, i) => (
+                      <li key={i}>{s.count} — {s.reason}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="text-xs text-muted-foreground pt-1">
+                {bulkConfirm === 'claim'
+                  ? 'Claiming assigns each task to you and hides the Claim button for other staff until you release it.'
+                  : 'Releasing removes your claim so other staff in your role can pick the task up.'}
+              </div>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={bulkBusy}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={bulkBusy || confirmItems.length === 0}
+            onClick={async (e) => {
+              e.preventDefault();
+              const action = bulkConfirm;
+              const items = confirmItems;
+              setBulkConfirm(null);
+              if (action) await runBulk(items, action);
+            }}
+          >
+            {bulkConfirm === 'claim' ? `Claim ${confirmItems.length}` : `Release ${confirmItems.length}`}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

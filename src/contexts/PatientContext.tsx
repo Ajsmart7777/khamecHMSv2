@@ -147,17 +147,31 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
         return true;
       }
 
-      const { data: updated, error: updateError } = await supabase
+      // Route through the workflow engine (Phase 1). advance_journey
+      // mirrors the value into patients.status for backward compatibility.
+      const ownerRoleMap: Record<string, string> = {
+        with_nurse: 'nurse',
+        awaiting_room: 'nurse',
+        with_doctor: 'doctor',
+        in_lab: 'lab_tech',
+        lab_results_ready: 'doctor',
+        awaiting_billing: 'billing',
+        awaiting_payment: 'cashier',
+        at_pharmacy: 'pharmacist',
+        admitted: 'nurse',
+        discharged: 'reception',
+      };
+      const { error: rpcError } = await supabase.rpc('advance_journey', {
+        _patient_id: patientId,
+        _to_state: status,
+        _owner_role: ownerRoleMap[status] ?? null,
+      });
+      if (rpcError) throw rpcError;
+      // Touch last_visit for the header/timeline
+      await supabase
         .from('patients')
-        .update({ status, last_visit: new Date().toISOString() })
-        .eq('id', patientId)
-        .select('id, status')
-        .single();
-
-      if (updateError) throw updateError;
-      if (!updated || updated.status !== status) {
-        throw new Error(`Status write not persisted (got: ${updated?.status ?? 'null'})`);
-      }
+        .update({ last_visit: new Date().toISOString() })
+        .eq('id', patientId);
 
       // Log status change
       patientAuditLogger('patient_status_changed', patientId, { from: current.status, new_status: status });

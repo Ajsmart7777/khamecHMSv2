@@ -223,12 +223,8 @@ export function CashierPanel() {
       toast.error(`Only ₦${availableBalance.toLocaleString()} available on balance`);
       return;
     }
-    if (!sponsored && shortfall > 0 && !markDebt) {
-      toast.error('Short payment — tick "Mark remainder as debt" to proceed');
-      return;
-    }
     if (!sponsored && shortfall > 0 && !debtEligible) {
-      toast.error('This account type cannot carry debt');
+      toast.error('This account type must be paid in full');
       return;
     }
     if (sponsored && shortfall > 0) {
@@ -355,7 +351,6 @@ export function CashierPanel() {
       setCashAmount('');
       setBalanceAmount('');
       setUseBalance(false);
-      setMarkDebt(false);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to record payment');
     } finally {

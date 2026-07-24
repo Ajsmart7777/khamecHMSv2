@@ -5,9 +5,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, ListChecks, Hand, X } from 'lucide-react';
+import { RefreshCw, ListChecks, Hand, X, Search, FilterX } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -31,6 +32,22 @@ const SOURCE_LABEL: Record<TaskSource, string> = {
   stock_requests: 'Stock',
 };
 
+type AssignFilter = 'all' | 'mine' | 'unclaimed' | 'others';
+type UrgencyFilter = 'all' | 'urgent' | 'soon' | 'fresh';
+
+// Urgency buckets by age since created_at
+const URGENCY_THRESHOLDS = {
+  urgent: 24 * 60 * 60 * 1000, // > 24h waiting
+  soon: 4 * 60 * 60 * 1000, // > 4h waiting
+};
+
+function urgencyOf(createdAt: string): UrgencyFilter {
+  const age = Date.now() - new Date(createdAt).getTime();
+  if (age >= URGENCY_THRESHOLDS.urgent) return 'urgent';
+  if (age >= URGENCY_THRESHOLDS.soon) return 'soon';
+  return 'fresh';
+}
+
 /**
  * Unified task queue driven by the `v_tasks` view via useTasks.
  * Mount inside a page to show live cross-source work items scoped to a role.
@@ -49,8 +66,12 @@ export function TasksPanel({
   const { tasks, loading, error, refresh, claimTask, releaseTask } = useTasks({ role, userId, status, source, patientId });
   const { patients } = usePatients();
   const { user } = useAuth();
-  const [mineOnly, setMineOnly] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [assignFilter, setAssignFilter] = useState<AssignFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<string | 'all'>('all');
+  const [sourceFilter, setSourceFilter] = useState<TaskSource | 'all'>('all');
+  const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>('all');
 
   const patientById = useMemo(() => {
     const m = new Map<string, { name: string; card: string }>();
@@ -63,10 +84,53 @@ export function TasksPanel({
     return m;
   }, [patients]);
 
+  const statusOptions = useMemo(
+    () => Array.from(new Set(tasks.map(t => t.status).filter(Boolean))).sort(),
+    [tasks],
+  );
+  const sourceOptions = useMemo(
+    () => Array.from(new Set(tasks.map(t => t.source))) as TaskSource[],
+    [tasks],
+  );
+
   const visible = useMemo(() => {
-    if (!mineOnly || !user?.id) return tasks;
-    return tasks.filter(t => t.payload?.claimed_by === user.id);
-  }, [tasks, mineOnly, user?.id]);
+    const q = query.trim().toLowerCase();
+    return tasks.filter(t => {
+      // Assignment
+      if (assignFilter === 'mine') {
+        if (!user?.id || t.payload?.claimed_by !== user.id) return false;
+      } else if (assignFilter === 'unclaimed') {
+        if (t.payload?.claimed) return false;
+      } else if (assignFilter === 'others') {
+        if (!t.payload?.claimed) return false;
+        if (user?.id && t.payload?.claimed_by === user.id) return false;
+      }
+      // Status
+      if (statusFilter !== 'all' && t.status !== statusFilter) return false;
+      // Source
+      if (sourceFilter !== 'all' && t.source !== sourceFilter) return false;
+      // Urgency
+      if (urgencyFilter !== 'all' && urgencyOf(t.created_at) !== urgencyFilter) return false;
+      // Text search
+      if (q) {
+        const p = t.patient_id ? patientById.get(t.patient_id) : null;
+        const label = String(t.payload?.label || t.payload?.title || t.payload?.description || '');
+        const hay = `${p?.name ?? ''} ${p?.card ?? ''} ${label} ${t.source} ${t.status}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [tasks, query, assignFilter, statusFilter, sourceFilter, urgencyFilter, user?.id, patientById]);
+
+  const filtersActive =
+    !!query || assignFilter !== 'all' || statusFilter !== 'all' || sourceFilter !== 'all' || urgencyFilter !== 'all';
+  const clearFilters = () => {
+    setQuery('');
+    setAssignFilter('all');
+    setStatusFilter('all');
+    setSourceFilter('all');
+    setUrgencyFilter('all');
+  };
 
   const handleClaim = async (t: (typeof tasks)[number]) => {
     setBusyId(t.task_id);
@@ -99,10 +163,17 @@ export function TasksPanel({
           <ListChecks className="w-4 h-4" />
           {title}
           <Badge variant="secondary" className="ml-1">{visible.length}</Badge>
+          {filtersActive && visible.length !== tasks.length && (
+            <span className="text-[10px] text-muted-foreground font-normal">of {tasks.length}</span>
+          )}
         </CardTitle>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <Switch id="mine-only" checked={mineOnly} onCheckedChange={setMineOnly} />
+            <Switch
+              id="mine-only"
+              checked={assignFilter === 'mine'}
+              onCheckedChange={(v) => setAssignFilter(v ? 'mine' : 'all')}
+            />
             <Label htmlFor="mine-only" className="text-xs">Mine only</Label>
           </div>
           <Button size="sm" variant="ghost" onClick={refresh} disabled={loading}>
@@ -111,6 +182,96 @@ export function TasksPanel({
         </div>
       </CardHeader>
       <CardContent className="pt-0">
+        <div className="mb-3 space-y-2">
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search patient, card, or task…"
+              className="h-8 pl-8 text-sm"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Assignment chips */}
+            {(['all', 'mine', 'unclaimed', 'others'] as AssignFilter[]).map(a => (
+              <Badge
+                key={`asg-${a}`}
+                variant={assignFilter === a ? 'default' : 'outline'}
+                className="cursor-pointer capitalize"
+                onClick={() => setAssignFilter(a)}
+              >
+                {a}
+              </Badge>
+            ))}
+            <span className="mx-1 h-4 w-px bg-border" />
+            {/* Urgency chips */}
+            {([
+              { key: 'all', label: 'Any age' },
+              { key: 'urgent', label: '>24h' },
+              { key: 'soon', label: '>4h' },
+              { key: 'fresh', label: 'Fresh' },
+            ] as { key: UrgencyFilter; label: string }[]).map(u => (
+              <Badge
+                key={`urg-${u.key}`}
+                variant={urgencyFilter === u.key ? 'default' : 'outline'}
+                className="cursor-pointer"
+                onClick={() => setUrgencyFilter(u.key)}
+              >
+                {u.label}
+              </Badge>
+            ))}
+            {statusOptions.length > 1 && (
+              <>
+                <span className="mx-1 h-4 w-px bg-border" />
+                <Badge
+                  variant={statusFilter === 'all' ? 'default' : 'outline'}
+                  className="cursor-pointer"
+                  onClick={() => setStatusFilter('all')}
+                >
+                  All status
+                </Badge>
+                {statusOptions.map(s => (
+                  <Badge
+                    key={`st-${s}`}
+                    variant={statusFilter === s ? 'default' : 'outline'}
+                    className="cursor-pointer"
+                    onClick={() => setStatusFilter(s)}
+                  >
+                    {s}
+                  </Badge>
+                ))}
+              </>
+            )}
+            {sourceOptions.length > 1 && (
+              <>
+                <span className="mx-1 h-4 w-px bg-border" />
+                <Badge
+                  variant={sourceFilter === 'all' ? 'default' : 'outline'}
+                  className="cursor-pointer"
+                  onClick={() => setSourceFilter('all')}
+                >
+                  All types
+                </Badge>
+                {sourceOptions.map(s => (
+                  <Badge
+                    key={`src-${s}`}
+                    variant={sourceFilter === s ? 'default' : 'outline'}
+                    className="cursor-pointer"
+                    onClick={() => setSourceFilter(s)}
+                  >
+                    {SOURCE_LABEL[s]}
+                  </Badge>
+                ))}
+              </>
+            )}
+            {filtersActive && (
+              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs ml-auto" onClick={clearFilters}>
+                <FilterX className="w-3 h-3 mr-1" /> Clear
+              </Button>
+            )}
+          </div>
+        </div>
         {error && <div className="text-sm text-destructive mb-2">{error}</div>}
         {visible.length === 0 && !loading ? (
           <div className="text-sm text-muted-foreground py-4 text-center">{emptyMessage}</div>

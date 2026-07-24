@@ -1,11 +1,12 @@
+import { useEffect, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { History, X } from 'lucide-react';
+import { History, Loader2 } from 'lucide-react';
 import { PatientJourneyTimeline } from './PatientJourneyTimeline';
 import { Patient } from '@/contexts/PatientContext';
 
@@ -25,142 +26,79 @@ interface PatientJourneyDialogProps {
   patient: Patient;
 }
 
-// Generate mock journey events based on patient data
-// In a real app, this would come from the database
-function generateJourneyEvents(patient: Patient): JourneyEvent[] {
-  const events: JourneyEvent[] = [];
-  const now = new Date();
-  
-  // Registration event (always present)
-  events.push({
-    id: `reg-${patient.id}`,
-    type: 'registration',
-    title: 'Patient Registration',
-    description: 'Patient registered at Reception',
-    timestamp: new Date(patient.registered_at),
-    status: 'completed',
-    details: {
-      'Card Number': patient.card_number,
-      'Account Type': patient.account_type,
-    },
-  });
-
-  // Generate events based on current status
-  const statusFlow: PatientStatus[] = [
-    'registered', 'waiting', 'with_nurse', 'with_doctor', 
-    'in_lab', 'awaiting_billing', 'awaiting_payment', 'at_pharmacy', 'discharged'
-  ];
-
-  type PatientStatus = 'registered' | 'waiting' | 'with_nurse' | 'with_doctor' | 
-    'in_lab' | 'awaiting_billing' | 'awaiting_payment' | 'at_pharmacy' | 'discharged' | 'admitted';
-
-  const currentIndex = statusFlow.indexOf(patient.status as PatientStatus);
-
-  // Add vitals if past waiting
-  if (currentIndex >= 2) {
-    events.push({
-      id: `vitals-${patient.id}`,
-      type: 'vitals',
-      title: 'Vitals Recorded',
-      description: 'Vitals taken at Nurse Station',
-      timestamp: new Date(now.getTime() - 3600000),
-      status: 'completed',
-      details: {
-        'Blood Pressure': '120/80 mmHg',
-        'Temperature': '37.2°C',
-        'Pulse': '72 bpm',
-      },
-    });
-  }
-
-  // Add consultation if past with_doctor
-  if (currentIndex >= 3) {
-    events.push({
-      id: `consult-${patient.id}`,
-      type: 'consultation',
-      title: 'Doctor Consultation',
-      description: 'Examined by attending physician',
-      timestamp: new Date(now.getTime() - 2700000),
-      status: 'completed',
-      details: {
-        'Doctor': 'Dr. Ahmed',
-        'Duration': '15 mins',
-      },
-    });
-  }
-
-  // Add lab test if past in_lab
-  if (currentIndex >= 4) {
-    events.push({
-      id: `lab-${patient.id}`,
-      type: 'lab_test',
-      title: 'Laboratory Tests',
-      description: 'Blood work and urinalysis',
-      timestamp: new Date(now.getTime() - 1800000),
-      status: currentIndex === 4 ? 'in_progress' : 'completed',
-      details: {
-        'Tests': 'CBC, Urinalysis',
-        'Lab Tech': 'Lab Staff',
-      },
-    });
-  }
-
-  // Add billing if past awaiting_billing
-  if (currentIndex >= 5) {
-    events.push({
-      id: `billing-${patient.id}`,
-      type: 'billing',
-      title: 'Invoice Generated',
-      description: 'Bill prepared for services',
-      timestamp: new Date(now.getTime() - 900000),
-      status: currentIndex === 5 ? 'in_progress' : 'completed',
-      details: {
-        'Total': `₦${(Math.random() * 50000 + 5000).toFixed(0)}`,
-      },
-    });
-  }
-
-  // Add payment if past awaiting_payment
-  if (currentIndex >= 6) {
-    events.push({
-      id: `payment-${patient.id}`,
-      type: 'payment',
-      title: 'Payment Received',
-      description: 'Payment processed at Reception',
-      timestamp: new Date(now.getTime() - 600000),
-      status: 'completed',
-      details: {
-        'Method': 'Cash',
-        'Receipt': `RCP-${Date.now().toString(36).toUpperCase()}`,
-      },
-    });
-  }
-
-  // Add pharmacy if at_pharmacy or discharged
-  if (currentIndex >= 7) {
-    events.push({
-      id: `pharmacy-${patient.id}`,
-      type: 'pharmacy',
-      title: 'Medication Dispensed',
-      description: 'Prescription fulfilled at Pharmacy',
-      timestamp: new Date(now.getTime() - 300000),
-      status: currentIndex === 7 ? 'in_progress' : 'completed',
-      details: {
-        'Items': '3 medications',
-        'Pharmacist': 'Pharmacy Staff',
-      },
-    });
-  }
-
-  return events;
-}
+const STATE_TO_EVENT: Record<string, { type: JourneyEvent['type']; title: string; description: string }> = {
+  registered:       { type: 'registration', title: 'Registered',          description: 'Patient registered at Reception' },
+  waiting:          { type: 'registration', title: 'Waiting',             description: 'Awaiting triage' },
+  with_nurse:       { type: 'vitals',       title: 'With Nurse',          description: 'Vitals / triage at Nurse Station' },
+  with_doctor:      { type: 'consultation', title: 'With Doctor',         description: 'Consultation in progress' },
+  in_lab:           { type: 'lab_test',     title: 'In Laboratory',       description: 'Lab tests requested / running' },
+  awaiting_billing: { type: 'billing',      title: 'Awaiting Billing',    description: 'Order sent to Billing' },
+  awaiting_payment: { type: 'billing',      title: 'Awaiting Payment',    description: 'Invoice awaiting payment at Cashier' },
+  at_pharmacy:      { type: 'pharmacy',     title: 'At Pharmacy',         description: 'Prescription awaiting dispense' },
+  admitted:         { type: 'consultation', title: 'Admitted',            description: 'Patient admitted to ward' },
+  discharged:       { type: 'payment',      title: 'Discharged',          description: 'Patient discharged' },
+};
 
 export function PatientJourneyDialog({
   open,
   onOpenChange,
   patient,
 }: PatientJourneyDialogProps) {
-  const events = generateJourneyEvents(patient);
+  const [events, setEvents] = useState<JourneyEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const list: JourneyEvent[] = [{
+        id: `reg-${patient.id}`,
+        type: 'registration',
+        title: 'Patient Registration',
+        description: 'Patient registered at Reception',
+        timestamp: new Date(patient.registered_at),
+        status: 'completed',
+        details: { 'Card Number': patient.card_number, 'Account Type': patient.account_type },
+      }];
+
+      const { data } = await supabase
+        .from('patient_journey_history')
+        .select('id, to_state, to_owner_role, department, location, reason, created_at')
+        .eq('patient_id', patient.id)
+        .order('created_at', { ascending: true });
+
+      const rows = data ?? [];
+      rows.forEach((row, idx) => {
+        const meta = STATE_TO_EVENT[row.to_state] ?? {
+          type: 'consultation' as const,
+          title: row.to_state,
+          description: row.reason ?? '',
+        };
+        const isLast = idx === rows.length - 1;
+        list.push({
+          id: row.id,
+          type: meta.type,
+          title: meta.title,
+          description: meta.description,
+          timestamp: new Date(row.created_at),
+          status: isLast && patient.status !== 'discharged' ? 'in_progress' : 'completed',
+          details: {
+            ...(row.to_owner_role ? { 'Owner': row.to_owner_role } : {}),
+            ...(row.department ? { 'Department': row.department } : {}),
+            ...(row.location ? { 'Location': row.location } : {}),
+            ...(row.reason ? { 'Reason': row.reason } : {}),
+          },
+        });
+      });
+
+      if (!cancelled) {
+        setEvents(list);
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, patient.id, patient.status, patient.registered_at, patient.card_number, patient.account_type]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -172,11 +110,17 @@ export function PatientJourneyDialog({
           </DialogTitle>
         </DialogHeader>
         
-        <PatientJourneyTimeline
-          patientName={`${patient.first_name} ${patient.last_name}`}
-          cardNumber={patient.card_number}
-          events={events}
-        />
+        {loading ? (
+          <div className="flex items-center justify-center py-12 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading journey…
+          </div>
+        ) : (
+          <PatientJourneyTimeline
+            patientName={`${patient.first_name} ${patient.last_name}`}
+            cardNumber={patient.card_number}
+            events={events}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

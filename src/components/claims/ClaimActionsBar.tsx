@@ -19,7 +19,9 @@ import {
 import { isSponsored } from '@/lib/copay';
 import { Patient } from '@/contexts/PatientContext';
 
-const INSURED_SPONSORS = new Set(['nhia', 'hmo', 'katchma', 'staff', 'staff_family']);
+// Claims Manager scope: external insurance schemes only.
+// staff = 100% free; staff_family = 50% patient / 50% payroll deduction (handled by trigger).
+const INSURED_SPONSORS = new Set(['nhia', 'hmo', 'katchma']);
 
 function statusTone(s?: string | null) {
   switch (s) {

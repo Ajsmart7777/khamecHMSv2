@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -106,6 +107,8 @@ export function TasksPanel({
   const navigate = useNavigate();
   const location = useLocation();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [, setNowTick] = useState(0);
 
   // Tick every 30s so relative timestamps and urgency chips stay fresh.
@@ -200,6 +203,64 @@ export function TasksPanel({
     } finally {
       setBusyId(null);
     }
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const selectedTasks = useMemo(
+    () => visible.filter(t => selected.has(t.task_id)),
+    [visible, selected],
+  );
+  const bulkClaimable = selectedTasks.filter(t => !t.payload?.claimed);
+  const bulkReleasable = selectedTasks.filter(
+    t => t.payload?.claimed && user?.id && t.payload?.claimed_by === user.id,
+  );
+  const allVisibleSelected = visible.length > 0 && visible.every(t => selected.has(t.task_id));
+
+  const toggleSelectAllVisible = () => {
+    setSelected(prev => {
+      if (allVisibleSelected) {
+        const next = new Set(prev);
+        visible.forEach(t => next.delete(t.task_id));
+        return next;
+      }
+      const next = new Set(prev);
+      visible.forEach(t => next.add(t.task_id));
+      return next;
+    });
+  };
+
+  const runBulk = async (
+    items: (typeof tasks),
+    action: 'claim' | 'release',
+  ) => {
+    if (items.length === 0) return;
+    setBulkBusy(true);
+    let ok = 0;
+    let fail = 0;
+    for (const t of items) {
+      try {
+        if (action === 'claim') await claimTask(t.source, t.source_id);
+        else await releaseTask(t.source, t.source_id);
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
+    setBulkBusy(false);
+    setSelected(prev => {
+      const next = new Set(prev);
+      items.forEach(t => next.delete(t.task_id));
+      return next;
+    });
+    if (ok) toast.success(`${action === 'claim' ? 'Claimed' : 'Released'} ${ok} task${ok === 1 ? '' : 's'}`);
+    if (fail) toast.error(`${fail} task${fail === 1 ? '' : 's'} failed`);
   };
 
   const openTask = (t: (typeof tasks)[number]) => {
@@ -344,6 +405,54 @@ export function TasksPanel({
             )}
           </div>
         </div>
+        {(selected.size > 0 || visible.length > 0) && (
+          <div className="mb-2 flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="select-all-visible"
+                checked={allVisibleSelected}
+                onCheckedChange={toggleSelectAllVisible}
+              />
+              <Label htmlFor="select-all-visible" className="text-xs cursor-pointer">
+                Select all visible
+              </Label>
+            </div>
+            {selected.size > 0 && (
+              <>
+                <Badge variant="secondary" className="text-[10px]">{selected.size} selected</Badge>
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="h-7"
+                  disabled={bulkBusy || bulkClaimable.length === 0}
+                  onClick={() => runBulk(bulkClaimable, 'claim')}
+                >
+                  <Hand className="w-3.5 h-3.5 mr-1" />
+                  Claim {bulkClaimable.length > 0 ? `(${bulkClaimable.length})` : ''}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7"
+                  disabled={bulkBusy || bulkReleasable.length === 0}
+                  onClick={() => runBulk(bulkReleasable, 'release')}
+                >
+                  <X className="w-3.5 h-3.5 mr-1" />
+                  Release {bulkReleasable.length > 0 ? `(${bulkReleasable.length})` : ''}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setSelected(new Set())}
+                  disabled={bulkBusy}
+                >
+                  Clear selection
+                </Button>
+              </>
+            )}
+          </div>
+        )}
         {error && (
           <div className="mb-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-destructive mt-0.5 shrink-0" />
@@ -411,6 +520,12 @@ export function TasksPanel({
                   key={t.task_id}
                   className={`w-full px-3 py-2 rounded-md border flex items-center gap-3 ${claimedByMe ? 'bg-primary/5 border-primary/40' : 'hover:bg-accent'}`}
                 >
+                  <Checkbox
+                    checked={selected.has(t.task_id)}
+                    onCheckedChange={() => toggleSelected(t.task_id)}
+                    aria-label="Select task"
+                    className="shrink-0"
+                  />
                   <button
                     onClick={() => {
                       if (onSelectPatient && t.patient_id) {

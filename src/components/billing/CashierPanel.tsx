@@ -492,7 +492,7 @@ export function CashierPanel() {
                   </span>
                 </>
               )}
-              {selectedPatient && (
+              {selectedPatient && walletEligible && (
                 <span className="block text-xs mt-1">
                   {selectedPatient.first_name} {selectedPatient.last_name} ·{' '}
                   <span className="capitalize">{selectedPatient.account_type}</span> ·
@@ -508,6 +508,12 @@ export function CashierPanel() {
                   >
                     ₦{patientBalance.toLocaleString()}
                   </span>
+                </span>
+              )}
+              {selectedPatient && !walletEligible && (
+                <span className="block text-xs mt-1">
+                  {selectedPatient.first_name} {selectedPatient.last_name} ·{' '}
+                  <span className="capitalize">{selectedPatient.account_type?.replace('_',' ')}</span>
                 </span>
               )}
             </DialogDescription>
@@ -540,8 +546,8 @@ export function CashierPanel() {
               </div>
             )}
 
-            {/* Use patient balance */}
-            {!fullCover && availableBalance > 0 && (
+            {/* Use patient balance — cash patients only */}
+            {!fullCover && walletEligible && availableBalance > 0 && (
               <div className="rounded-lg border border-success/40 bg-success/5 p-3 space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer text-sm">
                   <Checkbox

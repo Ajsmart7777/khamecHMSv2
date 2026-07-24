@@ -5,22 +5,37 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Building2, Download, Loader2, TrendingUp } from 'lucide-react';
 import { useCorporateAccounts } from '@/hooks/useCorporateAccounts';
+import { splitInvoice } from '@/lib/copay';
+
+interface InvoiceRow {
+  id: string;
+  invoice_number: string;
+  patient_id: string;
+  sponsor_type: string | null;
+  corporate_account_id: string | null;
+  total_amount: number;
+  paid_amount: number;
+  status: string;
+  created_at: string;
+  paid_at: string | null;
+  patient?: { first_name: string; last_name: string | null; account_type: string | null; insurance_plan: string | null } | null;
+  corporate?: { company_name: string; account_type: string } | null;
+}
 
 interface ClaimRow {
   id: string;
   claim_number: string;
   patient_id: string;
-  invoice_id: string;
   sponsor_type: string;
   corporate_account_id: string | null;
+  corporate_name: string;
+  patient_name: string;
   total_amount: number;
   covered_amount: number;
   patient_copay: number;
   status: string;
   submitted_at: string;
   paid_at: string | null;
-  patient?: { first_name: string; last_name: string } | null;
-  corporate?: { company_name: string; sponsor_type: string } | null;
 }
 
 function money(v: number) {
@@ -39,13 +54,38 @@ export function CorporateClaimsReport({ fixedSponsorType }: { fixedSponsorType?:
     const load = async () => {
       setLoading(true);
       let q = supabase
-        .from('insurance_claims')
-        .select('*, patient:patients(first_name,last_name), corporate:corporate_accounts(company_name,sponsor_type)')
-        .order('submitted_at', { ascending: false });
+        .from('invoices')
+        .select('id, invoice_number, patient_id, sponsor_type, corporate_account_id, total_amount, paid_amount, status, created_at, paid_at, patient:patients(first_name,last_name,account_type,insurance_plan), corporate:corporate_accounts(company_name,account_type)')
+        .order('created_at', { ascending: false });
       if (fixedSponsorType) q = q.eq('sponsor_type', fixedSponsorType);
       else q = q.in('sponsor_type', ['corporate', 'retainer']);
       const { data, error } = await q;
-      if (!error) setClaims((data || []) as unknown as ClaimRow[]);
+      if (!error) {
+        const rows = ((data || []) as unknown as InvoiceRow[]).map(inv => {
+          const split = splitInvoice(Number(inv.total_amount) || 0, {
+            account_type: inv.patient?.account_type ?? inv.sponsor_type,
+            insurance_plan: inv.patient?.insurance_plan,
+          });
+          const sponsorPaid = Math.max(0, Number(inv.paid_amount || 0) - split.copayAmount);
+          const settled = inv.status === 'paid' || inv.status === 'completed' || sponsorPaid >= split.coveredAmount - 0.01;
+          return {
+            id: inv.id,
+            claim_number: inv.invoice_number,
+            patient_id: inv.patient_id,
+            sponsor_type: inv.sponsor_type || 'corporate',
+            corporate_account_id: inv.corporate_account_id,
+            corporate_name: inv.corporate?.company_name || '—',
+            patient_name: `${inv.patient?.first_name || ''} ${inv.patient?.last_name || ''}`.trim() || 'Unknown',
+            total_amount: Number(inv.total_amount) || 0,
+            covered_amount: split.coveredAmount,
+            patient_copay: split.copayAmount,
+            status: settled ? 'paid' : 'submitted',
+            submitted_at: inv.created_at,
+            paid_at: inv.paid_at,
+          } as ClaimRow;
+        });
+        setClaims(rows);
+      }
       setLoading(false);
     };
     load();
@@ -75,8 +115,8 @@ export function CorporateClaimsReport({ fixedSponsorType }: { fixedSponsorType?:
       ...filtered.map(c => [
         c.claim_number,
         c.sponsor_type,
-        c.corporate?.company_name || '',
-        `${c.patient?.first_name || ''} ${c.patient?.last_name || ''}`.trim(),
+        c.corporate_name,
+        c.patient_name,
         c.total_amount, c.covered_amount, c.patient_copay,
         c.status,
         c.submitted_at,
@@ -167,10 +207,10 @@ export function CorporateClaimsReport({ fixedSponsorType }: { fixedSponsorType?:
                 <tr key={c.id} className="border-t">
                   <td className="px-3 py-2 font-mono text-xs">{c.claim_number}</td>
                   <td className="px-3 py-2">
-                    <div>{c.corporate?.company_name || '—'}</div>
+                    <div>{c.corporate_name}</div>
                     <Badge variant="outline" className="text-[10px]">{c.sponsor_type}</Badge>
                   </td>
-                  <td className="px-3 py-2">{c.patient?.first_name} {c.patient?.last_name}</td>
+                  <td className="px-3 py-2">{c.patient_name}</td>
                   <td className="px-3 py-2 text-right">{money(c.total_amount)}</td>
                   <td className="px-3 py-2 text-right">{money(c.covered_amount)}</td>
                   <td className="px-3 py-2 text-right">{money(c.patient_copay)}</td>

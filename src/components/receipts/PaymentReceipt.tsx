@@ -9,10 +9,20 @@ interface PaymentReceiptProps {
   receiptNumber: string;
   date: Date;
   newBalance: number;
+  /** Optional invoice / sponsor breakdown printed above the amount line. */
+  breakdown?: {
+    invoiceNumber?: string;
+    invoiceTotal: number;
+    sponsorCovered?: number;
+    patientCopay?: number;
+    sponsorLabel?: string | null;
+    copayPct?: number;
+  };
 }
 
 export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
-  ({ patient, amount, paymentMethod, receiptNumber, date, newBalance }, ref) => {
+  ({ patient, amount, paymentMethod, receiptNumber, date, newBalance, breakdown }, ref) => {
+    const sponsored = !!breakdown && (breakdown.sponsorCovered ?? 0) > 0;
     return (
       <div ref={ref} className="bg-white text-black p-6 w-[300px] font-mono text-sm">
         {/* Header */}
@@ -40,7 +50,37 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
           <p className="text-xs text-gray-600 mb-1">Patient Details:</p>
           <p className="font-semibold">{patient.first_name} {patient.last_name}</p>
           <p className="text-xs">{patient.card_number}</p>
+          {breakdown?.invoiceNumber && (
+            <p className="text-xs mt-1">Invoice: {breakdown.invoiceNumber}</p>
+          )}
         </div>
+
+        {/* Charge Breakdown */}
+        {breakdown && (
+          <div className="mb-4 border-b border-dashed border-gray-400 pb-4 space-y-1 text-xs">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Invoice total</span>
+              <span className="font-semibold">₦{breakdown.invoiceTotal.toLocaleString()}</span>
+            </div>
+            {sponsored && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">
+                    Sponsor{breakdown.sponsorLabel ? ` (${breakdown.sponsorLabel})` : ''}
+                    {typeof breakdown.copayPct === 'number' ? ` · ${100 - breakdown.copayPct}%` : ''}
+                  </span>
+                  <span>− ₦{(breakdown.sponsorCovered ?? 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between border-t border-gray-300 pt-1">
+                  <span className="text-gray-600">
+                    Patient copay{typeof breakdown.copayPct === 'number' ? ` (${breakdown.copayPct}%)` : ''}
+                  </span>
+                  <span className="font-semibold">₦{(breakdown.patientCopay ?? 0).toLocaleString()}</span>
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Payment Details */}
         <div className="mb-4 border-b border-dashed border-gray-400 pb-4">
@@ -52,6 +92,9 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
             <span>Amount Paid:</span>
             <span>₦{amount.toLocaleString()}</span>
           </div>
+          {sponsored && (
+            <p className="text-[10px] text-gray-600 mt-1">Sponsor portion routed to Claims queue.</p>
+          )}
         </div>
 
         {/* New Balance */}

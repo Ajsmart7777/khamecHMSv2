@@ -70,10 +70,29 @@ export function useTasks(opts: UseTasksOpts = {}) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'admissions' }, fetchTasks)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders' }, fetchTasks)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_requests' }, fetchTasks)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_claims' }, fetchTasks)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, userId, patientId, JSON.stringify(status), JSON.stringify(source), enabled]);
 
-  return { tasks, loading, error, refresh: fetchTasks };
+  const claimTask = async (source: TaskSource, sourceId: string, notes?: string) => {
+    const { data, error } = await supabase.rpc('claim_task' as any, {
+      _source: source, _source_id: sourceId, _notes: notes ?? null,
+    });
+    if (error) throw error;
+    await fetchTasks();
+    return data as unknown as string;
+  };
+
+  const releaseTask = async (source: TaskSource, sourceId: string, notes?: string) => {
+    const { data, error } = await supabase.rpc('release_task' as any, {
+      _source: source, _source_id: sourceId, _notes: notes ?? null,
+    });
+    if (error) throw error;
+    await fetchTasks();
+    return data as unknown as boolean;
+  };
+
+  return { tasks, loading, error, refresh: fetchTasks, claimTask, releaseTask };
 }

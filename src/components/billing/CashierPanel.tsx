@@ -296,13 +296,13 @@ export function CashierPanel() {
       const parts: string[] = [];
       if (cash > 0) parts.push(`₦${cash.toLocaleString()} ${method}`);
       if (bal > 0) parts.push(`₦${bal.toLocaleString()} balance`);
-      if (!sponsored && shortfall > 0) parts.push(`₦${shortfall.toLocaleString()} debt`);
+      if (!sponsored && shortfall > 0) parts.push(`₦${shortfall.toLocaleString()} owed on balance`);
       if (sponsored) parts.push(`sponsor ₦${(invoiceTotal - split.copayAmount).toLocaleString()} → Claims`);
 
       toast.success(
         sponsored
           ? 'Copay collected — sent to Claims'
-          : shortfall > 0 ? 'Payment recorded with debt' : 'Payment recorded',
+          : shortfall > 0 ? 'Partial payment recorded' : 'Payment recorded',
         { description: `${selected.invoice_number} · ${parts.join(' + ')}` }
       );
 

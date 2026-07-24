@@ -145,7 +145,12 @@ export async function createNotification(params: {
         type: params.type || 'info',
         link: params.link || null,
         resource_id: params.resource_id || null,
-        target_role: params.target_role ?? null,
+        // 'all' means broadcast; target_role is cast to app_role by RLS so
+        // only valid roles (or NULL for broadcast) are allowed here.
+        target_role:
+          !params.target_role || params.target_role === 'all'
+            ? null
+            : params.target_role,
         user_id: params.user_id || null,
       }]);
 

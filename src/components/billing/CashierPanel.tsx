@@ -25,10 +25,13 @@ import { useInvoices, Invoice } from '@/hooks/useInvoices';
 import { usePatients } from '@/contexts/PatientContext';
 import { paymentAuditLogger } from '@/lib/auditLogger';
 import { supabase } from '@/integrations/supabase/client';
-import { copayPercent, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
+import { copayPercent, hasWallet, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
 import { PrintableReceiptDialog } from '@/components/receipts/PrintableReceiptDialog';
 
-const DEBT_ELIGIBLE = new Set(['normal', 'staff', 'staff_family']);
+// Only walk-in cash patients can carry a shortfall on their patient balance.
+// Sponsored/insured/staff accounts settle via the sponsor — never on the
+// patient's wallet.
+const DEBT_ELIGIBLE = new Set(['normal', 'cash', '']);
 
 // After payment, route the patient back to the station that requested the
 // service (lab tests → back to lab, pharmacy meds → pharmacy). Falls back to
@@ -55,7 +58,6 @@ export function CashierPanel() {
   const [method, setMethod] = useState<string>('cash');
   const [useBalance, setUseBalance] = useState(false);
   const [balanceAmount, setBalanceAmount] = useState('');
-  const [markDebt, setMarkDebt] = useState(false);
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState<{
     patient: any;
@@ -98,10 +100,13 @@ export function CashierPanel() {
   const selectedPatient = selected
     ? patients.find((p: any) => p.id === selected.patient_id)
     : null;
-  const patientBalance = Number(selectedPatient?.balance ?? 0);
+  // Wallet only exists for cash patients — sponsored/insured never touch it.
+  const walletEligible = selectedPatient ? hasWallet(selectedPatient) : false;
+  const patientBalance = walletEligible ? Number(selectedPatient?.balance ?? 0) : 0;
   const availableBalance = Math.max(patientBalance, 0);
   const debtEligible =
-    !!selectedPatient && DEBT_ELIGIBLE.has(selectedPatient.account_type as string);
+    !!selectedPatient && walletEligible &&
+    DEBT_ELIGIBLE.has(String(selectedPatient.account_type ?? '').toLowerCase());
   const invoiceTotal = selected ? Number(selected.total_amount) : 0;
   const alreadyPaid = selected ? Number(selected.paid_amount) : 0;
 

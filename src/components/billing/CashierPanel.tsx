@@ -602,7 +602,13 @@ export function CashierPanel() {
               )}
               <div className="flex justify-between pt-1 border-t border-border">
                 <span className="font-semibold">
-                  {shortfall > 0 ? 'Shortfall' : overpay > 0 ? 'Overpayment' : 'Settled'}
+                  {shortfall > 0
+                    ? sponsored
+                      ? 'Copay short by'
+                      : 'Owed after this payment'
+                    : overpay > 0
+                    ? 'Overpayment'
+                    : 'Settled'}
                 </span>
                 <span
                   className={`font-bold ${
@@ -625,17 +631,17 @@ export function CashierPanel() {
                   <AlertTriangle className="h-4 w-4 text-warning mt-0.5" />
                   <div className="text-xs">
                     <p className="font-semibold text-warning-foreground">
-                      Short by ₦{shortfall.toLocaleString()}
+                      Partial payment · ₦{applied.toLocaleString()} of ₦{outstanding.toLocaleString()}
                     </p>
                     {debtEligible ? (
                       <p className="text-muted-foreground mt-0.5">
-                        Will be recorded as debt. New balance will be ₦
-                        {(patientBalance - bal - shortfall).toLocaleString()}
-                        . Next top-up clears it automatically.
+                        The remaining <span className="font-semibold">₦{shortfall.toLocaleString()}</span> will sit
+                        on the patient's balance as amount owed. New balance after this: ₦
+                        {(patientBalance - bal - shortfall).toLocaleString()}. Any future top-up clears it automatically.
                       </p>
                     ) : (
                       <p className="text-destructive mt-0.5">
-                        Debt not allowed for this account type — collect full amount.
+                        This account type cannot carry a balance owed — collect the full amount.
                       </p>
                     )}
                   </div>
@@ -647,7 +653,7 @@ export function CashierPanel() {
                       onCheckedChange={(v) => setMarkDebt(!!v)}
                     />
                     <span>
-                      Mark ₦{shortfall.toLocaleString()} as debt on patient balance
+                      Accept ₦{applied.toLocaleString()} now — record ₦{shortfall.toLocaleString()} as owed on balance
                     </span>
                   </label>
                 )}
@@ -677,7 +683,7 @@ export function CashierPanel() {
                 : sponsored
                 ? 'Collect Copay & Send to Claims'
                 : shortfall > 0
-                ? 'Confirm & Record Debt'
+                ? `Confirm ₦${applied.toLocaleString()} Partial Payment`
                 : 'Confirm Payment'}
             </Button>
           </DialogFooter>

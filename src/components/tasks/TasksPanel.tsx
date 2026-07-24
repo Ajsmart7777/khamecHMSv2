@@ -622,5 +622,54 @@ export function TasksPanel({
         )}
       </CardContent>
     </Card>
+    <AlertDialog open={!!bulkConfirm} onOpenChange={(o) => !o && setBulkConfirm(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {bulkConfirm === 'claim' ? 'Claim selected tasks?' : 'Release selected tasks?'}
+          </AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-sm">
+              <div>
+                <span className="font-medium text-foreground">{confirmItems.length}</span>{' '}
+                of {selectedTasks.length} selected task{selectedTasks.length === 1 ? '' : 's'} will be{' '}
+                {bulkConfirm === 'claim' ? 'claimed by you' : 'released'}.
+              </div>
+              {confirmSkipped.length > 0 && (
+                <div>
+                  <div className="text-xs text-muted-foreground mb-1">Skipped by role/ownership rules:</div>
+                  <ul className="list-disc pl-5 text-xs text-muted-foreground space-y-0.5">
+                    {confirmSkipped.map((s, i) => (
+                      <li key={i}>{s.count} — {s.reason}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="text-xs text-muted-foreground pt-1">
+                {bulkConfirm === 'claim'
+                  ? 'Claiming assigns each task to you and hides the Claim button for other staff until you release it.'
+                  : 'Releasing removes your claim so other staff in your role can pick the task up.'}
+              </div>
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={bulkBusy}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={bulkBusy || confirmItems.length === 0}
+            onClick={async (e) => {
+              e.preventDefault();
+              const action = bulkConfirm;
+              const items = confirmItems;
+              setBulkConfirm(null);
+              if (action) await runBulk(items, action);
+            }}
+          >
+            {bulkConfirm === 'claim' ? `Claim ${confirmItems.length}` : `Release ${confirmItems.length}`}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

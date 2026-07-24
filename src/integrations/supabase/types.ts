@@ -2362,6 +2362,42 @@ export type Database = {
           },
         ]
       }
+      task_claims: {
+        Row: {
+          claimed_at: string
+          claimed_by: string
+          created_at: string
+          id: string
+          notes: string | null
+          released_at: string | null
+          source: string
+          source_id: string
+          updated_at: string
+        }
+        Insert: {
+          claimed_at?: string
+          claimed_by: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          released_at?: string | null
+          source: string
+          source_id: string
+          updated_at?: string
+        }
+        Update: {
+          claimed_at?: string
+          claimed_by?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          released_at?: string | null
+          source?: string
+          source_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string | null
@@ -2667,6 +2703,10 @@ export type Database = {
         Args: { _patient_id: string; _user_id: string }
         Returns: boolean
       }
+      claim_task: {
+        Args: { _notes?: string; _source: string; _source_id: string }
+        Returns: string
+      }
       close_visit: { Args: { _visit_id: string }; Returns: undefined }
       create_admitted_snap: {
         Args: {
@@ -2767,6 +2807,10 @@ export type Database = {
         Returns: string
       }
       recalc_visit_totals: { Args: { _visit_id: string }; Returns: undefined }
+      release_task: {
+        Args: { _notes?: string; _source: string; _source_id: string }
+        Returns: boolean
+      }
       request_admission: {
         Args: {
           _note?: string

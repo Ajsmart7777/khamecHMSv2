@@ -12,6 +12,7 @@ import { snapPhotoUrl } from '@/hooks/useSnapOrders';
 import { Patient } from '@/contexts/PatientContext';
 import { Visit } from '@/hooks/useVisits';
 import { Button } from '@/components/ui/button';
+import { copayPercent, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
 
 // ---------- types ----------
 type RowKind =
@@ -707,14 +708,27 @@ function LedgerRowView({
         {row.kind === 'snap' && (
           <SnapRow snap={row.data} thumb={thumbs[row.data?.photo_path]} onOpen={onOpenImage} />
         )}
-        {row.kind === 'invoice' && <InvoiceRow inv={row.data} />}
+        {row.kind === 'invoice' && <InvoiceRow inv={row.data} patient={patient} />}
         {row.kind === 'payment' && (
           <div className="text-sm">
-            <span className="font-bold font-mono text-emerald-600">+{naira(row.data.amount)}</span>{' '}
-            <span className="text-muted-foreground">
-              via {row.data.method ?? 'cash'} · {row.data.ref}
-              {row.data.total ? ` · of ${naira(row.data.total)}` : ''}
-            </span>
+            {row.data.method === 'sponsor_claim' ? (
+              <>
+                <span className="font-bold font-mono text-indigo-600">
+                  Sponsor claim · {naira(row.data.amount)}
+                </span>{' '}
+                <span className="text-muted-foreground">
+                  posted to Claims queue · {row.data.ref}
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="font-bold font-mono text-emerald-600">+{naira(row.data.amount)}</span>{' '}
+                <span className="text-muted-foreground">
+                  via {row.data.method ?? 'cash'} · {row.data.ref}
+                  {row.data.total ? ` · of ${naira(row.data.total)}` : ''}
+                </span>
+              </>
+            )}
           </div>
         )}
         {row.kind === 'admission' && (

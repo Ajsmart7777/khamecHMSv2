@@ -669,15 +669,10 @@ export function CashierPanel() {
                   </div>
                 </div>
                 {debtEligible && (
-                  <label className="flex items-center gap-2 cursor-pointer text-xs">
-                    <Checkbox
-                      checked={markDebt}
-                      onCheckedChange={(v) => setMarkDebt(!!v)}
-                    />
-                    <span>
-                      Accept ₦{applied.toLocaleString()} now — record ₦{shortfall.toLocaleString()} as owed on balance
-                    </span>
-                  </label>
+                  <p className="text-[11px] text-muted-foreground italic">
+                    Confirm to accept ₦{applied.toLocaleString()} now and record ₦
+                    {shortfall.toLocaleString()} as owed on the patient's balance.
+                  </p>
                 )}
               </div>
             )}
@@ -695,7 +690,7 @@ export function CashierPanel() {
                 overpay > 0 ||
                 balExceedsAvail ||
                 (sponsored && !fullCover && shortfall > 0) ||
-                (!sponsored && shortfall > 0 && (!debtEligible || !markDebt))
+                (!sponsored && shortfall > 0 && !debtEligible)
               }
             >
               {busy

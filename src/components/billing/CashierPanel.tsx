@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Wallet, Search, Banknote, AlertTriangle, PiggyBank } from 'lucide-react';
+import { Wallet, Search, Banknote, AlertTriangle, PiggyBank, Shield, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -25,6 +25,7 @@ import { useInvoices, Invoice } from '@/hooks/useInvoices';
 import { usePatients } from '@/contexts/PatientContext';
 import { paymentAuditLogger } from '@/lib/auditLogger';
 import { supabase } from '@/integrations/supabase/client';
+import { copayPercent, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
 
 const DEBT_ELIGIBLE = new Set(['normal', 'staff', 'staff_family']);
 
@@ -67,9 +68,21 @@ export function CashierPanel() {
   const availableBalance = Math.max(patientBalance, 0);
   const debtEligible =
     !!selectedPatient && DEBT_ELIGIBLE.has(selectedPatient.account_type as string);
-  const outstanding = selected
-    ? Number(selected.total_amount) - Number(selected.paid_amount)
-    : 0;
+  const invoiceTotal = selected ? Number(selected.total_amount) : 0;
+  const alreadyPaid = selected ? Number(selected.paid_amount) : 0;
+
+  // Sponsor split — only meaningful when the patient is insured/sponsored.
+  const sponsored = selectedPatient ? isSponsored(selectedPatient) : false;
+  const split = selectedPatient
+    ? splitInvoice(invoiceTotal, selectedPatient)
+    : { copayPct: 100, copayAmount: invoiceTotal, coveredAmount: 0 };
+
+  // For sponsored patients the cashier only ever collects the copay portion;
+  // the sponsor share is auto-settled and routed to the Claims queue.
+  const outstanding = sponsored
+    ? Math.max(split.copayAmount - alreadyPaid, 0)
+    : Math.max(invoiceTotal - alreadyPaid, 0);
+  const fullCover = sponsored && split.copayAmount === 0;
 
   const cash = Math.max(Number(cashAmount) || 0, 0);
   const bal = useBalance ? Math.max(Number(balanceAmount) || 0, 0) : 0;
@@ -80,7 +93,14 @@ export function CashierPanel() {
 
   const openPayment = (inv: Invoice) => {
     setSelected(inv);
-    const out = Number(inv.total_amount) - Number(inv.paid_amount);
+    const p = patients.find((pp: any) => pp.id === inv.patient_id);
+    const spon = p ? isSponsored(p) : false;
+    const s = p
+      ? splitInvoice(Number(inv.total_amount), p)
+      : { copayAmount: Number(inv.total_amount) - Number(inv.paid_amount) };
+    const out = spon
+      ? Math.max(s.copayAmount - Number(inv.paid_amount), 0)
+      : Number(inv.total_amount) - Number(inv.paid_amount);
     setCashAmount(String(out));
     setMethod('cash');
     setUseBalance(false);
@@ -104,24 +124,58 @@ export function CashierPanel() {
 
   const submit = async () => {
     if (!selected || !selectedPatient) return;
+
+    // Full-cover sponsored invoice — nothing to collect, just settle & send.
+    if (fullCover) {
+      setBusy(true);
+      try {
+        const remaining = invoiceTotal - alreadyPaid;
+        if (remaining > 0) {
+          const ok = await recordPayment(selected.id, remaining, 'sponsor_claim');
+          if (!ok) throw new Error('Failed to settle sponsor claim');
+        }
+        await refreshInvoices();
+        await paymentAuditLogger('payment_received', selected.invoice_number, {
+          patient_id: selected.patient_id,
+          patient_name: `${selectedPatient.first_name} ${selectedPatient.last_name}`,
+          action: 'sponsor_fully_covered',
+          sponsor: sponsorLabel(selectedPatient),
+          covered_amount: remaining,
+          copay_amount: 0,
+        });
+        await updatePatientStatus(selected.patient_id, 'at_pharmacy');
+        toast.success('Acknowledged — sent to Claims', {
+          description: `${selected.invoice_number} · Sponsor covers ₦${remaining.toLocaleString()}`,
+        });
+        setSelected(null);
+      } catch (err: any) {
+        toast.error(err?.message || 'Failed to acknowledge');
+      } finally { setBusy(false); }
+      return;
+    }
+
     if (applied <= 0) {
       toast.error('Enter an amount to record');
       return;
     }
     if (overpay > 0) {
-      toast.error('Total exceeds outstanding balance');
+      toast.error(sponsored ? 'Total exceeds patient copay' : 'Total exceeds outstanding balance');
       return;
     }
     if (bal > 0 && balExceedsAvail) {
       toast.error(`Only ₦${availableBalance.toLocaleString()} available on balance`);
       return;
     }
-    if (shortfall > 0 && !markDebt) {
+    if (!sponsored && shortfall > 0 && !markDebt) {
       toast.error('Short payment — tick "Mark remainder as debt" to proceed');
       return;
     }
-    if (shortfall > 0 && !debtEligible) {
+    if (!sponsored && shortfall > 0 && !debtEligible) {
       toast.error('This account type cannot carry debt');
+      return;
+    }
+    if (sponsored && shortfall > 0) {
+      toast.error(`Collect the full copay of ₦${split.copayAmount.toLocaleString()} before sending to Claims`);
       return;
     }
 
@@ -150,7 +204,7 @@ export function CashierPanel() {
       }
 
       // 3. Handle debt shortfall
-      if (shortfall > 0) {
+      if (!sponsored && shortfall > 0) {
         const { error: closeErr } = await supabase
           .from('invoices')
           .update({
@@ -173,17 +227,34 @@ export function CashierPanel() {
         if (debtErr) throw new Error(`Failed to record debt: ${debtErr.message}`);
       }
 
+      // Sponsored: after copay is collected, book the sponsor portion so the
+      // invoice becomes fully paid and flows to the Claims queue.
+      if (sponsored) {
+        const coveredRemaining = invoiceTotal - alreadyPaid - bal - cash;
+        if (coveredRemaining > 0) {
+          const ok = await recordPayment(selected.id, coveredRemaining, 'sponsor_claim');
+          if (!ok) throw new Error('Failed to settle sponsor portion');
+        }
+      }
+
       await refreshInvoices();
       if (typeof refreshPatients === 'function') await refreshPatients();
 
       await paymentAuditLogger('payment_received', selected.invoice_number, {
         patient_id: selected.patient_id,
         patient_name: `${selectedPatient.first_name} ${selectedPatient.last_name}`,
-        action: shortfall > 0 ? 'payment_recorded_with_debt' : 'payment_recorded',
+        action: sponsored
+          ? 'copay_recorded_sponsor_billed'
+          : shortfall > 0
+          ? 'payment_recorded_with_debt'
+          : 'payment_recorded',
+        sponsor: sponsored ? sponsorLabel(selectedPatient) : null,
         cash_amount: cash,
         balance_amount: bal,
+        copay_amount: sponsored ? cash + bal : undefined,
+        covered_amount: sponsored ? Math.max(invoiceTotal - split.copayAmount, 0) : undefined,
         method,
-        shortfall,
+        shortfall: sponsored ? 0 : shortfall,
       });
 
       // Move to pharmacy — invoice is fully settled (paid + balance + debt = outstanding)
@@ -192,10 +263,13 @@ export function CashierPanel() {
       const parts: string[] = [];
       if (cash > 0) parts.push(`₦${cash.toLocaleString()} ${method}`);
       if (bal > 0) parts.push(`₦${bal.toLocaleString()} balance`);
-      if (shortfall > 0) parts.push(`₦${shortfall.toLocaleString()} debt`);
+      if (!sponsored && shortfall > 0) parts.push(`₦${shortfall.toLocaleString()} debt`);
+      if (sponsored) parts.push(`sponsor ₦${(invoiceTotal - split.copayAmount).toLocaleString()} → Claims`);
 
       toast.success(
-        shortfall > 0 ? 'Payment recorded with debt' : 'Payment recorded',
+        sponsored
+          ? 'Copay collected — sent to Claims'
+          : shortfall > 0 ? 'Payment recorded with debt' : 'Payment recorded',
         { description: `${selected.invoice_number} · ${parts.join(' + ')}` }
       );
 
@@ -238,8 +312,15 @@ export function CashierPanel() {
           </p>
         )}
         {rows.map(({ inv, patient }) => {
-          const out = Number(inv.total_amount) - Number(inv.paid_amount);
+          const spon = patient ? isSponsored(patient) : false;
+          const s = patient
+            ? splitInvoice(Number(inv.total_amount), patient)
+            : { copayPct: 100, copayAmount: Number(inv.total_amount), coveredAmount: 0 };
+          const rowOut = spon
+            ? Math.max(s.copayAmount - Number(inv.paid_amount), 0)
+            : Number(inv.total_amount) - Number(inv.paid_amount);
           const bal = Number(patient?.balance ?? 0);
+          const rowFull = spon && s.copayAmount === 0;
           return (
             <div
               key={inv.id}
@@ -249,12 +330,20 @@ export function CashierPanel() {
                 <span className="font-mono text-[11px] text-muted-foreground">
                   {inv.invoice_number}
                 </span>
-                <Badge
-                  variant={inv.status === 'partial' ? 'warning' : 'outline'}
-                  className="text-[10px]"
-                >
-                  {inv.status}
-                </Badge>
+                <div className="flex items-center gap-1">
+                  {spon && (
+                    <Badge variant="info" className="text-[10px]">
+                      <Shield className="h-2.5 w-2.5 mr-0.5" />
+                      {sponsorLabel(patient)} · {s.copayPct}%
+                    </Badge>
+                  )}
+                  <Badge
+                    variant={inv.status === 'partial' ? 'warning' : 'outline'}
+                    className="text-[10px]"
+                  >
+                    {inv.status}
+                  </Badge>
+                </div>
               </div>
               <p className="font-medium text-sm truncate">
                 {patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown patient'}
@@ -265,16 +354,24 @@ export function CashierPanel() {
                   ₦{bal.toLocaleString()}
                 </span>
               </p>
+              {spon && (
+                <p className="text-[11px] text-muted-foreground">
+                  Total ₦{Number(inv.total_amount).toLocaleString()} · Sponsor covers ₦
+                  {s.coveredAmount.toLocaleString()}
+                </p>
+              )}
               <div className="mt-2 flex items-center justify-between gap-2">
                 <div className="text-xs">
-                  <span className="text-muted-foreground">Owing </span>
-                  <span className="font-bold text-destructive">
-                    ₦{out.toLocaleString()}
+                  <span className="text-muted-foreground">
+                    {spon ? (rowFull ? 'Copay' : 'Copay due') : 'Owing'}{' '}
+                  </span>
+                  <span className={`font-bold ${rowFull ? 'text-success' : 'text-destructive'}`}>
+                    {rowFull ? '₦0 (full cover)' : `₦${rowOut.toLocaleString()}`}
                   </span>
                 </div>
                 <Button size="sm" onClick={() => openPayment(inv)} className="h-7">
-                  <Banknote className="h-3.5 w-3.5 mr-1" />
-                  Record
+                  {rowFull ? <Send className="h-3.5 w-3.5 mr-1" /> : <Banknote className="h-3.5 w-3.5 mr-1" />}
+                  {rowFull ? 'Acknowledge' : 'Record'}
                 </Button>
               </div>
             </div>
@@ -285,12 +382,29 @@ export function CashierPanel() {
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Record Payment</DialogTitle>
+            <DialogTitle>
+              {fullCover ? 'Acknowledge Sponsored Invoice' : 'Record Payment'}
+            </DialogTitle>
             <DialogDescription>
-              {selected?.invoice_number} · Outstanding{' '}
-              <span className="font-semibold text-destructive">
-                ₦{outstanding.toLocaleString()}
-              </span>
+              {selected?.invoice_number} ·{' '}
+              {sponsored ? (
+                <>
+                  Copay due{' '}
+                  <span className="font-semibold text-destructive">
+                    ₦{outstanding.toLocaleString()}
+                  </span>{' '}
+                  <span className="text-muted-foreground">
+                    (of ₦{invoiceTotal.toLocaleString()} total)
+                  </span>
+                </>
+              ) : (
+                <>
+                  Outstanding{' '}
+                  <span className="font-semibold text-destructive">
+                    ₦{outstanding.toLocaleString()}
+                  </span>
+                </>
+              )}
               {selectedPatient && (
                 <span className="block text-xs mt-1">
                   {selectedPatient.first_name} {selectedPatient.last_name} ·{' '}
@@ -313,8 +427,34 @@ export function CashierPanel() {
           </DialogHeader>
 
           <div className="space-y-3">
+            {sponsored && (
+              <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 text-xs space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold text-primary">
+                  <Shield className="h-3.5 w-3.5" />
+                  {sponsorLabel(selectedPatient)} · Copay {split.copayPct}%
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Invoice total</span>
+                  <span className="font-semibold">₦{invoiceTotal.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Sponsor covers ({100 - split.copayPct}%)</span>
+                  <span className="font-semibold text-primary">₦{split.coveredAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between border-t border-primary/20 pt-1">
+                  <span className="text-muted-foreground">Patient copay ({split.copayPct}%)</span>
+                  <span className="font-bold">₦{split.copayAmount.toLocaleString()}</span>
+                </div>
+                <p className="pt-1 text-[11px] text-muted-foreground">
+                  {fullCover
+                    ? 'No cash to collect. Acknowledge to send the invoice to the Claims queue.'
+                    : 'Collect only the copay. The sponsor portion is auto-routed to Claims after settle.'}
+                </p>
+              </div>
+            )}
+
             {/* Use patient balance */}
-            {availableBalance > 0 && (
+            {!fullCover && availableBalance > 0 && (
               <div className="rounded-lg border border-success/40 bg-success/5 p-3 space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer text-sm">
                   <Checkbox
@@ -348,17 +488,19 @@ export function CashierPanel() {
               </div>
             )}
 
-            <div>
-              <Label>Cash / POS / Transfer received (₦)</Label>
-              <Input
-                type="number"
-                value={cashAmount}
-                onChange={(e) => setCashAmount(e.target.value)}
-                autoFocus
-              />
-            </div>
+            {!fullCover && (
+              <div>
+                <Label>Cash / POS / Transfer received (₦)</Label>
+                <Input
+                  type="number"
+                  value={cashAmount}
+                  onChange={(e) => setCashAmount(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            )}
 
-            {cash > 0 && (
+            {!fullCover && cash > 0 && (
               <div>
                 <Label>Payment Method</Label>
                 <Select value={method} onValueChange={setMethod}>
@@ -375,9 +517,10 @@ export function CashierPanel() {
             )}
 
             {/* Summary */}
+            {!fullCover && (
             <div className="rounded-lg bg-muted/40 p-3 text-xs space-y-1">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Outstanding</span>
+                <span className="text-muted-foreground">{sponsored ? 'Copay due' : 'Outstanding'}</span>
                 <span className="font-semibold">₦{outstanding.toLocaleString()}</span>
               </div>
               {bal > 0 && (
@@ -409,8 +552,9 @@ export function CashierPanel() {
                 </span>
               </div>
             </div>
+            )}
 
-            {shortfall > 0 && (
+            {!sponsored && shortfall > 0 && (
               <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 space-y-2">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 text-warning mt-0.5" />
@@ -454,14 +598,19 @@ export function CashierPanel() {
               onClick={submit}
               disabled={
                 busy ||
-                applied <= 0 ||
+                (!fullCover && applied <= 0) ||
                 overpay > 0 ||
                 balExceedsAvail ||
-                (shortfall > 0 && (!debtEligible || !markDebt))
+                (sponsored && !fullCover && shortfall > 0) ||
+                (!sponsored && shortfall > 0 && (!debtEligible || !markDebt))
               }
             >
               {busy
                 ? 'Recording…'
+                : fullCover
+                ? 'Acknowledge & Send to Claims'
+                : sponsored
+                ? 'Collect Copay & Send to Claims'
                 : shortfall > 0
                 ? 'Confirm & Record Debt'
                 : 'Confirm Payment'}

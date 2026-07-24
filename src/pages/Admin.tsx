@@ -25,6 +25,7 @@ import { AuditLogsViewer } from '@/components/admin/AuditLogsViewer';
 import { StaffAccountManager } from '@/components/admin/StaffAccountManager';
 import { ErrorLogsViewer } from '@/components/admin/ErrorLogsViewer';
 import { WardsRoomsManager } from '@/components/admin/WardsRoomsManager';
+import { ResetDemoDataDialog } from '@/components/admin/ResetDemoDataDialog';
 
 import { mockStaff } from '@/data/mockData';
 import { Staff, UserRole } from '@/types/hms';
@@ -62,6 +63,7 @@ const Admin = () => {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [editForm, setEditForm] = useState<{ firstName: string; lastName: string; email: string; role: UserRole; department: string; phone: string }>({ firstName: '', lastName: '', email: '', role: 'nurse', department: '', phone: '' });
 
   const handleView = (user: typeof mockStaff[0]) => {
@@ -383,6 +385,14 @@ const Admin = () => {
                 <Settings className="h-4 w-4 mr-2" />
                 General Settings
               </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start hover-lift text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setIsResetDialogOpen(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Reset Demo Data
+              </Button>
             </div>
           </div>
 
@@ -436,6 +446,8 @@ const Admin = () => {
           </div>
         </TabsContent>
       </Tabs>
+
+      <ResetDemoDataDialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen} />
 
       {/* View User Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>

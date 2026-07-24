@@ -498,6 +498,7 @@ export function PatientLedgerCard({
                         <LedgerRowView
                           key={row.id} row={row} thumbs={thumbs}
                           onOpenImage={setLightbox}
+                          patient={patient}
                         />
                       ))}
                     </div>
@@ -638,10 +639,12 @@ function LastActivityBadge({ rows }: { rows: LedgerRow[] }) {
 
 function LedgerRowView({
   row, thumbs, onOpenImage,
+  patient,
 }: {
   row: LedgerRow;
   thumbs: Record<string, string>;
   onOpenImage: (url: string) => void;
+  patient: Patient;
 }) {
   const tone = STATION_TONE[row.station] ?? STATION_TONE.admin;
   const subTone = row.subkind ? SUB_TONE[row.subkind] : null;

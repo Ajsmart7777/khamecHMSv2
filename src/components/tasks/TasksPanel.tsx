@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTasks, TaskSource } from '@/hooks/useTasks';
 import { usePatients } from '@/contexts/PatientContext';
@@ -106,15 +106,13 @@ export function TasksPanel({
   const navigate = useNavigate();
   const location = useLocation();
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [nowTick, setNowTick] = useState(0);
+  const [, setNowTick] = useState(0);
 
-  // Tick every 30s so "Updated Xs ago" and urgency chips stay fresh.
-  useMemo(() => nowTick, [nowTick]);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  useState(() => {
+  // Tick every 30s so relative timestamps and urgency chips stay fresh.
+  useEffect(() => {
     const id = setInterval(() => setNowTick(t => t + 1), 30_000);
     return () => clearInterval(id);
-  });
+  }, []);
   const [query, setQuery] = useState('');
   const [assignFilter, setAssignFilter] = useState<AssignFilter>('all');
   const [statusFilter, setStatusFilter] = useState<string | 'all'>('all');

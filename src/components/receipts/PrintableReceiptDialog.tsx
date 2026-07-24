@@ -15,6 +15,14 @@ interface PrintableReceiptDialogProps {
   receiptNumber: string;
   date: Date;
   newBalance: number;
+  breakdown?: {
+    invoiceNumber?: string;
+    invoiceTotal: number;
+    sponsorCovered?: number;
+    patientCopay?: number;
+    sponsorLabel?: string | null;
+    copayPct?: number;
+  };
 }
 
 export function PrintableReceiptDialog({
@@ -26,6 +34,7 @@ export function PrintableReceiptDialog({
   receiptNumber,
   date,
   newBalance,
+  breakdown,
 }: PrintableReceiptDialogProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
 
@@ -102,6 +111,7 @@ export function PrintableReceiptDialog({
               receiptNumber={receiptNumber}
               date={date}
               newBalance={newBalance}
+              breakdown={breakdown}
             />
           </div>
         </div>

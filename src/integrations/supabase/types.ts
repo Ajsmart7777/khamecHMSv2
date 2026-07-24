@@ -2806,6 +2806,10 @@ export type Database = {
         }
         Returns: string
       }
+      patient_pending_workflow_station: {
+        Args: { _patient_id: string }
+        Returns: string
+      }
       recalc_visit_totals: { Args: { _visit_id: string }; Returns: undefined }
       release_task: {
         Args: { _notes?: string; _source: string; _source_id: string }

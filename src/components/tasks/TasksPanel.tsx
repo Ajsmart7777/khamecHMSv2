@@ -253,13 +253,13 @@ export function TasksPanel({
   ) => {
     if (items.length === 0) return;
     setBulkBusy(true);
-    let ok = 0;
+    const succeeded: typeof tasks = [];
     let fail = 0;
     for (const t of items) {
       try {
         if (action === 'claim') await claimTask(t.source, t.source_id);
         else await releaseTask(t.source, t.source_id);
-        ok++;
+        succeeded.push(t);
       } catch {
         fail++;
       }
@@ -270,8 +270,36 @@ export function TasksPanel({
       items.forEach(t => next.delete(t.task_id));
       return next;
     });
-    if (ok) toast.success(`${action === 'claim' ? 'Claimed' : 'Released'} ${ok} task${ok === 1 ? '' : 's'}`);
     if (fail) toast.error(`${fail} task${fail === 1 ? '' : 's'} failed`);
+    if (succeeded.length) {
+      const label = `${action === 'claim' ? 'Claimed' : 'Released'} ${succeeded.length} task${succeeded.length === 1 ? '' : 's'}`;
+      let undone = false;
+      toast.success(label, {
+        duration: 8000,
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            if (undone) return;
+            undone = true;
+            setBulkBusy(true);
+            let undoOk = 0;
+            let undoFail = 0;
+            for (const t of succeeded) {
+              try {
+                if (action === 'claim') await releaseTask(t.source, t.source_id);
+                else await claimTask(t.source, t.source_id);
+                undoOk++;
+              } catch {
+                undoFail++;
+              }
+            }
+            setBulkBusy(false);
+            if (undoOk) toast.success(`Reverted ${undoOk} task${undoOk === 1 ? '' : 's'}`);
+            if (undoFail) toast.error(`Could not revert ${undoFail} task${undoFail === 1 ? '' : 's'}`);
+          },
+        },
+      });
+    }
   };
 
   // Break selection into buckets so the confirmation modal can explain what

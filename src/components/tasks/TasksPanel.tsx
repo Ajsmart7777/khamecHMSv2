@@ -313,6 +313,7 @@ export function TasksPanel({
   };
 
   return (
+    <>
     <Card className="mb-4">
       <CardHeader className="flex flex-row items-center justify-between py-3">
         <CardTitle className="text-base flex items-center gap-2">

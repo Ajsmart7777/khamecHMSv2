@@ -7,6 +7,7 @@ import { differenceInYears, format } from 'date-fns';
 import { Patient } from '@/contexts/PatientContext';
 import { ViewCardButton } from '@/components/visit/PatientCardDialog';
 import { supabase } from '@/integrations/supabase/client';
+import { hasWallet, sponsorLabel } from '@/lib/copay';
 
 const STATUS_OWNER: Record<string, string> = {
   registered: 'Reception',
@@ -76,6 +77,7 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
     : null;
   const owner = STATUS_OWNER[patient.status] ?? patient.status;
   const balance = Number(patient.balance || 0);
+  const showWallet = hasWallet(patient);
   const location = admission?.beds
     ? [admission.beds.rooms?.wards?.name, admission.beds.rooms?.name, admission.beds.label]
         .filter(Boolean)
@@ -125,12 +127,21 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
       </div>
 
       <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-        <Stat
-          icon={<Wallet className="h-3.5 w-3.5" />}
-          label="Balance"
-          value={`₦${balance.toLocaleString()}`}
-          tone={balance < 0 ? 'danger' : balance > 0 ? 'ok' : 'muted'}
-        />
+        {showWallet ? (
+          <Stat
+            icon={<Wallet className="h-3.5 w-3.5" />}
+            label="Balance"
+            value={`₦${balance.toLocaleString()}`}
+            tone={balance < 0 ? 'danger' : balance > 0 ? 'ok' : 'muted'}
+          />
+        ) : (
+          <Stat
+            icon={<Wallet className="h-3.5 w-3.5" />}
+            label="Sponsor"
+            value={sponsorLabel(patient)}
+            tone="ok"
+          />
+        )}
         <Stat
           icon={<Wallet className="h-3.5 w-3.5" />}
           label="Sponsor credit"

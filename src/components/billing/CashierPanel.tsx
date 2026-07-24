@@ -25,10 +25,13 @@ import { useInvoices, Invoice } from '@/hooks/useInvoices';
 import { usePatients } from '@/contexts/PatientContext';
 import { paymentAuditLogger } from '@/lib/auditLogger';
 import { supabase } from '@/integrations/supabase/client';
-import { copayPercent, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
+import { copayPercent, hasWallet, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
 import { PrintableReceiptDialog } from '@/components/receipts/PrintableReceiptDialog';
 
-const DEBT_ELIGIBLE = new Set(['normal', 'staff', 'staff_family']);
+// Only walk-in cash patients can carry a shortfall on their patient balance.
+// Sponsored/insured/staff accounts settle via the sponsor — never on the
+// patient's wallet.
+const DEBT_ELIGIBLE = new Set(['normal', 'cash', '']);
 
 // After payment, route the patient back to the station that requested the
 // service (lab tests → back to lab, pharmacy meds → pharmacy). Falls back to
@@ -55,7 +58,6 @@ export function CashierPanel() {
   const [method, setMethod] = useState<string>('cash');
   const [useBalance, setUseBalance] = useState(false);
   const [balanceAmount, setBalanceAmount] = useState('');
-  const [markDebt, setMarkDebt] = useState(false);
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState<{
     patient: any;
@@ -98,10 +100,13 @@ export function CashierPanel() {
   const selectedPatient = selected
     ? patients.find((p: any) => p.id === selected.patient_id)
     : null;
-  const patientBalance = Number(selectedPatient?.balance ?? 0);
+  // Wallet only exists for cash patients — sponsored/insured never touch it.
+  const walletEligible = selectedPatient ? hasWallet(selectedPatient) : false;
+  const patientBalance = walletEligible ? Number(selectedPatient?.balance ?? 0) : 0;
   const availableBalance = Math.max(patientBalance, 0);
   const debtEligible =
-    !!selectedPatient && DEBT_ELIGIBLE.has(selectedPatient.account_type as string);
+    !!selectedPatient && walletEligible &&
+    DEBT_ELIGIBLE.has(String(selectedPatient.account_type ?? '').toLowerCase());
   const invoiceTotal = selected ? Number(selected.total_amount) : 0;
   const alreadyPaid = selected ? Number(selected.paid_amount) : 0;
 
@@ -139,7 +144,6 @@ export function CashierPanel() {
     setMethod('cash');
     setUseBalance(false);
     setBalanceAmount('');
-    setMarkDebt(false);
   };
 
   // When user toggles "use balance", auto-suggest amounts
@@ -219,12 +223,8 @@ export function CashierPanel() {
       toast.error(`Only ₦${availableBalance.toLocaleString()} available on balance`);
       return;
     }
-    if (!sponsored && shortfall > 0 && !markDebt) {
-      toast.error('Short payment — tick "Mark remainder as debt" to proceed');
-      return;
-    }
     if (!sponsored && shortfall > 0 && !debtEligible) {
-      toast.error('This account type cannot carry debt');
+      toast.error('This account type must be paid in full');
       return;
     }
     if (sponsored && shortfall > 0) {
@@ -351,7 +351,6 @@ export function CashierPanel() {
       setCashAmount('');
       setBalanceAmount('');
       setUseBalance(false);
-      setMarkDebt(false);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to record payment');
     } finally {
@@ -423,10 +422,15 @@ export function CashierPanel() {
                 {patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown patient'}
               </p>
               <p className="text-[11px] text-muted-foreground">
-                {patient?.card_number} · Balance{' '}
-                <span className={bal < 0 ? 'text-destructive font-semibold' : bal > 0 ? 'text-success font-semibold' : ''}>
-                  ₦{bal.toLocaleString()}
-                </span>
+                {patient?.card_number}
+                {patient && hasWallet(patient) && (
+                  <>
+                    {' · Balance '}
+                    <span className={bal < 0 ? 'text-destructive font-semibold' : bal > 0 ? 'text-success font-semibold' : ''}>
+                      ₦{bal.toLocaleString()}
+                    </span>
+                  </>
+                )}
               </p>
               {spon ? (
                 <div className="mt-1.5 grid grid-cols-3 gap-1 text-[10px] rounded-md border border-border/60 bg-muted/40 p-1.5">
@@ -493,7 +497,7 @@ export function CashierPanel() {
                   </span>
                 </>
               )}
-              {selectedPatient && (
+              {selectedPatient && walletEligible && (
                 <span className="block text-xs mt-1">
                   {selectedPatient.first_name} {selectedPatient.last_name} ·{' '}
                   <span className="capitalize">{selectedPatient.account_type}</span> ·
@@ -509,6 +513,12 @@ export function CashierPanel() {
                   >
                     ₦{patientBalance.toLocaleString()}
                   </span>
+                </span>
+              )}
+              {selectedPatient && !walletEligible && (
+                <span className="block text-xs mt-1">
+                  {selectedPatient.first_name} {selectedPatient.last_name} ·{' '}
+                  <span className="capitalize">{selectedPatient.account_type?.replace('_',' ')}</span>
                 </span>
               )}
             </DialogDescription>
@@ -541,8 +551,8 @@ export function CashierPanel() {
               </div>
             )}
 
-            {/* Use patient balance */}
-            {!fullCover && availableBalance > 0 && (
+            {/* Use patient balance — cash patients only */}
+            {!fullCover && walletEligible && availableBalance > 0 && (
               <div className="rounded-lg border border-success/40 bg-success/5 p-3 space-y-2">
                 <label className="flex items-center gap-2 cursor-pointer text-sm">
                   <Checkbox
@@ -670,15 +680,10 @@ export function CashierPanel() {
                   </div>
                 </div>
                 {debtEligible && (
-                  <label className="flex items-center gap-2 cursor-pointer text-xs">
-                    <Checkbox
-                      checked={markDebt}
-                      onCheckedChange={(v) => setMarkDebt(!!v)}
-                    />
-                    <span>
-                      Accept ₦{applied.toLocaleString()} now — record ₦{shortfall.toLocaleString()} as owed on balance
-                    </span>
-                  </label>
+                  <p className="text-[11px] text-muted-foreground italic">
+                    Confirm to accept ₦{applied.toLocaleString()} now and record ₦
+                    {shortfall.toLocaleString()} as owed on the patient's balance.
+                  </p>
                 )}
               </div>
             )}
@@ -696,7 +701,7 @@ export function CashierPanel() {
                 overpay > 0 ||
                 balExceedsAvail ||
                 (sponsored && !fullCover && shortfall > 0) ||
-                (!sponsored && shortfall > 0 && (!debtEligible || !markDebt))
+                (!sponsored && shortfall > 0 && !debtEligible)
               }
             >
               {busy

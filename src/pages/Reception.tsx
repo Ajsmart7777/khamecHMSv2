@@ -348,7 +348,10 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const { visit: activeVisit } = useActiveVisit(patient.id);
   const [balanceDialog, setBalanceDialog] = useState<'topup' | 'refund' | null>(null);
-  const canUseBalance = ['normal', 'staff', 'staff_family'].includes(patient.account_type);
+  // Only walk-in cash patients hold a wallet balance. Sponsored / insured /
+  // staff patients never top-up or refund on the patient balance — their
+  // settlement flows through the sponsor.
+  const canUseBalance = ['normal', 'cash'].includes(patient.account_type);
   const [receiptData, setReceiptData] = useState<{
     open: boolean;
     amount: number;

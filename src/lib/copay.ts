@@ -43,6 +43,17 @@ export function isSponsored({ account_type }: SponsorInfo): boolean {
   return !!a && a !== 'normal' && a !== 'cash';
 }
 
+/**
+ * Whether this account is allowed to hold a wallet balance / top-up / owe money
+ * on their patient balance. Only walk-in cash patients have a wallet — every
+ * insured or sponsored account settles through the sponsor / payroll, never
+ * through the patient's own balance.
+ */
+export function hasWallet({ account_type }: SponsorInfo): boolean {
+  const a = norm(account_type);
+  return a === '' || a === 'normal' || a === 'cash';
+}
+
 /** Human-friendly sponsor label. */
 export function sponsorLabel({ account_type, insurance_plan }: SponsorInfo): string {
   const a = norm(account_type);

@@ -144,7 +144,6 @@ export function CashierPanel() {
     setMethod('cash');
     setUseBalance(false);
     setBalanceAmount('');
-    setMarkDebt(false);
   };
 
   // When user toggles "use balance", auto-suggest amounts

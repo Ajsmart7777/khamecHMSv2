@@ -53,7 +53,7 @@ const Pharmacy = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDispenseDialogOpen, setIsDispenseDialogOpen] = useState(false);
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
   const [dispensedPatients, setDispensedPatients] = useState<Set<string>>(new Set());
   const [dispenseReceiptData, setDispenseReceiptData] = useState<{

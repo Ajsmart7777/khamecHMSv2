@@ -31,7 +31,7 @@ const Doctor = () => {
   const { role, user } = useAuth();
   const [searchParams] = useSearchParams();
   const asParam = searchParams.get('as');
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);
   const [pendingLabReturnPatientIds, setPendingLabReturnPatientIds] = useState<Set<string>>(new Set());

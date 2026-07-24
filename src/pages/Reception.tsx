@@ -124,7 +124,7 @@ const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactN
 const Reception = () => {
   const { patients, loading, refreshPatients, updatePatientStatus } = usePatients();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
   const [standingOrderOpen, setStandingOrderOpen] = useState(false);
 

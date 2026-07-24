@@ -405,10 +405,24 @@ export function CashierPanel() {
                   ₦{bal.toLocaleString()}
                 </span>
               </p>
-              {spon && (
-                <p className="text-[11px] text-muted-foreground">
-                  Total ₦{Number(inv.total_amount).toLocaleString()} · Sponsor covers ₦
-                  {s.coveredAmount.toLocaleString()}
+              {spon ? (
+                <div className="mt-1.5 grid grid-cols-3 gap-1 text-[10px] rounded-md border border-border/60 bg-muted/40 p-1.5">
+                  <div>
+                    <div className="text-muted-foreground">Total</div>
+                    <div className="font-semibold">₦{Number(inv.total_amount).toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Sponsor</div>
+                    <div className="font-semibold text-primary">₦{s.coveredAmount.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Copay ({s.copayPct}%)</div>
+                    <div className="font-semibold">₦{s.copayAmount.toLocaleString()}</div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Total ₦{Number(inv.total_amount).toLocaleString()}
                 </p>
               )}
               <div className="mt-2 flex items-center justify-between gap-2">

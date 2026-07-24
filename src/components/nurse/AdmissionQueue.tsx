@@ -93,7 +93,10 @@ export function AdmissionQueue() {
         <TabsContent value="deposit" className="space-y-2 mt-3">
           {awaitingDeposit.length === 0 ? <Empty text="No patients awaiting deposit" /> :
             awaitingDeposit.map((a) => renderRow(a,
-              <Badge variant="warning" className="text-[10px]">Deposit at Reception</Badge>, 'warn'))}
+              <div className="flex items-center gap-2">
+                <Badge variant="warning" className="text-[10px]">Deposit short</Badge>
+                <Button size="sm" onClick={() => setSelected(a)}>Assign Anyway</Button>
+              </div>, 'warn'))}
         </TabsContent>
 
         <TabsContent value="room" className="space-y-2 mt-3">
@@ -196,10 +199,9 @@ function AssignBedDialog({ admission, patient, onClose }: {
   const requiredMin = Number(selectedWard?.min_admission_deposit ?? 0);
   const patientBalance = Number(patient?.balance ?? 0);
   const depositShort = !sponsored && requiredMin > 0 && patientBalance < requiredMin;
-  const blocked = depositShort;
 
   const submit = async () => {
-    if (!bedId || blocked) return;
+    if (!bedId) return;
     setBusy(true);
     const ok = await assignBed(admission.id, bedId);
     setBusy(false);
@@ -293,8 +295,8 @@ function AssignBedDialog({ admission, patient, onClose }: {
 
         <DialogFooter>
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button onClick={submit} disabled={busy || !bedId || blocked}>
-            {busy ? 'Assigning…' : blocked ? 'Deposit required' : 'Assign Bed & Admit'}
+          <Button onClick={submit} disabled={busy || !bedId}>
+            {busy ? 'Assigning…' : depositShort ? 'Assign Anyway (deposit short)' : 'Assign Bed & Admit'}
           </Button>
         </DialogFooter>
       </DialogContent>

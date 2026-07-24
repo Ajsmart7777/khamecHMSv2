@@ -45,6 +45,7 @@ const allMenuItems = [
   { id: 'emr', label: 'EMR', icon: FileText, path: '/emr', color: 'text-primary', roles: ['doctor1', 'doctor2', 'nurse', 'lab_tech', 'pharmacist', 'admin'] },
   { id: 'lab', label: 'Laboratory', icon: FlaskConical, path: '/lab', color: 'text-module-lab', roles: ['lab_tech', 'admin'] },
   { id: 'billing', label: 'Billing', icon: Receipt, path: '/billing', color: 'text-module-billing', roles: ['billing', 'admin'] },
+  { id: 'cashier', label: 'Cashier', icon: Receipt, path: '/cashier', color: 'text-module-billing', roles: ['cashier', 'admin'] },
   { id: 'pharmacy', label: 'Pharmacy', icon: Pill, path: '/pharmacy', color: 'text-module-pharmacy', roles: ['pharmacist', 'admin'] },
   { id: 'store', label: 'Store', icon: Package, path: '/store', color: 'text-module-store', roles: ['store', 'admin'] },
   { id: 'account', label: 'Accounts', icon: Wallet, path: '/account', color: 'text-module-account', roles: ['accountant', 'admin'] },

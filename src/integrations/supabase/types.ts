@@ -2805,6 +2805,7 @@ export type Database = {
         | "doctor2"
         | "claims_manager"
         | "anc"
+        | "cashier"
       visit_station:
         | "reception"
         | "nurse"
@@ -2956,6 +2957,7 @@ export const Constants = {
         "doctor2",
         "claims_manager",
         "anc",
+        "cashier",
       ],
       visit_station: [
         "reception",

@@ -15,6 +15,7 @@ import NurseStation from "./pages/NurseStation";
 import Doctor from "./pages/Doctor";
 import Laboratory from "./pages/Laboratory";
 import Billing from "./pages/Billing";
+import Cashier from "./pages/Cashier";
 import Pharmacy from "./pages/Pharmacy";
 import Store from "./pages/Store";
 import Account from "./pages/Account";
@@ -68,6 +69,11 @@ const App = () => (
                 <Route path="/billing" element={
                   <ProtectedRoute allowedRoles={['billing', 'admin']}>
                     <Billing />
+                  </ProtectedRoute>
+                } />
+                <Route path="/cashier" element={
+                  <ProtectedRoute allowedRoles={['cashier', 'admin']}>
+                    <Cashier />
                   </ProtectedRoute>
                 } />
                 <Route path="/pharmacy" element={

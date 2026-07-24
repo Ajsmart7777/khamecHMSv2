@@ -13,6 +13,7 @@ import { Patient } from '@/contexts/PatientContext';
 import { Visit } from '@/hooks/useVisits';
 import { Button } from '@/components/ui/button';
 import { copayPercent, hasWallet, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
+import { ClaimActionsBar } from '@/components/claims/ClaimActionsBar';
 
 // ---------- types ----------
 type RowKind =
@@ -502,6 +503,8 @@ export function PatientLedgerCard({
                       </div>
                     </div>
                   </div>
+
+                  <ClaimActionsBar visit={lv.visit} patient={patient} />
 
                   {/* Rows */}
                   {!isCollapsed && (

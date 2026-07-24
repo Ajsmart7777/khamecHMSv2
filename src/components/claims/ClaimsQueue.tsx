@@ -23,6 +23,7 @@ import { usePatients } from '@/contexts/PatientContext';
 import { VisitEnvelopeDialog } from '@/components/visit/VisitEnvelopeDialog';
 import { Patient } from '@/contexts/PatientContext';
 import { ClaimDetailDialog } from './ClaimDetailDialog';
+import { ExpiryBadge } from './ExpiryBadge';
 import { downloadClaimsPacketPdf, downloadBulkClaimsPacketsPdf } from '@/lib/claimsPacketPdf';
 import { toast } from 'sonner';
 
@@ -303,6 +304,11 @@ export function ClaimsQueue() {
                             {v.insurance_plan && ` · ${v.insurance_plan}`}
                             {tab === 'settled' && v.claim_settled_at && ` · settled ${format(new Date(v.claim_settled_at), 'MMM d, yyyy')}`}
                           </p>
+                          {(tab === 'pending' || tab === 'info_requested') && (
+                            <div className="mt-1">
+                              <ExpiryBadge openedAt={v.opened_at} />
+                            </div>
+                          )}
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="text-right">

@@ -28,7 +28,7 @@ export function InsuranceManager() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState({
-    name: '', type: 'private', code: '', contact_person: '', email: '', phone: '',
+    name: '', type: 'private', code: '', hmo_code: '', contact_person: '', email: '', phone: '',
     address: '', coverage_percentage: 0, max_coverage_amount: 0, notes: '',
   });
   const [editId, setEditId] = useState<string | null>(null);
@@ -37,12 +37,13 @@ export function InsuranceManager() {
     ? providers.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.type.includes(searchQuery.toLowerCase()))
     : providers;
 
-  const resetForm = () => setForm({ name: '', type: 'private', code: '', contact_person: '', email: '', phone: '', address: '', coverage_percentage: 0, max_coverage_amount: 0, notes: '' });
+  const resetForm = () => setForm({ name: '', type: 'private', code: '', hmo_code: '', contact_person: '', email: '', phone: '', address: '', coverage_percentage: 0, max_coverage_amount: 0, notes: '' });
 
   const handleAdd = async () => {
     if (!form.name) { toast.error('Provider name is required'); return; }
     const ok = await addProvider({
       name: form.name, type: form.type, code: form.code || null,
+      hmo_code: form.hmo_code || null,
       contact_person: form.contact_person || null, email: form.email || null,
       phone: form.phone || null, address: form.address || null,
       coverage_percentage: form.coverage_percentage, max_coverage_amount: form.max_coverage_amount,
@@ -54,7 +55,7 @@ export function InsuranceManager() {
   const handleEdit = (p: InsuranceProvider) => {
     setEditId(p.id);
     setForm({
-      name: p.name, type: p.type, code: p.code || '', contact_person: p.contact_person || '',
+      name: p.name, type: p.type, code: p.code || '', hmo_code: p.hmo_code || '', contact_person: p.contact_person || '',
       email: p.email || '', phone: p.phone || '', address: p.address || '',
       coverage_percentage: p.coverage_percentage, max_coverage_amount: p.max_coverage_amount,
       notes: p.notes || '',
@@ -66,6 +67,7 @@ export function InsuranceManager() {
     if (!editId) return;
     const ok = await updateProvider(editId, {
       name: form.name, type: form.type, code: form.code || null,
+      hmo_code: form.hmo_code || null,
       contact_person: form.contact_person || null, email: form.email || null,
       phone: form.phone || null, coverage_percentage: form.coverage_percentage,
       max_coverage_amount: form.max_coverage_amount, notes: form.notes || null,
@@ -271,6 +273,22 @@ export function InsuranceManager() {
                 <Input value={form.contact_person} onChange={e => setForm({ ...form, contact_person: e.target.value })} />
               </div>
             </div>
+            {form.type === 'hmo' && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">HMO scheme (drives Claims workspace label)</label>
+                <Select value={form.hmo_code || 'generic'} onValueChange={v => setForm({ ...form, hmo_code: v === 'generic' ? '' : v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="generic">Generic HMO (default)</SelectItem>
+                    <SelectItem value="hygeia">Hygeia HMO</SelectItem>
+                    <SelectItem value="axa_mansard">AXA Mansard</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  Hygeia → "Pre-Auth / Token Number". AXA Mansard → "Encounter Code / OTP".
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Email</label>

@@ -7,6 +7,7 @@ export interface InsuranceProvider {
   name: string;
   type: string;
   code: string | null;
+  hmo_code: string | null;
   contact_person: string | null;
   email: string | null;
   phone: string | null;

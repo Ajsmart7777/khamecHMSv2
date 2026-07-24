@@ -44,11 +44,19 @@ export async function nextStationForInvoice(
   patientId: string,
   fallback: WorkflowRouteStatus = 'at_pharmacy',
 ): Promise<WorkflowRouteStatus> {
+  // Source of truth = the DB view of any *unfinished* work for this patient.
+  // Fulfilled/rejected snaps are excluded there, so a paid-and-dispensed
+  // pharmacy snap does not falsely route the patient back to pharmacy.
+  const pendingStation = await getPendingWorkflowStation(patientId);
+  if (pendingStation) return pendingStation;
+
+  // No outstanding station-level work — check what this specific invoice
+  // originated from in case the snap has not yet been marked paid.
   const { data, error } = await supabase
     .from('snap_orders')
-    .select('target_station, status, created_at')
+    .select('target_station, status')
     .eq('invoice_id', invoiceId)
-    .order('created_at', { ascending: false });
+    .in('status', ['pending_billing', 'awaiting_payment', 'paid']);
 
   if (error) throw new Error(error.message);
 
@@ -56,8 +64,6 @@ export async function nextStationForInvoice(
   if (stations.includes('lab')) return 'in_lab';
   if (stations.includes('pharmacy')) return 'at_pharmacy';
 
-  const pendingStation = await getPendingWorkflowStation(patientId);
-  if (pendingStation === 'in_lab' || pendingStation === 'at_pharmacy') return pendingStation;
-
-  return fallback;
+  // Nothing pending anywhere → patient is done.
+  return 'discharged';
 }

@@ -2,12 +2,11 @@ import { useState, useCallback, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Users, FileSpreadsheet, CreditCard, FileText, Building2, Shield, UserCheck, UserPlus, RefreshCw, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Users, FileSpreadsheet, CreditCard, FileText, Building2, UserCheck, UserPlus, RefreshCw, DollarSign } from 'lucide-react';
 import { Stethoscope, ClipboardList } from 'lucide-react';
 import { PricelistManager } from '@/components/account/PricelistManager';
 import { useStaff } from '@/hooks/useStaff';
 import { usePayrollPeriods, usePayrollEntries } from '@/hooks/usePayroll';
-import { useInsurance } from '@/hooks/useInsurance';
 import { useCorporateAccounts } from '@/hooks/useCorporateAccounts';
 import { PayrollDashboard } from '@/components/payroll/PayrollDashboard';
 import { PayrollStaffManagement } from '@/components/payroll/PayrollStaffManagement';
@@ -16,7 +15,6 @@ import { PayrollPayments } from '@/components/payroll/PayrollPayments';
 import { PayrollReports } from '@/components/payroll/PayrollReports';
 import { PaymentHistory } from '@/components/payroll/PaymentHistory';
 import { CorporateAccountsManager } from '@/components/payroll/CorporateAccountsManager';
-import { InsuranceManager } from '@/components/accounts/InsuranceManager';
 import { StaffHRManager } from '@/components/accounts/StaffHRManager';
 import { StaffRegistrationForm } from '@/components/accounts/StaffRegistrationForm';
 import { ExternalDoctorsManager } from '@/components/account/ExternalDoctorsManager';
@@ -44,7 +42,6 @@ function TabHeader({ title, onRefresh }: { title: string; onRefresh: () => void 
 const Account = () => {
   const { staff, loading: staffLoading, addStaff, updateStaff, deleteStaff, importStaff, refetch: refetchStaff } = useStaff();
   const { periods, loading: periodsLoading, createPeriod, lockPeriod, unlockPeriod, markPaid, refetch: refetchPeriods } = usePayrollPeriods();
-  const { refresh: refreshInsurance } = useInsurance();
   const { refetch: refetchCorporate } = useCorporateAccounts();
   const [selectedPeriod, setSelectedPeriod] = useState<PayrollPeriod | null>(null);
 
@@ -94,7 +91,7 @@ const Account = () => {
   }, [refetchStaff, refetchPeriods, refetchEntries]);
 
   return (
-    <MainLayout title="Accounts & Payroll" subtitle="Staff management, insurance, payroll, and HR">
+    <MainLayout title="Accounts & Payroll" subtitle="Staff, payroll, corporate & retainer sponsors">
       <Tabs defaultValue="dashboard" className="w-full">
         <TabsList className="w-full justify-start overflow-x-auto flex-nowrap mb-6">
           <TabsTrigger value="dashboard" className="flex items-center gap-1.5 text-xs sm:text-sm">
@@ -111,9 +108,6 @@ const Account = () => {
           </TabsTrigger>
           <TabsTrigger value="payments" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <CreditCard className="h-4 w-4" /> Payments
-          </TabsTrigger>
-          <TabsTrigger value="insurance" className="flex items-center gap-1.5 text-xs sm:text-sm">
-            <Shield className="h-4 w-4" /> Insurance
           </TabsTrigger>
           <TabsTrigger value="corporate" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Building2 className="h-4 w-4" /> Corporate
@@ -192,11 +186,6 @@ const Account = () => {
             entries={entries}
             onRefreshEntries={refetchEntries}
           />
-        </TabsContent>
-
-        <TabsContent value="insurance">
-          <TabHeader title="Insurance" onRefresh={refreshInsurance} />
-          <InsuranceManager />
         </TabsContent>
 
         <TabsContent value="corporate">

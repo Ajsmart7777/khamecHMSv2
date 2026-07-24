@@ -543,6 +543,81 @@ export type Database = {
         }
         Relationships: []
       }
+      eligibility_verifications: {
+        Row: {
+          created_at: string
+          encounter_code: string | null
+          encounter_code_captured_at: string | null
+          enrollee_id: string | null
+          id: string
+          notes: string | null
+          patient_id: string
+          plan: string | null
+          provider_id: string | null
+          provider_name: string | null
+          rejection_reason: string | null
+          requested_by: string | null
+          sponsor_type: string
+          status: string
+          updated_at: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          encounter_code?: string | null
+          encounter_code_captured_at?: string | null
+          enrollee_id?: string | null
+          id?: string
+          notes?: string | null
+          patient_id: string
+          plan?: string | null
+          provider_id?: string | null
+          provider_name?: string | null
+          rejection_reason?: string | null
+          requested_by?: string | null
+          sponsor_type: string
+          status?: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          encounter_code?: string | null
+          encounter_code_captured_at?: string | null
+          enrollee_id?: string | null
+          id?: string
+          notes?: string | null
+          patient_id?: string
+          plan?: string | null
+          provider_id?: string | null
+          provider_name?: string | null
+          rejection_reason?: string | null
+          requested_by?: string | null
+          sponsor_type?: string
+          status?: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eligibility_verifications_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eligibility_verifications_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "insurance_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       emr_attachments: {
         Row: {
           category: string

@@ -1,3 +1,4 @@
+import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { TasksPanel } from '@/components/tasks/TasksPanel';

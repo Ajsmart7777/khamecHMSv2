@@ -55,6 +55,7 @@ export function CashierPanel() {
       patientCopay: number;
       sponsorLabel: string | null;
       copayPct: number;
+      owedAfter?: number;
     };
   } | null>(null);
 

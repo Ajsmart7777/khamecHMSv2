@@ -177,9 +177,12 @@ export function CashierPanel() {
           covered_amount: remaining,
           copay_amount: 0,
         });
-        await updatePatientStatus(selected.patient_id, 'at_pharmacy');
+        const nextStation = await nextStationForInvoice(selected.id);
+        await updatePatientStatus(selected.patient_id, nextStation);
         toast.success('Acknowledged — sent to Claims', {
-          description: `${selected.invoice_number} · Sponsor covers ₦${remaining.toLocaleString()}`,
+          description: `${selected.invoice_number} · Sponsor covers ₦${remaining.toLocaleString()} · ${
+            nextStation === 'in_lab' ? 'Patient routed back to Lab' : 'Patient routed to Pharmacy'
+          }`,
         });
         setReceipt({
           patient: selectedPatient,
@@ -307,8 +310,10 @@ export function CashierPanel() {
         shortfall: sponsored ? 0 : shortfall,
       });
 
-      // Move to pharmacy — invoice is fully settled (paid + balance + debt = outstanding)
-      await updatePatientStatus(selected.patient_id, 'at_pharmacy');
+      // Route the patient to the correct next station based on what was billed
+      // (lab tests → back to Lab; meds/other → Pharmacy).
+      const nextStation = await nextStationForInvoice(selected.id);
+      await updatePatientStatus(selected.patient_id, nextStation);
 
       const parts: string[] = [];
       if (cash > 0) parts.push(`₦${cash.toLocaleString()} ${method}`);

@@ -849,10 +849,40 @@ function SnapRow({ snap, thumb, onOpen }: { snap: any; thumb?: string; onOpen: (
   );
 }
 
-function InvoiceRow({ inv }: { inv: any }) {
+function InvoiceRow({ inv, patient }: { inv: any; patient: Patient }) {
   const items = (inv.invoice_items ?? []) as any[];
+  const total = Number(inv.total_amount ?? 0);
+  const paid = Number(inv.paid_amount ?? 0);
+  const sponsored = isSponsored(patient);
+  const split = splitInvoice(total, patient);
+  const claimPosted = sponsored && paid >= total; // sponsor_claim payment closed it
+  const copayCollected = sponsored ? Math.min(paid, split.copayAmount) : 0;
+  const copayDue = sponsored ? Math.max(split.copayAmount - copayCollected, 0) : 0;
   return (
     <div>
+      {sponsored && (
+        <div className="mb-2 rounded-md border border-indigo-200 bg-indigo-50 px-2.5 py-2 text-[11px] flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 text-indigo-800 font-semibold uppercase tracking-wide">
+            <FileText className="h-3 w-3" />
+            {sponsorLabel(patient)} · Copay {split.copayPct}%
+          </div>
+          <span
+            className={`px-1.5 py-0.5 rounded border font-bold uppercase tracking-wide ${
+              claimPosted
+                ? 'bg-indigo-600 text-white border-indigo-700'
+                : copayDue > 0
+                ? 'bg-amber-100 text-amber-800 border-amber-300'
+                : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+            }`}
+          >
+            {claimPosted
+              ? 'Claim: pending sponsor'
+              : copayDue > 0
+              ? `Awaiting copay ₦${copayDue.toLocaleString()}`
+              : 'Copay collected'}
+          </span>
+        </div>
+      )}
       <table className="w-full text-sm font-mono">
         <tbody className="divide-y divide-border/60">
           {items.slice(0, 6).map((it, i) => (
@@ -868,12 +898,24 @@ function InvoiceRow({ inv }: { inv: any }) {
         <tfoot>
           <tr className="border-t-2 border-border">
             <td className="pt-2 font-bold uppercase text-xs">Total Charged</td>
-            <td className="pt-2 text-right font-bold">{naira(inv.total_amount)}</td>
+            <td className="pt-2 text-right font-bold">{naira(total)}</td>
           </tr>
-          {Number(inv.paid_amount) > 0 && (
+          {sponsored && (
+            <>
+              <tr>
+                <td className="text-xs text-indigo-700">Sponsor covers ({100 - split.copayPct}%)</td>
+                <td className="text-right text-xs font-bold text-indigo-700">{naira(split.coveredAmount)}</td>
+              </tr>
+              <tr>
+                <td className="text-xs text-foreground">Patient copay ({split.copayPct}%)</td>
+                <td className="text-right text-xs font-bold">{naira(split.copayAmount)}</td>
+              </tr>
+            </>
+          )}
+          {paid > 0 && (
             <tr>
-              <td className="text-xs text-emerald-600">Paid</td>
-              <td className="text-right text-xs font-bold text-emerald-600">{naira(inv.paid_amount)}</td>
+              <td className="text-xs text-emerald-600">Paid to date</td>
+              <td className="text-right text-xs font-bold text-emerald-600">{naira(paid)}</td>
             </tr>
           )}
         </tfoot>

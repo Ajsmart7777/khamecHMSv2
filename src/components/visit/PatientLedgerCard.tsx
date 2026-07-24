@@ -5,7 +5,7 @@ import { differenceInYears } from 'date-fns';
 import {
   Loader2, X, ChevronDown, ChevronUp, Wallet, Droplet, Phone, Calendar, User,
   Activity, Pill, FlaskConical, ClipboardList, Receipt, FileText, PackageCheck,
-  Stethoscope, BedDouble, LogOut, Camera, ArrowUp, ArrowDown, Sparkles,
+  Stethoscope, BedDouble, LogOut, Camera, ArrowUp, ArrowDown, Sparkles, Download,
 } from 'lucide-react';
 import { signedUrl } from '@/hooks/useVisitAttachments';
 import { snapPhotoUrl } from '@/hooks/useSnapOrders';
@@ -14,6 +14,8 @@ import { Visit } from '@/hooks/useVisits';
 import { Button } from '@/components/ui/button';
 import { copayPercent, hasWallet, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
 import { ClaimActionsBar } from '@/components/claims/ClaimActionsBar';
+import { downloadDischargeSummaryPdf } from '@/lib/dischargeSummaryPdf';
+import { toast } from '@/hooks/use-toast';
 
 // ---------- types ----------
 type RowKind =
@@ -492,6 +494,25 @@ export function PatientLedgerCard({
                         <span className="text-[10px] font-mono text-slate-300 uppercase">
                           {lv.visit.status} · Charged {naira(lv.visit.total_charged)}
                         </span>
+
+                        {lv.visit.closed_at && (
+                          <Button
+                            variant="ghost" size="sm"
+                            className="h-6 text-amber-300 hover:text-white hover:bg-slate-800"
+                            title="Download Discharge Summary PDF"
+                            onClick={async () => {
+                              try {
+                                await downloadDischargeSummaryPdf(lv.visit);
+                                toast({ title: 'Discharge summary downloaded', description: lv.visit.visit_number });
+                              } catch (e) {
+                                toast({ title: 'PDF failed', description: (e as Error).message, variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            <Download className="h-3.5 w-3.5 mr-1" />
+                            <span className="text-[10px] uppercase tracking-wider">Summary</span>
+                          </Button>
+                        )}
 
                         <Button
                           variant="ghost" size="sm"

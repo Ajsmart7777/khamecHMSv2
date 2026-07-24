@@ -516,7 +516,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
 
       {/* Actions */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {pendingInvoice ? (
+        {pendingInvoice && canUseBalance ? (
           <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
             <DialogTrigger asChild>
               <Button 
@@ -540,6 +540,16 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
               <PaymentForm onSubmit={handleRecordPayment} onCancel={() => setIsPaymentOpen(false)} defaultAmount={pendingInvoice.total_amount - pendingInvoice.paid_amount} invoiceNumber={pendingInvoice.invoice_number} />
             </DialogContent>
           </Dialog>
+        ) : pendingInvoice && !canUseBalance ? (
+          <Button
+            variant="module"
+            className="h-20 flex-col gap-2 opacity-60 cursor-not-allowed"
+            disabled
+            title="Sponsored patients pay copay at the Cashier"
+          >
+            <CreditCard className="h-5 w-5" />
+            <span>Pay at Cashier</span>
+          </Button>
         ) : (
           <Button 
             variant="module" 

@@ -2479,6 +2479,10 @@ export type Database = {
       visits: {
         Row: {
           cancel_reason: string | null
+          claim_notes: string | null
+          claim_settled_at: string | null
+          claim_settled_by: string | null
+          claim_status: string
           closed_at: string | null
           closed_by: string | null
           corporate_id: string | null
@@ -2499,6 +2503,10 @@ export type Database = {
         }
         Insert: {
           cancel_reason?: string | null
+          claim_notes?: string | null
+          claim_settled_at?: string | null
+          claim_settled_by?: string | null
+          claim_status?: string
           closed_at?: string | null
           closed_by?: string | null
           corporate_id?: string | null
@@ -2519,6 +2527,10 @@ export type Database = {
         }
         Update: {
           cancel_reason?: string | null
+          claim_notes?: string | null
+          claim_settled_at?: string | null
+          claim_settled_by?: string | null
+          claim_status?: string
           closed_at?: string | null
           closed_by?: string | null
           corporate_id?: string | null
@@ -2778,6 +2790,10 @@ export type Database = {
         Returns: boolean
       }
       is_authenticated_staff: { Args: never; Returns: boolean }
+      mark_claim_settled: {
+        Args: { _notes?: string; _visit_id: string }
+        Returns: undefined
+      }
       mark_ready_for_discharge: {
         Args: { _admission_id: string; _note?: string; _snap_id?: string }
         Returns: undefined
@@ -2814,6 +2830,10 @@ export type Database = {
       release_task: {
         Args: { _notes?: string; _source: string; _source_id: string }
         Returns: boolean
+      }
+      reopen_claim: {
+        Args: { _reason: string; _visit_id: string }
+        Returns: undefined
       }
       request_admission: {
         Args: {

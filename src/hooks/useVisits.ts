@@ -23,6 +23,10 @@ export interface Visit {
   force_new_reason: string | null;
   created_at: string;
   updated_at: string;
+  claim_status?: 'pending' | 'settled' | 'not_applicable';
+  claim_settled_at?: string | null;
+  claim_settled_by?: string | null;
+  claim_notes?: string | null;
 }
 
 /** Find the currently open visit for a patient (or null). */
@@ -151,18 +155,26 @@ export function usePatientVisits(patientId?: string | null) {
 }
 
 /** Settled sponsored visits (for the Claims queue). */
-export function useClaimsQueue(filters?: { sponsorType?: string | null; from?: string; to?: string }) {
+export function useClaimsQueue(filters?: {
+  sponsorType?: string | null;
+  from?: string;
+  to?: string;
+  claimStatus?: 'pending' | 'settled';
+  sponsors?: string[];
+}) {
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    const defaultSponsors = ['nhia', 'hmo', 'katchma', 'staff', 'staff_family'];
     let q = supabase
       .from('visits')
       .select('*')
       .eq('status', 'settled')
-      .in('sponsor_type', ['corporate', 'retainer', 'nhia', 'hmo', 'katchma', 'staff', 'staff_family'])
+      .in('sponsor_type', filters?.sponsors ?? defaultSponsors)
       .order('closed_at', { ascending: false });
+    if (filters?.claimStatus) q = q.eq('claim_status', filters.claimStatus);
     if (filters?.sponsorType) q = q.eq('sponsor_type', filters.sponsorType);
     if (filters?.from) q = q.gte('closed_at', filters.from);
     if (filters?.to) q = q.lte('closed_at', filters.to);
@@ -173,7 +185,7 @@ export function useClaimsQueue(filters?: { sponsorType?: string | null; from?: s
       return;
     }
     setVisits((data ?? []) as Visit[]);
-  }, [filters?.sponsorType, filters?.from, filters?.to]);
+  }, [filters?.sponsorType, filters?.from, filters?.to, filters?.claimStatus, filters?.sponsors?.join(',')]);
 
   useEffect(() => {
     refresh();
@@ -190,4 +202,22 @@ export function useClaimsQueue(filters?: { sponsorType?: string | null; from?: s
   }, [refresh]);
 
   return { visits, loading, refresh };
+}
+
+/** Mark an insured visit's claim as settled (claims_manager / admin). */
+export async function markClaimSettled(visitId: string, notes?: string): Promise<void> {
+  const { error } = await supabase.rpc('mark_claim_settled', {
+    _visit_id: visitId,
+    _notes: notes ?? null,
+  });
+  if (error) throw error;
+}
+
+/** Reopen a settled claim (admin only). */
+export async function reopenClaim(visitId: string, reason: string): Promise<void> {
+  const { error } = await supabase.rpc('reopen_claim', {
+    _visit_id: visitId,
+    _reason: reason,
+  });
+  if (error) throw error;
 }

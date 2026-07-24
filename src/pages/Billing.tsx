@@ -1,3 +1,4 @@
+import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
 import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { TasksPanel } from '@/components/tasks/TasksPanel';
@@ -51,7 +52,7 @@ const Billing = () => {
   const { createInvoice, invoices, getInvoicesForPatient, getPendingInvoices, refreshInvoices } = useInvoices();
   const { prescriptions, getPrescriptionsForPatient } = usePrescriptions();
   const { deductBalance } = useCorporateAccounts();
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [invoiceItems, setInvoiceItems] = useState<{ id: number; description: string; qty: number; price: number; category: string }[]>([
     { id: 1, description: 'Consultation Fee', qty: 1, price: 5000, category: 'consultation' },
   ]);

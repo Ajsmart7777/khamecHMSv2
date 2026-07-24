@@ -1,3 +1,4 @@
+import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
 import { useEffect, useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { TasksPanel } from '@/components/tasks/TasksPanel';
@@ -30,7 +31,7 @@ const Doctor = () => {
   const { role, user } = useAuth();
   const [searchParams] = useSearchParams();
   const asParam = searchParams.get('as');
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);
   const [pendingLabReturnPatientIds, setPendingLabReturnPatientIds] = useState<Set<string>>(new Set());

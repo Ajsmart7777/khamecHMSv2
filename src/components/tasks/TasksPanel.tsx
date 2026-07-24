@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTasks, TaskSource } from '@/hooks/useTasks';
 import { usePatients } from '@/contexts/PatientContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, ListChecks, Hand, X, Search, FilterX } from 'lucide-react';
+import { RefreshCw, ListChecks, Hand, X, Search, FilterX, ExternalLink } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,31 @@ const SOURCE_LABEL: Record<TaskSource, string> = {
   snap_orders: 'Snap',
   stock_requests: 'Stock',
 };
+
+/**
+ * Map a task to the role page that owns it, so a row can deep-link into the
+ * correct workspace with the patient pre-selected.
+ */
+function taskTargetRoute(task: { source: TaskSource; payload?: any }): string {
+  if (task.source === 'lab_requests') return '/lab';
+  if (task.source === 'prescriptions') return '/pharmacy';
+  if (task.source === 'admissions') return '/nurse';
+  if (task.source === 'stock_requests') return '/store';
+  if (task.source === 'snap_orders') {
+    const target = String(task.payload?.target_station ?? '').toLowerCase();
+    switch (target) {
+      case 'billing': return '/billing';
+      case 'cashier': return '/cashier';
+      case 'pharmacy': return '/pharmacy';
+      case 'lab': return '/lab';
+      case 'nurse': return '/nurse';
+      case 'doctor': return '/doctor';
+      case 'reception': return '/reception';
+      default: return '/billing';
+    }
+  }
+  return '/';
+}
 
 type AssignFilter = 'all' | 'mine' | 'unclaimed' | 'others';
 type UrgencyFilter = 'all' | 'urgent' | 'soon' | 'fresh';
@@ -66,6 +92,8 @@ export function TasksPanel({
   const { tasks, loading, error, refresh, claimTask, releaseTask } = useTasks({ role, userId, status, source, patientId });
   const { patients } = usePatients();
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [assignFilter, setAssignFilter] = useState<AssignFilter>('all');
@@ -153,6 +181,20 @@ export function TasksPanel({
       toast.error(String(e?.message ?? 'Failed to release'));
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const openTask = (t: (typeof tasks)[number]) => {
+    const route = taskTargetRoute(t);
+    const params = new URLSearchParams();
+    if (t.patient_id) params.set('patient', t.patient_id);
+    params.set('task', t.source_id);
+    const url = `${route}?${params.toString()}`;
+    // Same-page: just update the URL so the hook re-selects without a full nav
+    if (location.pathname === route) {
+      navigate(url, { replace: true });
+    } else {
+      navigate(url);
     }
   };
 
@@ -289,7 +331,13 @@ export function TasksPanel({
                   className={`w-full px-3 py-2 rounded-md border flex items-center gap-3 ${claimedByMe ? 'bg-primary/5 border-primary/40' : 'hover:bg-accent'}`}
                 >
                   <button
-                    onClick={() => t.patient_id && onSelectPatient?.(t.patient_id)}
+                    onClick={() => {
+                      if (onSelectPatient && t.patient_id) {
+                        onSelectPatient(t.patient_id);
+                      } else {
+                        openTask(t);
+                      }
+                    }}
                     className="flex items-center gap-3 flex-1 min-w-0 text-left"
                   >
                     <Badge variant="outline" className="shrink-0">{SOURCE_LABEL[t.source]}</Badge>
@@ -313,6 +361,15 @@ export function TasksPanel({
                     </div>
                   </button>
                   <div className="shrink-0">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 px-2 mr-1"
+                      title={`Open in ${taskTargetRoute(t).replace('/', '') || 'workspace'}`}
+                      onClick={(e) => { e.stopPropagation(); openTask(t); }}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </Button>
                     {claimedByMe ? (
                       <Button size="sm" variant="ghost" disabled={isBusy}
                         onClick={(e) => { e.stopPropagation(); handleRelease(t); }}>

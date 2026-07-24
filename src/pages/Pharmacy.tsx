@@ -1,3 +1,4 @@
+import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -52,7 +53,7 @@ const Pharmacy = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDispenseDialogOpen, setIsDispenseDialogOpen] = useState(false);
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
   const [dispensedPatients, setDispensedPatients] = useState<Set<string>>(new Set());
   const [dispenseReceiptData, setDispenseReceiptData] = useState<{

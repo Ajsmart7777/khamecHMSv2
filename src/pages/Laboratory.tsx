@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { TasksPanel } from '@/components/tasks/TasksPanel';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
@@ -53,8 +54,25 @@ const Laboratory = () => {
   const [interpretation, setInterpretation] = useState('Normal');
   const [doctorRoutingRequest, setDoctorRoutingRequest] = useState<LabRequest | null>(null);
   const [routingDoctor, setRoutingDoctor] = useState<'doctor1' | 'doctor2' | ''>('');
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const loading = patientsLoading || labLoading;
+
+  // Deep-link support: auto-select a lab request from ?task= or a patient's
+  // active request from ?patient=. Runs whenever lab requests refresh.
+  useEffect(() => {
+    if (selectedRequest || labLoading) return;
+    const taskId = searchParams.get('task');
+    const patientId = searchParams.get('patient');
+    let match: LabRequest | undefined;
+    if (taskId) match = labRequests.find(r => r.id === taskId);
+    if (!match && patientId) {
+      match = labRequests.find(
+        r => r.patient_id === patientId && r.status !== 'completed',
+      );
+    }
+    if (match) setSelectedRequest(match);
+  }, [labRequests, labLoading, searchParams, selectedRequest]);
 
   // Get lab requests that are not completed
   const activeLabRequests = labRequests.filter(req => req.status !== 'completed' || 

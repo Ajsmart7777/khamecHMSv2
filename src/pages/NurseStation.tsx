@@ -1,3 +1,4 @@
+import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { TasksPanel } from '@/components/tasks/TasksPanel';
@@ -32,7 +33,7 @@ import { BedDouble } from 'lucide-react';
 
 const NurseStation = () => {
   const { patients, loading, refreshPatients, updatePatientStatus, getPatientsByStatus } = usePatients();
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [admitOpen, setAdmitOpen] = useState(false);
   
   // Filter patients that are waiting or with nurse

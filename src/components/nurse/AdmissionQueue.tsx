@@ -93,7 +93,10 @@ export function AdmissionQueue() {
         <TabsContent value="deposit" className="space-y-2 mt-3">
           {awaitingDeposit.length === 0 ? <Empty text="No patients awaiting deposit" /> :
             awaitingDeposit.map((a) => renderRow(a,
-              <Badge variant="warning" className="text-[10px]">Deposit at Reception</Badge>, 'warn'))}
+              <div className="flex items-center gap-2">
+                <Badge variant="warning" className="text-[10px]">Deposit short</Badge>
+                <Button size="sm" onClick={() => setSelected(a)}>Assign Anyway</Button>
+              </div>, 'warn'))}
         </TabsContent>
 
         <TabsContent value="room" className="space-y-2 mt-3">

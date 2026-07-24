@@ -1,6 +1,6 @@
 import { MainLayout } from '@/components/layout/MainLayout';
 import { CashierPanel } from '@/components/billing/CashierPanel';
-import { BalanceRequestsPanel } from '@/components/reception/BalanceRequestsPanel';
+import { BalanceRequestsPanel } from '@/components/billing/BalanceRequestsPanel';
 
 export default function Cashier() {
   return (

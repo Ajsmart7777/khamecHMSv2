@@ -19,7 +19,7 @@ import {
   WifiOff,
   RefreshCw
 } from 'lucide-react';
-import { mockInventory } from '@/data/mockData';
+import { useInventory } from '@/hooks/useInventory';
 import { toast } from 'sonner';
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { PharmacySnapQueue } from '@/components/pharmacy/PharmacySnapQueue';
@@ -51,6 +51,7 @@ import { getPendingWorkflowStation, workflowStationLabel } from '@/lib/workflowR
 
 const Pharmacy = () => {
   const { patients, loading, updatePatientStatus, getPatientsByStatus, refreshPatients } = usePatients();
+  const { items: inventoryItems } = useInventory();
   const { prescriptions, updatePrescriptionStatus, markItemDispensed, getPendingPrescriptions, refreshPrescriptions } = usePrescriptions();
   const [searchQuery, setSearchQuery] = useState('');
   const [isDispenseDialogOpen, setIsDispenseDialogOpen] = useState(false);
@@ -69,7 +70,7 @@ const Pharmacy = () => {
   // Get pending prescriptions from database
   const pendingPrescriptions = getPendingPrescriptions();
 
-  const lowStockItems = mockInventory.filter(item => item.quantity <= item.minStock && item.location === 'pharmacy');
+  const lowStockItems = inventoryItems.filter(item => item.quantity <= item.min_stock && item.location === 'pharmacy');
 
   const getPatientForPrescription = (patientId: string) => {
     return patients.find(p => p.id === patientId);
@@ -250,12 +251,12 @@ const Pharmacy = () => {
 
   const handleStockSearch = () => {
     if (!searchQuery) return;
-    const found = mockInventory.find(i => 
+    const found = inventoryItems.find(i => 
       i.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
     if (found) {
       toast.success(found.name, {
-        description: `Stock: ${found.quantity} units | Min: ${found.minStock} | Location: ${found.location}`
+        description: `Stock: ${found.quantity} units | Min: ${found.min_stock} | Location: ${found.location}`
       });
     } else {
       toast.error('Not Found', {

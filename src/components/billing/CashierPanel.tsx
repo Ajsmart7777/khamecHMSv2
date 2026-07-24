@@ -30,6 +30,22 @@ import { PrintableReceiptDialog } from '@/components/receipts/PrintableReceiptDi
 
 const DEBT_ELIGIBLE = new Set(['normal', 'staff', 'staff_family']);
 
+// After payment, route the patient back to the station that requested the
+// service (lab tests → back to lab, pharmacy meds → pharmacy). Falls back to
+// pharmacy which is the historical outpatient terminal station.
+async function nextStationForInvoice(invoiceId: string): Promise<'in_lab' | 'at_pharmacy'> {
+  const { data } = await supabase
+    .from('snap_orders')
+    .select('target_station, created_at')
+    .eq('invoice_id', invoiceId)
+    .order('created_at', { ascending: false });
+  const stations = (data || []).map((r: any) => r.target_station);
+  // If ANY of the paid orders are lab, keep the patient in lab so tests run
+  // before they are discharged/dispensed.
+  if (stations.includes('lab')) return 'in_lab';
+  return 'at_pharmacy';
+}
+
 export function CashierPanel() {
   const { getPendingInvoices, recordPayment, refreshInvoices } = useInvoices();
   const { patients, updatePatientStatus, refreshPatients } = usePatients() as any;
@@ -161,9 +177,12 @@ export function CashierPanel() {
           covered_amount: remaining,
           copay_amount: 0,
         });
-        await updatePatientStatus(selected.patient_id, 'at_pharmacy');
+        const nextStation = await nextStationForInvoice(selected.id);
+        await updatePatientStatus(selected.patient_id, nextStation);
         toast.success('Acknowledged — sent to Claims', {
-          description: `${selected.invoice_number} · Sponsor covers ₦${remaining.toLocaleString()}`,
+          description: `${selected.invoice_number} · Sponsor covers ₦${remaining.toLocaleString()} · ${
+            nextStation === 'in_lab' ? 'Patient routed back to Lab' : 'Patient routed to Pharmacy'
+          }`,
         });
         setReceipt({
           patient: selectedPatient,
@@ -291,8 +310,10 @@ export function CashierPanel() {
         shortfall: sponsored ? 0 : shortfall,
       });
 
-      // Move to pharmacy — invoice is fully settled (paid + balance + debt = outstanding)
-      await updatePatientStatus(selected.patient_id, 'at_pharmacy');
+      // Route the patient to the correct next station based on what was billed
+      // (lab tests → back to Lab; meds/other → Pharmacy).
+      const nextStation = await nextStationForInvoice(selected.id);
+      await updatePatientStatus(selected.patient_id, nextStation);
 
       const parts: string[] = [];
       if (cash > 0) parts.push(`₦${cash.toLocaleString()} ${method}`);

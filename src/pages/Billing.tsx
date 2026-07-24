@@ -41,7 +41,7 @@ import { BalanceRequestsPanel } from '@/components/billing/BalanceRequestsPanel'
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { SettleDischargeDialog } from '@/components/billing/SettleDischargeDialog';
 import { BillingSnapInbox } from '@/components/billing/BillingSnapInbox';
-import { CashierPanel } from '@/components/billing/CashierPanel';
+// CashierPanel moved to /cashier (dedicated Cashier role)
 import { useActiveVisit } from '@/hooks/useVisits';
 import { CheckCircle2 } from 'lucide-react';
 
@@ -331,22 +331,9 @@ const Billing = () => {
         </Button>
       </div>
 
-      {/* Cashier Panels */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <BalanceRequestsPanel type="topup" />
-        <BalanceRequestsPanel type="refund" />
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Cashier + Recent Invoices */}
+        {/* Recent Invoices */}
         <div className="lg:col-span-1 space-y-4">
-          {/* Cashier Panel */}
-          <CashierPanel />
-
-
-
-
-
           {/* Recent Invoices */}
           <div className="bg-card rounded-xl border border-border p-4">
             <h3 className="font-semibold mb-3 flex items-center gap-2">

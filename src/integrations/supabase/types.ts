@@ -1081,6 +1081,115 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_journey: {
+        Row: {
+          created_at: string
+          current_state: string
+          department: string | null
+          id: string
+          location: string | null
+          owner_role: string | null
+          owner_user_id: string | null
+          patient_id: string
+          updated_at: string
+          visit_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          current_state: string
+          department?: string | null
+          id?: string
+          location?: string | null
+          owner_role?: string | null
+          owner_user_id?: string | null
+          patient_id: string
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          current_state?: string
+          department?: string | null
+          id?: string
+          location?: string | null
+          owner_role?: string | null
+          owner_user_id?: string | null
+          patient_id?: string
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_journey_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: true
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patient_journey_history: {
+        Row: {
+          actor_user_id: string | null
+          created_at: string
+          department: string | null
+          from_owner_role: string | null
+          from_owner_user_id: string | null
+          from_state: string | null
+          id: string
+          journey_id: string | null
+          location: string | null
+          patient_id: string
+          reason: string | null
+          to_owner_role: string | null
+          to_owner_user_id: string | null
+          to_state: string
+          visit_id: string | null
+        }
+        Insert: {
+          actor_user_id?: string | null
+          created_at?: string
+          department?: string | null
+          from_owner_role?: string | null
+          from_owner_user_id?: string | null
+          from_state?: string | null
+          id?: string
+          journey_id?: string | null
+          location?: string | null
+          patient_id: string
+          reason?: string | null
+          to_owner_role?: string | null
+          to_owner_user_id?: string | null
+          to_state: string
+          visit_id?: string | null
+        }
+        Update: {
+          actor_user_id?: string | null
+          created_at?: string
+          department?: string | null
+          from_owner_role?: string | null
+          from_owner_user_id?: string | null
+          from_state?: string | null
+          id?: string
+          journey_id?: string | null
+          location?: string | null
+          patient_id?: string
+          reason?: string | null
+          to_owner_role?: string | null
+          to_owner_user_id?: string | null
+          to_state?: string
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_journey_history_journey_id_fkey"
+            columns: ["journey_id"]
+            isOneToOne: false
+            referencedRelation: "patient_journey"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           account_type: string
@@ -2524,6 +2633,19 @@ export type Database = {
           _transaction_type: string
         }
         Returns: number
+      }
+      advance_journey: {
+        Args: {
+          _department?: string
+          _location?: string
+          _owner_role?: string
+          _owner_user_id?: string
+          _patient_id: string
+          _reason?: string
+          _to_state: string
+          _visit_id?: string
+        }
+        Returns: string
       }
       can_add_snap_for_patient: {
         Args: { _patient_id: string; _user_id: string }

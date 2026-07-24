@@ -22,6 +22,7 @@ interface PrintableReceiptDialogProps {
     patientCopay?: number;
     sponsorLabel?: string | null;
     copayPct?: number;
+    owedAfter?: number;
   };
 }
 

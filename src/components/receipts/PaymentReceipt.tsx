@@ -17,6 +17,7 @@ interface PaymentReceiptProps {
     patientCopay?: number;
     sponsorLabel?: string | null;
     copayPct?: number;
+    owedAfter?: number;
   };
 }
 
@@ -78,6 +79,12 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
                   <span className="font-semibold">₦{(breakdown.patientCopay ?? 0).toLocaleString()}</span>
                 </div>
               </>
+            )}
+            {typeof breakdown.owedAfter === 'number' && breakdown.owedAfter > 0 && (
+              <div className="flex justify-between border-t border-gray-300 pt-1 font-semibold">
+                <span>Still owed (on balance)</span>
+                <span>₦{breakdown.owedAfter.toLocaleString()}</span>
+              </div>
             )}
           </div>
         )}

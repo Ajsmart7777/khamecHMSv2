@@ -204,6 +204,9 @@ export function useInvoices() {
   };
 
   const getPendingInvoices = (): Invoice[] => {
+    // Only bills that still need money collected. Cancelled or paid invoices
+    // (including those auto-cancelled with their visit) must not clutter the
+    // Cashier queue.
     return invoices.filter(i => i.status === 'pending' || i.status === 'partial');
   };
 

@@ -170,7 +170,9 @@ export function useClaimsQueue(filters?: {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const defaultSponsors = ['nhia', 'hmo', 'katchma', 'staff', 'staff_family'];
+    // Claims Manager scope: external insurance schemes only.
+    // staff = 100% free (no claim). staff_family = 50% patient + 50% payroll deduction (no claim).
+    const defaultSponsors = ['nhia', 'hmo', 'katchma'];
     let q = supabase
       .from('visits')
       .select('*')

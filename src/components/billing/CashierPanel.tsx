@@ -29,10 +29,9 @@ import { copayPercent, hasWallet, isSponsored, sponsorLabel, splitInvoice } from
 import { PrintableReceiptDialog } from '@/components/receipts/PrintableReceiptDialog';
 import { nextStationForInvoice, workflowStationLabel } from '@/lib/workflowRouting';
 
-// Only walk-in cash patients can carry a shortfall on their patient balance.
-// Sponsored/insured/staff accounts settle via the sponsor — never on the
-// patient's wallet.
-const DEBT_ELIGIBLE = new Set(['normal', 'cash', '']);
+// Wallet-enabled accounts (walk-in cash + staff_family) can carry a shortfall
+// on their own balance. Sponsored/insured/staff settle via the sponsor.
+const DEBT_ELIGIBLE = new Set(['normal', 'cash', '', 'staff_family']);
 
 async function settleInvoiceAsPaid(
   invoiceId: string,

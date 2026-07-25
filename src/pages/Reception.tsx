@@ -1067,12 +1067,16 @@ function NewPatientForm({
       e.corporate_id = 'Select a sponsor';
     }
     if (isInsurance) {
-      if (!formData.insurance_provider.trim()) e.insurance_provider = 'Provider name is required';
       const { errors: fErrors } = validateMemberFields(providerFields, memberData);
       Object.entries(fErrors).forEach(([k, v]) => { e[`member_${k}`] = v; });
       // Ensure at least one identifier was captured
       const primary = derivePrimaryEnrolleeId(providerFields, memberData);
       if (!primary) e.enrollee_id = 'Capture at least one member identifier';
+      // Resolve provider name from HMO memberData or scheme label.
+      const resolvedProvider = isHmoFlow
+        ? (memberData.provider_name || '').trim()
+        : schemeLabel;
+      if (!resolvedProvider) e.insurance_provider = 'Provider name is required';
     }
     if ((isStaff || isStaffFamily) && !formData.staff_id) {
       e.staff_id = 'Select the linked staff member';

@@ -22,7 +22,7 @@ import {
 import { usePatients } from '@/contexts/PatientContext';
 import { VisitEnvelopeDialog } from '@/components/visit/VisitEnvelopeDialog';
 import { Patient } from '@/contexts/PatientContext';
-import { ClaimDetailDialog } from './ClaimDetailDialog';
+import { PatientCardDialog } from '@/components/visit/PatientCardDialog';
 
 import { downloadClaimsPacketPdf, downloadBulkClaimsPacketsPdf } from '@/lib/claimsPacketPdf';
 import { toast } from 'sonner';
@@ -39,7 +39,7 @@ export function ClaimsQueue() {
   const [to, setTo] = useState('');
   const [tab, setTab] = useState<'pending' | 'info_requested' | 'rejected' | 'settled'>('pending');
   const [open, setOpen] = useState<Visit | null>(null);
-  const [detailVisit, setDetailVisit] = useState<Visit | null>(null);
+  const [cardPatient, setCardPatient] = useState<Patient | null>(null);
   const [settleTarget, setSettleTarget] = useState<Visit | null>(null);
   const [settleNotes, setSettleNotes] = useState('');
   const [settling, setSettling] = useState(false);
@@ -333,8 +333,13 @@ export function ClaimsQueue() {
                               {v.claim_reason_code.replace(/_/g, ' ')}
                             </Badge>
                           )}
-                          <Button size="sm" variant="outline" onClick={() => setDetailVisit(v)}>
-                            <Eye className="h-3 w-3 mr-1" /> Review Claim
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => p && setCardPatient(p)}
+                            disabled={!p}
+                          >
+                            <Eye className="h-3 w-3 mr-1" /> View Card
                           </Button>
                           <Button size="sm" variant="ghost" onClick={() => setOpen(v)}>
                             Envelope

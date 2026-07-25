@@ -988,7 +988,7 @@ function NewPatientForm({
 }) {
   const { addPatient } = usePatients();
   const { markConsumed } = useEligibilityVerifications();
-  const { providers } = useInsurance();
+  const { getFields } = useInsuranceTemplates();
   const seededName = initialVerification?.prospective_patient_name ?? '';
   const seededPhone = initialVerification?.prospective_patient_phone ?? '';
   const seededType: AccountType | '' = initialVerification
@@ -1010,7 +1010,6 @@ function NewPatientForm({
     enrollee_id: initialVerification?.verified_enrollee_id ?? initialVerification?.enrollee_id ?? '',
     staff_id: '',
   });
-  const [providerId, setProviderId] = useState<string>('');
   const [memberData, setMemberData] = useState<Record<string, string>>(
     (initialVerification?.member_id_data as Record<string, string>) || {},
   );
@@ -1022,42 +1021,26 @@ function NewPatientForm({
   const isStaff = formData.account_type === 'staff';
   const isStaffFamily = formData.account_type === 'staff_family';
 
-  // Providers filtered by the selected account type
-  const providerTypeKey = formData.account_type === 'nhis' ? 'nhis'
-                        : formData.account_type === 'hmo' ? 'hmo'
-                        : formData.account_type === 'katchma' ? 'katchma'
-                        : null;
-  const availableProviders = isInsurance
-    ? providers.filter((p) => (providerTypeKey ? p.type === providerTypeKey : true) && p.status === 'active')
-    : [];
-  const selectedProvider = providers.find((p) => p.id === providerId) || null;
-  const providerFields: ProviderField[] = selectedProvider
-    ? normaliseFields(selectedProvider.member_id_fields)
-    : DEFAULT_MEMBER_FIELDS;
+  // Templates saved by Claims Manager drive which fields Reception cika.
+  const providerFields: ProviderField[] = isInsurance ? getFields(formData.account_type) : [];
+  const isHmoFlow = formData.account_type === 'hmo';
+  const schemeLabel = isInsurance ? TEMPLATE_LABELS[formData.account_type as 'nhis' | 'katchma' | 'hmo'] : '';
   const availablePlans = isInsurance ? (INSURANCE_PLANS[formData.account_type] || []) : [];
 
-  // Auto-pick provider when the user types a name that matches one, or when
-  // an approved pre-registration verification seeded it.
+  // For HMO, the "provider_name" field is the sponsor's provider (Hygeia, Axa etc).
+  // For NHIA/KATCHMA, the scheme itself is the provider label.
   useEffect(() => {
-    if (!isInsurance) { setProviderId(''); return; }
-    if (providerId) return;
-    // NHIA & KATCHMA are single-scheme sponsors — auto-pick the first
-    // active provider of that type so Reception only fills member details.
-    if (formData.account_type === 'nhis' || formData.account_type === 'katchma') {
-      const only = availableProviders[0];
-      if (only) {
-        setProviderId(only.id);
-        setFormData((prev) => ({ ...prev, insurance_provider: only.name }));
-        return;
+    if (!isInsurance) return;
+    if (isHmoFlow) {
+      const pn = (memberData.provider_name || '').trim();
+      if (pn && pn !== formData.insurance_provider) {
+        setFormData((prev) => ({ ...prev, insurance_provider: pn }));
       }
+    } else if (schemeLabel && formData.insurance_provider !== schemeLabel) {
+      setFormData((prev) => ({ ...prev, insurance_provider: schemeLabel }));
     }
-    const seededName = formData.insurance_provider.trim().toLowerCase();
-    if (!seededName) return;
-    const hit = availableProviders.find((p) => p.name.toLowerCase() === seededName)
-             || availableProviders.find((p) => p.name.toLowerCase().includes(seededName));
-    if (hit) setProviderId(hit.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInsurance, formData.account_type, formData.insurance_provider, availableProviders.length]);
+  }, [isInsurance, isHmoFlow, schemeLabel, memberData.provider_name]);
 
   const generateCardNumber = () => {
     const year = new Date().getFullYear();

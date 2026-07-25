@@ -70,6 +70,8 @@ import { CheckInDialog } from '@/components/visit/CheckInDialog';
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { useActiveVisit } from '@/hooks/useVisits';
 import { EligibilityRequestButton } from '@/components/reception/EligibilityRequestButton';
+import { PreRegistrationVerificationPanel } from '@/components/reception/PreRegistrationVerificationPanel';
+import { useEligibilityVerifications, type EligibilityVerification } from '@/hooks/useEligibilityVerifications';
 
 const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactNode; color: string; description: string }> = {
   normal: { 

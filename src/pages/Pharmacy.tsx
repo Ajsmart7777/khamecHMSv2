@@ -186,6 +186,22 @@ const Pharmacy = () => {
         toast.error('Dispensed, but patient could not be routed. Please refresh and retry.');
         return;
       }
+
+      // If patient is being discharged, auto-settle the open visit so insured
+      // visits (Katchma/NHIA/HMO) land in the Claims queue automatically —
+      // no manual trip to Billing needed.
+      if (nextStatus === 'discharged') {
+        try {
+          const openVisit = await findOpenVisit(selectedPatientId);
+          if (openVisit) {
+            await closeVisit(openVisit.id);
+          }
+        } catch (err: any) {
+          toast.error('Could not settle visit', {
+            description: err?.message ?? 'Please settle from Billing.',
+          });
+        }
+      }
     } else {
       toast.success('Dispensed to inpatient', { description: 'Patient remains admitted.' });
     }

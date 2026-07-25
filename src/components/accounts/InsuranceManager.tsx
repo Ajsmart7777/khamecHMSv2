@@ -15,9 +15,9 @@ import {
 const TYPES: InsuranceTemplateKey[] = ['nhis', 'katchma', 'hmo'];
 
 const DESCRIPTIONS: Record<InsuranceTemplateKey, string> = {
-  nhis: 'NHIA scheme ne kai tsaye — babu wani sub-provider. Saita fields ɗin da Reception zai cika (misali Enrollee ID).',
-  katchma: 'KATCHMA scheme ne kai tsaye — babu sub-provider. Saita fields ɗin da Reception zai cika.',
-  hmo: 'HMO na iya zama Hygeia, Axa Mansard, da sauransu. Ka saka field ɗin "Provider Name" domin Reception ta rubuta sunan HMO, sa\'annan sauran fields kamar Enrollee Code, Call-Up Number, etc.',
+  nhis: 'NHIA is a direct scheme — no sub-provider. Configure the fields Reception should fill (e.g. Enrollee ID).',
+  katchma: 'KATCHMA is a direct scheme — no sub-provider. Configure the fields Reception should fill.',
+  hmo: 'HMOs vary (Hygeia, Axa Mansard, etc.). Include a "Provider Name" field so Reception can enter the HMO name, plus any other fields such as Enrollee Code, Call-Up Number, etc.',
 };
 
 export function InsuranceManager() {
@@ -48,7 +48,7 @@ export function InsuranceManager() {
           Insurance Registration Templates
         </h3>
         <p className="text-xs text-muted-foreground mt-1">
-          Saita fields ɗin da Reception zata cika sanda take register din insured patient. Kowane insurance type yana da template ɗinsa.
+          Configure the fields Reception fills when registering an insured patient. Each insurance type has its own template.
         </p>
       </div>
 

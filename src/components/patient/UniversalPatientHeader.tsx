@@ -279,11 +279,13 @@ function Stat({
   label,
   value,
   tone = 'muted',
+  flash,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   tone?: 'muted' | 'ok' | 'danger';
+  flash?: { delta: number; key: number };
 }) {
   const toneCls =
     tone === 'danger'
@@ -291,8 +293,13 @@ function Stat({
       : tone === 'ok'
       ? 'text-emerald-600 dark:text-emerald-400'
       : 'text-foreground';
+  const flashCls = flash
+    ? flash.delta > 0
+      ? 'ring-2 ring-emerald-500/70 bg-emerald-50 dark:bg-emerald-950/40 animate-pulse'
+      : 'ring-2 ring-amber-500/70 bg-amber-50 dark:bg-amber-950/40 animate-pulse'
+    : '';
   return (
-    <div className="rounded-md border bg-muted/30 px-2.5 py-1.5">
+    <div className={`relative rounded-md border bg-muted/30 px-2.5 py-1.5 transition-all ${flashCls}`}>
       <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
         {icon}
         <span>{label}</span>
@@ -300,6 +307,23 @@ function Stat({
       <div className={`text-sm font-semibold truncate ${toneCls}`} title={value}>
         {value}
       </div>
+      {flash && (
+        <div
+          key={flash.key}
+          className={`absolute -top-2 -right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold shadow-md ${
+            flash.delta > 0
+              ? 'bg-emerald-600 text-white'
+              : 'bg-amber-600 text-white'
+          }`}
+        >
+          {flash.delta > 0 ? (
+            <ArrowUpRight className="h-3 w-3" />
+          ) : (
+            <ArrowDownRight className="h-3 w-3" />
+          )}
+          {flash.delta > 0 ? '+' : '−'}₦{Math.abs(flash.delta).toLocaleString()}
+        </div>
+      )}
     </div>
   );
 }

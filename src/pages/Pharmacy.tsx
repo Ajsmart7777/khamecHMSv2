@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { PharmacySnapQueue } from '@/components/pharmacy/PharmacySnapQueue';
 import { prescriptionAuditLogger } from '@/lib/auditLogger';
+import { findOpenVisit, closeVisit } from '@/hooks/useVisits';
 import {
   Dialog,
   DialogContent,
@@ -177,6 +178,24 @@ const Pharmacy = () => {
       } catch (err: any) {
         toast.error('Could not verify pending workflow', { description: err?.message });
         return;
+      }
+
+      // If patient is heading to discharge, auto-settle the open visit FIRST.
+      // The DB blocks discharge while a visit is open, and settling an insured
+      // visit auto-flips claim_status → pending so it lands in the Claims queue
+      // without a manual Billing step.
+      if (nextStatus === 'discharged') {
+        try {
+          const openVisit = await findOpenVisit(selectedPatientId);
+          if (openVisit) {
+            await closeVisit(openVisit.id);
+          }
+        } catch (err: any) {
+          toast.error('Could not settle visit', {
+            description: err?.message ?? 'Please settle from Billing before discharge.',
+          });
+          return;
+        }
       }
 
       const routed = await updatePatientStatus(selectedPatientId, nextStatus, { guardInpatient: true });

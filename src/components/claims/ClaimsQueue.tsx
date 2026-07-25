@@ -405,15 +405,13 @@ export function ClaimsQueue() {
       </Tabs>
 
       <VisitEnvelopeDialog open={!!open} onOpenChange={(o) => !o && setOpen(null)} visit={open} />
-      <ClaimDetailDialog
-        visit={detailVisit}
-        open={!!detailVisit}
-        onOpenChange={(o) => !o && setDetailVisit(null)}
-        onSettle={(v) => { setSettleTarget(v); setSettleNotes(''); }}
-        onReject={(v) => { setActionTarget({ visit: v, kind: 'reject' }); setReasonCode(''); setReasonNotes(''); }}
-        onRequestInfo={(v) => { setActionTarget({ visit: v, kind: 'info' }); setReasonCode(''); setReasonNotes(''); }}
-        onReopen={(v) => { setReopenTarget(v); setReopenReason(''); }}
-      />
+      {cardPatient && (
+        <PatientCardDialog
+          patient={cardPatient}
+          open={!!cardPatient}
+          onOpenChange={(o) => !o && setCardPatient(null)}
+        />
+      )}
 
       <AlertDialog open={!!settleTarget} onOpenChange={(o) => !o && setSettleTarget(null)}>
         <AlertDialogContent>

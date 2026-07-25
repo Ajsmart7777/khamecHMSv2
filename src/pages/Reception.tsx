@@ -1245,7 +1245,6 @@ function NewPatientForm({
           value={formData.account_type}
           onValueChange={(v) => {
             setFormData({ ...formData, account_type: v as AccountType, corporate_id: '', insurance_provider: '', insurance_plan: '', enrollee_id: '', staff_id: '' });
-            setProviderId('');
             setMemberData({});
           }}
         >
@@ -1273,54 +1272,10 @@ function NewPatientForm({
 
         {isInsurance && (
           <div className="mt-4 p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3 animate-fade-in">
-            {formData.account_type === 'hmo' ? (
-              <div>
-              <label className="text-sm font-medium mb-1.5 block">Provider *</label>
-              {availableProviders.length === 0 ? (
-                <>
-                  <Input
-                    placeholder="Provider name (add it in Claims → Providers to enable per-provider fields)"
-                    value={formData.insurance_provider}
-                    onChange={(e) => setFormData({ ...formData, insurance_provider: e.target.value })}
-                    className={errors.insurance_provider ? 'border-destructive' : ''}
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    No {formData.account_type.toUpperCase()} providers configured yet — Claims Manager can add them from the Providers tab.
-                  </p>
-                </>
-              ) : (
-                <Select
-                  value={providerId}
-                  onValueChange={(v) => {
-                    setProviderId(v);
-                    const p = availableProviders.find((x) => x.id === v);
-                    if (p) setFormData((prev) => ({ ...prev, insurance_provider: p.name }));
-                  }}
-                >
-                  <SelectTrigger className={errors.insurance_provider ? 'border-destructive' : ''}>
-                    <SelectValue placeholder="Select provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableProviders.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {errors.insurance_provider && <p className="text-xs text-destructive mt-1">{errors.insurance_provider}</p>}
-              </div>
-            ) : (
-              <div className="text-xs text-muted-foreground">
-                Scheme: <span className="font-medium text-foreground">
-                  {selectedProvider?.name || formData.account_type.toUpperCase()}
-                </span>
-                {!selectedProvider && availableProviders.length === 0 && (
-                  <p className="mt-1 text-[11px]">
-                    No {formData.account_type.toUpperCase()} scheme configured yet — Claims Manager can add it from the Providers tab.
-                  </p>
-                )}
-              </div>
-            )}
+            <div className="text-xs text-muted-foreground">
+              Scheme: <span className="font-medium text-foreground">{schemeLabel}</span>
+              {isHmoFlow && <span className="ml-1">— cika sunan HMO da member details a ƙasa.</span>}
+            </div>
 
             {availablePlans.length > 0 && (
               <div>
@@ -1343,19 +1298,28 @@ function NewPatientForm({
 
             <div className="border-t border-primary/20 pt-3">
               <p className="text-xs font-medium mb-2 text-muted-foreground uppercase tracking-wide">
-                Member Details {selectedProvider && <span className="normal-case text-foreground">— {selectedProvider.name}</span>}
+                Member Details <span className="normal-case text-foreground">— {schemeLabel}</span>
               </p>
-              <DynamicMemberIdForm
-                fields={providerFields}
-                values={memberData}
-                errors={Object.fromEntries(
-                  Object.entries(errors)
-                    .filter(([k]) => k.startsWith('member_'))
-                    .map(([k, v]) => [k.replace(/^member_/, ''), v]),
-                )}
-                onChange={setMemberData}
-              />
-              {errors.enrollee_id && <p className="text-xs text-destructive mt-1">{errors.enrollee_id}</p>}
+              {providerFields.length === 0 ? (
+                <p className="text-xs text-destructive">
+                  Babu fields da aka saita ga {schemeLabel}. Claims Manager ya saita template ɗin daga <span className="font-medium">Claims → Insurance Providers</span>.
+                </p>
+              ) : (
+                <>
+                  <DynamicMemberIdForm
+                    fields={providerFields}
+                    values={memberData}
+                    errors={Object.fromEntries(
+                      Object.entries(errors)
+                        .filter(([k]) => k.startsWith('member_'))
+                        .map(([k, v]) => [k.replace(/^member_/, ''), v]),
+                    )}
+                    onChange={setMemberData}
+                  />
+                  {errors.enrollee_id && <p className="text-xs text-destructive mt-1">{errors.enrollee_id}</p>}
+                  {errors.insurance_provider && <p className="text-xs text-destructive mt-1">{errors.insurance_provider}</p>}
+                </>
+              )}
             </div>
           </div>
         )}

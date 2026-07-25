@@ -158,10 +158,11 @@ function letterBody(data: RetainerLetterData) {
           <span>Total services rendered</span>
           <span class="mono">${money(data.total_amount)}</span>
         </div>
+        ${data.sponsor_kind === 'corporate' && data.deposit_applied === 0 ? '' : `
         <div class="line">
           <span>Deposit applied</span>
           <span class="mono">(${money(data.deposit_applied)})</span>
-        </div>
+        </div>`}
         <div class="line grand ${isReceipt ? 'grand-paid' : 'grand-due'}">
           <span>${isReceipt ? 'Amount fully settled' : 'Balance outstanding'}</span>
           <span class="mono">${money(data.balance_outstanding)}</span>

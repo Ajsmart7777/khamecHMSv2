@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { usePatients, Patient } from '@/contexts/PatientContext';
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
 } from '@/components/ui/dropdown-menu';
@@ -31,6 +32,8 @@ export function PatientPhotoAvatar({
   patient, size = 64, editable = true, className = '',
 }: Props) {
   const { updatePatient } = usePatients();
+  const { hasRole } = useAuth();
+  const canEdit = editable && hasRole(['receptionist', 'admin']);
   const photoPath = (patient as any).photo_path as string | null | undefined;
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -116,7 +119,7 @@ export function PatientPhotoAvatar({
         }}
       />
 
-      {editable ? (
+      {canEdit ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button

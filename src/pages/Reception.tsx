@@ -1368,7 +1368,7 @@ function NewPatientForm({
               label={isStaff ? 'Staff Member' : 'Linked Staff (Family Sponsor)'}
               helper={isStaff
                 ? 'Select the staff this patient record belongs to (fully covered).'
-                : 'Select the staff sponsor. 50% of invoices auto-deduct from their payroll (max 4 family members).'}
+                : 'Select the staff sponsor. Family member pays 50% out of pocket (hospital covers 50% discount). Max 4 family members per staff.'}
             />
             {errors.staff_id && <p className="text-xs text-destructive mt-1">{errors.staff_id}</p>}
           </>

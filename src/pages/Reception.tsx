@@ -69,6 +69,7 @@ import { StaffSelector } from '@/components/reception/StaffSelector';
 import { CheckInDialog } from '@/components/visit/CheckInDialog';
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { useActiveVisit } from '@/hooks/useVisits';
+import { EligibilityRequestButton } from '@/components/reception/EligibilityRequestButton';
 
 const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactNode; color: string; description: string }> = {
   normal: { 
@@ -502,14 +503,24 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
           </div>
         </div>
 
-        {/* Insurance/Corporate Info */}
-        {(patient.account_type === 'katchma' || patient.account_type === 'hmo' || patient.account_type === 'nhis') && patient.insurance_provider && (
-          <div className="mt-4 p-3 rounded-lg bg-info/5 border border-info/20">
-            <div className="flex items-center gap-2 text-sm">
-              <Shield className="h-4 w-4 text-info" />
-              <span className="font-medium">{patient.insurance_provider}</span>
-              <span className="text-muted-foreground">•</span>
-              <span className="font-mono text-xs">{patient.insurance_policy_number}</span>
+        {/* Insurance / Sponsor Info + Eligibility Verification */}
+        {['katchma', 'hmo', 'nhis', 'corporate', 'retainer'].includes(patient.account_type) && (
+          <div className="mt-4 p-3 rounded-lg bg-info/5 border border-info/20 space-y-2">
+            {patient.insurance_provider && (
+              <div className="flex items-center gap-2 text-sm">
+                <Shield className="h-4 w-4 text-info" />
+                <span className="font-medium">{patient.insurance_provider}</span>
+                {patient.insurance_policy_number && (
+                  <>
+                    <span className="text-muted-foreground">•</span>
+                    <span className="font-mono text-xs">{patient.insurance_policy_number}</span>
+                  </>
+                )}
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <span className="text-xs text-muted-foreground">Eligibility verification</span>
+              <EligibilityRequestButton patient={patient} />
             </div>
           </div>
         )}

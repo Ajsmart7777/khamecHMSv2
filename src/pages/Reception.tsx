@@ -518,10 +518,12 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
                 )}
               </div>
             )}
-            <div className="flex items-center justify-between gap-2 pt-1">
-              <span className="text-xs text-muted-foreground">Eligibility verification</span>
-              <EligibilityRequestButton patient={patient} />
-            </div>
+            {['katchma', 'hmo', 'nhis'].includes(patient.account_type) && (
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <span className="text-xs text-muted-foreground">Eligibility verification</span>
+                <EligibilityRequestButton patient={patient} />
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -11,7 +11,9 @@
 //   corporate          → 0%
 //   retainer           → 0%
 //   staff              → 0%
-//   staff_family       → 50%   (family member pays their share at the desk)
+//   staff_family       → 50%   (family gets a 50% hospital discount and pays
+//                                the remaining 50% at the desk like a normal
+//                                cash patient — no payroll deduction)
 //   normal / cash      → 100%  (patient pays in full — not a claim)
 
 export type SponsorInfo = {
@@ -51,7 +53,9 @@ export function isSponsored({ account_type }: SponsorInfo): boolean {
  */
 export function hasWallet({ account_type }: SponsorInfo): boolean {
   const a = norm(account_type);
-  return a === '' || a === 'normal' || a === 'cash';
+  // Staff family pays 50% out-of-pocket like a normal patient — they can
+  // top up, get refunds, and run partial payments against their own wallet.
+  return a === '' || a === 'normal' || a === 'cash' || a === 'staff_family';
 }
 
 /** Human-friendly sponsor label. */

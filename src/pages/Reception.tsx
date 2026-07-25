@@ -64,6 +64,7 @@ import { StandingOrderCaptureDialog } from '@/components/reception/StandingOrder
 import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
 import { PatientBalanceHistory } from '@/components/reception/PatientBalanceHistory';
 import { Stethoscope, ArrowUpCircle, ArrowDownCircle, LogIn } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { BalanceRequestDialog } from '@/components/reception/BalanceRequestDialog';
 import { StaffSelector } from '@/components/reception/StaffSelector';
 import { CheckInDialog } from '@/components/visit/CheckInDialog';
@@ -137,6 +138,7 @@ const Reception = () => {
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
   const [standingOrderOpen, setStandingOrderOpen] = useState(false);
   const [prefillVerification, setPrefillVerification] = useState<EligibilityVerification | null>(null);
+  const [verificationPanelOpen, setVerificationPanelOpen] = useState(false);
 
   const filteredPatients = patients.filter(p => 
     p.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -213,7 +215,31 @@ const Reception = () => {
         >
           <Stethoscope className="h-3.5 w-3.5 mr-1.5" /> Capture External Prescription
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8"
+          onClick={() => setVerificationPanelOpen(true)}
+        >
+          <ShieldCheck className="h-3.5 w-3.5 mr-1.5" /> Insurance Verification
+        </Button>
       </div>
+      <Dialog open={verificationPanelOpen} onOpenChange={setVerificationPanelOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" /> Insurance Verification
+            </DialogTitle>
+          </DialogHeader>
+          <PreRegistrationVerificationPanel
+            onStartRegistration={(v) => {
+              setPrefillVerification(v);
+              setVerificationPanelOpen(false);
+              setIsNewPatientOpen(true);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
       <StandingOrderCaptureDialog
         open={standingOrderOpen}
         onOpenChange={setStandingOrderOpen}
@@ -260,15 +286,6 @@ const Reception = () => {
                 </DialogContent>
               </Dialog>
             </div>
-            <div className="mb-3">
-              <PreRegistrationVerificationPanel
-                onStartRegistration={(v) => {
-                  setPrefillVerification(v);
-                  setIsNewPatientOpen(true);
-                }}
-              />
-            </div>
-
             <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
               {loading ? (
                 <div className="text-center py-8 text-muted-foreground">

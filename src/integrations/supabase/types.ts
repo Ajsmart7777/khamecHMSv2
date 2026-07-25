@@ -545,63 +545,100 @@ export type Database = {
       }
       eligibility_verifications: {
         Row: {
+          consumed_at: string | null
+          consumed_patient_id: string | null
           created_at: string
           encounter_code: string | null
           encounter_code_captured_at: string | null
           enrollee_id: string | null
           id: string
+          insurance_details: string | null
           notes: string | null
-          patient_id: string
+          patient_id: string | null
           plan: string | null
+          prospective_patient_name: string | null
+          prospective_patient_phone: string | null
           provider_id: string | null
           provider_name: string | null
+          reception_snap_path: string | null
           rejection_reason: string | null
           requested_by: string | null
           sponsor_type: string
           status: string
           updated_at: string
+          verification_snap_path: string | null
           verified_at: string | null
           verified_by: string | null
+          verified_enrollee_id: string | null
+          verified_plan: string | null
+          verified_provider_name: string | null
         }
         Insert: {
+          consumed_at?: string | null
+          consumed_patient_id?: string | null
           created_at?: string
           encounter_code?: string | null
           encounter_code_captured_at?: string | null
           enrollee_id?: string | null
           id?: string
+          insurance_details?: string | null
           notes?: string | null
-          patient_id: string
+          patient_id?: string | null
           plan?: string | null
+          prospective_patient_name?: string | null
+          prospective_patient_phone?: string | null
           provider_id?: string | null
           provider_name?: string | null
+          reception_snap_path?: string | null
           rejection_reason?: string | null
           requested_by?: string | null
           sponsor_type: string
           status?: string
           updated_at?: string
+          verification_snap_path?: string | null
           verified_at?: string | null
           verified_by?: string | null
+          verified_enrollee_id?: string | null
+          verified_plan?: string | null
+          verified_provider_name?: string | null
         }
         Update: {
+          consumed_at?: string | null
+          consumed_patient_id?: string | null
           created_at?: string
           encounter_code?: string | null
           encounter_code_captured_at?: string | null
           enrollee_id?: string | null
           id?: string
+          insurance_details?: string | null
           notes?: string | null
-          patient_id?: string
+          patient_id?: string | null
           plan?: string | null
+          prospective_patient_name?: string | null
+          prospective_patient_phone?: string | null
           provider_id?: string | null
           provider_name?: string | null
+          reception_snap_path?: string | null
           rejection_reason?: string | null
           requested_by?: string | null
           sponsor_type?: string
           status?: string
           updated_at?: string
+          verification_snap_path?: string | null
           verified_at?: string | null
           verified_by?: string | null
+          verified_enrollee_id?: string | null
+          verified_plan?: string | null
+          verified_provider_name?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "eligibility_verifications_consumed_patient_id_fkey"
+            columns: ["consumed_patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "eligibility_verifications_patient_id_fkey"
             columns: ["patient_id"]

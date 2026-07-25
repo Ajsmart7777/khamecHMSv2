@@ -32,6 +32,7 @@ export interface RetainerLetterData {
   patients: RetainerLetterPatientRow[];
   mode: 'receipt' | 'demand';
   generated_at?: string;
+  sponsor_kind?: 'retainer' | 'corporate';
 }
 
 function money(v: number) {
@@ -56,9 +57,10 @@ function amountInWords(n: number) {
 function letterBody(data: RetainerLetterData) {
   const isReceipt = data.mode === 'receipt';
   const title = isReceipt ? 'PAYMENT RECEIPT' : 'STATEMENT OF ACCOUNT';
+  const agreementLabel = data.sponsor_kind === 'corporate' ? 'corporate account' : 'retainer agreement';
   const salutation = isReceipt
     ? `We hereby acknowledge, with thanks, receipt of payment covering medical services rendered to your enrolled patients during the period stated below.`
-    : `Please find below a summary of medical services rendered to your enrolled patients under our retainer agreement during the period stated. Kindly settle the outstanding balance at your earliest convenience.`;
+    : `Please find below a summary of medical services rendered to your enrolled patients under our ${agreementLabel} during the period stated. Kindly settle the outstanding balance at your earliest convenience.`;
   const closingLine = isReceipt
     ? `Thank you for your continued partnership. This document serves as the official receipt for services rendered during this period.`
     : `We kindly request settlement of the outstanding balance within <strong>30 days</strong> of receipt. Please quote reference <strong>${data.statement_number}</strong> on all payments.`;
@@ -98,7 +100,7 @@ function letterBody(data: RetainerLetterData) {
         </div>
       </div>
       <div class="stamp ${isReceipt ? 'stamp-paid' : 'stamp-due'}">
-        <span class="stamp-label">Retainer</span>
+        <span class="stamp-label">${data.sponsor_kind === 'corporate' ? 'Corporate' : 'Retainer'}</span>
         <span class="stamp-title">${title}</span>
         <span class="stamp-num">${data.statement_number}</span>
       </div>
@@ -156,10 +158,11 @@ function letterBody(data: RetainerLetterData) {
           <span>Total services rendered</span>
           <span class="mono">${money(data.total_amount)}</span>
         </div>
+        ${data.sponsor_kind === 'corporate' && data.deposit_applied === 0 ? '' : `
         <div class="line">
           <span>Deposit applied</span>
           <span class="mono">(${money(data.deposit_applied)})</span>
-        </div>
+        </div>`}
         <div class="line grand ${isReceipt ? 'grand-paid' : 'grand-due'}">
           <span>${isReceipt ? 'Amount fully settled' : 'Balance outstanding'}</span>
           <span class="mono">${money(data.balance_outstanding)}</span>
@@ -371,5 +374,6 @@ export async function downloadRetainerLetter(data: RetainerLetterData) {
   const y = (pageH - h) / 2;
   pdf.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', x, y, w, h, undefined, 'FAST');
   const label = data.mode === 'receipt' ? 'Receipt' : 'Statement';
-  pdf.save(`Retainer-${label}-${data.retainer.company_name.replace(/[^a-z0-9]+/gi,'-')}-${data.period_year}-${String(data.period_month).padStart(2,'0')}.pdf`);
+  const kind = data.sponsor_kind === 'corporate' ? 'Corporate' : 'Retainer';
+  pdf.save(`${kind}-${label}-${data.retainer.company_name.replace(/[^a-z0-9]+/gi,'-')}-${data.period_year}-${String(data.period_month).padStart(2,'0')}.pdf`);
 }

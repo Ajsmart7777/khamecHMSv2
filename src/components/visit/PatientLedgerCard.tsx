@@ -6,6 +6,7 @@ import {
   Loader2, X, ChevronDown, ChevronUp, Wallet, Droplet, Phone, Calendar, User,
   Activity, Pill, FlaskConical, ClipboardList, Receipt, FileText, PackageCheck,
   Stethoscope, BedDouble, LogOut, Camera, ArrowUp, ArrowDown, Sparkles, Download,
+  ShieldCheck,
 } from 'lucide-react';
 import { signedUrl } from '@/hooks/useVisitAttachments';
 import { snapPhotoUrl } from '@/hooks/useSnapOrders';
@@ -403,6 +404,33 @@ export function PatientLedgerCard({
               {patient.phone && (
                 <Chip icon={<Phone className="h-3 w-3" />}>{patient.phone}</Chip>
               )}
+              {(() => {
+                const isInsurance = ['nhis', 'hmo', 'katchma'].includes(patient.account_type as string);
+                if (!isInsurance) return null;
+                const provider = (patient.insurance_provider || '').trim();
+                const memberData = ((patient as any).member_id_data || {}) as Record<string, string>;
+                const memberEntries = Object.entries(memberData).filter(
+                  ([k, v]) => k !== 'provider_name' && (v ?? '').toString().trim() !== '',
+                );
+                const fallbackId =
+                  (patient as any).enrollee_id || patient.insurance_policy_number || '';
+                return (
+                  <>
+                    {provider && (
+                      <Chip icon={<ShieldCheck className="h-3 w-3 text-primary" />}>
+                        {provider}
+                      </Chip>
+                    )}
+                    {memberEntries.length > 0
+                      ? memberEntries.map(([k, v]) => (
+                          <Chip key={k} mono>
+                            {k.replace(/_/g, ' ').toUpperCase()}: {v}
+                          </Chip>
+                        ))
+                      : fallbackId && <Chip mono>ID: {fallbackId}</Chip>}
+                  </>
+                );
+              })()}
             </div>
           </div>
           <div className="text-right flex items-start gap-3">

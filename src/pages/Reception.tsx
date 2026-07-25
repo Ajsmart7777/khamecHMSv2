@@ -73,11 +73,11 @@ import { useActiveVisit } from '@/hooks/useVisits';
 import { EligibilityRequestButton } from '@/components/reception/EligibilityRequestButton';
 import { PreRegistrationVerificationPanel } from '@/components/reception/PreRegistrationVerificationPanel';
 import { useEligibilityVerifications, type EligibilityVerification } from '@/hooks/useEligibilityVerifications';
-import { useInsurance } from '@/hooks/useInsurance';
+import { useInsuranceTemplates, TEMPLATE_LABELS } from '@/hooks/useInsuranceTemplates';
 import { DynamicMemberIdForm } from '@/components/insurance/DynamicMemberIdForm';
 import {
-  normaliseFields, derivePrimaryEnrolleeId, validateMemberFields,
-  DEFAULT_MEMBER_FIELDS, type ProviderField,
+  derivePrimaryEnrolleeId, validateMemberFields,
+  type ProviderField,
 } from '@/lib/providerFields';
 
 const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactNode; color: string; description: string }> = {

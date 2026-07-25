@@ -12,9 +12,11 @@ import {
 import { useEligibilityVerifications } from '@/hooks/useEligibilityVerifications';
 import type { Patient } from '@/contexts/PatientContext';
 
-type SponsorType = 'nhis' | 'hmo' | 'katchma' | 'corporate' | 'retainer';
+type SponsorType = 'nhis' | 'hmo' | 'katchma';
 
-const SPONSOR_TYPES: Patient['account_type'][] = ['nhis', 'hmo', 'katchma', 'corporate', 'retainer'];
+// Only insurance sponsors need eligibility verification.
+// Corporate & retainer are created directly by the accountant during patient registration.
+const SPONSOR_TYPES: Patient['account_type'][] = ['nhis', 'hmo', 'katchma'];
 
 interface Props {
   patient: Patient;
@@ -22,7 +24,7 @@ interface Props {
 
 /**
  * Lets Reception send an eligibility verification request to the Claims Manager
- * for insured / sponsored patients (nhis, hmo, katchma, corporate, retainer).
+ * for insured patients (nhis, hmo, katchma) only.
  */
 export function EligibilityRequestButton({ patient }: Props) {
   const { items, requestVerification } = useEligibilityVerifications();

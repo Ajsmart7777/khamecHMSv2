@@ -19,6 +19,7 @@ import { StaffHRManager } from '@/components/accounts/StaffHRManager';
 import { StaffRegistrationForm } from '@/components/accounts/StaffRegistrationForm';
 import { ExternalDoctorsManager } from '@/components/account/ExternalDoctorsManager';
 import { CorporateClaimsReport } from '@/components/account/CorporateClaimsReport';
+import { RetainerClaimsPanel } from '@/components/account/RetainerClaimsPanel';
 import { SponsorStatementsPanel } from '@/components/account/SponsorStatementsPanel';
 import type { PayrollPeriod } from '@/hooks/usePayroll';
 
@@ -205,7 +206,7 @@ const Account = () => {
 
         <TabsContent value="retainer-claims">
           <TabHeader title="Retainer Claims" onRefresh={() => {}} />
-          <CorporateClaimsReport fixedSponsorType="retainer" />
+          <RetainerClaimsPanel />
         </TabsContent>
 
         <TabsContent value="statements">

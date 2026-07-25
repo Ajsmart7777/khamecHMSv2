@@ -553,6 +553,7 @@ export type Database = {
           enrollee_id: string | null
           id: string
           insurance_details: string | null
+          member_id_data: Json | null
           notes: string | null
           patient_id: string | null
           plan: string | null
@@ -582,6 +583,7 @@ export type Database = {
           enrollee_id?: string | null
           id?: string
           insurance_details?: string | null
+          member_id_data?: Json | null
           notes?: string | null
           patient_id?: string | null
           plan?: string | null
@@ -611,6 +613,7 @@ export type Database = {
           enrollee_id?: string | null
           id?: string
           insurance_details?: string | null
+          member_id_data?: Json | null
           notes?: string | null
           patient_id?: string | null
           plan?: string | null
@@ -877,6 +880,7 @@ export type Database = {
           hmo_code: string | null
           id: string
           max_coverage_amount: number
+          member_id_fields: Json
           name: string
           notes: string | null
           phone: string | null
@@ -895,6 +899,7 @@ export type Database = {
           hmo_code?: string | null
           id?: string
           max_coverage_amount?: number
+          member_id_fields?: Json
           name: string
           notes?: string | null
           phone?: string | null
@@ -913,6 +918,7 @@ export type Database = {
           hmo_code?: string | null
           id?: string
           max_coverage_amount?: number
+          member_id_fields?: Json
           name?: string
           notes?: string | null
           phone?: string | null
@@ -1327,6 +1333,7 @@ export type Database = {
           insurance_provider: string | null
           last_name: string | null
           last_visit: string | null
+          member_id_data: Json | null
           mini_card_number: string
           occupation: string | null
           phone: string
@@ -1356,6 +1363,7 @@ export type Database = {
           insurance_provider?: string | null
           last_name?: string | null
           last_visit?: string | null
+          member_id_data?: Json | null
           mini_card_number: string
           occupation?: string | null
           phone: string
@@ -1385,6 +1393,7 @@ export type Database = {
           insurance_provider?: string | null
           last_name?: string | null
           last_visit?: string | null
+          member_id_data?: Json | null
           mini_card_number?: string
           occupation?: string | null
           phone?: string

@@ -975,7 +975,7 @@ function PaymentForm({ onSubmit, onCancel, defaultAmount, invoiceNumber }: { onS
 
 const INSURANCE_PLANS: Record<string, string[]> = {
   katchma: ['Katchma Basic', 'Katchma Standard'],
-  hmo: ['HMO Daily Claims', 'HMO Monthly Claims'],
+  hmo: [],
   nhis: ['NHIA Standard'],
 };
 

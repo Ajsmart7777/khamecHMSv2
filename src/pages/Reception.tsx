@@ -1273,7 +1273,8 @@ function NewPatientForm({
 
         {isInsurance && (
           <div className="mt-4 p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3 animate-fade-in">
-            <div>
+            {formData.account_type === 'hmo' ? (
+              <div>
               <label className="text-sm font-medium mb-1.5 block">Provider *</label>
               {availableProviders.length === 0 ? (
                 <>
@@ -1307,7 +1308,19 @@ function NewPatientForm({
                 </Select>
               )}
               {errors.insurance_provider && <p className="text-xs text-destructive mt-1">{errors.insurance_provider}</p>}
-            </div>
+              </div>
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                Scheme: <span className="font-medium text-foreground">
+                  {selectedProvider?.name || formData.account_type.toUpperCase()}
+                </span>
+                {!selectedProvider && availableProviders.length === 0 && (
+                  <p className="mt-1 text-[11px]">
+                    No {formData.account_type.toUpperCase()} scheme configured yet — Claims Manager can add it from the Providers tab.
+                  </p>
+                )}
+              </div>
+            )}
 
             {availablePlans.length > 0 && (
               <div>

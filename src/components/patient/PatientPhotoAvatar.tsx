@@ -33,7 +33,7 @@ export function PatientPhotoAvatar({
 }: Props) {
   const { updatePatient } = usePatients();
   const { hasRole } = useAuth();
-  const canEdit = editable && hasRole(['reception' as any, 'receptionist' as any, 'admin' as any]);
+  const canEdit = editable && hasRole(['receptionist', 'admin']);
   const photoPath = (patient as any).photo_path as string | null | undefined;
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

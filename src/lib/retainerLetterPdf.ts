@@ -57,9 +57,10 @@ function amountInWords(n: number) {
 function letterBody(data: RetainerLetterData) {
   const isReceipt = data.mode === 'receipt';
   const title = isReceipt ? 'PAYMENT RECEIPT' : 'STATEMENT OF ACCOUNT';
+  const agreementLabel = data.sponsor_kind === 'corporate' ? 'corporate account' : 'retainer agreement';
   const salutation = isReceipt
     ? `We hereby acknowledge, with thanks, receipt of payment covering medical services rendered to your enrolled patients during the period stated below.`
-    : `Please find below a summary of medical services rendered to your enrolled patients under our retainer agreement during the period stated. Kindly settle the outstanding balance at your earliest convenience.`;
+    : `Please find below a summary of medical services rendered to your enrolled patients under our ${agreementLabel} during the period stated. Kindly settle the outstanding balance at your earliest convenience.`;
   const closingLine = isReceipt
     ? `Thank you for your continued partnership. This document serves as the official receipt for services rendered during this period.`
     : `We kindly request settlement of the outstanding balance within <strong>30 days</strong> of receipt. Please quote reference <strong>${data.statement_number}</strong> on all payments.`;

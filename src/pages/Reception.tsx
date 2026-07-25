@@ -130,6 +130,7 @@ const Reception = () => {
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
   const [standingOrderOpen, setStandingOrderOpen] = useState(false);
+  const [prefillVerification, setPrefillVerification] = useState<EligibilityVerification | null>(null);
 
   const filteredPatients = patients.filter(p => 
     p.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -246,9 +247,20 @@ const Reception = () => {
                       Fill in the patient details below. All fields marked with * are required.
                     </DialogDescription>
                   </DialogHeader>
-                  <NewPatientForm onSuccess={() => setIsNewPatientOpen(false)} />
+                  <NewPatientForm
+                    initialVerification={prefillVerification}
+                    onSuccess={() => { setIsNewPatientOpen(false); setPrefillVerification(null); }}
+                  />
                 </DialogContent>
               </Dialog>
+            </div>
+            <div className="mb-3">
+              <PreRegistrationVerificationPanel
+                onStartRegistration={(v) => {
+                  setPrefillVerification(v);
+                  setIsNewPatientOpen(true);
+                }}
+              />
             </div>
 
             <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">

@@ -180,16 +180,10 @@ const Pharmacy = () => {
         return;
       }
 
-      const routed = await updatePatientStatus(selectedPatientId, nextStatus, { guardInpatient: true });
-      if (!routed) {
-        // Keep dialog open so pharmacist can retry
-        toast.error('Dispensed, but patient could not be routed. Please refresh and retry.');
-        return;
-      }
-
-      // If patient is being discharged, auto-settle the open visit so insured
-      // visits (Katchma/NHIA/HMO) land in the Claims queue automatically —
-      // no manual trip to Billing needed.
+      // If patient is heading to discharge, auto-settle the open visit FIRST.
+      // The DB blocks discharge while a visit is open, and settling an insured
+      // visit auto-flips claim_status → pending so it lands in the Claims queue
+      // without a manual Billing step.
       if (nextStatus === 'discharged') {
         try {
           const openVisit = await findOpenVisit(selectedPatientId);
@@ -198,9 +192,17 @@ const Pharmacy = () => {
           }
         } catch (err: any) {
           toast.error('Could not settle visit', {
-            description: err?.message ?? 'Please settle from Billing.',
+            description: err?.message ?? 'Please settle from Billing before discharge.',
           });
+          return;
         }
+      }
+
+      const routed = await updatePatientStatus(selectedPatientId, nextStatus, { guardInpatient: true });
+      if (!routed) {
+        // Keep dialog open so pharmacist can retry
+        toast.error('Dispensed, but patient could not be routed. Please refresh and retry.');
+        return;
       }
     } else {
       toast.success('Dispensed to inpatient', { description: 'Patient remains admitted.' });

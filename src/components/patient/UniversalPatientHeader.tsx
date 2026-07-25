@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Droplet, MapPin, User, Wallet, ClipboardList, UserCheck } from 'lucide-react';
+import { Activity, AlertTriangle, Droplet, MapPin, User, Wallet, ClipboardList, UserCheck } from 'lucide-react';
 import { differenceInYears, format } from 'date-fns';
 import { Patient } from '@/contexts/PatientContext';
 import { ViewCardButton } from '@/components/visit/PatientCardDialog';
@@ -33,6 +33,33 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
   const [visit, setVisit] = useState<VisitRow | null>(null);
   const [admission, setAdmission] = useState<AdmissionRow | null>(null);
   const [creditLimit, setCreditLimit] = useState<number>(0);
+  const [latestVitals, setLatestVitals] = useState<any | null>(null);
+
+  const loadLatestVitals = useCallback(async () => {
+    const { data } = await supabase
+      .from('vitals')
+      .select('*')
+      .eq('patient_id', patient.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setLatestVitals((data as any) ?? null);
+  }, [patient.id]);
+
+  useEffect(() => {
+    loadLatestVitals();
+    const ch = supabase
+      .channel(`uph-vitals-${patient.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'vitals', filter: `patient_id=eq.${patient.id}` },
+        () => loadLatestVitals(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [patient.id, loadLatestVitals]);
 
   useEffect(() => {
     let alive = true;
@@ -178,7 +205,43 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
           </div>
         </div>
       )}
+
+      {latestVitals && <LatestVitalsStrip v={latestVitals} />}
     </Card>
+  );
+}
+
+function LatestVitalsStrip({ v }: { v: any }) {
+  const items: { label: string; value: string }[] = [];
+  if (v.blood_pressure) items.push({ label: 'BP', value: `${v.blood_pressure} mmHg` });
+  if (v.pulse != null) items.push({ label: 'Pulse', value: `${v.pulse} bpm` });
+  if (v.temperature != null) items.push({ label: 'Temp', value: `${v.temperature} °C` });
+  if (v.respiratory_rate != null) items.push({ label: 'RR', value: `${v.respiratory_rate}/min` });
+  if (v.weight != null) items.push({ label: 'Wt', value: `${v.weight} kg` });
+  if (v.height != null) items.push({ label: 'Ht', value: `${v.height} cm` });
+  if (!items.length && v.notes) items.push({ label: 'Notes', value: v.notes });
+  if (!items.length) return null;
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2 p-2.5 rounded-lg bg-teal-50 dark:bg-teal-950/30 border border-teal-200 dark:border-teal-900">
+      <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-teal-800 dark:text-teal-200">
+        <Activity className="h-3.5 w-3.5" />
+        Latest Vitals
+      </div>
+      <span className="text-[10px] font-mono text-muted-foreground">
+        {format(new Date(v.created_at), 'dd MMM · HH:mm')}
+      </span>
+      <div className="flex flex-wrap gap-1.5 ml-1">
+        {items.map((it) => (
+          <span
+            key={it.label}
+            className="px-2 py-0.5 rounded border border-teal-300 dark:border-teal-800 bg-background text-xs font-mono"
+          >
+            <span className="text-muted-foreground font-bold">{it.label}:</span>{' '}
+            <span className="font-bold">{it.value}</span>
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 

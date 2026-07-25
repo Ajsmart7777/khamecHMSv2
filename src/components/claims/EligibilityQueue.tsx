@@ -327,7 +327,7 @@ export function EligibilityQueue() {
                   <p className="text-sm font-semibold">Verified details</p>
                   <div className="text-xs text-muted-foreground">
                     Scheme: <span className="font-medium text-foreground">{schemeLabel}</span>
-                    {isHmoFlow && <span className="ml-1">— cika sunan HMO da sauran fields ɗin.</span>}
+                    {isHmoFlow && <span className="ml-1">— enter the HMO name and the remaining fields.</span>}
                   </div>
                   {activeFields.length > 0 ? (
                     <DynamicMemberIdForm

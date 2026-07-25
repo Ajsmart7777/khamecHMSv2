@@ -1281,7 +1281,7 @@ function NewPatientForm({
           <div className="mt-4 p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3 animate-fade-in">
             <div className="text-xs text-muted-foreground">
               Scheme: <span className="font-medium text-foreground">{schemeLabel}</span>
-              {isHmoFlow && <span className="ml-1">— cika sunan HMO da member details a ƙasa.</span>}
+              {isHmoFlow && <span className="ml-1">— enter the HMO name and member details below.</span>}
             </div>
 
             {availablePlans.length > 0 && (
@@ -1309,7 +1309,7 @@ function NewPatientForm({
               </p>
               {providerFields.length === 0 ? (
                 <p className="text-xs text-destructive">
-                  Babu fields da aka saita ga {schemeLabel}. Claims Manager ya saita template ɗin daga <span className="font-medium">Claims → Insurance Providers</span>.
+                  No fields configured for {schemeLabel}. Ask the Claims Manager to set up the template in <span className="font-medium">Claims → Insurance Providers</span>.
                 </p>
               ) : (
                 <>

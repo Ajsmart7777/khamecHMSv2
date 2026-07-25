@@ -956,20 +956,34 @@ const INSURANCE_PLANS: Record<string, string[]> = {
   nhis: ['NHIA Standard'],
 };
 
-function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
+function NewPatientForm({
+  onSuccess,
+  initialVerification,
+}: {
+  onSuccess: () => void;
+  initialVerification?: EligibilityVerification | null;
+}) {
   const { addPatient } = usePatients();
+  const { markConsumed } = useEligibilityVerifications();
+  const seededName = initialVerification?.prospective_patient_name ?? '';
+  const seededPhone = initialVerification?.prospective_patient_phone ?? '';
+  const seededType: AccountType | '' = initialVerification
+    ? (initialVerification.sponsor_type === 'nhis' ? 'nhis'
+      : initialVerification.sponsor_type === 'hmo' ? 'hmo'
+      : initialVerification.sponsor_type === 'katchma' ? 'katchma' : '')
+    : '';
   const [formData, setFormData] = useState({
-    full_name: '',
-    phone: '',
+    full_name: seededName,
+    phone: seededPhone,
     occupation: '',
     gender: '' as 'male' | 'female' | '',
     address: '',
     age: '',
-    account_type: 'normal' as AccountType,
+    account_type: (seededType || 'normal') as AccountType,
     corporate_id: '',
-    insurance_provider: '',
-    insurance_plan: '',
-    enrollee_id: '',
+    insurance_provider: initialVerification?.verified_provider_name ?? initialVerification?.provider_name ?? '',
+    insurance_plan: initialVerification?.verified_plan ?? initialVerification?.plan ?? '',
+    enrollee_id: initialVerification?.verified_enrollee_id ?? initialVerification?.enrollee_id ?? '',
     staff_id: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1082,6 +1096,9 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
         if (linkErr) {
           toast.error('Patient created but staff link failed', { description: linkErr.message });
         }
+      }
+      if (initialVerification?.id && (result as any).id) {
+        await markConsumed(initialVerification.id, (result as any).id);
       }
       onSuccess();
     }

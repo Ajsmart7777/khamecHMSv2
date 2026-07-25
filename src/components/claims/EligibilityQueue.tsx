@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { Card } from '@/components/ui/card';
@@ -11,10 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
-import { CheckCircle2, XCircle, ShieldCheck, Loader2, User, Phone, Clock, FileWarning } from 'lucide-react';
-import { useEligibilityVerifications, EligibilityVerification } from '@/hooks/useEligibilityVerifications';
+import { CheckCircle2, XCircle, ShieldCheck, Loader2, User, Phone, Clock, FileWarning, Camera, Upload, ImageIcon } from 'lucide-react';
+import {
+  useEligibilityVerifications, getEligibilitySnapUrl,
+  type EligibilityVerification,
+} from '@/hooks/useEligibilityVerifications';
 import { usePatients } from '@/contexts/PatientContext';
 import { useInsurance } from '@/hooks/useInsurance';
+import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
+import { Label } from '@/components/ui/label';
 
 const REJECTION_REASONS = [
   'Policy expired',
@@ -38,7 +43,7 @@ function StatusBadge({ status }: { status: EligibilityVerification['status'] }) 
 }
 
 export function EligibilityQueue() {
-  const { pending, approved, rejected, loading, approve, reject } = useEligibilityVerifications();
+  const { pending, approved, rejected, loading, approveWithSnap, reject } = useEligibilityVerifications();
   const { getPatientById } = usePatients();
   const { providers } = useInsurance();
 
@@ -50,51 +55,57 @@ export function EligibilityQueue() {
   const [submitting, setSubmitting] = useState(false);
 
   // approval form state
-  const [providerId, setProviderId] = useState<string>('');
+  const [providerName, setProviderName] = useState('');
   const [enrolleeId, setEnrolleeId] = useState('');
   const [plan, setPlan] = useState('');
-  const [encounterCode, setEncounterCode] = useState('');
   const [notes, setNotes] = useState('');
+  const [receptionSnapUrl, setReceptionSnapUrl] = useState<string | null>(null);
+  const [verifySnap, setVerifySnap] = useState<File | null>(null);
+  const [verifySnapPreview, setVerifySnapPreview] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
 
   const openReview = (row: EligibilityVerification) => {
     setActive(row);
-    setProviderId(row.provider_id || '');
-    setEnrolleeId(row.enrollee_id || '');
-    setPlan(row.plan || '');
-    setEncounterCode(row.encounter_code || '');
+    setProviderName(row.verified_provider_name || row.provider_name || '');
+    setEnrolleeId(row.verified_enrollee_id || row.enrollee_id || '');
+    setPlan(row.verified_plan || row.plan || '');
     setNotes(row.notes || '');
+    setVerifySnap(null);
   };
+
+  useEffect(() => {
+    let mounted = true;
+    if (active?.reception_snap_path) {
+      getEligibilitySnapUrl(active.reception_snap_path).then((u) => { if (mounted) setReceptionSnapUrl(u); });
+    } else {
+      setReceptionSnapUrl(null);
+    }
+    return () => { mounted = false; };
+  }, [active]);
+
+  useEffect(() => {
+    if (!verifySnap) { setVerifySnapPreview(null); return; }
+    const u = URL.createObjectURL(verifySnap);
+    setVerifySnapPreview(u);
+    return () => URL.revokeObjectURL(u);
+  }, [verifySnap]);
 
   const currentList = tab === 'pending' ? pending : tab === 'approved' ? approved : rejected;
 
-  const availableProviders = useMemo(() => {
-    if (!active) return providers;
-    if (active.sponsor_type === 'nhis') return providers.filter((p) => p.type === 'nhis');
-    if (active.sponsor_type === 'hmo') return providers.filter((p) => p.type === 'hmo');
-    return providers;
-  }, [providers, active]);
-
-  const selectedProvider = providers.find((p) => p.id === providerId);
-  const requiresEncounterCode = active?.sponsor_type === 'hmo';
-
   const handleApprove = async () => {
     if (!active) return;
-    if (!enrolleeId.trim()) { toast.error('Enrollee ID is required'); return; }
-    if (!providerId && active.sponsor_type !== 'katchma') { toast.error('Select the provider'); return; }
-    if (requiresEncounterCode && !encounterCode.trim()) {
-      toast.error('Encounter code required for HMO patients');
-      return;
-    }
+    if (!providerName.trim()) { toast.error('Verified provider name is required'); return; }
+    if (!enrolleeId.trim()) { toast.error('Verified enrollee / member ID is required'); return; }
     setSubmitting(true);
-    const ok = await approve(active.id, {
-      provider_id: providerId || null,
-      provider_name: selectedProvider?.name || active.provider_name,
+    const ok = await approveWithSnap(active.id, {
+      verified_provider_name: providerName.trim(),
+      verified_enrollee_id: enrolleeId.trim(),
+      verified_plan: plan.trim() || null,
+      provider_name: providerName.trim(),
       enrollee_id: enrolleeId.trim(),
       plan: plan.trim() || null,
-      encounter_code: encounterCode.trim() || null,
-      encounter_code_captured_at: encounterCode.trim() ? new Date().toISOString() : null,
       notes: notes.trim() || null,
-    });
+    }, verifySnap);
     setSubmitting(false);
     if (ok) {
       toast.success('Eligibility approved — patient can proceed to Reception');
@@ -161,22 +172,40 @@ export function EligibilityQueue() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <User className="h-4 w-4 text-muted-foreground" />
                         <span className="font-semibold">
-                          {patient ? `${patient.first_name} ${patient.last_name || ''}`.trim() : 'Unknown patient'}
+                          {patient
+                            ? `${patient.first_name} ${patient.last_name || ''}`.trim()
+                            : row.prospective_patient_name || 'Unknown patient'}
                         </span>
                         <Badge variant="outline" className="uppercase text-xs">{row.sponsor_type}</Badge>
+                        {!row.patient_id && (
+                          <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 border-blue-500/30">
+                            Pre-registration
+                          </Badge>
+                        )}
                         <StatusBadge status={row.status} />
                       </div>
                       <div className="text-xs text-muted-foreground mt-1 flex items-center gap-4 flex-wrap">
                         {patient?.card_number && <span>Card: <span className="font-mono">{patient.card_number}</span></span>}
-                        {patient?.phone && (
-                          <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {patient.phone}</span>
+                        {(patient?.phone || row.prospective_patient_phone) && (
+                          <span className="flex items-center gap-1">
+                            <Phone className="h-3 w-3" /> {patient?.phone || row.prospective_patient_phone}
+                          </span>
                         )}
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" /> {format(new Date(row.created_at), 'MMM d, HH:mm')}
                         </span>
-                        {row.provider_name && <span>Provider: <span className="font-medium text-foreground">{row.provider_name}</span></span>}
-                        {row.enrollee_id && <span>Enrollee: <span className="font-mono text-foreground">{row.enrollee_id}</span></span>}
+                        {(row.verified_provider_name || row.provider_name) && (
+                          <span>Provider: <span className="font-medium text-foreground">{row.verified_provider_name || row.provider_name}</span></span>
+                        )}
+                        {(row.verified_enrollee_id || row.enrollee_id) && (
+                          <span>Enrollee: <span className="font-mono text-foreground">{row.verified_enrollee_id || row.enrollee_id}</span></span>
+                        )}
                       </div>
+                      {row.insurance_details && (
+                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                          <span className="font-medium">Details:</span> {row.insurance_details}
+                        </div>
+                      )}
                       {row.status === 'rejected' && row.rejection_reason && (
                         <div className="mt-2 text-xs text-red-700 flex items-center gap-1">
                           <FileWarning className="h-3.5 w-3.5" /> {row.rejection_reason}
@@ -206,7 +235,7 @@ export function EligibilityQueue() {
 
       {/* Review / Approve dialog */}
       <Dialog open={!!active} onOpenChange={(o) => !o && setActive(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Eligibility Verification</DialogTitle>
             <DialogDescription>
@@ -222,59 +251,101 @@ export function EligibilityQueue() {
                 <Card className="p-3 bg-muted/40">
                   <div className="text-sm">
                     <div className="font-semibold">
-                      {patient ? `${patient.first_name} ${patient.last_name || ''}`.trim() : 'Unknown patient'}
+                      {patient
+                        ? `${patient.first_name} ${patient.last_name || ''}`.trim()
+                        : active.prospective_patient_name || 'Unknown patient'}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-3 flex-wrap">
                       {patient?.card_number && <span>Card: {patient.card_number}</span>}
-                      {patient?.phone && <span>{patient.phone}</span>}
+                      {(patient?.phone || active.prospective_patient_phone) && (
+                        <span>{patient?.phone || active.prospective_patient_phone}</span>
+                      )}
                       <Badge variant="outline" className="uppercase text-xs">{active.sponsor_type}</Badge>
+                      {!active.patient_id && (
+                        <Badge variant="outline" className="text-[10px] bg-blue-500/10 text-blue-700 border-blue-500/30">
+                          Pre-registration
+                        </Badge>
+                      )}
                       <StatusBadge status={active.status} />
                     </div>
                   </div>
                 </Card>
 
-                <div className="grid grid-cols-2 gap-4">
+                {/* Reception's snap */}
+                {receptionSnapUrl && (
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Provider *</label>
-                    <Select value={providerId} onValueChange={setProviderId} disabled={isReadOnly}>
-                      <SelectTrigger><SelectValue placeholder="Select provider" /></SelectTrigger>
-                      <SelectContent>
-                        {availableProviders.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Enrollee ID *</label>
-                    <Input
-                      value={enrolleeId}
-                      onChange={(e) => setEnrolleeId(e.target.value)}
-                      placeholder="e.g. NHIA-2024-00123"
-                      disabled={isReadOnly}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Plan / Tier</label>
-                    <Input value={plan} onChange={(e) => setPlan(e.target.value)} placeholder="e.g. Bronze / Family" disabled={isReadOnly} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">
-                      Encounter Code {requiresEncounterCode && <span className="text-red-600">*</span>}
+                    <label className="text-sm font-medium flex items-center gap-1">
+                      <ImageIcon className="h-4 w-4" /> Insurance card from Reception
                     </label>
-                    <Input
-                      value={encounterCode}
-                      onChange={(e) => setEncounterCode(e.target.value)}
-                      placeholder={requiresEncounterCode ? 'Pre-auth / OTP from HMO' : 'Optional'}
-                      className="font-mono"
-                      disabled={isReadOnly}
-                    />
-                    {requiresEncounterCode && (
-                      <p className="text-[11px] text-muted-foreground">
-                        Some HMOs issue a one-time code per visit. Capture it here if the plan requires it.
-                      </p>
-                    )}
+                    <a href={receptionSnapUrl} target="_blank" rel="noopener noreferrer" className="block">
+                      <img src={receptionSnapUrl} alt="Insurance card" className="w-full max-h-72 object-contain rounded-lg border bg-muted/40" />
+                    </a>
+                    <p className="text-[11px] text-muted-foreground">Tap the image to open full size. Then sign into the provider portal to verify.</p>
                   </div>
+                )}
+
+                {active.insurance_details && (
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium">Details from Reception</label>
+                    <div className="text-sm p-2 rounded-md bg-muted/40 border whitespace-pre-wrap">
+                      {active.insurance_details}
+                    </div>
+                  </div>
+                )}
+
+                <div className="border-t pt-3 space-y-3">
+                  <p className="text-sm font-semibold">Verified details</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Provider Name *</Label>
+                      <Input
+                        value={providerName}
+                        onChange={(e) => setProviderName(e.target.value)}
+                        placeholder="e.g. Hygeia HMO"
+                        disabled={isReadOnly}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Enrollee / Member ID *</Label>
+                      <Input
+                        value={enrolleeId}
+                        onChange={(e) => setEnrolleeId(e.target.value)}
+                        placeholder="Confirmed from portal"
+                        disabled={isReadOnly}
+                        className="font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5 col-span-2">
+                      <Label>Plan / Tier</Label>
+                      <Input value={plan} onChange={(e) => setPlan(e.target.value)} placeholder="e.g. Bronze / Family" disabled={isReadOnly} />
+                    </div>
+                  </div>
+
+                  {!isReadOnly && (
+                    <div className="space-y-1.5">
+                      <Label>Portal proof snap (optional)</Label>
+                      {verifySnapPreview ? (
+                        <div className="relative border rounded-lg overflow-hidden bg-muted/40">
+                          <img src={verifySnapPreview} alt="Portal proof" className="w-full max-h-48 object-contain" />
+                          <Button size="sm" variant="secondary" className="absolute top-2 right-2 h-7" onClick={() => setVerifySnap(null)}>
+                            Change
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" className="flex-1" type="button" onClick={() => setCameraOpen(true)}>
+                            <Camera className="h-4 w-4 mr-1" /> Camera
+                          </Button>
+                          <label className="flex-1">
+                            <input type="file" accept="image/*" className="hidden" onChange={(e) => setVerifySnap(e.target.files?.[0] || null)} />
+                            <Button asChild variant="outline" size="sm" className="w-full">
+                              <span><Upload className="h-4 w-4 mr-1" /> Upload</span>
+                            </Button>
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -309,6 +380,12 @@ export function EligibilityQueue() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <InAppCameraDialog
+        open={cameraOpen}
+        onCancel={() => setCameraOpen(false)}
+        onCapture={(f) => { setVerifySnap(f); setCameraOpen(false); }}
+      />
 
       {/* Reject dialog */}
       <Dialog open={!!rejectTarget} onOpenChange={(o) => !o && setRejectTarget(null)}>

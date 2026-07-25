@@ -70,6 +70,8 @@ import { CheckInDialog } from '@/components/visit/CheckInDialog';
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { useActiveVisit } from '@/hooks/useVisits';
 import { EligibilityRequestButton } from '@/components/reception/EligibilityRequestButton';
+import { PreRegistrationVerificationPanel } from '@/components/reception/PreRegistrationVerificationPanel';
+import { useEligibilityVerifications, type EligibilityVerification } from '@/hooks/useEligibilityVerifications';
 
 const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactNode; color: string; description: string }> = {
   normal: { 
@@ -128,6 +130,7 @@ const Reception = () => {
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
   const [standingOrderOpen, setStandingOrderOpen] = useState(false);
+  const [prefillVerification, setPrefillVerification] = useState<EligibilityVerification | null>(null);
 
   const filteredPatients = patients.filter(p => 
     p.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -244,9 +247,20 @@ const Reception = () => {
                       Fill in the patient details below. All fields marked with * are required.
                     </DialogDescription>
                   </DialogHeader>
-                  <NewPatientForm onSuccess={() => setIsNewPatientOpen(false)} />
+                  <NewPatientForm
+                    initialVerification={prefillVerification}
+                    onSuccess={() => { setIsNewPatientOpen(false); setPrefillVerification(null); }}
+                  />
                 </DialogContent>
               </Dialog>
+            </div>
+            <div className="mb-3">
+              <PreRegistrationVerificationPanel
+                onStartRegistration={(v) => {
+                  setPrefillVerification(v);
+                  setIsNewPatientOpen(true);
+                }}
+              />
             </div>
 
             <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
@@ -942,20 +956,34 @@ const INSURANCE_PLANS: Record<string, string[]> = {
   nhis: ['NHIA Standard'],
 };
 
-function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
+function NewPatientForm({
+  onSuccess,
+  initialVerification,
+}: {
+  onSuccess: () => void;
+  initialVerification?: EligibilityVerification | null;
+}) {
   const { addPatient } = usePatients();
+  const { markConsumed } = useEligibilityVerifications();
+  const seededName = initialVerification?.prospective_patient_name ?? '';
+  const seededPhone = initialVerification?.prospective_patient_phone ?? '';
+  const seededType: AccountType | '' = initialVerification
+    ? (initialVerification.sponsor_type === 'nhis' ? 'nhis'
+      : initialVerification.sponsor_type === 'hmo' ? 'hmo'
+      : initialVerification.sponsor_type === 'katchma' ? 'katchma' : '')
+    : '';
   const [formData, setFormData] = useState({
-    full_name: '',
-    phone: '',
+    full_name: seededName,
+    phone: seededPhone,
     occupation: '',
     gender: '' as 'male' | 'female' | '',
     address: '',
     age: '',
-    account_type: 'normal' as AccountType,
+    account_type: (seededType || 'normal') as AccountType,
     corporate_id: '',
-    insurance_provider: '',
-    insurance_plan: '',
-    enrollee_id: '',
+    insurance_provider: initialVerification?.verified_provider_name ?? initialVerification?.provider_name ?? '',
+    insurance_plan: initialVerification?.verified_plan ?? initialVerification?.plan ?? '',
+    enrollee_id: initialVerification?.verified_enrollee_id ?? initialVerification?.enrollee_id ?? '',
     staff_id: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1068,6 +1096,9 @@ function NewPatientForm({ onSuccess }: { onSuccess: () => void }) {
         if (linkErr) {
           toast.error('Patient created but staff link failed', { description: linkErr.message });
         }
+      }
+      if (initialVerification?.id && (result as any).id) {
+        await markConsumed(initialVerification.id, (result as any).id);
       }
       onSuccess();
     }

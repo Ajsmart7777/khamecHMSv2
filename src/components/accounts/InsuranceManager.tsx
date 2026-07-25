@@ -262,8 +262,8 @@ export function InsuranceManager() {
                 <Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="nhis">NHIS</SelectItem>
-                    <SelectItem value="private">Private Insurance</SelectItem>
+                    <SelectItem value="nhis">NHIA</SelectItem>
+                    <SelectItem value="katchma">KATCHMA</SelectItem>
                     <SelectItem value="hmo">HMO</SelectItem>
                   </SelectContent>
                 </Select>
@@ -303,16 +303,6 @@ export function InsuranceManager() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Phone</label>
                 <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Coverage %</label>
-                <Input type="number" value={form.coverage_percentage || ''} onChange={e => setForm({ ...form, coverage_percentage: parseFloat(e.target.value) || 0 })} />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Max Coverage (₦)</label>
-                <Input type="number" value={form.max_coverage_amount || ''} onChange={e => setForm({ ...form, max_coverage_amount: parseFloat(e.target.value) || 0 })} />
               </div>
             </div>
             <div className="space-y-2">

@@ -99,7 +99,7 @@ function letterBody(data: RetainerLetterData) {
         </div>
       </div>
       <div class="stamp ${isReceipt ? 'stamp-paid' : 'stamp-due'}">
-        <span class="stamp-label">Retainer</span>
+        <span class="stamp-label">${data.sponsor_kind === 'corporate' ? 'Corporate' : 'Retainer'}</span>
         <span class="stamp-title">${title}</span>
         <span class="stamp-num">${data.statement_number}</span>
       </div>
@@ -372,5 +372,6 @@ export async function downloadRetainerLetter(data: RetainerLetterData) {
   const y = (pageH - h) / 2;
   pdf.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', x, y, w, h, undefined, 'FAST');
   const label = data.mode === 'receipt' ? 'Receipt' : 'Statement';
-  pdf.save(`Retainer-${label}-${data.retainer.company_name.replace(/[^a-z0-9]+/gi,'-')}-${data.period_year}-${String(data.period_month).padStart(2,'0')}.pdf`);
+  const kind = data.sponsor_kind === 'corporate' ? 'Corporate' : 'Retainer';
+  pdf.save(`${kind}-${label}-${data.retainer.company_name.replace(/[^a-z0-9]+/gi,'-')}-${data.period_year}-${String(data.period_month).padStart(2,'0')}.pdf`);
 }

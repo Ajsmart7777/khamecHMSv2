@@ -21,7 +21,7 @@ import { splitInvoice, sponsorLabel } from '@/lib/copay';
 import { evaluateClaimRequirements, isReadyToSubmit } from '@/lib/claimRequirements';
 import { ClaimDocsChecklist } from './ClaimDocsChecklist';
 import { CopyButton } from './CopyButton';
-import { ExpiryBadge } from './ExpiryBadge';
+
 import {
   detectHmoCode, encounterCodeLabel, encounterCodePlaceholder,
   type SponsorAuth,
@@ -223,7 +223,7 @@ export function ClaimDetailDialog({
                 {visit.claim_reason_code && (
                   <Badge variant="outline" className="text-xs">{visit.claim_reason_code.replace(/_/g, ' ')}</Badge>
                 )}
-                {(canSettle || !isTerminal) && <ExpiryBadge openedAt={visit.opened_at} />}
+
               </div>
               <div className="mt-1.5 flex items-center gap-3 flex-wrap text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1">

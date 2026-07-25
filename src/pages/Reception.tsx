@@ -1123,6 +1123,9 @@ function NewPatientForm({
     const cleanMemberData = isInsurance
       ? Object.fromEntries(Object.entries(memberData).filter(([, v]) => (v ?? '').trim() !== ''))
       : null;
+    const resolvedProviderName = isInsurance
+      ? (isHmoFlow ? (memberData.provider_name || '').trim() : schemeLabel)
+      : '';
     const result = await addPatient({
       card_number: cardNumber,
       mini_card_number: cardNumber.split('-').pop() || '',
@@ -1138,7 +1141,7 @@ function NewPatientForm({
       status: 'registered',
       account_type: formData.account_type,
       corporate_id: isSponsor ? formData.corporate_id : null,
-      insurance_provider: isInsurance ? formData.insurance_provider.trim() : null,
+      insurance_provider: isInsurance ? (resolvedProviderName || formData.insurance_provider.trim()) : null,
       insurance_plan: isInsurance ? (formData.insurance_plan || memberData.plan || memberData.plan_tier || null) : null,
       enrollee_id: isInsurance ? primaryEnrollee : null,
       member_id_data: cleanMemberData,

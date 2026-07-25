@@ -74,7 +74,7 @@ export function EligibilityRequestButton({ patient }: Props) {
       patient_id: patient.id,
       sponsor_type: patient.account_type as SponsorType,
       provider_name: patient.insurance_provider ?? null,
-      enrollee_id: patient.enrollee_id ?? patient.insurance_policy_number ?? null,
+      enrollee_id: patient.insurance_policy_number ?? null,
       plan: patient.insurance_plan ?? null,
       encounter_code: encounterCode.trim() || null,
       notes: notes.trim() || null,
@@ -126,8 +126,8 @@ export function EligibilityRequestButton({ patient }: Props) {
               {patient.insurance_plan && (
                 <div><span className="text-muted-foreground">Plan:</span> <span className="font-medium">{patient.insurance_plan}</span></div>
               )}
-              {(patient.enrollee_id || patient.insurance_policy_number) && (
-                <div><span className="text-muted-foreground">Enrollee ID:</span> <span className="font-mono text-xs">{patient.enrollee_id || patient.insurance_policy_number}</span></div>
+              {patient.insurance_policy_number && (
+                <div><span className="text-muted-foreground">Enrollee ID:</span> <span className="font-mono text-xs">{patient.insurance_policy_number}</span></div>
               )}
             </div>
 

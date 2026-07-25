@@ -32,6 +32,7 @@ export interface RetainerLetterData {
   patients: RetainerLetterPatientRow[];
   mode: 'receipt' | 'demand';
   generated_at?: string;
+  sponsor_kind?: 'retainer' | 'corporate';
 }
 
 function money(v: number) {

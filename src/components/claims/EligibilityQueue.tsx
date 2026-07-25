@@ -17,12 +17,11 @@ import {
   type EligibilityVerification,
 } from '@/hooks/useEligibilityVerifications';
 import { usePatients } from '@/contexts/PatientContext';
-import { useInsurance } from '@/hooks/useInsurance';
+import { useInsuranceTemplates, TEMPLATE_LABELS } from '@/hooks/useInsuranceTemplates';
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
 import { Label } from '@/components/ui/label';
 import { DynamicMemberIdForm } from '@/components/insurance/DynamicMemberIdForm';
 import {
-  normaliseFields,
   derivePrimaryEnrolleeId,
   validateMemberFields,
   type ProviderField,
@@ -52,7 +51,7 @@ function StatusBadge({ status }: { status: EligibilityVerification['status'] }) 
 export function EligibilityQueue() {
   const { pending, approved, rejected, loading, approveWithSnap, reject } = useEligibilityVerifications();
   const { getPatientById } = usePatients();
-  const { providers } = useInsurance();
+  const { getFields } = useInsuranceTemplates();
 
   const [tab, setTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
   const [active, setActive] = useState<EligibilityVerification | null>(null);
@@ -62,7 +61,6 @@ export function EligibilityQueue() {
   const [submitting, setSubmitting] = useState(false);
 
   // approval form state
-  const [selectedProviderId, setSelectedProviderId] = useState<string>('');
   const [memberData, setMemberData] = useState<Record<string, string>>({});
   const [memberErrors, setMemberErrors] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState('');
@@ -73,21 +71,13 @@ export function EligibilityQueue() {
 
   const openReview = (row: EligibilityVerification) => {
     setActive(row);
-    // Auto-pick provider: for NHIA/KATCHMA there is a single scheme; for HMO
-    // use whatever Reception already recorded (if any).
-    let providerId = row.provider_id || '';
-    if (!providerId) {
-      const type = row.sponsor_type === 'nhis' ? 'nhis' : row.sponsor_type;
-      if (type === 'nhis' || type === 'katchma') {
-        const p = providers.find((pp) => pp.type === type && pp.status === 'active');
-        if (p) providerId = p.id;
-      }
-    }
-    setSelectedProviderId(providerId);
     setMemberData({
       ...(row.member_id_data || {}),
       ...(row.verified_enrollee_id && !row.member_id_data?.enrollee_id
         ? { enrollee_id: row.verified_enrollee_id }
+        : {}),
+      ...(row.verified_provider_name && !row.member_id_data?.provider_name
+        ? { provider_name: row.verified_provider_name }
         : {}),
     });
     setMemberErrors({});
@@ -114,17 +104,15 @@ export function EligibilityQueue() {
 
   const currentList = tab === 'pending' ? pending : tab === 'approved' ? approved : rejected;
 
-  const activeProvider = providers.find((p) => p.id === selectedProviderId) || null;
-  const activeFields: ProviderField[] = activeProvider
-    ? normaliseFields(activeProvider.member_id_fields)
-    : [];
-  const isHmoFlow = active?.sponsor_type === 'hmo';
-  const hmoProviders = providers.filter((p) => p.type === 'hmo' && p.status === 'active');
+  const activeType = active?.sponsor_type as 'nhis' | 'hmo' | 'katchma' | undefined;
+  const activeFields: ProviderField[] = activeType ? getFields(activeType) : [];
+  const isHmoFlow = activeType === 'hmo';
+  const schemeLabel = activeType ? TEMPLATE_LABELS[activeType] : '';
 
   const handleApprove = async () => {
     if (!active) return;
-    if (!activeProvider) {
-      toast.error(isHmoFlow ? 'Select the HMO provider' : 'No provider configured for this scheme');
+    if (activeFields.length === 0) {
+      toast.error('No fields configured for this insurance type — set them under Insurance Providers');
       return;
     }
     const { ok: validOk, errors } = validateMemberFields(activeFields, memberData);
@@ -135,13 +123,15 @@ export function EligibilityQueue() {
     }
     const enrolleeId = derivePrimaryEnrolleeId(activeFields, memberData) || '';
     if (!enrolleeId) { toast.error('At least one member ID field must be filled'); return; }
-    const providerName = activeProvider.name;
+    const providerName = isHmoFlow
+      ? (memberData.provider_name || '').trim() || schemeLabel
+      : schemeLabel;
     setSubmitting(true);
     const ok = await approveWithSnap(active.id, {
       verified_provider_name: providerName,
       verified_enrollee_id: enrolleeId,
       provider_name: providerName,
-      provider_id: activeProvider.id,
+      provider_id: null,
       enrollee_id: enrolleeId,
       member_id_data: memberData,
       notes: notes.trim() || null,
@@ -335,48 +325,22 @@ export function EligibilityQueue() {
 
                 <div className="border-t pt-3 space-y-3">
                   <p className="text-sm font-semibold">Verified details</p>
-                  {isHmoFlow && (
-                    <div className="space-y-1.5">
-                      <Label>HMO Provider *</Label>
-                      <Select
-                        value={selectedProviderId}
-                        onValueChange={(v) => { setSelectedProviderId(v); setMemberData({}); setMemberErrors({}); }}
-                        disabled={isReadOnly}
-                      >
-                        <SelectTrigger><SelectValue placeholder="Pick the HMO the patient belongs to" /></SelectTrigger>
-                        <SelectContent>
-                          {hmoProviders.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                  {!isHmoFlow && activeProvider && (
-                    <div className="text-xs text-muted-foreground">
-                      Scheme: <span className="font-medium text-foreground">{activeProvider.name}</span>
-                    </div>
-                  )}
-                  {activeProvider ? (
-                    activeFields.length > 0 ? (
-                      <DynamicMemberIdForm
-                        fields={activeFields}
-                        values={memberData}
-                        errors={memberErrors}
-                        onChange={setMemberData}
-                        disabled={isReadOnly}
-                      />
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        No member ID fields configured for this provider. Set them under Insurance Providers.
-                      </p>
-                    )
+                  <div className="text-xs text-muted-foreground">
+                    Scheme: <span className="font-medium text-foreground">{schemeLabel}</span>
+                    {isHmoFlow && <span className="ml-1">— cika sunan HMO da sauran fields ɗin.</span>}
+                  </div>
+                  {activeFields.length > 0 ? (
+                    <DynamicMemberIdForm
+                      fields={activeFields}
+                      values={memberData}
+                      errors={memberErrors}
+                      onChange={setMemberData}
+                      disabled={isReadOnly}
+                    />
                   ) : (
-                    !isHmoFlow && (
-                      <p className="text-xs text-destructive">
-                        No active {active.sponsor_type.toUpperCase()} provider configured. Create it under Insurance Providers first.
-                      </p>
-                    )
+                    <p className="text-xs text-destructive">
+                      No fields configured for {schemeLabel}. Set them under Insurance Providers first.
+                    </p>
                   )}
 
                   {!isReadOnly && (

@@ -73,11 +73,11 @@ import { useActiveVisit } from '@/hooks/useVisits';
 import { EligibilityRequestButton } from '@/components/reception/EligibilityRequestButton';
 import { PreRegistrationVerificationPanel } from '@/components/reception/PreRegistrationVerificationPanel';
 import { useEligibilityVerifications, type EligibilityVerification } from '@/hooks/useEligibilityVerifications';
-import { useInsurance } from '@/hooks/useInsurance';
+import { useInsuranceTemplates, TEMPLATE_LABELS } from '@/hooks/useInsuranceTemplates';
 import { DynamicMemberIdForm } from '@/components/insurance/DynamicMemberIdForm';
 import {
-  normaliseFields, derivePrimaryEnrolleeId, validateMemberFields,
-  DEFAULT_MEMBER_FIELDS, type ProviderField,
+  derivePrimaryEnrolleeId, validateMemberFields,
+  type ProviderField,
 } from '@/lib/providerFields';
 
 const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactNode; color: string; description: string }> = {
@@ -988,7 +988,7 @@ function NewPatientForm({
 }) {
   const { addPatient } = usePatients();
   const { markConsumed } = useEligibilityVerifications();
-  const { providers } = useInsurance();
+  const { getFields } = useInsuranceTemplates();
   const seededName = initialVerification?.prospective_patient_name ?? '';
   const seededPhone = initialVerification?.prospective_patient_phone ?? '';
   const seededType: AccountType | '' = initialVerification
@@ -1010,7 +1010,6 @@ function NewPatientForm({
     enrollee_id: initialVerification?.verified_enrollee_id ?? initialVerification?.enrollee_id ?? '',
     staff_id: '',
   });
-  const [providerId, setProviderId] = useState<string>('');
   const [memberData, setMemberData] = useState<Record<string, string>>(
     (initialVerification?.member_id_data as Record<string, string>) || {},
   );
@@ -1022,42 +1021,26 @@ function NewPatientForm({
   const isStaff = formData.account_type === 'staff';
   const isStaffFamily = formData.account_type === 'staff_family';
 
-  // Providers filtered by the selected account type
-  const providerTypeKey = formData.account_type === 'nhis' ? 'nhis'
-                        : formData.account_type === 'hmo' ? 'hmo'
-                        : formData.account_type === 'katchma' ? 'katchma'
-                        : null;
-  const availableProviders = isInsurance
-    ? providers.filter((p) => (providerTypeKey ? p.type === providerTypeKey : true) && p.status === 'active')
-    : [];
-  const selectedProvider = providers.find((p) => p.id === providerId) || null;
-  const providerFields: ProviderField[] = selectedProvider
-    ? normaliseFields(selectedProvider.member_id_fields)
-    : DEFAULT_MEMBER_FIELDS;
+  // Templates saved by Claims Manager drive which fields Reception cika.
+  const providerFields: ProviderField[] = isInsurance ? getFields(formData.account_type) : [];
+  const isHmoFlow = formData.account_type === 'hmo';
+  const schemeLabel = isInsurance ? TEMPLATE_LABELS[formData.account_type as 'nhis' | 'katchma' | 'hmo'] : '';
   const availablePlans = isInsurance ? (INSURANCE_PLANS[formData.account_type] || []) : [];
 
-  // Auto-pick provider when the user types a name that matches one, or when
-  // an approved pre-registration verification seeded it.
+  // For HMO, the "provider_name" field is the sponsor's provider (Hygeia, Axa etc).
+  // For NHIA/KATCHMA, the scheme itself is the provider label.
   useEffect(() => {
-    if (!isInsurance) { setProviderId(''); return; }
-    if (providerId) return;
-    // NHIA & KATCHMA are single-scheme sponsors — auto-pick the first
-    // active provider of that type so Reception only fills member details.
-    if (formData.account_type === 'nhis' || formData.account_type === 'katchma') {
-      const only = availableProviders[0];
-      if (only) {
-        setProviderId(only.id);
-        setFormData((prev) => ({ ...prev, insurance_provider: only.name }));
-        return;
+    if (!isInsurance) return;
+    if (isHmoFlow) {
+      const pn = (memberData.provider_name || '').trim();
+      if (pn && pn !== formData.insurance_provider) {
+        setFormData((prev) => ({ ...prev, insurance_provider: pn }));
       }
+    } else if (schemeLabel && formData.insurance_provider !== schemeLabel) {
+      setFormData((prev) => ({ ...prev, insurance_provider: schemeLabel }));
     }
-    const seededName = formData.insurance_provider.trim().toLowerCase();
-    if (!seededName) return;
-    const hit = availableProviders.find((p) => p.name.toLowerCase() === seededName)
-             || availableProviders.find((p) => p.name.toLowerCase().includes(seededName));
-    if (hit) setProviderId(hit.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInsurance, formData.account_type, formData.insurance_provider, availableProviders.length]);
+  }, [isInsurance, isHmoFlow, schemeLabel, memberData.provider_name]);
 
   const generateCardNumber = () => {
     const year = new Date().getFullYear();
@@ -1084,12 +1067,16 @@ function NewPatientForm({
       e.corporate_id = 'Select a sponsor';
     }
     if (isInsurance) {
-      if (!formData.insurance_provider.trim()) e.insurance_provider = 'Provider name is required';
       const { errors: fErrors } = validateMemberFields(providerFields, memberData);
       Object.entries(fErrors).forEach(([k, v]) => { e[`member_${k}`] = v; });
       // Ensure at least one identifier was captured
       const primary = derivePrimaryEnrolleeId(providerFields, memberData);
       if (!primary) e.enrollee_id = 'Capture at least one member identifier';
+      // Resolve provider name from HMO memberData or scheme label.
+      const resolvedProvider = isHmoFlow
+        ? (memberData.provider_name || '').trim()
+        : schemeLabel;
+      if (!resolvedProvider) e.insurance_provider = 'Provider name is required';
     }
     if ((isStaff || isStaffFamily) && !formData.staff_id) {
       e.staff_id = 'Select the linked staff member';
@@ -1136,6 +1123,9 @@ function NewPatientForm({
     const cleanMemberData = isInsurance
       ? Object.fromEntries(Object.entries(memberData).filter(([, v]) => (v ?? '').trim() !== ''))
       : null;
+    const resolvedProviderName = isInsurance
+      ? (isHmoFlow ? (memberData.provider_name || '').trim() : schemeLabel)
+      : '';
     const result = await addPatient({
       card_number: cardNumber,
       mini_card_number: cardNumber.split('-').pop() || '',
@@ -1151,7 +1141,7 @@ function NewPatientForm({
       status: 'registered',
       account_type: formData.account_type,
       corporate_id: isSponsor ? formData.corporate_id : null,
-      insurance_provider: isInsurance ? formData.insurance_provider.trim() : null,
+      insurance_provider: isInsurance ? (resolvedProviderName || formData.insurance_provider.trim()) : null,
       insurance_plan: isInsurance ? (formData.insurance_plan || memberData.plan || memberData.plan_tier || null) : null,
       enrollee_id: isInsurance ? primaryEnrollee : null,
       member_id_data: cleanMemberData,
@@ -1262,7 +1252,6 @@ function NewPatientForm({
           value={formData.account_type}
           onValueChange={(v) => {
             setFormData({ ...formData, account_type: v as AccountType, corporate_id: '', insurance_provider: '', insurance_plan: '', enrollee_id: '', staff_id: '' });
-            setProviderId('');
             setMemberData({});
           }}
         >
@@ -1290,54 +1279,10 @@ function NewPatientForm({
 
         {isInsurance && (
           <div className="mt-4 p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3 animate-fade-in">
-            {formData.account_type === 'hmo' ? (
-              <div>
-              <label className="text-sm font-medium mb-1.5 block">Provider *</label>
-              {availableProviders.length === 0 ? (
-                <>
-                  <Input
-                    placeholder="Provider name (add it in Claims → Providers to enable per-provider fields)"
-                    value={formData.insurance_provider}
-                    onChange={(e) => setFormData({ ...formData, insurance_provider: e.target.value })}
-                    className={errors.insurance_provider ? 'border-destructive' : ''}
-                  />
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    No {formData.account_type.toUpperCase()} providers configured yet — Claims Manager can add them from the Providers tab.
-                  </p>
-                </>
-              ) : (
-                <Select
-                  value={providerId}
-                  onValueChange={(v) => {
-                    setProviderId(v);
-                    const p = availableProviders.find((x) => x.id === v);
-                    if (p) setFormData((prev) => ({ ...prev, insurance_provider: p.name }));
-                  }}
-                >
-                  <SelectTrigger className={errors.insurance_provider ? 'border-destructive' : ''}>
-                    <SelectValue placeholder="Select provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableProviders.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              {errors.insurance_provider && <p className="text-xs text-destructive mt-1">{errors.insurance_provider}</p>}
-              </div>
-            ) : (
-              <div className="text-xs text-muted-foreground">
-                Scheme: <span className="font-medium text-foreground">
-                  {selectedProvider?.name || formData.account_type.toUpperCase()}
-                </span>
-                {!selectedProvider && availableProviders.length === 0 && (
-                  <p className="mt-1 text-[11px]">
-                    No {formData.account_type.toUpperCase()} scheme configured yet — Claims Manager can add it from the Providers tab.
-                  </p>
-                )}
-              </div>
-            )}
+            <div className="text-xs text-muted-foreground">
+              Scheme: <span className="font-medium text-foreground">{schemeLabel}</span>
+              {isHmoFlow && <span className="ml-1">— cika sunan HMO da member details a ƙasa.</span>}
+            </div>
 
             {availablePlans.length > 0 && (
               <div>
@@ -1360,19 +1305,28 @@ function NewPatientForm({
 
             <div className="border-t border-primary/20 pt-3">
               <p className="text-xs font-medium mb-2 text-muted-foreground uppercase tracking-wide">
-                Member Details {selectedProvider && <span className="normal-case text-foreground">— {selectedProvider.name}</span>}
+                Member Details <span className="normal-case text-foreground">— {schemeLabel}</span>
               </p>
-              <DynamicMemberIdForm
-                fields={providerFields}
-                values={memberData}
-                errors={Object.fromEntries(
-                  Object.entries(errors)
-                    .filter(([k]) => k.startsWith('member_'))
-                    .map(([k, v]) => [k.replace(/^member_/, ''), v]),
-                )}
-                onChange={setMemberData}
-              />
-              {errors.enrollee_id && <p className="text-xs text-destructive mt-1">{errors.enrollee_id}</p>}
+              {providerFields.length === 0 ? (
+                <p className="text-xs text-destructive">
+                  Babu fields da aka saita ga {schemeLabel}. Claims Manager ya saita template ɗin daga <span className="font-medium">Claims → Insurance Providers</span>.
+                </p>
+              ) : (
+                <>
+                  <DynamicMemberIdForm
+                    fields={providerFields}
+                    values={memberData}
+                    errors={Object.fromEntries(
+                      Object.entries(errors)
+                        .filter(([k]) => k.startsWith('member_'))
+                        .map(([k, v]) => [k.replace(/^member_/, ''), v]),
+                    )}
+                    onChange={setMemberData}
+                  />
+                  {errors.enrollee_id && <p className="text-xs text-destructive mt-1">{errors.enrollee_id}</p>}
+                  {errors.insurance_provider && <p className="text-xs text-destructive mt-1">{errors.insurance_provider}</p>}
+                </>
+              )}
             </div>
           </div>
         )}

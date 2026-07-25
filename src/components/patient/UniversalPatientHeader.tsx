@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Activity, AlertTriangle, Droplet, MapPin, User, Wallet, ClipboardList, UserCheck } from 'lucide-react';
+import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, Droplet, MapPin, User, Wallet, ClipboardList, UserCheck } from 'lucide-react';
 import { differenceInYears, format } from 'date-fns';
 import { Patient } from '@/contexts/PatientContext';
 import { ViewCardButton } from '@/components/visit/PatientCardDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { hasWallet, sponsorLabel } from '@/lib/copay';
 import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';
+import { toast } from 'sonner';
 
 const STATUS_OWNER: Record<string, string> = {
   registered: 'Reception',
@@ -34,6 +35,8 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
   const [admission, setAdmission] = useState<AdmissionRow | null>(null);
   const [creditLimit, setCreditLimit] = useState<number>(0);
   const [latestVitals, setLatestVitals] = useState<any | null>(null);
+  const [balanceFlash, setBalanceFlash] = useState<{ delta: number; key: number } | null>(null);
+  const prevBalanceRef = useRef<number | null>(null);
 
   const loadLatestVitals = useCallback(async () => {
     const { data } = await supabase
@@ -106,6 +109,31 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
   const owner = STATUS_OWNER[patient.status] ?? patient.status;
   const balance = Number(patient.balance || 0);
   const showWallet = hasWallet(patient);
+
+  // Live balance-change indicator: flashes the balance chip + shows a delta
+  // whenever the patient's wallet moves (top-up, refund, deduction).
+  useEffect(() => {
+    const prev = prevBalanceRef.current;
+    prevBalanceRef.current = balance;
+    if (prev === null || prev === balance) return;
+    const delta = balance - prev;
+    const key = Date.now();
+    setBalanceFlash({ delta, key });
+    if (delta > 0) {
+      toast.success(`Wallet credited +₦${delta.toLocaleString()}`, {
+        description: `New balance: ₦${balance.toLocaleString()}`,
+      });
+    } else if (delta < 0) {
+      toast.info(`Wallet debited −₦${Math.abs(delta).toLocaleString()}`, {
+        description: `New balance: ₦${balance.toLocaleString()}`,
+      });
+    }
+    const t = setTimeout(() => {
+      setBalanceFlash((cur) => (cur && cur.key === key ? null : cur));
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [balance]);
+
   const location = admission?.beds
     ? [admission.beds.rooms?.wards?.name, admission.beds.rooms?.name, admission.beds.label]
         .filter(Boolean)
@@ -157,6 +185,7 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
             label="Balance"
             value={`₦${balance.toLocaleString()}`}
             tone={balance < 0 ? 'danger' : balance > 0 ? 'ok' : 'muted'}
+            flash={balanceFlash ?? undefined}
           />
         ) : (
           <Stat

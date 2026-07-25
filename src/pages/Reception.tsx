@@ -1021,7 +1021,7 @@ function NewPatientForm({
   const isStaff = formData.account_type === 'staff';
   const isStaffFamily = formData.account_type === 'staff_family';
 
-  // Templates saved by Claims Manager drive which fields Reception cika.
+  // Templates saved by Claims Manager drive which fields Reception fills.
   const providerFields: ProviderField[] = isInsurance ? getFields(formData.account_type) : [];
   const isHmoFlow = formData.account_type === 'hmo';
   const schemeLabel = isInsurance ? TEMPLATE_LABELS[formData.account_type as 'nhis' | 'katchma' | 'hmo'] : '';

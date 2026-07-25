@@ -42,45 +42,6 @@ export function encounterCodePlaceholder(code: HmoCode): string {
   return 'Enter authorization / token number';
 }
 
-/** 72-hour window helpers. */
-export const CLAIM_WINDOW_HOURS = 72;
-
-export interface ExpiryStatus {
-  hoursLeft: number;
-  minutesLeft: number;
-  totalMsLeft: number;
-  expired: boolean;
-  critical: boolean; // < 12h
-  warning: boolean;  // < 24h
-  label: string;     // e.g. "Expires in 42h" or "EXPIRED"
-  tone: 'ok' | 'warning' | 'critical' | 'expired';
-}
-
-export function computeExpiry(openedAt?: string | null, hours = CLAIM_WINDOW_HOURS): ExpiryStatus {
-  if (!openedAt) {
-    return { hoursLeft: 0, minutesLeft: 0, totalMsLeft: 0, expired: false, critical: false, warning: false, label: '—', tone: 'ok' };
-  }
-  const start = new Date(openedAt).getTime();
-  const deadline = start + hours * 60 * 60 * 1000;
-  const totalMsLeft = deadline - Date.now();
-  const expired = totalMsLeft <= 0;
-  const hoursLeft = Math.max(0, Math.floor(totalMsLeft / (60 * 60 * 1000)));
-  const minutesLeft = Math.max(0, Math.floor((totalMsLeft % (60 * 60 * 1000)) / (60 * 1000)));
-  const critical = !expired && totalMsLeft < 12 * 60 * 60 * 1000;
-  const warning = !expired && !critical && totalMsLeft < 24 * 60 * 60 * 1000;
-  let label: string;
-  if (expired) {
-    const overdueHours = Math.floor(-totalMsLeft / (60 * 60 * 1000));
-    label = overdueHours > 0 ? `EXPIRED ${overdueHours}h ago` : 'EXPIRED';
-  } else if (hoursLeft >= 1) {
-    label = `Expires in ${hoursLeft}h`;
-  } else {
-    label = `Expires in ${minutesLeft}m`;
-  }
-  const tone: ExpiryStatus['tone'] = expired ? 'expired' : critical ? 'critical' : warning ? 'warning' : 'ok';
-  return { hoursLeft, minutesLeft, totalMsLeft, expired, critical, warning, label, tone };
-}
-
 /** Copy text to the clipboard with a graceful fallback. */
 export async function copyToClipboard(text: string): Promise<boolean> {
   if (!text) return false;

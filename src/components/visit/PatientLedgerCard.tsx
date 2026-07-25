@@ -17,6 +17,7 @@ import { copayPercent, hasWallet, isSponsored, sponsorLabel, splitInvoice } from
 import { ClaimActionsBar } from '@/components/claims/ClaimActionsBar';
 import { downloadDischargeSummaryPdf } from '@/lib/dischargeSummaryPdf';
 import { toast } from '@/hooks/use-toast';
+import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';
 
 // ---------- types ----------
 type RowKind =
@@ -371,9 +372,7 @@ export function PatientLedgerCard({
         <div className="p-4 md:p-6 border-b-4 border-double border-border flex flex-col md:flex-row justify-between items-start gap-4 bg-background">
           <div className="space-y-3 min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                <User className="h-6 w-6" />
-              </div>
+              <PatientPhotoAvatar patient={patient} size={48} className="rounded-2xl" />
               <div>
                 <h1 className="text-xl md:text-2xl font-bold tracking-tight uppercase">
                   {patient.first_name} {patient.last_name}

@@ -29,6 +29,7 @@ export interface Patient {
   occupation?: string | null;
   assigned_doctor?: 'doctor1' | 'doctor2' | null;
   balance: number;
+  photo_path?: string | null;
   registered_at: string;
   last_visit?: string;
   updated_at: string;

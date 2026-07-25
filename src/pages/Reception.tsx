@@ -64,6 +64,7 @@ import { StandingOrderCaptureDialog } from '@/components/reception/StandingOrder
 import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
 import { PatientBalanceHistory } from '@/components/reception/PatientBalanceHistory';
 import { EditPatientDialog } from '@/components/reception/EditPatientDialog';
+import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';
 import { Stethoscope, ArrowUpCircle, ArrowDownCircle, LogIn } from 'lucide-react';
 import { ShieldCheck } from 'lucide-react';
 import { BalanceRequestDialog } from '@/components/reception/BalanceRequestDialog';
@@ -497,9 +498,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
         
         <div className="flex items-start justify-between mb-6">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center shadow-lg">
-              <User className="h-8 w-8 text-primary" />
-            </div>
+            <PatientPhotoAvatar patient={patient} size={64} />
             <div>
               <h2 className="text-xl font-bold">{patient.first_name} {patient.last_name}</h2>
               <p className="text-muted-foreground font-mono">{patient.card_number}</p>

@@ -1043,12 +1043,6 @@ function NewPatientForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInsurance, isHmoFlow, schemeLabel, memberData.provider_name]);
 
-  const generateCardNumber = () => {
-    const year = new Date().getFullYear();
-    const random = Math.floor(Math.random() * 9000) + 1000;
-    return `KMC-${year}-${random}`;
-  };
-
   const validate = () => {
     const e: Record<string, string> = {};
     const name = formData.full_name.trim();
@@ -1119,7 +1113,6 @@ function NewPatientForm({
     const birthYear = new Date().getFullYear() - Number(formData.age);
     const date_of_birth = `${birthYear}-01-01`;
 
-    const cardNumber = generateCardNumber();
     const primaryEnrollee = isInsurance ? derivePrimaryEnrolleeId(providerFields, memberData) : null;
     const cleanMemberData = isInsurance
       ? Object.fromEntries(Object.entries(memberData).filter(([, v]) => (v ?? '').trim() !== ''))
@@ -1128,8 +1121,8 @@ function NewPatientForm({
       ? (isHmoFlow ? (memberData.provider_name || '').trim() : schemeLabel)
       : '';
     const result = await addPatient({
-      card_number: cardNumber,
-      mini_card_number: cardNumber.split('-').pop() || '',
+      card_number: '',
+      mini_card_number: '',
       first_name,
       last_name,
       date_of_birth,

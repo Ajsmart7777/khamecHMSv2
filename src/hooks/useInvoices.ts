@@ -80,19 +80,12 @@ export function useInvoices() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchInvoices]);
 
-  const generateInvoiceNumber = () => {
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-    return `INV-${timestamp}-${random}`;
-  };
-
   const createInvoice = async (
     patientId: string,
     items: { description: string; quantity: number; unitPrice: number; category?: string }[],
     notes?: string
   ): Promise<Invoice | null> => {
     try {
-      const invoiceNumber = generateInvoiceNumber();
       const totalAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
       // Auto-tag invoice with sponsor info from patient so corporate/retainer
@@ -122,7 +115,7 @@ export function useInvoices() {
         .from('invoices')
         .insert({
           patient_id: patientId,
-          invoice_number: invoiceNumber,
+          invoice_number: '',
           total_amount: totalAmount,
           status: 'pending',
           notes: notes || null,

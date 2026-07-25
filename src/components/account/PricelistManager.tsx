@@ -126,11 +126,25 @@ export function PricelistManager() {
 
       if (payload.length === 0) { toast.error('No valid rows found'); return; }
 
-      const { error } = await supabase
-        .from('pricelist')
-        .upsert(payload, { onConflict: 'name,size', ignoreDuplicates: false });
-      if (error) { toast.error(error.message); return; }
-      toast.success(`Imported ${payload.length} items`);
+      // Match existing items by lower(name)+lower(size) to update in place, insert the rest.
+      const key = (n: string, s: string | null) => `${n.toLowerCase()}||${(s ?? '').toLowerCase()}`;
+      const existingMap = new Map(items.map(i => [key(i.name, i.size), i.id]));
+      const toInsert = payload.filter(r => !existingMap.has(key(r.name, r.size)));
+      const toUpdate = payload
+        .map(r => ({ id: existingMap.get(key(r.name, r.size)), ...r }))
+        .filter(r => r.id) as Array<typeof payload[number] & { id: string }>;
+
+      let inserted = 0, updated = 0, failed = 0;
+      if (toInsert.length) {
+        const { error, count } = await supabase.from('pricelist').insert(toInsert, { count: 'exact' });
+        if (error) failed += toInsert.length; else inserted = count ?? toInsert.length;
+      }
+      for (const row of toUpdate) {
+        const { id, ...rest } = row;
+        const { error } = await supabase.from('pricelist').update(rest).eq('id', id);
+        if (error) failed++; else updated++;
+      }
+      toast.success(`Import complete — ${inserted} added, ${updated} updated${failed ? `, ${failed} failed` : ''}`);
     } catch (e: any) {
       toast.error(e?.message ?? 'Import failed');
     } finally {

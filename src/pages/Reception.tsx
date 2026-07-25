@@ -72,6 +72,12 @@ import { useActiveVisit } from '@/hooks/useVisits';
 import { EligibilityRequestButton } from '@/components/reception/EligibilityRequestButton';
 import { PreRegistrationVerificationPanel } from '@/components/reception/PreRegistrationVerificationPanel';
 import { useEligibilityVerifications, type EligibilityVerification } from '@/hooks/useEligibilityVerifications';
+import { useInsurance } from '@/hooks/useInsurance';
+import { DynamicMemberIdForm } from '@/components/insurance/DynamicMemberIdForm';
+import {
+  normaliseFields, derivePrimaryEnrolleeId, validateMemberFields,
+  DEFAULT_MEMBER_FIELDS, type ProviderField,
+} from '@/lib/providerFields';
 
 const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactNode; color: string; description: string }> = {
   normal: { 
@@ -965,6 +971,7 @@ function NewPatientForm({
 }) {
   const { addPatient } = usePatients();
   const { markConsumed } = useEligibilityVerifications();
+  const { providers } = useInsurance();
   const seededName = initialVerification?.prospective_patient_name ?? '';
   const seededPhone = initialVerification?.prospective_patient_phone ?? '';
   const seededType: AccountType | '' = initialVerification
@@ -986,6 +993,10 @@ function NewPatientForm({
     enrollee_id: initialVerification?.verified_enrollee_id ?? initialVerification?.enrollee_id ?? '',
     staff_id: '',
   });
+  const [providerId, setProviderId] = useState<string>('');
+  const [memberData, setMemberData] = useState<Record<string, string>>(
+    (initialVerification?.member_id_data as Record<string, string>) || {},
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -993,7 +1004,33 @@ function NewPatientForm({
   const isInsurance = ['nhis', 'hmo', 'katchma'].includes(formData.account_type);
   const isStaff = formData.account_type === 'staff';
   const isStaffFamily = formData.account_type === 'staff_family';
+
+  // Providers filtered by the selected account type
+  const providerTypeKey = formData.account_type === 'nhis' ? 'nhis'
+                        : formData.account_type === 'hmo' ? 'hmo'
+                        : formData.account_type === 'katchma' ? 'katchma'
+                        : null;
+  const availableProviders = isInsurance
+    ? providers.filter((p) => (providerTypeKey ? p.type === providerTypeKey : true) && p.status === 'active')
+    : [];
+  const selectedProvider = providers.find((p) => p.id === providerId) || null;
+  const providerFields: ProviderField[] = selectedProvider
+    ? normaliseFields(selectedProvider.member_id_fields)
+    : DEFAULT_MEMBER_FIELDS;
   const availablePlans = isInsurance ? (INSURANCE_PLANS[formData.account_type] || []) : [];
+
+  // Auto-pick provider when the user types a name that matches one, or when
+  // an approved pre-registration verification seeded it.
+  useEffect(() => {
+    if (!isInsurance) { setProviderId(''); return; }
+    if (providerId) return;
+    const seededName = formData.insurance_provider.trim().toLowerCase();
+    if (!seededName) return;
+    const hit = availableProviders.find((p) => p.name.toLowerCase() === seededName)
+             || availableProviders.find((p) => p.name.toLowerCase().includes(seededName));
+    if (hit) setProviderId(hit.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInsurance, formData.insurance_provider, availableProviders.length]);
 
   const generateCardNumber = () => {
     const year = new Date().getFullYear();
@@ -1021,8 +1058,11 @@ function NewPatientForm({
     }
     if (isInsurance) {
       if (!formData.insurance_provider.trim()) e.insurance_provider = 'Provider name is required';
-      if (!formData.insurance_plan) e.insurance_plan = 'Select plan';
-      if (!formData.enrollee_id.trim()) e.enrollee_id = 'Enrollee ID is required';
+      const { errors: fErrors } = validateMemberFields(providerFields, memberData);
+      Object.entries(fErrors).forEach(([k, v]) => { e[`member_${k}`] = v; });
+      // Ensure at least one identifier was captured
+      const primary = derivePrimaryEnrolleeId(providerFields, memberData);
+      if (!primary) e.enrollee_id = 'Capture at least one member identifier';
     }
     if ((isStaff || isStaffFamily) && !formData.staff_id) {
       e.staff_id = 'Select the linked staff member';
@@ -1065,6 +1105,10 @@ function NewPatientForm({
     const date_of_birth = `${birthYear}-01-01`;
 
     const cardNumber = generateCardNumber();
+    const primaryEnrollee = isInsurance ? derivePrimaryEnrolleeId(providerFields, memberData) : null;
+    const cleanMemberData = isInsurance
+      ? Object.fromEntries(Object.entries(memberData).filter(([, v]) => (v ?? '').trim() !== ''))
+      : null;
     const result = await addPatient({
       card_number: cardNumber,
       mini_card_number: cardNumber.split('-').pop() || '',
@@ -1081,8 +1125,9 @@ function NewPatientForm({
       account_type: formData.account_type,
       corporate_id: isSponsor ? formData.corporate_id : null,
       insurance_provider: isInsurance ? formData.insurance_provider.trim() : null,
-      insurance_plan: isInsurance ? formData.insurance_plan : null,
-      enrollee_id: isInsurance ? formData.enrollee_id.trim() : null,
+      insurance_plan: isInsurance ? (formData.insurance_plan || memberData.plan || memberData.plan_tier || null) : null,
+      enrollee_id: isInsurance ? primaryEnrollee : null,
+      member_id_data: cleanMemberData,
       balance: 0,
     } as any);
 
@@ -1188,7 +1233,11 @@ function NewPatientForm({
         <h4 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Account Type</h4>
         <Select
           value={formData.account_type}
-          onValueChange={(v) => setFormData({ ...formData, account_type: v as AccountType, corporate_id: '', insurance_provider: '', insurance_plan: '', enrollee_id: '', staff_id: '' })}
+          onValueChange={(v) => {
+            setFormData({ ...formData, account_type: v as AccountType, corporate_id: '', insurance_provider: '', insurance_plan: '', enrollee_id: '', staff_id: '' });
+            setProviderId('');
+            setMemberData({});
+          }}
         >
           <SelectTrigger>
             <SelectValue placeholder="Select account type" />
@@ -1215,39 +1264,73 @@ function NewPatientForm({
         {isInsurance && (
           <div className="mt-4 p-4 rounded-lg bg-primary/5 border border-primary/20 space-y-3 animate-fade-in">
             <div>
-              <label className="text-sm font-medium mb-1.5 block">Provider Name *</label>
-              <Input
-                placeholder="e.g. Hygeia HMO"
-                value={formData.insurance_provider}
-                onChange={(e) => setFormData({ ...formData, insurance_provider: e.target.value })}
-                className={errors.insurance_provider ? 'border-destructive' : ''}
-              />
+              <label className="text-sm font-medium mb-1.5 block">Provider *</label>
+              {availableProviders.length === 0 ? (
+                <>
+                  <Input
+                    placeholder="Provider name (add it in Claims → Providers to enable per-provider fields)"
+                    value={formData.insurance_provider}
+                    onChange={(e) => setFormData({ ...formData, insurance_provider: e.target.value })}
+                    className={errors.insurance_provider ? 'border-destructive' : ''}
+                  />
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    No {formData.account_type.toUpperCase()} providers configured yet — Claims Manager can add them from the Providers tab.
+                  </p>
+                </>
+              ) : (
+                <Select
+                  value={providerId}
+                  onValueChange={(v) => {
+                    setProviderId(v);
+                    const p = availableProviders.find((x) => x.id === v);
+                    if (p) setFormData((prev) => ({ ...prev, insurance_provider: p.name }));
+                  }}
+                >
+                  <SelectTrigger className={errors.insurance_provider ? 'border-destructive' : ''}>
+                    <SelectValue placeholder="Select provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableProviders.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {errors.insurance_provider && <p className="text-xs text-destructive mt-1">{errors.insurance_provider}</p>}
             </div>
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Plan *</label>
-              <Select
-                value={formData.insurance_plan}
-                onValueChange={(v) => setFormData({ ...formData, insurance_plan: v })}
-              >
-                <SelectTrigger className={errors.insurance_plan ? 'border-destructive' : ''}>
-                  <SelectValue placeholder="Select plan" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availablePlans.map((name) => (
-                    <SelectItem key={name} value={name}>{name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {errors.insurance_plan && <p className="text-xs text-destructive mt-1">{errors.insurance_plan}</p>}
-            </div>
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Enrollee ID *</label>
-              <Input
-                placeholder="Enrollee / member number"
-                value={formData.enrollee_id}
-                onChange={(e) => setFormData({ ...formData, enrollee_id: e.target.value })}
-                className={errors.enrollee_id ? 'border-destructive' : ''}
+
+            {availablePlans.length > 0 && (
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Plan (optional)</label>
+                <Select
+                  value={formData.insurance_plan}
+                  onValueChange={(v) => setFormData({ ...formData, insurance_plan: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select plan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePlans.map((name) => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="border-t border-primary/20 pt-3">
+              <p className="text-xs font-medium mb-2 text-muted-foreground uppercase tracking-wide">
+                Member Details {selectedProvider && <span className="normal-case text-foreground">— {selectedProvider.name}</span>}
+              </p>
+              <DynamicMemberIdForm
+                fields={providerFields}
+                values={memberData}
+                errors={Object.fromEntries(
+                  Object.entries(errors)
+                    .filter(([k]) => k.startsWith('member_'))
+                    .map(([k, v]) => [k.replace(/^member_/, ''), v]),
+                )}
+                onChange={setMemberData}
               />
               {errors.enrollee_id && <p className="text-xs text-destructive mt-1">{errors.enrollee_id}</p>}
             </div>

@@ -17,6 +17,7 @@ export interface InsuranceProvider {
   plans: any[];
   status: string;
   notes: string | null;
+  member_id_fields: any[];
   created_at: string;
   updated_at: string;
 }

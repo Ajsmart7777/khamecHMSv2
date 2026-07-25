@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useInsurance, InsuranceProvider } from '@/hooks/useInsurance';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MemberIdFieldsEditor } from '@/components/insurance/MemberIdFieldsEditor';
+import { normaliseFields, type ProviderField } from '@/lib/providerFields';
 
 export function InsuranceManager() {
   const { providers, claims, loading, addProvider, updateProvider, deleteProvider, updateClaim, getProviderById } = useInsurance();
@@ -31,13 +33,17 @@ export function InsuranceManager() {
     name: '', type: 'private', code: '', hmo_code: '', contact_person: '', email: '', phone: '',
     address: '', coverage_percentage: 0, max_coverage_amount: 0, notes: '',
   });
+  const [memberFields, setMemberFields] = useState<ProviderField[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
 
   const filtered = searchQuery
     ? providers.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.type.includes(searchQuery.toLowerCase()))
     : providers;
 
-  const resetForm = () => setForm({ name: '', type: 'private', code: '', hmo_code: '', contact_person: '', email: '', phone: '', address: '', coverage_percentage: 0, max_coverage_amount: 0, notes: '' });
+  const resetForm = () => {
+    setForm({ name: '', type: 'private', code: '', hmo_code: '', contact_person: '', email: '', phone: '', address: '', coverage_percentage: 0, max_coverage_amount: 0, notes: '' });
+    setMemberFields([]);
+  };
 
   const handleAdd = async () => {
     if (!form.name) { toast.error('Provider name is required'); return; }
@@ -48,6 +54,7 @@ export function InsuranceManager() {
       phone: form.phone || null, address: form.address || null,
       coverage_percentage: form.coverage_percentage, max_coverage_amount: form.max_coverage_amount,
       notes: form.notes || null,
+      member_id_fields: memberFields,
     } as any);
     if (ok) { toast.success('Provider added'); setIsAddOpen(false); resetForm(); }
   };
@@ -60,6 +67,7 @@ export function InsuranceManager() {
       coverage_percentage: p.coverage_percentage, max_coverage_amount: p.max_coverage_amount,
       notes: p.notes || '',
     });
+    setMemberFields(normaliseFields(p.member_id_fields));
     setIsEditOpen(true);
   };
 
@@ -71,6 +79,7 @@ export function InsuranceManager() {
       contact_person: form.contact_person || null, email: form.email || null,
       phone: form.phone || null, coverage_percentage: form.coverage_percentage,
       max_coverage_amount: form.max_coverage_amount, notes: form.notes || null,
+      member_id_fields: memberFields,
     } as any);
     if (ok) { toast.success('Provider updated'); setIsEditOpen(false); }
   };
@@ -312,6 +321,9 @@ export function InsuranceManager() {
             <div className="space-y-2">
               <label className="text-sm font-medium">Notes</label>
               <Textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Additional notes..." rows={2} />
+            </div>
+            <div className="border-t pt-4">
+              <MemberIdFieldsEditor value={memberFields} onChange={setMemberFields} />
             </div>
           </div>
           <DialogFooter>

@@ -30,6 +30,7 @@ export interface EligibilityVerification {
   verified_provider_name: string | null;
   consumed_at: string | null;
   consumed_patient_id: string | null;
+  member_id_data: Record<string, string> | null;
 }
 
 const BUCKET = 'visit-cards';

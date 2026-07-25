@@ -63,6 +63,7 @@ import { nextStationForInvoice, workflowStationLabel } from '@/lib/workflowRouti
 import { StandingOrderCaptureDialog } from '@/components/reception/StandingOrderCaptureDialog';
 import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
 import { PatientBalanceHistory } from '@/components/reception/PatientBalanceHistory';
+import { EditPatientDialog } from '@/components/reception/EditPatientDialog';
 import { Stethoscope, ArrowUpCircle, ArrowDownCircle, LogIn } from 'lucide-react';
 import { ShieldCheck } from 'lucide-react';
 import { BalanceRequestDialog } from '@/components/reception/BalanceRequestDialog';
@@ -383,6 +384,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   const [isJourneyOpen, setIsJourneyOpen] = useState(false);
   const [isStandingOrderOpen, setIsStandingOrderOpen] = useState(false);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const { visit: activeVisit } = useActiveVisit(patient.id);
   const [balanceDialog, setBalanceDialog] = useState<'topup' | 'refund' | null>(null);
   // Wallet-enabled patients (cash + staff_family) can top-up, refund, and
@@ -709,7 +711,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
           <Button 
             variant="outline" 
             className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-sm"
-            onClick={() => toast.info('Edit patient feature coming soon')}
+            onClick={() => setIsEditOpen(true)}
           >
             <Edit3 className="h-5 w-5" />
             <span>Edit Details</span>
@@ -761,6 +763,12 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
         open={isStandingOrderOpen}
         onOpenChange={setIsStandingOrderOpen}
         presetPatientId={patient.id}
+      />
+
+      <EditPatientDialog
+        patient={patient}
+        open={isEditOpen}
+        onOpenChange={setIsEditOpen}
       />
 
       <PatientStandingOrders patientId={patient.id} />

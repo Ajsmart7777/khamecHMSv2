@@ -8,6 +8,7 @@ import { Patient } from '@/contexts/PatientContext';
 import { ViewCardButton } from '@/components/visit/PatientCardDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { hasWallet, sponsorLabel } from '@/lib/copay';
+import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';
 
 const STATUS_OWNER: Record<string, string> = {
   registered: 'Reception',
@@ -87,11 +88,7 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
   return (
     <Card className="p-4 md:p-5 border-l-4 border-l-primary">
       <div className="flex flex-col md:flex-row md:items-center gap-4">
-        <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 text-lg font-semibold uppercase">
-          {patient.first_name?.[0]}
-          {patient.last_name?.[0]}
-          {!patient.first_name && !patient.last_name && <User className="h-6 w-6" />}
-        </div>
+        <PatientPhotoAvatar patient={patient} size={56} className="rounded-2xl" />
 
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">

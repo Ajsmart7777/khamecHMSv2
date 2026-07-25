@@ -1,6 +1,7 @@
 import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
 import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { hasWallet } from '@/lib/copay';
 import { TasksPanel } from '@/components/tasks/TasksPanel';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
@@ -346,10 +347,10 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const { visit: activeVisit } = useActiveVisit(patient.id);
   const [balanceDialog, setBalanceDialog] = useState<'topup' | 'refund' | null>(null);
-  // Only walk-in cash patients hold a wallet balance. Sponsored / insured /
-  // staff patients never top-up or refund on the patient balance — their
-  // settlement flows through the sponsor.
-  const canUseBalance = ['normal', 'cash'].includes(patient.account_type);
+  // Wallet-enabled patients (cash + staff_family) can top-up, refund, and
+  // run partial payments on their own balance. Sponsored / insured / staff
+  // settle via the sponsor.
+  const canUseBalance = hasWallet(patient);
   const [receiptData, setReceiptData] = useState<{
     open: boolean;
     amount: number;

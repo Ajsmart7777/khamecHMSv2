@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { PharmacySnapQueue } from '@/components/pharmacy/PharmacySnapQueue';
 import { prescriptionAuditLogger } from '@/lib/auditLogger';
+import { findOpenVisit, closeVisit } from '@/hooks/useVisits';
 import {
   Dialog,
   DialogContent,

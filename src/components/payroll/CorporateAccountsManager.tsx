@@ -115,9 +115,16 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
   };
 
   const handleSave = async () => {
-    if (!form.company_name || !form.contact_person || !form.email || !form.phone) {
-      toast({ title: 'Error', description: 'Please fill all required fields.', variant: 'destructive' });
-      return;
+    if (isRetainer) {
+      if (!form.company_name || !form.phone) {
+        toast({ title: 'Error', description: 'Retainer name and phone are required.', variant: 'destructive' });
+        return;
+      }
+    } else {
+      if (!form.company_name || !form.contact_person || !form.email || !form.phone) {
+        toast({ title: 'Error', description: 'Please fill all required fields.', variant: 'destructive' });
+        return;
+      }
     }
     setSaving(true);
     const payload = { ...form, notes: form.notes || null, account_type: accountType } as any;
@@ -160,13 +167,13 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
           <Input value={form.company_name} onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))} placeholder={isRetainer ? 'e.g. Dr. Musa Referral Clinic' : 'e.g. Dangote Industries'} />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">Contact Person *</label>
+          <label className="text-sm font-medium">Contact Person{isRetainer ? '' : ' *'}</label>
           <Input value={form.contact_person} onChange={e => setForm(f => ({ ...f, contact_person: e.target.value }))} placeholder={isRetainer ? 'Retainer contact' : 'HR Manager name'} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium">Email *</label>
+          <label className="text-sm font-medium">Email{isRetainer ? '' : ' *'}</label>
           <Input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="contact@example.com" />
         </div>
         <div className="space-y-2">
@@ -175,11 +182,13 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
         </div>
       </div>
       <div className="space-y-2">
-        <label className="text-sm font-medium">Address</label>
+        <label className="text-sm font-medium">Address{isRetainer ? ' *' : ''}</label>
         <Input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} placeholder="Address" />
       </div>
       <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground bg-muted/30">
-        Post-paid arrangement — no wallet, no treatment limit, no discount. Every invoice raised for a linked patient is billed to this {singularLower} and consolidated into a monthly statement.
+        {isRetainer
+          ? 'Retainers are billed monthly. Deposit balance is drawn down at month-close; if it runs short, a demand letter is generated for the outstanding amount.'
+          : 'Post-paid arrangement — every invoice raised for a linked patient is consolidated into a monthly statement.'}
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">

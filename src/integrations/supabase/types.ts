@@ -495,10 +495,10 @@ export type Database = {
           address: string | null
           balance: number
           company_name: string
-          contact_person: string
+          contact_person: string | null
           created_at: string
           discount_percentage: number
-          email: string
+          email: string | null
           id: string
           notes: string | null
           phone: string
@@ -512,10 +512,10 @@ export type Database = {
           address?: string | null
           balance?: number
           company_name: string
-          contact_person: string
+          contact_person?: string | null
           created_at?: string
           discount_percentage?: number
-          email: string
+          email?: string | null
           id?: string
           notes?: string | null
           phone: string
@@ -529,10 +529,10 @@ export type Database = {
           address?: string | null
           balance?: number
           company_name?: string
-          contact_person?: string
+          contact_person?: string | null
           created_at?: string
           discount_percentage?: number
-          email?: string
+          email?: string | null
           id?: string
           notes?: string | null
           phone?: string
@@ -542,6 +542,60 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      corporate_transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at: string
+          id: string
+          notes: string | null
+          performed_by: string | null
+          related_statement_id: string | null
+          sponsor_id: string
+          transaction_type: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+          related_statement_id?: string | null
+          sponsor_id: string
+          transaction_type: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          balance_before?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+          related_statement_id?: string | null
+          sponsor_id?: string
+          transaction_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corporate_transactions_related_statement_id_fkey"
+            columns: ["related_statement_id"]
+            isOneToOne: false
+            referencedRelation: "sponsor_statements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corporate_transactions_sponsor_id_fkey"
+            columns: ["sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "corporate_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       eligibility_verifications: {
         Row: {
@@ -2864,6 +2918,15 @@ export type Database = {
         Args: { _notes?: string; _source: string; _source_id: string }
         Returns: string
       }
+      close_retainer_month: {
+        Args: {
+          _month: number
+          _notes?: string
+          _sponsor_id: string
+          _year: number
+        }
+        Returns: Json
+      }
       close_visit: { Args: { _visit_id: string }; Returns: undefined }
       create_admitted_snap: {
         Args: {
@@ -2997,6 +3060,10 @@ export type Database = {
       request_claim_info: {
         Args: { _notes?: string; _reason_code: string; _visit_id: string }
         Returns: undefined
+      }
+      retainer_deposit: {
+        Args: { _amount: number; _notes?: string; _sponsor_id: string }
+        Returns: number
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }

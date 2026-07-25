@@ -23,7 +23,7 @@ import { usePatients } from '@/contexts/PatientContext';
 import { VisitEnvelopeDialog } from '@/components/visit/VisitEnvelopeDialog';
 import { Patient } from '@/contexts/PatientContext';
 import { ClaimDetailDialog } from './ClaimDetailDialog';
-import { ExpiryBadge } from './ExpiryBadge';
+
 import { downloadClaimsPacketPdf, downloadBulkClaimsPacketsPdf } from '@/lib/claimsPacketPdf';
 import { toast } from 'sonner';
 
@@ -307,7 +307,7 @@ export function ClaimsQueue() {
                           </p>
                           {(tab === 'pending' || tab === 'info_requested') && (
                             <div className="mt-1">
-                              <ExpiryBadge openedAt={v.opened_at} />
+
                             </div>
                           )}
                         </div>

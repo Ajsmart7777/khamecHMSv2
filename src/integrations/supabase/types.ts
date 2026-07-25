@@ -1337,6 +1337,7 @@ export type Database = {
           mini_card_number: string
           occupation: string | null
           phone: string
+          photo_path: string | null
           registered_at: string
           staff_link_id: string | null
           status: string
@@ -1367,6 +1368,7 @@ export type Database = {
           mini_card_number: string
           occupation?: string | null
           phone: string
+          photo_path?: string | null
           registered_at?: string
           staff_link_id?: string | null
           status?: string
@@ -1397,6 +1399,7 @@ export type Database = {
           mini_card_number?: string
           occupation?: string | null
           phone?: string
+          photo_path?: string | null
           registered_at?: string
           staff_link_id?: string | null
           status?: string

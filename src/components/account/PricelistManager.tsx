@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { usePricelist, PricelistItem, PricelistCategory } from '@/hooks/usePricelist';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,9 +7,10 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Upload, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { PricelistValidationReport } from './PricelistValidationReport';
+import { supabase } from '@/integrations/supabase/client';
 
 const CATEGORIES: { value: PricelistCategory; label: string }[] = [
   { value: 'drug_tablet', label: 'Drug — Tablet' },
@@ -27,12 +28,51 @@ const CATEGORIES: { value: PricelistCategory; label: string }[] = [
 
 const fmt = (n: number) => `₦${n.toLocaleString()}`;
 
+const VALID_CATS: PricelistCategory[] = [
+  'drug_tablet','drug_capsule','drug_liquid','drug_injection','drug_topical',
+  'consumable','lab','imaging','bed','procedure','other',
+];
+
+function toCsv(items: PricelistItem[]): string {
+  const header = ['name','size','pack_qty','price','category','active','notes'];
+  const esc = (v: unknown) => {
+    const s = v == null ? '' : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const rows = items.map(i => [i.name, i.size ?? '', i.pack_qty, i.price, i.category, i.active, i.notes ?? ''].map(esc).join(','));
+  return [header.join(','), ...rows].join('\n');
+}
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [], cur = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"' && text[i + 1] === '"') { cur += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else cur += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ',') { row.push(cur); cur = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (cur !== '' || row.length) { row.push(cur); rows.push(row); row = []; cur = ''; }
+        if (c === '\r' && text[i + 1] === '\n') i++;
+      } else cur += c;
+    }
+  }
+  if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+  return rows.filter(r => r.some(v => v.trim() !== ''));
+}
+
 export function PricelistManager() {
   const { items, loading, upsertItem, deleteItem } = usePricelist();
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [editing, setEditing] = useState<PricelistItem | null>(null);
   const [open, setOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -44,6 +84,60 @@ export function PricelistManager() {
 
   const openNew = () => { setEditing(null); setOpen(true); };
   const openEdit = (it: PricelistItem) => { setEditing(it); setOpen(true); };
+
+  const handleDownload = () => {
+    const csv = toCsv(items);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pricelist-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`Downloaded ${items.length} items`);
+  };
+
+  const handleUpload = async (file: File) => {
+    setImporting(true);
+    try {
+      const text = await file.text();
+      const rows = parseCsv(text);
+      if (rows.length < 2) { toast.error('CSV is empty'); return; }
+      const header = rows[0].map(h => h.trim().toLowerCase());
+      const idx = (k: string) => header.indexOf(k);
+      const iName = idx('name'), iSize = idx('size'), iPack = idx('pack_qty'),
+            iPrice = idx('price'), iCat = idx('category'), iActive = idx('active'), iNotes = idx('notes');
+      if (iName < 0 || iPrice < 0 || iCat < 0) {
+        toast.error('CSV must include name, price, category columns');
+        return;
+      }
+      const payload = rows.slice(1).map(r => {
+        const cat = (r[iCat] || '').trim() as PricelistCategory;
+        return {
+          name: (r[iName] || '').trim(),
+          size: iSize >= 0 ? (r[iSize] || '').trim() || null : null,
+          pack_qty: iPack >= 0 ? parseInt(r[iPack]) || 1 : 1,
+          price: parseFloat(r[iPrice]) || 0,
+          category: VALID_CATS.includes(cat) ? cat : 'other' as PricelistCategory,
+          active: iActive >= 0 ? !/^(false|0|no)$/i.test((r[iActive] || '').trim()) : true,
+          notes: iNotes >= 0 ? (r[iNotes] || '').trim() || null : null,
+        };
+      }).filter(r => r.name && r.price >= 0);
+
+      if (payload.length === 0) { toast.error('No valid rows found'); return; }
+
+      const { error } = await supabase
+        .from('pricelist')
+        .upsert(payload, { onConflict: 'name,size', ignoreDuplicates: false });
+      if (error) { toast.error(error.message); return; }
+      toast.success(`Imported ${payload.length} items`);
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Import failed');
+    } finally {
+      setImporting(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -65,6 +159,19 @@ export function PricelistManager() {
           </SelectContent>
         </Select>
         <Button onClick={openNew}><Plus className="h-4 w-4 mr-1.5" /> Add Item</Button>
+        <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={importing}>
+          <Upload className="h-4 w-4 mr-1.5" /> {importing ? 'Importing…' : 'Upload CSV'}
+        </Button>
+        <Button variant="outline" onClick={handleDownload} disabled={items.length === 0}>
+          <Download className="h-4 w-4 mr-1.5" /> Download CSV
+        </Button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); }}
+        />
         <PricelistValidationReport />
       </div>
 

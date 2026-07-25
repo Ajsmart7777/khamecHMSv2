@@ -3000,6 +3000,7 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      simple_id: { Args: { _n: number; _prefix: string }; Returns: string }
       write_audit_log: {
         Args: {
           _action: string

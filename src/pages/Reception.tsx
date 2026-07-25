@@ -1024,13 +1024,23 @@ function NewPatientForm({
   useEffect(() => {
     if (!isInsurance) { setProviderId(''); return; }
     if (providerId) return;
+    // NHIA & KATCHMA are single-scheme sponsors — auto-pick the first
+    // active provider of that type so Reception only fills member details.
+    if (formData.account_type === 'nhis' || formData.account_type === 'katchma') {
+      const only = availableProviders[0];
+      if (only) {
+        setProviderId(only.id);
+        setFormData((prev) => ({ ...prev, insurance_provider: only.name }));
+        return;
+      }
+    }
     const seededName = formData.insurance_provider.trim().toLowerCase();
     if (!seededName) return;
     const hit = availableProviders.find((p) => p.name.toLowerCase() === seededName)
              || availableProviders.find((p) => p.name.toLowerCase().includes(seededName));
     if (hit) setProviderId(hit.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isInsurance, formData.insurance_provider, availableProviders.length]);
+  }, [isInsurance, formData.account_type, formData.insurance_provider, availableProviders.length]);
 
   const generateCardNumber = () => {
     const year = new Date().getFullYear();

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSnapOrders, SnapOrder, snapPhotoUrl, markSnapFulfilled } from '@/hooks/useSnapOrders';
+import { findOpenVisit, closeVisit } from '@/hooks/useVisits';
 import { usePatients } from '@/contexts/PatientContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -101,6 +102,19 @@ export function SnapFulfillDialog({
             toast.error('Could not verify pending workflow', { description: err?.message });
             setBusy(false);
             return;
+          }
+
+          // Auto-close the open visit before discharging so insured claims land
+          // in the Claims queue and the discharge guard in advance_journey passes.
+          if (nextStatus === 'discharged') {
+            try {
+              const openVisit = await findOpenVisit(snap.patient_id);
+              if (openVisit) await closeVisit(openVisit.id);
+            } catch (err: any) {
+              toast.error('Could not close visit', { description: err?.message });
+              setBusy(false);
+              return;
+            }
           }
 
           const routed = await updatePatientStatus(

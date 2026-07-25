@@ -115,9 +115,16 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
   };
 
   const handleSave = async () => {
-    if (!form.company_name || !form.contact_person || !form.email || !form.phone) {
-      toast({ title: 'Error', description: 'Please fill all required fields.', variant: 'destructive' });
-      return;
+    if (isRetainer) {
+      if (!form.company_name || !form.phone) {
+        toast({ title: 'Error', description: 'Retainer name and phone are required.', variant: 'destructive' });
+        return;
+      }
+    } else {
+      if (!form.company_name || !form.contact_person || !form.email || !form.phone) {
+        toast({ title: 'Error', description: 'Please fill all required fields.', variant: 'destructive' });
+        return;
+      }
     }
     setSaving(true);
     const payload = { ...form, notes: form.notes || null, account_type: accountType } as any;

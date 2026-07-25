@@ -30,8 +30,8 @@ export function InsuranceManager() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [form, setForm] = useState({
-    name: '', type: 'private', code: '', hmo_code: '', contact_person: '', email: '', phone: '',
-    address: '', coverage_percentage: 0, max_coverage_amount: 0, notes: '',
+    name: '', type: 'hmo', code: '', hmo_code: '', contact_person: '', email: '', phone: '',
+    address: '', notes: '',
   });
   const [memberFields, setMemberFields] = useState<ProviderField[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export function InsuranceManager() {
     : providers;
 
   const resetForm = () => {
-    setForm({ name: '', type: 'private', code: '', hmo_code: '', contact_person: '', email: '', phone: '', address: '', coverage_percentage: 0, max_coverage_amount: 0, notes: '' });
+    setForm({ name: '', type: 'hmo', code: '', hmo_code: '', contact_person: '', email: '', phone: '', address: '', notes: '' });
     setMemberFields([]);
   };
 
@@ -52,7 +52,6 @@ export function InsuranceManager() {
       hmo_code: form.hmo_code || null,
       contact_person: form.contact_person || null, email: form.email || null,
       phone: form.phone || null, address: form.address || null,
-      coverage_percentage: form.coverage_percentage, max_coverage_amount: form.max_coverage_amount,
       notes: form.notes || null,
       member_id_fields: memberFields,
     } as any);
@@ -64,7 +63,6 @@ export function InsuranceManager() {
     setForm({
       name: p.name, type: p.type, code: p.code || '', hmo_code: p.hmo_code || '', contact_person: p.contact_person || '',
       email: p.email || '', phone: p.phone || '', address: p.address || '',
-      coverage_percentage: p.coverage_percentage, max_coverage_amount: p.max_coverage_amount,
       notes: p.notes || '',
     });
     setMemberFields(normaliseFields(p.member_id_fields));
@@ -77,8 +75,7 @@ export function InsuranceManager() {
       name: form.name, type: form.type, code: form.code || null,
       hmo_code: form.hmo_code || null,
       contact_person: form.contact_person || null, email: form.email || null,
-      phone: form.phone || null, coverage_percentage: form.coverage_percentage,
-      max_coverage_amount: form.max_coverage_amount, notes: form.notes || null,
+      phone: form.phone || null, notes: form.notes || null,
       member_id_fields: memberFields,
     } as any);
     if (ok) { toast.success('Provider updated'); setIsEditOpen(false); }
@@ -144,8 +141,7 @@ export function InsuranceManager() {
                   <th>Name</th>
                   <th>Type</th>
                   <th>Code</th>
-                  <th>Coverage %</th>
-                  <th className="text-right">Max Coverage (₦)</th>
+                  <th>Member ID fields</th>
                   <th>Contact</th>
                   <th>Status</th>
                   <th></th>
@@ -153,17 +149,18 @@ export function InsuranceManager() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">Loading...</td></tr>
+                  <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">Loading...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">No providers found</td></tr>
+                  <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No providers found</td></tr>
                 ) : (
                   filtered.map(p => (
                     <tr key={p.id}>
                       <td className="font-medium">{p.name}</td>
                       <td><Badge variant={typeVariant(p.type)}>{p.type.toUpperCase()}</Badge></td>
                       <td className="font-mono text-sm">{p.code || '—'}</td>
-                      <td className="text-center">{p.coverage_percentage}%</td>
-                      <td className="text-right">₦{p.max_coverage_amount.toLocaleString()}</td>
+                      <td className="text-sm text-muted-foreground">
+                        {normaliseFields(p.member_id_fields).map(f => f.label).join(', ') || '—'}
+                      </td>
                       <td className="text-sm text-muted-foreground">{p.contact_person || '—'}</td>
                       <td><Badge variant={p.status === 'active' ? 'success' : 'secondary'}>{p.status}</Badge></td>
                       <td>

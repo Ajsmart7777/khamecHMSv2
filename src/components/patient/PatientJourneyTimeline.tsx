@@ -114,8 +114,16 @@ export const PatientJourneyTimeline = forwardRef<HTMLDivElement, PatientJourneyT
               </div>
             ) : (
               sortedEvents.map((event, index) => {
-                const config = eventConfig[event.type];
-                const status = statusConfig[event.status];
+                const config = eventConfig[event.type] ?? {
+                  icon: <Clock className="h-4 w-4" />,
+                  color: 'text-muted-foreground',
+                  bgColor: 'bg-muted',
+                };
+                const status = statusConfig[event.status] ?? {
+                  icon: <Clock className="h-3 w-3" />,
+                  label: event.status ?? 'Unknown',
+                  color: 'text-muted-foreground',
+                };
 
                 return (
                   <div 

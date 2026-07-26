@@ -103,7 +103,12 @@ export function PatientStatusIndicator({
   pulse = false,
   className 
 }: PatientStatusIndicatorProps) {
-  const config = statusConfig[status];
+  const config = statusConfig[status] ?? {
+    label: (status as string) ?? 'Unknown',
+    variant: 'secondary' as const,
+    icon: Clock,
+    color: 'text-muted-foreground',
+  };
   const Icon = config.icon;
   
   const sizeClasses = {

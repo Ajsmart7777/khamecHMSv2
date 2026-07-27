@@ -310,7 +310,7 @@ export function CorporateClaimsPanel() {
         <div className="text-center py-10"><Loader2 className="h-5 w-5 mx-auto animate-spin" /></div>
       ) : activeCorps.length === 0 ? (
         <div className="text-center py-10 border rounded-lg text-muted-foreground text-sm">
-          Babu corporate da aka rijista. Je "Corporate" tab don ƙirƙira.
+          No corporates registered. Go to the "Corporate" tab to create one.
         </div>
       ) : (
         <Accordion type="multiple" className="space-y-2">

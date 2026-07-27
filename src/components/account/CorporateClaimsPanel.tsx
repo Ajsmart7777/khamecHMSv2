@@ -287,8 +287,8 @@ export function CorporateClaimsPanel() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Duk patients ɗin da aka rijista a ƙarƙashin kowace corporate suna bayyana anan, koda basu yi visit ba a wannan wata.
-        Corporate ba shi da deposit — bayan an rufe wata, system tana ƙirƙirar demand letter da za a tura wa kamfani don biya. Bayan biya, danna "Mark paid".
+        All patients registered under each corporate appear here, even if they did not visit this month.
+        Corporates have no deposit — after closing the month, the system generates a demand letter to send to the company for payment. After payment, click "Mark paid".
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -388,7 +388,7 @@ export function CorporateClaimsPanel() {
 
                     {pats.length === 0 ? (
                       <div className="text-center py-6 text-sm text-muted-foreground border rounded">
-                        Babu patient a ƙarƙashin wannan corporate. Ka lissafa a lokacin registration.
+                        No patients under this corporate. Enroll them during registration.
                       </div>
                     ) : (
                       <div className="border rounded overflow-x-auto">
@@ -444,7 +444,7 @@ export function CorporateClaimsPanel() {
               <Lock className="h-5 w-5 text-primary" /> Close {MONTHS[month - 1]} {year}
             </DialogTitle>
             <DialogDescription>
-              System zai lissafa jimlar wannan wata sannan ya kulle statement a matsayin <b>finalized</b>. Sabbin visits za su fada wata mai zuwa. Bayan kamfanin ya biya, danna <b>Mark paid</b>.
+              The system will total this month and lock the statement as <b>finalized</b>. New visits will roll into the next month. After the company pays, click <b>Mark paid</b>.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

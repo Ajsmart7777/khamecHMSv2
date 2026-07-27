@@ -1,0 +1,1 @@
+UPDATE public.patients SET account_type = 'nhis' WHERE account_type = 'insurance';

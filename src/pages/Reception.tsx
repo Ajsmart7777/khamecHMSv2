@@ -133,6 +133,9 @@ const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactN
   },
 };
 
+const getAccountTypeConfig = (t: AccountType | string | null | undefined) =>
+  accountTypeConfig[(t as AccountType)] ?? accountTypeConfig.normal;
+
 const Reception = () => {
   const { patients, loading, refreshPatients, updatePatientStatus } = usePatients();
   const [searchTerm, setSearchTerm] = useState('');
@@ -317,10 +320,10 @@ const Reception = () => {
                       <Badge 
                         className={cn(
                           "text-[10px] border transition-transform hover:scale-105",
-                          accountTypeConfig[patient.account_type].color
+                          getAccountTypeConfig(patient.account_type).color
                         )}
                       >
-                        {accountTypeConfig[patient.account_type].label}
+                        {getAccountTypeConfig(patient.account_type).label}
                       </Badge>
                     </div>
                     <div className="flex items-center justify-between">
@@ -507,11 +510,11 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
                 <Badge 
                   className={cn(
                     "border flex items-center gap-1",
-                    accountTypeConfig[patient.account_type].color
+                    getAccountTypeConfig(patient.account_type).color
                   )}
                 >
-                  {accountTypeConfig[patient.account_type].icon}
-                  {accountTypeConfig[patient.account_type].label}
+                  {getAccountTypeConfig(patient.account_type).icon}
+                  {getAccountTypeConfig(patient.account_type).label}
                 </Badge>
               </div>
             </div>

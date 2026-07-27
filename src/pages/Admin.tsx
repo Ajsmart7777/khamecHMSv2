@@ -25,6 +25,18 @@ import { useStaff } from '@/hooks/useStaff';
 import { useInventory } from '@/hooks/useInventory';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { formatDistanceToNow } from 'date-fns';
+import { RotateCcw } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type SystemAlert = {
   id: string;
@@ -35,6 +47,8 @@ type SystemAlert = {
 
 const Admin = () => {
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
+  const [isResetHistoryOpen, setIsResetHistoryOpen] = useState(false);
+  const [resettingHistory, setResettingHistory] = useState(false);
   const { staff } = useStaff();
   const { items: inventoryItems } = useInventory();
   const [activeAdmissions, setActiveAdmissions] = useState(0);
@@ -72,6 +86,18 @@ const Admin = () => {
       time: formatDistanceToNow(new Date(e.created_at), { addSuffix: true }),
     })),
   ];
+
+  const handleResetPatientHistory = async () => {
+    setResettingHistory(true);
+    const { error } = await supabase.rpc('reset_patient_history');
+    setResettingHistory(false);
+    if (error) {
+      toast.error(error.message || 'Failed to reset patient history');
+      return;
+    }
+    toast.success('Patient history cleared. All patients are back to registered.');
+    setIsResetHistoryOpen(false);
+  };
 
   return (
     <MainLayout title="Admin Panel" subtitle="System administration and user management">

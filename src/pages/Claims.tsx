@@ -1,5 +1,4 @@
 import { MainLayout } from '@/components/layout/MainLayout';
-import { ClaimsQueue } from '@/components/claims/ClaimsQueue';
 import { InsuranceManager } from '@/components/accounts/InsuranceManager';
 import { EligibilityQueue } from '@/components/claims/EligibilityQueue';
 import { InsuranceClaimsPanel } from '@/components/claims/InsuranceClaimsPanel';
@@ -20,12 +19,10 @@ const Claims = () => {
             )}
           </TabsTrigger>
           <TabsTrigger value="cards">Discharged Cards</TabsTrigger>
-          <TabsTrigger value="queue">Claims Queue</TabsTrigger>
           <TabsTrigger value="providers">Insurance Providers</TabsTrigger>
         </TabsList>
         <TabsContent value="verifications"><EligibilityQueue /></TabsContent>
         <TabsContent value="cards"><InsuranceClaimsPanel /></TabsContent>
-        <TabsContent value="queue"><ClaimsQueue /></TabsContent>
         <TabsContent value="providers"><InsuranceManager /></TabsContent>
       </Tabs>
     </MainLayout>

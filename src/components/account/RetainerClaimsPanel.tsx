@@ -320,7 +320,7 @@ export function RetainerClaimsPanel() {
         <div className="text-center py-10"><Loader2 className="h-5 w-5 mx-auto animate-spin" /></div>
       ) : activeRetainers.length === 0 ? (
         <div className="text-center py-10 border rounded-lg text-muted-foreground text-sm">
-          Babu retainer da aka rijista. Je "Retainer" tab don ƙirƙira.
+          No retainers registered. Go to the "Retainer" tab to create one.
         </div>
       ) : (
         <Accordion type="multiple" className="space-y-2">

@@ -35,12 +35,12 @@ const DEBT_ELIGIBLE = new Set(['normal', 'cash', '', 'staff_family']);
 
 async function settleInvoiceAsPaid(
   invoiceId: string,
-  totalAmount: number,
+  paidAmount: number,
   paymentMethod: string,
   notes?: string,
 ) {
   const updatePayload: Record<string, any> = {
-    paid_amount: totalAmount,
+    paid_amount: paidAmount,
     status: 'paid',
     payment_method: paymentMethod,
     paid_at: new Date().toISOString(),
@@ -176,7 +176,7 @@ export function CashierPanel() {
         const remaining = invoiceTotal - alreadyPaid;
         await settleInvoiceAsPaid(
           selected.id,
-          invoiceTotal,
+          alreadyPaid, // nothing new collected from patient — sponsor fully covers
           'sponsor_claim',
           `Sponsor fully covered · ${sponsorLabel(selectedPatient)}`,
         );
@@ -284,7 +284,10 @@ export function CashierPanel() {
         : shortfall > 0
         ? `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`
         : undefined;
-      await settleInvoiceAsPaid(selected.id, invoiceTotal, paymentMethod, notes);
+      // paid_amount records real money collected from the patient (cash + balance).
+      // The sponsor-covered portion is tracked via the claims flow, not lumped in here.
+      const collected = alreadyPaid + cash + bal;
+      await settleInvoiceAsPaid(selected.id, collected, paymentMethod, notes);
 
       await refreshInvoices();
       if (typeof refreshPatients === 'function') await refreshPatients();

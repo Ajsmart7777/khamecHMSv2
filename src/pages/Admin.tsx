@@ -302,6 +302,25 @@ const Admin = () => {
       </Tabs>
 
       <ResetDemoDataDialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen} />
+      <AlertDialog open={isResetHistoryOpen} onOpenChange={setIsResetHistoryOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset patient history?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This deletes all visits, invoices, prescriptions, labs, vitals and claims for every patient, and resets each patient back to "registered" with a zero balance. Patient records themselves are kept.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resettingHistory}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleResetPatientHistory(); }}
+              disabled={resettingHistory}
+            >
+              {resettingHistory ? 'Resetting…' : 'Reset history'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 };

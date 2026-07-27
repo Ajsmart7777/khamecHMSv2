@@ -200,8 +200,8 @@ export function InsuranceClaimsPanel() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Kawai patients ɗin insurance (HMO / NHIA / KATCHMA) waɗanda suka riga suka <b>discharged</b> a wannan wata ke bayyana anan.
-        Danna kan card don ganin duk visits da invoices tare da cikakken bayanin abinda aka yi ma patient.
+        Only insurance patients (HMO / NHIA / KATCHMA) who have been <b>discharged</b> this month appear here.
+        Click a card to see all visits and invoices with a full breakdown of services provided to the patient.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -223,7 +223,7 @@ export function InsuranceClaimsPanel() {
         <div className="text-center py-10"><Loader2 className="h-5 w-5 mx-auto animate-spin" /></div>
       ) : visiblePatients.length === 0 ? (
         <div className="text-center py-10 border rounded-lg text-muted-foreground text-sm">
-          Babu discharged insurance patient da yayi visit a wannan wata.
+          No discharged insurance patient with a visit in this month.
         </div>
       ) : (
         <div className="space-y-5">

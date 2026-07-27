@@ -295,9 +295,9 @@ export function RetainerClaimsPanel() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Duk patients ɗin da aka rijista a ƙarƙashin retainer suna bayyana anan, koda basu yi visit ba a wannan wata.
-        Zaɓi wata, sannan "Close month" don ƙirƙirar rasit (idan deposit ya isa) ko takarda ta demand (idan akwai bashi).
-        Bayan an rufe, sabbin visits za su fada wata mai zuwa atomatik.
+        All patients registered under a retainer appear here, even if they did not visit this month.
+        Select a month, then "Close month" to generate a receipt (if the deposit covers it) or a demand letter (if there is a balance).
+        After closing, new visits roll into the next month automatically.
       </p>
 
       {/* Totals */}
@@ -398,7 +398,7 @@ export function RetainerClaimsPanel() {
                     {/* Patient list */}
                     {pats.length === 0 ? (
                       <div className="text-center py-6 text-sm text-muted-foreground border rounded">
-                        Babu patient a ƙarƙashin wannan retainer. Ka lissafa a lokacin registration.
+                        No patients under this retainer. Enroll them during registration.
                       </div>
                     ) : (
                       <div className="border rounded overflow-x-auto">
@@ -455,9 +455,9 @@ export function RetainerClaimsPanel() {
               <Lock className="h-5 w-5 text-primary" /> Close {MONTHS[month - 1]} {year}
             </DialogTitle>
             <DialogDescription>
-              System zai lissafa jimlar wannan wata, ya cire daga deposit ɗin retainer idan ya isa,
-              ya kuma mark statement din a matsayin <b>paid</b> (idan an cika) ko <b>finalized</b> (idan akwai bashi).
-              Sabbin visits za su fada wata mai zuwa.
+              The system will total this month, deduct from the retainer's deposit if sufficient,
+              and mark the statement as <b>paid</b> (if fully covered) or <b>finalized</b> (if a balance remains).
+              New visits will roll into the next month.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

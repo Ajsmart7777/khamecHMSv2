@@ -41,7 +41,7 @@ interface InvoiceItem {
   description: string;
   quantity: number;
   unit_price: number;
-  total_price: number;
+  total: number;
 }
 
 interface Visit {
@@ -105,7 +105,7 @@ export function InsuranceClaimsPanel() {
       if (invIds.length > 0) {
         const { data: items } = await supabase
           .from('invoice_items')
-          .select('id, invoice_id, description, quantity, unit_price, total_price')
+          .select('id, invoice_id, description, quantity, unit_price, total')
           .in('invoice_id', invIds);
         const byInv: Record<string, InvoiceItem[]> = {};
         (items || []).forEach(it => {
@@ -113,7 +113,7 @@ export function InsuranceClaimsPanel() {
             ...it,
             quantity: Number(it.quantity)||0,
             unit_price: Number(it.unit_price)||0,
-            total_price: Number(it.total_price)||0,
+            total: Number(it.total)||0,
           });
         });
         setItemsByInvoice(byInv);
@@ -362,7 +362,7 @@ export function InsuranceClaimsPanel() {
                                                 <td className="px-2 py-1">{it.description}</td>
                                                 <td className="px-2 py-1 text-right">{it.quantity}</td>
                                                 <td className="px-2 py-1 text-right">₦{money(it.unit_price)}</td>
-                                                <td className="px-2 py-1 text-right font-medium">₦{money(it.total_price)}</td>
+                                                <td className="px-2 py-1 text-right font-medium">₦{money(it.total)}</td>
                                               </tr>
                                             ))}
                                           </tbody>

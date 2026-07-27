@@ -245,6 +245,14 @@ const Admin = () => {
               <Trash2 className="h-4 w-4 mr-2" />
               Purge Clinical Data
             </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start hover-lift mt-2"
+              onClick={() => setIsResetHistoryOpen(true)}
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reset patient history
+            </Button>
           </div>
         </div>
       </div>

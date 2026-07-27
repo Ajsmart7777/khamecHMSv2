@@ -2953,6 +2953,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      discharge_patient: {
+        Args: { _patient_id: string; _reason?: string }
+        Returns: Json
+      }
       forward_snap_to_billing: {
         Args: {
           _note?: string

@@ -133,6 +133,9 @@ const accountTypeConfig: Record<AccountType, { label: string; icon: React.ReactN
   },
 };
 
+const getAccountTypeConfig = (t: AccountType | string | null | undefined) =>
+  accountTypeConfig[(t as AccountType)] ?? accountTypeConfig.normal;
+
 const Reception = () => {
   const { patients, loading, refreshPatients, updatePatientStatus } = usePatients();
   const [searchTerm, setSearchTerm] = useState('');

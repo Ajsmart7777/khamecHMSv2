@@ -3061,6 +3061,7 @@ export type Database = {
         Args: { _notes?: string; _reason_code: string; _visit_id: string }
         Returns: undefined
       }
+      reset_patient_history: { Args: never; Returns: undefined }
       retainer_deposit: {
         Args: { _amount: number; _notes?: string; _sponsor_id: string }
         Returns: number

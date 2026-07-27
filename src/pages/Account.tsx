@@ -20,6 +20,7 @@ import { StaffRegistrationForm } from '@/components/accounts/StaffRegistrationFo
 import { ExternalDoctorsManager } from '@/components/account/ExternalDoctorsManager';
 import { RetainerClaimsPanel } from '@/components/account/RetainerClaimsPanel';
 import { CorporateClaimsPanel } from '@/components/account/CorporateClaimsPanel';
+import { InsuranceClaimsPanel } from '@/components/account/InsuranceClaimsPanel';
 import { SponsorStatementsPanel } from '@/components/account/SponsorStatementsPanel';
 import type { PayrollPeriod } from '@/hooks/usePayroll';
 
@@ -122,6 +123,9 @@ const Account = () => {
           <TabsTrigger value="retainer-claims" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <ClipboardList className="h-4 w-4" /> Retainer Claims
           </TabsTrigger>
+          <TabsTrigger value="insurance-claims" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <ClipboardList className="h-4 w-4" /> Insurance Claims
+          </TabsTrigger>
           <TabsTrigger value="statements" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <FileText className="h-4 w-4" /> Monthly Statements
           </TabsTrigger>
@@ -207,6 +211,11 @@ const Account = () => {
         <TabsContent value="retainer-claims">
           <TabHeader title="Retainer Claims" onRefresh={() => {}} />
           <RetainerClaimsPanel />
+        </TabsContent>
+
+        <TabsContent value="insurance-claims">
+          <TabHeader title="Insurance Claims" onRefresh={() => {}} />
+          <InsuranceClaimsPanel />
         </TabsContent>
 
         <TabsContent value="statements">

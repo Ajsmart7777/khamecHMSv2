@@ -168,11 +168,12 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
         _owner_role: ownerRoleMap[status] ?? null,
       });
       if (rpcError) throw rpcError;
-      // Touch last_visit for the header/timeline
-      await supabase
+      // Touch last_visit for the header/timeline (non-fatal if it fails).
+      const { error: lvErr } = await supabase
         .from('patients')
         .update({ last_visit: new Date().toISOString() })
         .eq('id', patientId);
+      if (lvErr) logError('Failed to update last_visit', lvErr);
 
       // Log status change
       patientAuditLogger('patient_status_changed', patientId, { from: current.status, new_status: status });

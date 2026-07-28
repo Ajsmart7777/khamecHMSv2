@@ -6,7 +6,7 @@ import {
   Loader2, X, ChevronDown, ChevronUp, Wallet, Droplet, Phone, Calendar, User,
   Activity, Pill, FlaskConical, ClipboardList, Receipt, FileText, PackageCheck,
   Stethoscope, BedDouble, LogOut, Camera, ArrowUp, ArrowDown, Sparkles, Download,
-  ShieldCheck,
+  ShieldCheck, CheckCircle2, Send,
 } from 'lucide-react';
 import { signedUrl } from '@/hooks/useVisitAttachments';
 import { snapPhotoUrl } from '@/hooks/useSnapOrders';

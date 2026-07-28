@@ -3,8 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ShieldCheck, Loader2, RefreshCw, CreditCard, Stethoscope, ReceiptText } from 'lucide-react';
+import { ShieldCheck, Loader2, RefreshCw, CreditCard, CheckCircle2 } from 'lucide-react';
+import { PatientCardDialog } from '@/components/visit/PatientCardDialog';
+import type { Patient as CtxPatient } from '@/contexts/PatientContext';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const INSURANCE_TYPES = ['nhis', 'hmo', 'katchma'] as const;
@@ -33,25 +34,7 @@ interface Invoice {
   paid_amount: number;
   status: string;
   created_at: string;
-}
-
-interface InvoiceItem {
-  id: string;
-  invoice_id: string;
-  description: string;
-  quantity: number;
-  unit_price: number;
-  total: number;
-}
-
-interface Visit {
-  id: string;
-  visit_number: string;
-  patient_id: string;
-  status: string;
-  opened_at: string;
-  closed_at: string | null;
-  presenting_complaint: string | null;
+  claim_submitted_at?: string | null;
 }
 
 function money(v: number) {
@@ -66,8 +49,7 @@ export function InsuranceClaimsPanel() {
   const [loading, setLoading] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [invoicesByPatient, setInvoicesByPatient] = useState<Record<string, Invoice[]>>({});
-  const [itemsByInvoice, setItemsByInvoice] = useState<Record<string, InvoiceItem[]>>({});
-  const [visitsByPatient, setVisitsByPatient] = useState<Record<string, Visit[]>>({});
+  const [openPatient, setOpenPatient] = useState<CtxPatient | null>(null);
 
   const periodStart = useMemo(() => new Date(year, month - 1, 1), [year, month]);
   const periodEnd = useMemo(() => new Date(year, month, 1), [year, month]);
@@ -78,20 +60,20 @@ export function InsuranceClaimsPanel() {
       // Only discharged insurance patients — as requested, cards only appear after full discharge.
       const { data: pats } = await supabase
         .from('patients')
-        .select('id, first_name, last_name, card_number, account_type, insurance_provider, insurance_plan, enrollee_id, status')
+        .select('*')
         .in('account_type', INSURANCE_TYPES as unknown as string[])
         .eq('status', 'discharged');
-      const patientRows = (pats || []) as Patient[];
+      const patientRows = (pats || []) as any[] as Patient[];
       setPatients(patientRows);
       const ids = patientRows.map(p => p.id);
       if (ids.length === 0) {
-        setInvoicesByPatient({}); setItemsByInvoice({}); setVisitsByPatient({});
+        setInvoicesByPatient({});
         return;
       }
 
       const { data: invs } = await supabase
         .from('invoices')
-        .select('id, invoice_number, patient_id, visit_id, total_amount, paid_amount, status, created_at')
+        .select('id, invoice_number, patient_id, visit_id, total_amount, paid_amount, status, created_at, claim_submitted_at')
         .in('patient_id', ids)
         .gte('created_at', periodStart.toISOString())
         .lt('created_at', periodEnd.toISOString())
@@ -100,37 +82,6 @@ export function InsuranceClaimsPanel() {
       const byPatient: Record<string, Invoice[]> = {};
       invRows.forEach(i => { (byPatient[i.patient_id] ||= []).push({ ...i, total_amount: Number(i.total_amount)||0, paid_amount: Number(i.paid_amount)||0 }); });
       setInvoicesByPatient(byPatient);
-
-      const invIds = invRows.map(i => i.id);
-      if (invIds.length > 0) {
-        const { data: items } = await supabase
-          .from('invoice_items')
-          .select('id, invoice_id, description, quantity, unit_price, total')
-          .in('invoice_id', invIds);
-        const byInv: Record<string, InvoiceItem[]> = {};
-        (items || []).forEach(it => {
-          (byInv[it.invoice_id] ||= []).push({
-            ...it,
-            quantity: Number(it.quantity)||0,
-            unit_price: Number(it.unit_price)||0,
-            total: Number(it.total)||0,
-          });
-        });
-        setItemsByInvoice(byInv);
-      } else {
-        setItemsByInvoice({});
-      }
-
-      const { data: vs } = await supabase
-        .from('visits')
-        .select('id, visit_number, patient_id, status, opened_at, closed_at, presenting_complaint')
-        .in('patient_id', ids)
-        .gte('opened_at', periodStart.toISOString())
-        .lt('opened_at', periodEnd.toISOString())
-        .order('opened_at', { ascending: false });
-      const byPatV: Record<string, Visit[]> = {};
-      (vs || []).forEach(v => { (byPatV[v.patient_id] ||= []).push(v as Visit); });
-      setVisitsByPatient(byPatV);
     } finally {
       setLoading(false);
     }

@@ -315,7 +315,7 @@ const Doctor = () => {
           patientId={selectedPatient.id}
           patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
           onCreated={async () => {
-            await updatePatientStatus(selectedPatient.id, 'with_pharmacy');
+            await updatePatientStatus(selectedPatient.id, 'at_pharmacy');
             setSelectedPatientId(null);
           }}
         />
@@ -328,7 +328,7 @@ const Doctor = () => {
           patientId={selectedPatient.id}
           patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
           onCreated={async () => {
-            await updatePatientStatus(selectedPatient.id, 'with_lab');
+            await updatePatientStatus(selectedPatient.id, 'in_lab');
             setSelectedPatientId(null);
           }}
         />

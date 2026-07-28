@@ -24,12 +24,6 @@ interface UseLabRequestsReturn {
   labRequests: LabRequest[];
   loading: boolean;
   error: string | null;
-  createLabRequest: (data: {
-    patient_id: string;
-    request_number: string;
-    tests: string[];
-    diagnosis?: string;
-  }) => Promise<LabRequest | null>;
   updateLabRequest: (id: string, updates: Partial<LabRequest>) => Promise<boolean>;
   markAsPrinted: (id: string) => Promise<boolean>;
   getUnprintedRequests: () => LabRequest[];
@@ -98,47 +92,6 @@ export function useLabRequests(): UseLabRequestsReturn {
     };
   }, [fetchLabRequests]);
 
-  const createLabRequest = async (data: {
-    patient_id: string;
-    request_number: string;
-    tests: string[];
-    diagnosis?: string;
-  }): Promise<LabRequest | null> => {
-    try {
-      const { data: newRequest, error: insertError } = await supabase
-        .from('lab_requests')
-        .insert({
-          patient_id: data.patient_id,
-          request_number: data.request_number,
-          tests: data.tests,
-          diagnosis: data.diagnosis || null,
-          status: 'pending',
-          printed: false,
-        })
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-      
-      // Log audit event
-      await labRequestAuditLogger(
-        'lab_request_created',
-        newRequest.id,
-        { 
-          patient_id: data.patient_id, 
-          tests: data.tests, 
-          request_number: data.request_number 
-        }
-      );
-      
-      return newRequest as LabRequest;
-    } catch (err) {
-      logError('Error creating lab request', err);
-      toast.error('Failed to create lab request');
-      return null;
-    }
-  };
-
   const updateLabRequest = async (
     id: string,
     updates: Record<string, unknown>
@@ -182,7 +135,6 @@ export function useLabRequests(): UseLabRequestsReturn {
     labRequests,
     loading,
     error,
-    createLabRequest,
     updateLabRequest,
     markAsPrinted,
     getUnprintedRequests,

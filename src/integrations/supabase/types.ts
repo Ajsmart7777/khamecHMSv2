@@ -3070,6 +3070,18 @@ export type Database = {
         Args: { _amount: number; _notes?: string; _sponsor_id: string }
         Returns: number
       }
+      settle_invoice_atomic: {
+        Args: {
+          _balance_amount?: number
+          _cash_amount?: number
+          _debt_amount?: number
+          _invoice_id: string
+          _notes?: string
+          _payment_method?: string
+          _sponsored?: boolean
+        }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       simple_id: { Args: { _n: number; _prefix: string }; Returns: string }

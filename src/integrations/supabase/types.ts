@@ -1071,6 +1071,9 @@ export type Database = {
       }
       invoices: {
         Row: {
+          claim_submission_notes: string | null
+          claim_submitted_at: string | null
+          claim_submitted_by: string | null
           corporate_account_id: string | null
           created_at: string
           created_by: string | null
@@ -1090,6 +1093,9 @@ export type Database = {
           visit_id: string | null
         }
         Insert: {
+          claim_submission_notes?: string | null
+          claim_submitted_at?: string | null
+          claim_submitted_by?: string | null
           corporate_account_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -1109,6 +1115,9 @@ export type Database = {
           visit_id?: string | null
         }
         Update: {
+          claim_submission_notes?: string | null
+          claim_submitted_at?: string | null
+          claim_submitted_by?: string | null
           corporate_account_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -3023,6 +3032,10 @@ export type Database = {
         Args: { _notes?: string; _visit_id: string }
         Returns: undefined
       }
+      mark_invoice_claim_submitted: {
+        Args: { _invoice_id: string; _notes?: string }
+        Returns: undefined
+      }
       mark_ready_for_discharge: {
         Args: { _admission_id: string; _note?: string; _snap_id?: string }
         Returns: undefined
@@ -3099,6 +3112,10 @@ export type Database = {
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       simple_id: { Args: { _n: number; _prefix: string }; Returns: string }
+      unmark_invoice_claim_submitted: {
+        Args: { _invoice_id: string }
+        Returns: undefined
+      }
       write_audit_log: {
         Args: {
           _action: string

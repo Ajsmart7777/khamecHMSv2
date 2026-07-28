@@ -3,8 +3,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { ShieldCheck, Loader2, RefreshCw, CreditCard, Stethoscope, ReceiptText } from 'lucide-react';
+import { ShieldCheck, Loader2, RefreshCw, CreditCard, CheckCircle2 } from 'lucide-react';
+import { PatientCardDialog } from '@/components/visit/PatientCardDialog';
+import type { Patient as CtxPatient } from '@/contexts/PatientContext';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const INSURANCE_TYPES = ['nhis', 'hmo', 'katchma'] as const;
@@ -33,25 +34,7 @@ interface Invoice {
   paid_amount: number;
   status: string;
   created_at: string;
-}
-
-interface InvoiceItem {
-  id: string;
-  invoice_id: string;
-  description: string;
-  quantity: number;
-  unit_price: number;
-  total: number;
-}
-
-interface Visit {
-  id: string;
-  visit_number: string;
-  patient_id: string;
-  status: string;
-  opened_at: string;
-  closed_at: string | null;
-  presenting_complaint: string | null;
+  claim_submitted_at?: string | null;
 }
 
 function money(v: number) {
@@ -66,8 +49,7 @@ export function InsuranceClaimsPanel() {
   const [loading, setLoading] = useState(false);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [invoicesByPatient, setInvoicesByPatient] = useState<Record<string, Invoice[]>>({});
-  const [itemsByInvoice, setItemsByInvoice] = useState<Record<string, InvoiceItem[]>>({});
-  const [visitsByPatient, setVisitsByPatient] = useState<Record<string, Visit[]>>({});
+  const [openPatient, setOpenPatient] = useState<CtxPatient | null>(null);
 
   const periodStart = useMemo(() => new Date(year, month - 1, 1), [year, month]);
   const periodEnd = useMemo(() => new Date(year, month, 1), [year, month]);
@@ -78,20 +60,20 @@ export function InsuranceClaimsPanel() {
       // Only discharged insurance patients — as requested, cards only appear after full discharge.
       const { data: pats } = await supabase
         .from('patients')
-        .select('id, first_name, last_name, card_number, account_type, insurance_provider, insurance_plan, enrollee_id, status')
+        .select('*')
         .in('account_type', INSURANCE_TYPES as unknown as string[])
         .eq('status', 'discharged');
-      const patientRows = (pats || []) as Patient[];
+      const patientRows = (pats || []) as any[] as Patient[];
       setPatients(patientRows);
       const ids = patientRows.map(p => p.id);
       if (ids.length === 0) {
-        setInvoicesByPatient({}); setItemsByInvoice({}); setVisitsByPatient({});
+        setInvoicesByPatient({});
         return;
       }
 
       const { data: invs } = await supabase
         .from('invoices')
-        .select('id, invoice_number, patient_id, visit_id, total_amount, paid_amount, status, created_at')
+        .select('id, invoice_number, patient_id, visit_id, total_amount, paid_amount, status, created_at, claim_submitted_at')
         .in('patient_id', ids)
         .gte('created_at', periodStart.toISOString())
         .lt('created_at', periodEnd.toISOString())
@@ -100,37 +82,6 @@ export function InsuranceClaimsPanel() {
       const byPatient: Record<string, Invoice[]> = {};
       invRows.forEach(i => { (byPatient[i.patient_id] ||= []).push({ ...i, total_amount: Number(i.total_amount)||0, paid_amount: Number(i.paid_amount)||0 }); });
       setInvoicesByPatient(byPatient);
-
-      const invIds = invRows.map(i => i.id);
-      if (invIds.length > 0) {
-        const { data: items } = await supabase
-          .from('invoice_items')
-          .select('id, invoice_id, description, quantity, unit_price, total')
-          .in('invoice_id', invIds);
-        const byInv: Record<string, InvoiceItem[]> = {};
-        (items || []).forEach(it => {
-          (byInv[it.invoice_id] ||= []).push({
-            ...it,
-            quantity: Number(it.quantity)||0,
-            unit_price: Number(it.unit_price)||0,
-            total: Number(it.total)||0,
-          });
-        });
-        setItemsByInvoice(byInv);
-      } else {
-        setItemsByInvoice({});
-      }
-
-      const { data: vs } = await supabase
-        .from('visits')
-        .select('id, visit_number, patient_id, status, opened_at, closed_at, presenting_complaint')
-        .in('patient_id', ids)
-        .gte('opened_at', periodStart.toISOString())
-        .lt('opened_at', periodEnd.toISOString())
-        .order('opened_at', { ascending: false });
-      const byPatV: Record<string, Visit[]> = {};
-      (vs || []).forEach(v => { (byPatV[v.patient_id] ||= []).push(v as Visit); });
-      setVisitsByPatient(byPatV);
     } finally {
       setLoading(false);
     }
@@ -240,153 +191,69 @@ export function InsuranceClaimsPanel() {
                   </div>
                   <p className="text-xs font-semibold">₦{money(groupTotal)}</p>
                 </div>
-                <Accordion type="multiple" className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {groupPatients.map(p => {
                     const invs = invoicesByPatient[p.id] || [];
                     const patTotal = invs.reduce((s, i) => s + i.total_amount, 0);
-                    const patPaid = invs.reduce((s, i) => s + i.paid_amount, 0);
-                    const visits = visitsByPatient[p.id] || [];
+                    const submitted = invs.filter(i => i.claim_submitted_at).length;
+                    const allSubmitted = invs.length > 0 && submitted === invs.length;
                     return (
-                      <AccordionItem
+                      <button
                         key={p.id}
-                        value={p.id}
-                        className="border rounded-lg bg-card px-0 overflow-hidden"
+                        type="button"
+                        onClick={() => setOpenPatient(p as unknown as CtxPatient)}
+                        className="text-left border rounded-lg bg-card px-4 py-3 hover:border-primary hover:shadow-sm transition"
                       >
-                        <AccordionTrigger className="hover:no-underline px-4 py-3">
-                          <div className="flex flex-1 items-center justify-between gap-3 pr-2">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className="h-9 w-9 rounded-md bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-                                <CreditCard className="h-4 w-4" />
-                              </div>
-                              <div className="min-w-0 text-left">
-                                <p className="font-semibold text-sm truncate">
-                                  {p.first_name} {p.last_name || ''}
-                                </p>
-                                <div className="flex gap-3 text-[11px] text-muted-foreground">
-                                  <span className="font-mono">{p.card_number || '—'}</span>
-                                  {p.enrollee_id && <span>ID: {p.enrollee_id}</span>}
-                                  {p.insurance_plan && <span className="truncate">{p.insurance_plan}</span>}
-                                </div>
-                              </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="h-10 w-10 rounded-md bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                              <CreditCard className="h-5 w-5" />
                             </div>
-                            <div className="flex items-center gap-3 flex-shrink-0">
-                              <div className="text-right">
-                                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Visits</p>
-                                <p className="text-sm font-semibold">{visits.length}</p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">This month</p>
-                                <p className="text-sm font-semibold">₦{money(patTotal)}</p>
-                              </div>
-                              <Badge variant="success" className="uppercase text-[10px]">discharged</Badge>
-                            </div>
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="px-4 pb-4 pt-0">
-                          <div className="border-t pt-3 space-y-4">
-                            {/* Visits */}
-                            {visits.length > 0 && (
-                              <div>
-                                <div className="flex items-center gap-1.5 mb-1.5">
-                                  <Stethoscope className="h-3.5 w-3.5 text-primary" />
-                                  <p className="text-xs font-semibold uppercase tracking-wide">Visits</p>
-                                </div>
-                                <div className="border rounded overflow-x-auto">
-                                  <table className="w-full text-xs">
-                                    <thead className="bg-muted/50 uppercase text-[10px] text-muted-foreground">
-                                      <tr>
-                                        <th className="px-2 py-1.5 text-left">Visit</th>
-                                        <th className="px-2 py-1.5 text-left">Opened</th>
-                                        <th className="px-2 py-1.5 text-left">Closed</th>
-                                        <th className="px-2 py-1.5 text-left">Complaint</th>
-                                        <th className="px-2 py-1.5 text-left">Status</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {visits.map(v => (
-                                        <tr key={v.id} className="border-t">
-                                          <td className="px-2 py-1.5 font-mono">{v.visit_number}</td>
-                                          <td className="px-2 py-1.5">{new Date(v.opened_at).toLocaleDateString()}</td>
-                                          <td className="px-2 py-1.5">{v.closed_at ? new Date(v.closed_at).toLocaleDateString() : '—'}</td>
-                                          <td className="px-2 py-1.5 truncate max-w-[200px]">{v.presenting_complaint || '—'}</td>
-                                          <td className="px-2 py-1.5">
-                                            <Badge variant={v.status === 'closed' ? 'success' : 'outline'} className="text-[10px]">
-                                              {v.status}
-                                            </Badge>
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Invoices with items */}
-                            <div>
-                              <div className="flex items-center gap-1.5 mb-1.5">
-                                <ReceiptText className="h-3.5 w-3.5 text-primary" />
-                                <p className="text-xs font-semibold uppercase tracking-wide">Invoices & services</p>
-                              </div>
-                              <div className="space-y-2">
-                                {invs.map(inv => {
-                                  const items = itemsByInvoice[inv.id] || [];
-                                  return (
-                                    <div key={inv.id} className="border rounded overflow-hidden">
-                                      <div className="flex items-center justify-between bg-muted/40 px-2.5 py-1.5 text-xs">
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-mono font-semibold">{inv.invoice_number}</span>
-                                          <span className="text-muted-foreground">{new Date(inv.created_at).toLocaleDateString()}</span>
-                                          <Badge variant={inv.status === 'completed' ? 'success' : inv.status === 'partial' ? 'warning' : 'outline'} className="text-[10px]">
-                                            {inv.status}
-                                          </Badge>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                          <span className="text-muted-foreground">Paid: ₦{money(inv.paid_amount)}</span>
-                                          <span className="font-semibold">₦{money(inv.total_amount)}</span>
-                                        </div>
-                                      </div>
-                                      {items.length > 0 && (
-                                        <table className="w-full text-xs">
-                                          <thead className="uppercase text-[10px] text-muted-foreground">
-                                            <tr className="border-t">
-                                              <th className="px-2 py-1 text-left">Service</th>
-                                              <th className="px-2 py-1 text-right w-16">Qty</th>
-                                              <th className="px-2 py-1 text-right w-24">Unit</th>
-                                              <th className="px-2 py-1 text-right w-24">Total</th>
-                                            </tr>
-                                          </thead>
-                                          <tbody>
-                                            {items.map(it => (
-                                              <tr key={it.id} className="border-t">
-                                                <td className="px-2 py-1">{it.description}</td>
-                                                <td className="px-2 py-1 text-right">{it.quantity}</td>
-                                                <td className="px-2 py-1 text-right">₦{money(it.unit_price)}</td>
-                                                <td className="px-2 py-1 text-right font-medium">₦{money(it.total)}</td>
-                                              </tr>
-                                            ))}
-                                          </tbody>
-                                        </table>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                              <div className="flex justify-end gap-4 pt-2 text-xs">
-                                <span className="text-muted-foreground">Paid/copay: <b className="text-foreground">₦{money(patPaid)}</b></span>
-                                <span>Total: <b>₦{money(patTotal)}</b></span>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-sm truncate">
+                                {p.first_name} {p.last_name || ''}
+                              </p>
+                              <div className="flex gap-2 text-[11px] text-muted-foreground flex-wrap">
+                                <span className="font-mono">{p.card_number || '—'}</span>
+                                {p.enrollee_id && <span>ID: {p.enrollee_id}</span>}
+                                {p.insurance_plan && <span className="truncate">{p.insurance_plan}</span>}
                               </div>
                             </div>
                           </div>
-                        </AccordionContent>
-                      </AccordionItem>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">This month</p>
+                            <p className="text-sm font-semibold">₦{money(patTotal)}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{invs.length} invoice{invs.length === 1 ? '' : 's'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t text-[11px]">
+                          {allSubmitted ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-700 font-semibold">
+                              <CheckCircle2 className="h-3.5 w-3.5" /> All claims submitted
+                            </span>
+                          ) : submitted > 0 ? (
+                            <span className="text-amber-700 font-semibold">{submitted}/{invs.length} claims submitted</span>
+                          ) : (
+                            <span className="text-muted-foreground">Not submitted</span>
+                          )}
+                          <span className="text-primary font-medium">Open card →</span>
+                        </div>
+                      </button>
                     );
                   })}
-                </Accordion>
+                </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {openPatient && (
+        <PatientCardDialog
+          patient={openPatient}
+          open={!!openPatient}
+          onOpenChange={(o) => { if (!o) { setOpenPatient(null); load(); } }}
+        />
       )}
     </div>
   );

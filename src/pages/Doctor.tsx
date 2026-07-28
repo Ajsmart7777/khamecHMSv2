@@ -5,7 +5,7 @@ import { TasksPanel } from '@/components/tasks/TasksPanel';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Stethoscope, FileText, ClipboardList, Wifi, RefreshCw } from 'lucide-react';
+import { Stethoscope, FileText, ClipboardList, Wifi, RefreshCw, Pill, FlaskConical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SnapClinicalOrder } from '@/components/visit/SnapClinicalOrder';
 import { usePatients } from '@/contexts/PatientContext';
@@ -19,6 +19,8 @@ import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
 import { AdmissionCaptureDialog } from '@/components/nurse/AdmissionCaptureDialog';
 import { PatientHistoryDialog } from '@/components/doctor/PatientHistoryDialog';
+import { PrescriptionEntryDialog } from '@/components/doctor/PrescriptionEntryDialog';
+import { LabRequestEntryDialog } from '@/components/doctor/LabRequestEntryDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useSearchParams } from 'react-router-dom';
@@ -34,6 +36,8 @@ const Doctor = () => {
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);
+  const [rxOpen, setRxOpen] = useState(false);
+  const [labOpen, setLabOpen] = useState(false);
   const [pendingLabReturnPatientIds, setPendingLabReturnPatientIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -174,11 +178,34 @@ const Doctor = () => {
                 <div className="mx-auto w-12 h-12 rounded-full bg-module-doctor/10 flex items-center justify-center">
                   <ClipboardList className="h-6 w-6 text-module-doctor" />
                 </div>
-                <h3 className="font-semibold">Snap the paper card and route the patient</h3>
+                <h3 className="font-semibold">Write orders or snap the paper card</h3>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                  Write Dx / Rx / Lab request on the card, then snap and choose where the patient goes next.
-                  Lab results always come back to your queue.
+                  Enter structured prescriptions or lab requests below, or snap a paper card to
+                  route the patient. Lab results always come back to your queue.
                 </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Button
+                  variant="default"
+                  className="w-full"
+                  onClick={() => setRxOpen(true)}
+                >
+                  <Pill className="h-4 w-4 mr-2" />
+                  New Prescription
+                </Button>
+                <Button
+                  variant="default"
+                  className="w-full"
+                  onClick={() => setLabOpen(true)}
+                >
+                  <FlaskConical className="h-4 w-4 mr-2" />
+                  New Lab Request
+                </Button>
+              </div>
+
+              <div className="text-xs uppercase tracking-wide text-muted-foreground text-center pt-1">
+                Or snap a paper card
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -188,7 +215,7 @@ const Doctor = () => {
                   defaultOrderType="prescription"
                   defaultTarget="pharmacy"
                   label="Snap → Pharmacy"
-                  variant="default"
+                  variant="outline"
                   className="w-full"
                 />
                 <SnapClinicalOrder
@@ -197,7 +224,7 @@ const Doctor = () => {
                   defaultOrderType="lab"
                   defaultTarget="lab"
                   label="Snap → Lab"
-                  variant="default"
+                  variant="outline"
                   className="w-full"
                 />
                 <SnapClinicalOrder
@@ -278,6 +305,32 @@ const Doctor = () => {
           patientId={selectedPatient.id}
           patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
           onAdmitted={() => setSelectedPatientId(null)}
+        />
+      )}
+
+      {selectedPatient && (
+        <PrescriptionEntryDialog
+          open={rxOpen}
+          onOpenChange={setRxOpen}
+          patientId={selectedPatient.id}
+          patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
+          onCreated={async () => {
+            await updatePatientStatus(selectedPatient.id, 'with_pharmacy');
+            setSelectedPatientId(null);
+          }}
+        />
+      )}
+
+      {selectedPatient && (
+        <LabRequestEntryDialog
+          open={labOpen}
+          onOpenChange={setLabOpen}
+          patientId={selectedPatient.id}
+          patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
+          onCreated={async () => {
+            await updatePatientStatus(selectedPatient.id, 'with_lab');
+            setSelectedPatientId(null);
+          }}
         />
       )}
     </MainLayout>

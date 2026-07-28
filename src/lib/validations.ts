@@ -90,44 +90,8 @@ export const signupSchema = loginSchema.extend({
   path: ['confirmPassword'],
 });
 
-// Prescription item validation
-export const prescriptionItemSchema = z.object({
-  medication: z.string()
-    .trim()
-    .min(1, 'Medication name is required')
-    .max(200, 'Medication name must be less than 200 characters'),
-  
-  dosage: z.string()
-    .trim()
-    .min(1, 'Dosage is required')
-    .max(100, 'Dosage must be less than 100 characters'),
-  
-  frequency: z.string()
-    .trim()
-    .min(1, 'Frequency is required')
-    .max(100, 'Frequency must be less than 100 characters'),
-  
-  duration: z.string()
-    .trim()
-    .min(1, 'Duration is required')
-    .max(100, 'Duration must be less than 100 characters'),
-  
-  quantity: z.number()
-    .int('Quantity must be a whole number')
-    .positive('Quantity must be greater than 0')
-    .max(9999, 'Quantity is too large'),
-});
-
-// Lab request validation
-export const labRequestSchema = z.object({
-  tests: z.array(z.string().min(1)).min(1, 'At least one test must be selected'),
-  diagnosis: z.string().max(1000, 'Diagnosis must be less than 1000 characters').optional(),
-});
-
 // Type exports
 export type PatientFormData = z.infer<typeof patientSchema>;
 export type PaymentFormData = z.infer<typeof paymentSchema>;
 export type LoginFormData = z.infer<typeof loginSchema>;
 export type SignupFormData = z.infer<typeof signupSchema>;
-export type PrescriptionItemFormData = z.infer<typeof prescriptionItemSchema>;
-export type LabRequestFormData = z.infer<typeof labRequestSchema>;

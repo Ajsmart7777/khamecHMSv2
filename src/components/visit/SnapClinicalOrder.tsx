@@ -157,26 +157,27 @@ export function SnapClinicalOrder({
         station: sourceStation,
       }).catch(() => null);
 
-      // 3. Create snap_order row for billing queue.
-      //    For target=nurse we skip snap_order creation so the patient shows up
-      //    in the main Nurse Patient Queue (not the Treatment Review inbox).
-      //    The photo is already attached to the visit envelope above.
+      // 3. Create snap_order row.
+      //    - target=nurse  → lands in the Nurse "Treatment Review" inbox
+      //      (the nurse reviews the photo and forwards to Billing).
+      //      Patient status is NOT changed to with_nurse, so the patient
+      //      does not re-appear in the main Nurse Patient Queue.
+      //    - other targets → straight to Billing.
+      const snap = await createSnapOrder({
+        patientId,
+        visitId,
+        orderType,
+        targetStation: target,
+        sourceRole: role ?? sourceStation,
+        photoPath: path,
+        note: note.trim(),
+      });
+      if (!snap) throw new Error('Snap order not created');
       if (target === 'nurse') {
-        await updatePatientStatus(patientId, 'with_nurse').catch(() => null);
-        toast.success('Sent back to Nurse', {
-          description: 'Patient is back in the nurse queue.',
+        toast.success('Sent to Nurse for Review', {
+          description: 'Patient will appear in the nurse Treatment Review inbox.',
         });
       } else {
-        const snap = await createSnapOrder({
-          patientId,
-          visitId,
-          orderType,
-          targetStation: target,
-          sourceRole: role ?? sourceStation,
-          photoPath: path,
-          note: note.trim(),
-        });
-        if (!snap) throw new Error('Snap order not created');
         await updatePatientStatus(patientId, 'awaiting_billing').catch(() => null);
         toast.success('Sent to Billing', {
           description: `${orderType === 'lab' ? 'Lab test' : orderType === 'prescription' ? 'Prescription' : 'Treatment'} pending billing.`,

@@ -39,6 +39,7 @@ async function settleInvoiceAsPaid(
   paymentMethod: string,
   notes?: string,
 ) {
+  // Sponsor full-cover path: no wallet/debt changes, just close the invoice.
   const updatePayload: Record<string, any> = {
     paid_amount: paidAmount,
     status: 'paid',
@@ -53,6 +54,28 @@ async function settleInvoiceAsPaid(
     .eq('id', invoiceId);
 
   if (error) throw new Error(`Failed to settle invoice: ${error.message}`);
+}
+
+async function settleInvoiceAtomic(params: {
+  invoiceId: string;
+  cashAmount: number;
+  balanceAmount: number;
+  debtAmount: number;
+  paymentMethod: string;
+  notes?: string;
+  sponsored: boolean;
+}) {
+  const { data, error } = await supabase.rpc('settle_invoice_atomic', {
+    _invoice_id: params.invoiceId,
+    _cash_amount: params.cashAmount,
+    _balance_amount: params.balanceAmount,
+    _debt_amount: params.debtAmount,
+    _payment_method: params.paymentMethod,
+    _notes: params.notes ?? null,
+    _sponsored: params.sponsored,
+  });
+  if (error) throw new Error(`Failed to settle invoice: ${error.message}`);
+  return data as any;
 }
 
 export function CashierPanel() {
@@ -242,38 +265,8 @@ export function CashierPanel() {
 
     setBusy(true);
     try {
-      // 1. Deduct from patient balance first (if any). The invoice itself is
-      // closed once at the end so mixed balance + cash + sponsor payments do
-      // not overwrite each other with stale paid_amount values.
-      if (bal > 0) {
-        const { error: balErr } = await supabase.rpc('adjust_patient_balance', {
-          _patient_id: selected.patient_id,
-          _delta: -bal,
-          _transaction_type: 'invoice_deduction',
-          _payment_method: 'balance',
-          _related_invoice_id: selected.id,
-          _notes: `Applied to invoice ${selected.invoice_number}`,
-        });
-        if (balErr) throw new Error(`Balance deduction failed: ${balErr.message}`);
-      }
-
-      // 2. Handle debt shortfall for cash patients. The invoice is still
-      // settled; the unpaid portion becomes patient debt instead of blocking
-      // the workflow.
-      if (!sponsored && shortfall > 0) {
-        const { error: debtErr } = await supabase.rpc('adjust_patient_balance', {
-          _patient_id: selected.patient_id,
-          _delta: -shortfall,
-          _transaction_type: 'debt_incurred',
-          _payment_method: method,
-          _related_invoice_id: selected.id,
-          _notes: `Shortfall on invoice ${selected.invoice_number}`,
-        });
-        if (debtErr) throw new Error(`Failed to record debt: ${debtErr.message}`);
-      }
-
-      // 3. Close the invoice once. This reliably fires the backend paid-order
-      // sync, which moves linked lab/pharmacy snaps into their station queues.
+      // Wallet deduction, debt recording, and invoice close all run in a single
+      // server-side transaction — no partial states if any step fails.
       const paymentMethod = sponsored
         ? 'sponsor_claim'
         : bal > 0 && cash === 0
@@ -284,10 +277,16 @@ export function CashierPanel() {
         : shortfall > 0
         ? `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`
         : undefined;
-      // paid_amount records real money collected from the patient (cash + balance).
-      // The sponsor-covered portion is tracked via the claims flow, not lumped in here.
-      const collected = alreadyPaid + cash + bal;
-      await settleInvoiceAsPaid(selected.id, collected, paymentMethod, notes);
+      const debt = !sponsored && shortfall > 0 ? shortfall : 0;
+      await settleInvoiceAtomic({
+        invoiceId: selected.id,
+        cashAmount: cash,
+        balanceAmount: bal,
+        debtAmount: debt,
+        paymentMethod,
+        notes,
+        sponsored,
+      });
 
       await refreshInvoices();
       if (typeof refreshPatients === 'function') await refreshPatients();

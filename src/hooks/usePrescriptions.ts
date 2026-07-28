@@ -92,68 +92,6 @@ export function usePrescriptions() {
     };
   }, [fetchPrescriptions]);
 
-  const createPrescription = async (
-    patientId: string,
-    diagnosis: string,
-    items: Omit<PrescriptionItem, 'id' | 'prescription_id' | 'dispensed' | 'created_at'>[]
-  ): Promise<Prescription | null> => {
-    try {
-      // Create prescription
-      const { data: prescription, error: prescriptionError } = await supabase
-        .from('prescriptions')
-        .insert({
-          patient_id: patientId,
-          diagnosis: diagnosis || null,
-          status: 'pending',
-        })
-        .select()
-        .single();
-
-      if (prescriptionError || !prescription) {
-        logError('Error creating prescription', prescriptionError);
-        return null;
-      }
-
-      // Create prescription items
-      if (items.length > 0) {
-        const itemsToInsert = items.map(item => ({
-          prescription_id: prescription.id,
-          medication: item.medication,
-          dosage: item.dosage,
-          frequency: item.frequency,
-          duration: item.duration,
-          quantity: item.quantity,
-        }));
-
-        const { error: itemsError } = await supabase
-          .from('prescription_items')
-          .insert(itemsToInsert);
-
-        if (itemsError) {
-          logError('Error creating prescription items', itemsError);
-        }
-      }
-
-      // Log audit event
-      await prescriptionAuditLogger(
-        'prescription_created',
-        prescription.id,
-        { 
-          patient_id: patientId, 
-          diagnosis, 
-          items_count: items.length,
-          medications: items.map(i => i.medication)
-        }
-      );
-
-      await fetchPrescriptions();
-      return prescription;
-    } catch (error) {
-      logError('Error in createPrescription', error);
-      return null;
-    }
-  };
-
   const updatePrescriptionStatus = async (id: string, status: string): Promise<boolean> => {
     try {
       const { error } = await supabase
@@ -219,7 +157,6 @@ export function usePrescriptions() {
   return {
     prescriptions,
     loading,
-    createPrescription,
     updatePrescriptionStatus,
     markItemDispensed,
     getPrescriptionsForPatient,

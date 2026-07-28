@@ -926,6 +926,35 @@ function InvoiceRow({ inv, patient }: { inv: any; patient: Patient }) {
   const claimPosted = sponsored && paid >= total; // sponsor_claim payment closed it
   const copayCollected = sponsored ? Math.min(paid, split.copayAmount) : 0;
   const copayDue = sponsored ? Math.max(split.copayAmount - copayCollected, 0) : 0;
+  const [submitting, setSubmitting] = useState(false);
+  const [submittedAt, setSubmittedAt] = useState<string | null>(inv.claim_submitted_at ?? null);
+  const isInsurance = ['nhis', 'hmo', 'katchma'].includes(String(patient.account_type));
+  const showClaimAction = sponsored && isInsurance && paid >= total;
+
+  const submitClaim = async () => {
+    setSubmitting(true);
+    const { error } = await supabase.rpc('mark_invoice_claim_submitted', {
+      _invoice_id: inv.id,
+      _notes: null,
+    });
+    setSubmitting(false);
+    if (error) {
+      toast({ title: 'Failed to mark claim submitted', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setSubmittedAt(new Date().toISOString());
+    toast({ title: 'Claim marked as submitted', description: `Invoice ${inv.invoice_number} recorded as sent to provider.` });
+  };
+  const undoClaim = async () => {
+    setSubmitting(true);
+    const { error } = await supabase.rpc('unmark_invoice_claim_submitted', { _invoice_id: inv.id });
+    setSubmitting(false);
+    if (error) {
+      toast({ title: 'Failed to undo', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setSubmittedAt(null);
+  };
   return (
     <div>
       {sponsored && (
@@ -988,6 +1017,31 @@ function InvoiceRow({ inv, patient }: { inv: any; patient: Patient }) {
           )}
         </tfoot>
       </table>
+      {showClaimAction && (
+        <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2">
+          {submittedAt ? (
+            <>
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
+                <CheckCircle2 className="h-4 w-4" />
+                Claim submitted to provider · {format(new Date(submittedAt), 'dd MMM yyyy, HH:mm')}
+              </span>
+              <Button size="sm" variant="ghost" disabled={submitting} onClick={undoClaim} className="h-7 text-xs">
+                Undo
+              </Button>
+            </>
+          ) : (
+            <>
+              <span className="text-xs text-muted-foreground">
+                Submit this invoice as a claim on the provider's portal, then mark it here.
+              </span>
+              <Button size="sm" disabled={submitting} onClick={submitClaim} className="h-7 text-xs gap-1.5">
+                <Send className="h-3.5 w-3.5" />
+                {submitting ? 'Saving…' : 'Mark claim submitted'}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -3056,6 +3056,7 @@ export type Database = {
         Returns: string
       }
       recalc_visit_totals: { Args: { _visit_id: string }; Returns: undefined }
+      reconcile_paid_snap_orders: { Args: never; Returns: Json }
       release_task: {
         Args: { _notes?: string; _source: string; _source_id: string }
         Returns: boolean

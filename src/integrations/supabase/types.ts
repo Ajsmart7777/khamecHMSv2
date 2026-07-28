@@ -2942,6 +2942,19 @@ export type Database = {
         }
         Returns: string
       }
+      create_lab_request_from_snap: {
+        Args: { _diagnosis?: string; _snap_id: string; _tests: string[] }
+        Returns: string
+      }
+      create_prescription_from_snap: {
+        Args: {
+          _diagnosis?: string
+          _items?: Json
+          _notes?: string
+          _snap_id: string
+        }
+        Returns: string
+      }
       current_actor_role: { Args: { _user_id: string }; Returns: string }
       discharge_admission: {
         Args: {

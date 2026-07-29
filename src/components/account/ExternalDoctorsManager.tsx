@@ -51,7 +51,7 @@ export function ExternalDoctorsManager() {
         <div className="text-center py-8"><Loader2 className="h-5 w-5 mx-auto animate-spin" /></div>
       ) : doctors.length === 0 ? (
         <div className="text-center py-10 border rounded-lg text-muted-foreground text-sm">
-          No external doctors yet. Add prescribers who write standing orders outside the hospital.
+          No external doctors yet. Add prescribers who write orders outside the hospital.
         </div>
       ) : (
         <div className="grid gap-2">

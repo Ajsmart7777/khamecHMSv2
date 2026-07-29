@@ -59,12 +59,10 @@ import { z } from 'zod';
 import { paymentAuditLogger } from '@/lib/auditLogger';
 import { useInvoices } from '@/hooks/useInvoices';
 import { nextStationForInvoice, workflowStationLabel } from '@/lib/workflowRouting';
-import { StandingOrderCaptureDialog } from '@/components/reception/StandingOrderCaptureDialog';
-import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
 import { PatientBalanceHistory } from '@/components/reception/PatientBalanceHistory';
 import { EditPatientDialog } from '@/components/reception/EditPatientDialog';
 import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';
-import { Stethoscope, ArrowUpCircle, ArrowDownCircle, LogIn } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle, LogIn } from 'lucide-react';
 import { ShieldCheck } from 'lucide-react';
 import { BalanceRequestDialog } from '@/components/reception/BalanceRequestDialog';
 import { StaffSelector } from '@/components/reception/StaffSelector';
@@ -140,7 +138,6 @@ const Reception = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
-  const [standingOrderOpen, setStandingOrderOpen] = useState(false);
   const [prefillVerification, setPrefillVerification] = useState<EligibilityVerification | null>(null);
   const [verificationPanelOpen, setVerificationPanelOpen] = useState(false);
 
@@ -214,14 +211,6 @@ const Reception = () => {
           variant="outline"
           size="sm"
           className="h-8 ml-auto"
-          onClick={() => setStandingOrderOpen(true)}
-        >
-          <Stethoscope className="h-3.5 w-3.5 mr-1.5" /> Capture External Prescription
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8"
           onClick={() => setVerificationPanelOpen(true)}
         >
           <ShieldCheck className="h-3.5 w-3.5 mr-1.5" /> Insurance Verification
@@ -243,12 +232,6 @@ const Reception = () => {
           />
         </DialogContent>
       </Dialog>
-      <StandingOrderCaptureDialog
-        open={standingOrderOpen}
-        onOpenChange={setStandingOrderOpen}
-        presetPatientId={selectedPatientId || undefined}
-      />
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Panel - Patient List */}
         <div className="lg:col-span-1">
@@ -384,7 +367,6 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [preferredDoctor, setPreferredDoctor] = useState<'doctor1' | 'doctor2' | 'none'>('none');
   const [isJourneyOpen, setIsJourneyOpen] = useState(false);
-  const [isStandingOrderOpen, setIsStandingOrderOpen] = useState(false);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const { visit: activeVisit } = useActiveVisit(patient.id);
@@ -718,14 +700,6 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
           </Button>
         )}
 
-        <Button
-          variant="outline"
-          className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-sm border-primary/30 text-primary"
-          onClick={() => setIsStandingOrderOpen(true)}
-        >
-          <Stethoscope className="h-5 w-5" />
-          <span className="text-xs leading-tight text-center">Capture External Rx</span>
-        </Button>
       </div>
 
       {canUseBalance && (
@@ -759,19 +733,11 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
         />
       )}
 
-      <StandingOrderCaptureDialog
-        open={isStandingOrderOpen}
-        onOpenChange={setIsStandingOrderOpen}
-        presetPatientId={patient.id}
-      />
-
       <EditPatientDialog
         patient={patient}
         open={isEditOpen}
         onOpenChange={setIsEditOpen}
       />
-
-      <PatientStandingOrders patientId={patient.id} />
 
       <PatientBalanceHistory patientId={patient.id} />
 

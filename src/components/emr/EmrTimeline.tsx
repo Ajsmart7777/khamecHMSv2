@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
-import { Activity, FileText, FlaskConical, Pill, Receipt, Camera } from 'lucide-react';
+import { Activity, FileText, FlaskConical, Pill, Receipt } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 
 interface Entry {
   date: string;
-  type: 'vitals' | 'prescription' | 'lab' | 'invoice' | 'standing_order';
+  type: 'vitals' | 'prescription' | 'lab' | 'invoice';
   data: Record<string, any>;
 }
 
@@ -15,7 +15,6 @@ const icons: Record<Entry['type'], typeof Activity> = {
   prescription: Pill,
   lab: FlaskConical,
   invoice: Receipt,
-  standing_order: Camera,
 };
 
 const colors: Record<Entry['type'], string> = {
@@ -23,7 +22,6 @@ const colors: Record<Entry['type'], string> = {
   prescription: 'text-module-pharmacy',
   lab: 'text-module-lab',
   invoice: 'text-module-billing',
-  standing_order: 'text-accent',
 };
 
 export function EmrTimeline({ patientId }: { patientId: string }) {
@@ -109,11 +107,6 @@ export function EmrTimeline({ patientId }: { patientId: string }) {
                 {e.type === 'invoice' && (
                   <p>
                     {d.invoice_number} — ₦{Number(d.total_amount || 0).toLocaleString()} ({d.status})
-                  </p>
-                )}
-                {e.type === 'standing_order' && (
-                  <p>
-                    External {d.order_type || 'order'} — {d.doctor_name || 'unknown doctor'}
                   </p>
                 )}
               </div>

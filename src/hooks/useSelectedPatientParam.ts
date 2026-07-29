@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 
 /**
  * Syncs a "selected patient" state with the `?patient=<id>` URL query.
- * Enables deep links from TasksPanel (or elsewhere) to auto-select a patient
+ * Enables deep links (e.g. from notifications) to auto-select a patient
  * on the target role page. Preserves other query params.
  */
 export function useSelectedPatientParam(paramKey: string = 'patient') {

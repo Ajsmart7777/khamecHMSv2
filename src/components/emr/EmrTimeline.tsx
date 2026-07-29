@@ -34,19 +34,17 @@ export function EmrTimeline({ patientId }: { patientId: string }) {
     let active = true;
     (async () => {
       setLoading(true);
-      const [v, p, l, i, s] = await Promise.all([
+      const [v, p, l, i] = await Promise.all([
         supabase.from('vitals').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
         supabase.from('prescriptions').select('*, prescription_items(*)').eq('patient_id', patientId).order('created_at', { ascending: false }),
         supabase.from('lab_requests').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
         supabase.from('invoices').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
-        supabase.from('standing_orders').select('*').eq('patient_id', patientId).order('created_at', { ascending: false }),
       ]);
       const all: Entry[] = [];
       (v.data ?? []).forEach((d: any) => all.push({ date: d.created_at, type: 'vitals', data: d }));
       (p.data ?? []).forEach((d: any) => all.push({ date: d.created_at, type: 'prescription', data: d }));
       (l.data ?? []).forEach((d: any) => all.push({ date: d.created_at, type: 'lab', data: d }));
       (i.data ?? []).forEach((d: any) => all.push({ date: d.created_at, type: 'invoice', data: d }));
-      (s.data ?? []).forEach((d: any) => all.push({ date: d.created_at, type: 'standing_order', data: d }));
       all.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       if (active) {
         setEntries(all);

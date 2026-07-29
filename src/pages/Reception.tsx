@@ -2,7 +2,6 @@ import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
 import { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { hasWallet } from '@/lib/copay';
-import { TasksPanel } from '@/components/tasks/TasksPanel';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

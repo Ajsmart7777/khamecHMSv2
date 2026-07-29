@@ -3068,6 +3068,7 @@ export type Database = {
         Args: { _patient_id: string }
         Returns: string
       }
+      purge_clinical_data: { Args: { _modules: string[] }; Returns: Json }
       recalc_visit_totals: { Args: { _visit_id: string }; Returns: undefined }
       reconcile_paid_snap_orders: { Args: never; Returns: Json }
       release_task: {

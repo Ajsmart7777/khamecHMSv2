@@ -1,7 +1,6 @@
 import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
 import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { TasksPanel } from '@/components/tasks/TasksPanel';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -72,7 +71,6 @@ const NurseStation = () => {
 
   return (
     <MainLayout title="Nurse Station" subtitle="Record vitals and patient notes">
-      <TasksPanel role="nurse" status={['pending', 'in_progress']} onSelectPatient={setSelectedPatientId} />
       {/* Real-time indicator */}
       <div className="flex items-center gap-2 mb-4">
         <div className="flex items-center gap-1.5 text-xs text-success">

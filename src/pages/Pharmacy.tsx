@@ -2,7 +2,6 @@ import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { TasksPanel } from '@/components/tasks/TasksPanel';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { StandingOrdersQueue } from '@/components/pharmacy/StandingOrdersQueue';
 import { Button } from '@/components/ui/button';
@@ -289,7 +288,6 @@ const Pharmacy = () => {
 
   return (
     <MainLayout title="Pharmacy" subtitle="Medication dispensing and stock management">
-      <TasksPanel role="pharmacist" status={['pending', 'in_progress']} onSelectPatient={setSelectedPatientId} />
       {/* Connection Status */}
       <div className="mb-4 flex items-center gap-2">
         {loading ? (

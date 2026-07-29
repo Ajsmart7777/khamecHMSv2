@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { TasksPanel } from '@/components/tasks/TasksPanel';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -166,7 +165,6 @@ const Laboratory = () => {
 
   return (
     <MainLayout title="Laboratory" subtitle="Test management and results recording">
-      <TasksPanel role="lab_tech" source="lab_requests" status={['pending', 'in_progress']} />
       {/* Connection Status */}
       <div className="mb-4 flex items-center gap-2">
         {loading ? (

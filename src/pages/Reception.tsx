@@ -201,7 +201,6 @@ const Reception = () => {
 
   return (
     <MainLayout title="Reception" subtitle="Patient registration and payment collection">
-      <TasksPanel role="receptionist" status={['pending', 'in_progress']} />
       {/* Real-time indicator */}
       <div className="flex items-center gap-2 mb-4">
         <div className="flex items-center gap-1.5 text-xs text-success">

@@ -367,7 +367,6 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [preferredDoctor, setPreferredDoctor] = useState<'doctor1' | 'doctor2' | 'none'>('none');
   const [isJourneyOpen, setIsJourneyOpen] = useState(false);
-  const [isStandingOrderOpen, setIsStandingOrderOpen] = useState(false);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const { visit: activeVisit } = useActiveVisit(patient.id);
@@ -701,14 +700,6 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
           </Button>
         )}
 
-        <Button
-          variant="outline"
-          className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-sm border-primary/30 text-primary"
-          onClick={() => setIsStandingOrderOpen(true)}
-        >
-          <Stethoscope className="h-5 w-5" />
-          <span className="text-xs leading-tight text-center">Capture External Rx</span>
-        </Button>
       </div>
 
       {canUseBalance && (
@@ -742,19 +733,11 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
         />
       )}
 
-      <StandingOrderCaptureDialog
-        open={isStandingOrderOpen}
-        onOpenChange={setIsStandingOrderOpen}
-        presetPatientId={patient.id}
-      />
-
       <EditPatientDialog
         patient={patient}
         open={isEditOpen}
         onOpenChange={setIsEditOpen}
       />
-
-      <PatientStandingOrders patientId={patient.id} />
 
       <PatientBalanceHistory patientId={patient.id} />
 

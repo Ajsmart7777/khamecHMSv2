@@ -59,8 +59,6 @@ import { z } from 'zod';
 import { paymentAuditLogger } from '@/lib/auditLogger';
 import { useInvoices } from '@/hooks/useInvoices';
 import { nextStationForInvoice, workflowStationLabel } from '@/lib/workflowRouting';
-import { StandingOrderCaptureDialog } from '@/components/reception/StandingOrderCaptureDialog';
-import { PatientStandingOrders } from '@/components/reception/PatientStandingOrders';
 import { PatientBalanceHistory } from '@/components/reception/PatientBalanceHistory';
 import { EditPatientDialog } from '@/components/reception/EditPatientDialog';
 import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';
@@ -140,7 +138,6 @@ const Reception = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [isNewPatientOpen, setIsNewPatientOpen] = useState(false);
-  const [standingOrderOpen, setStandingOrderOpen] = useState(false);
   const [prefillVerification, setPrefillVerification] = useState<EligibilityVerification | null>(null);
   const [verificationPanelOpen, setVerificationPanelOpen] = useState(false);
 
@@ -214,14 +211,6 @@ const Reception = () => {
           variant="outline"
           size="sm"
           className="h-8 ml-auto"
-          onClick={() => setStandingOrderOpen(true)}
-        >
-          <Stethoscope className="h-3.5 w-3.5 mr-1.5" /> Capture External Prescription
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8"
           onClick={() => setVerificationPanelOpen(true)}
         >
           <ShieldCheck className="h-3.5 w-3.5 mr-1.5" /> Insurance Verification
@@ -243,12 +232,6 @@ const Reception = () => {
           />
         </DialogContent>
       </Dialog>
-      <StandingOrderCaptureDialog
-        open={standingOrderOpen}
-        onOpenChange={setStandingOrderOpen}
-        presetPatientId={selectedPatientId || undefined}
-      />
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Panel - Patient List */}
         <div className="lg:col-span-1">

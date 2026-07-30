@@ -17,6 +17,7 @@ import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
 import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
 import { AdmissionCaptureDialog } from '@/components/nurse/AdmissionCaptureDialog';
+import { useAdmissionPerms } from '@/lib/admissionPermissions';
 import { PatientHistoryDialog } from '@/components/doctor/PatientHistoryDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,6 +34,7 @@ const Doctor = () => {
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);
+  const canAct = useAdmissionPerms();
   const [pendingLabReturnPatientIds, setPendingLabReturnPatientIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -205,16 +207,18 @@ const Doctor = () => {
                 />
               </div>
 
-              <div className="pt-2">
-                <Button
-                  variant="secondary"
-                  className="w-full"
-                  onClick={() => setAdmitOpen(true)}
-                >
-                  <BedDouble className="h-4 w-4 mr-2" />
-                  Snap to Admit
-                </Button>
-              </div>
+              {canAct('admit') && (
+                <div className="pt-2">
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={() => setAdmitOpen(true)}
+                  >
+                    <BedDouble className="h-4 w-4 mr-2" />
+                    Snap to Admit
+                  </Button>
+                </div>
+              )}
 
               <div className="pt-1">
                 <Button

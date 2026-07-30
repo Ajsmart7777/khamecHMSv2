@@ -8,6 +8,7 @@ import { useAdmissions, Admission } from '@/hooks/useAdmissions';
 import { snapPhotoUrl } from '@/hooks/useSnapOrders';
 import { AssignBedDialog } from '@/components/nurse/AssignBedDialog';
 import { copayPercent, sponsorLabel } from '@/lib/copay';
+import { useAdmissionPerms } from '@/lib/admissionPermissions';
 
 const fmt = (n: number) => `₦${Number(n || 0).toLocaleString()}`;
 
@@ -21,6 +22,7 @@ export function AwaitingRoomPanel() {
   const { patients } = usePatients();
   const [openId, setOpenId] = useState<string | null>(null);
   const [assignFor, setAssignFor] = useState<Admission | null>(null);
+  const can = useAdmissionPerms();
 
   const patientOf = useMemo(() => {
     const m = new Map<string, any>();
@@ -104,9 +106,15 @@ export function AwaitingRoomPanel() {
                       </p>
                     )}
 
-                    <Button size="sm" className="w-full" onClick={() => setAssignFor(a)}>
-                      <BedDouble className="h-3.5 w-3.5 mr-1.5" /> Assign ward &amp; room
-                    </Button>
+                    {can('assignBed') ? (
+                      <Button size="sm" className="w-full" onClick={() => setAssignFor(a)}>
+                        <BedDouble className="h-3.5 w-3.5 mr-1.5" /> Assign ward &amp; room
+                      </Button>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Only a nurse can assign a ward &amp; room for this patient.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

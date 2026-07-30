@@ -212,7 +212,7 @@ const Doctor = () => {
                   onClick={() => setAdmitOpen(true)}
                 >
                   <BedDouble className="h-4 w-4 mr-2" />
-                  Admit Patient (Awaiting Room)
+                  Snap to Admit
                 </Button>
               </div>
 

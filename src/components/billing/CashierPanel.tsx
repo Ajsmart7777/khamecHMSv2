@@ -82,6 +82,8 @@ export function CashierPanel() {
   const { getPendingInvoices, refreshInvoices } = useInvoices();
   const { patients, updatePatientStatus, refreshPatients } = usePatients() as any;
   const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'all' | 'copay' | 'covered'>('all');
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [selected, setSelected] = useState<Invoice | null>(null);
   const [cashAmount, setCashAmount] = useState('');
   const [method, setMethod] = useState<string>('cash');
@@ -113,7 +115,14 @@ export function CashierPanel() {
     return pending
       .map((inv) => {
         const patient = patients.find((p: any) => p.id === inv.patient_id);
-        return { inv, patient };
+        const spon = patient ? isSponsored(patient) : false;
+        const fullyCovered = spon && splitInvoice(Number(inv.total_amount), patient).copayAmount === 0;
+        return { inv, patient, fullyCovered };
+      })
+      .filter(({ fullyCovered }) => {
+        if (filter === 'copay') return !fullyCovered;
+        if (filter === 'covered') return fullyCovered;
+        return true;
       })
       .filter(({ inv, patient }) => {
         if (!q) return true;
@@ -124,7 +133,59 @@ export function CashierPanel() {
           patient?.card_number?.toLowerCase().includes(q)
         );
       });
-  }, [pending, patients, query]);
+  }, [pending, patients, query, filter]);
+
+  // Every pending invoice a sponsor covers 100% (HMO, corporate, retainer,
+  // staff, KATCHMA basic…) — the patient pays nothing at the cashier.
+  const coveredRows = useMemo(
+    () =>
+      pending
+        .map((inv) => ({ inv, patient: patients.find((p: any) => p.id === inv.patient_id) }))
+        .filter(
+          ({ inv, patient }) =>
+            patient &&
+            isSponsored(patient) &&
+            splitInvoice(Number(inv.total_amount), patient).copayAmount === 0,
+        ),
+    [pending, patients],
+  );
+
+  /** Acknowledge every fully covered invoice in one pass — no money changes hands. */
+  const clearFullyCovered = async () => {
+    if (coveredRows.length === 0) return;
+    setBulkBusy(true);
+    let done = 0;
+    try {
+      for (const { inv, patient } of coveredRows) {
+        try {
+          await settleInvoiceAsPaid(
+            inv.id,
+            Number(inv.paid_amount),
+            'sponsor_claim',
+            `Sponsor fully covered · ${sponsorLabel(patient)}`,
+          );
+          await paymentAuditLogger('payment_received', inv.invoice_number, {
+            patient_id: inv.patient_id,
+            patient_name: `${patient.first_name} ${patient.last_name ?? ''}`.trim(),
+            action: 'sponsor_fully_covered_bulk',
+            sponsor: sponsorLabel(patient),
+            covered_amount: Number(inv.total_amount) - Number(inv.paid_amount),
+            copay_amount: 0,
+          });
+          const nextStation = await nextStationForInvoice(inv.id, inv.patient_id);
+          await updatePatientStatus(inv.patient_id, nextStation);
+          done += 1;
+        } catch (e) {
+          // keep going — one bad invoice must not block the rest
+        }
+      }
+      await refreshInvoices();
+      await refreshPatients?.();
+      toast.success(`${done} fully covered invoice${done === 1 ? '' : 's'} sent to Claims`);
+    } finally {
+      setBulkBusy(false);
+    }
+  };
 
   const selectedPatient = selected
     ? patients.find((p: any) => p.id === selected.patient_id)
@@ -374,6 +435,36 @@ export function CashierPanel() {
           placeholder="Search invoice # or patient…"
           className="h-8 pl-7 text-sm"
         />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 mb-3">
+        {([
+          { k: 'all', label: `All (${pending.length})` },
+          { k: 'copay', label: `Copay due (${pending.length - coveredRows.length})` },
+          { k: 'covered', label: `Fully covered (${coveredRows.length})` },
+        ] as const).map(({ k, label }) => (
+          <Button
+            key={k}
+            size="sm"
+            variant={filter === k ? 'default' : 'outline'}
+            className="h-7 text-xs"
+            onClick={() => setFilter(k)}
+          >
+            {label}
+          </Button>
+        ))}
+        {coveredRows.length > 0 && (
+          <Button
+            size="sm"
+            variant="secondary"
+            className="h-7 text-xs ml-auto"
+            disabled={bulkBusy}
+            onClick={clearFullyCovered}
+          >
+            <Send className="h-3.5 w-3.5 mr-1" />
+            {bulkBusy ? 'Clearing…' : 'Clear fully covered'}
+          </Button>
+        )}
       </div>
 
       <div className="space-y-2 max-h-[360px] overflow-y-auto">

@@ -1,27 +1,32 @@
-import { useState } from 'react';
-import { BedDouble, ArrowRight, Stethoscope } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { BedDouble, ChevronDown, ChevronRight, Wallet, User2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
 import { usePatients } from '@/contexts/PatientContext';
 import { formatDistanceToNow } from 'date-fns';
+import { useAdmissions, Admission } from '@/hooks/useAdmissions';
+import { snapPhotoUrl } from '@/hooks/useSnapOrders';
+import { AssignBedDialog } from '@/components/nurse/AssignBedDialog';
+import { copayPercent, sponsorLabel } from '@/lib/copay';
+
+const fmt = (n: number) => `₦${Number(n || 0).toLocaleString()}`;
 
 /**
- * Awaiting Room — patients the doctor has admitted for observation / short-stay.
- * They live under the Nurse station so vitals & monitoring continue until the
- * doctor recalls them or discharges.
+ * Awaiting Room — admission requests snapped by a doctor or nurse. The card
+ * waits here (it never moves) while the patient deposits at Reception/Cashier.
+ * The nurse expands the card, checks the balance, then assigns ward & room.
  */
 export function AwaitingRoomPanel() {
-  const { getPatientsByStatus, updatePatientStatus } = usePatients();
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const patients = getPatientsByStatus(['awaiting_room']);
+  const { admissions } = useAdmissions({ statuses: ['waiting_assignment'] });
+  const { patients } = usePatients();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [assignFor, setAssignFor] = useState<Admission | null>(null);
 
-  const sendBackToDoctor = async (id: string, name: string) => {
-    setBusyId(id);
-    const ok = await updatePatientStatus(id, 'with_doctor');
-    setBusyId(null);
-    if (ok) toast.success(`${name} sent back to Doctor`);
-  };
+  const patientOf = useMemo(() => {
+    const m = new Map<string, any>();
+    patients.forEach((p) => m.set(p.id, p));
+    return m;
+  }, [patients]);
 
   return (
     <div className="bg-card rounded-xl border border-border p-4">
@@ -30,55 +35,109 @@ export function AwaitingRoomPanel() {
           <BedDouble className="h-4 w-4 text-module-nurse" />
           Awaiting Room
         </h3>
-        <Badge variant="info">{patients.length}</Badge>
+        <Badge variant="info">{admissions.length}</Badge>
       </div>
 
-      {patients.length === 0 ? (
+      {admissions.length === 0 ? (
         <div className="text-center py-6 text-muted-foreground">
           <BedDouble className="h-8 w-8 mx-auto mb-2 opacity-40" />
-          <p className="text-xs">No patients admitted for observation</p>
+          <p className="text-xs">No admission requests waiting for a room</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {patients.map((p) => (
-            <div
-              key={p.id}
-              className="p-3 rounded-lg border border-border hover:border-module-nurse/50 transition-all"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium text-sm truncate">
-                    {p.first_name} {p.last_name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {p.card_number} · admitted{' '}
-                    {p.updated_at
-                      ? formatDistanceToNow(new Date(p.updated_at), { addSuffix: true })
-                      : ''}
-                  </p>
-                  {p.assigned_doctor && (
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Under {p.assigned_doctor === 'doctor1' ? 'Doctor 1' : 'Doctor 2'}
-                    </p>
-                  )}
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busyId === p.id}
-                  onClick={() =>
-                    sendBackToDoctor(p.id, `${p.first_name} ${p.last_name}`)
-                  }
+          {admissions.map((a) => {
+            const p = patientOf.get(a.patient_id);
+            const name = p ? `${p.first_name} ${p.last_name ?? ''}`.trim() : 'Unknown patient';
+            const balance = Number(p?.balance ?? 0);
+            const pct = copayPercent({ account_type: p?.account_type, insurance_plan: p?.insurance_plan });
+            const expanded = openId === a.id;
+            return (
+              <div key={a.id} className="rounded-lg border border-border overflow-hidden">
+                <button
+                  type="button"
+                  className="w-full p-3 flex items-start gap-2 text-left hover:bg-muted/50 transition-colors"
+                  onClick={() => setOpenId(expanded ? null : a.id)}
                 >
-                  <Stethoscope className="h-3.5 w-3.5 mr-1" />
-                  To Doctor
-                  <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                </Button>
+                  {expanded ? <ChevronDown className="h-4 w-4 mt-0.5" /> : <ChevronRight className="h-4 w-4 mt-0.5" />}
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm truncate flex items-center gap-1.5">
+                      <User2 className="h-3.5 w-3.5" /> {name}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {p?.card_number} · requested{' '}
+                      {formatDistanceToNow(new Date(a.created_at), { addSuffix: true })}
+                    </p>
+                  </div>
+                  <Badge variant={pct === 0 ? 'success' : balance > 0 ? 'success' : 'warning'} className="text-[10px]">
+                    <Wallet className="h-3 w-3 mr-1" />{fmt(balance)}
+                  </Badge>
+                </button>
+
+                {expanded && (
+                  <div className="p-3 pt-0 space-y-3">
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <Badge variant="outline">
+                        {sponsorLabel({ account_type: p?.account_type, insurance_plan: p?.insurance_plan })}
+                      </Badge>
+                      <Badge variant="outline">Copay {pct}%</Badge>
+                      {a.reason && <Badge variant="outline">{a.reason}</Badge>}
+                    </div>
+
+                    {a.admission_note && (
+                      <p className="text-xs bg-muted/50 rounded p-2">{a.admission_note}</p>
+                    )}
+
+                    {a.admission_snap_path && <SnapImage path={a.admission_snap_path} />}
+
+                    {pct === 0 ? (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                        ✓ Fully covered by sponsor — proceed to assign ward &amp; room.
+                      </p>
+                    ) : balance <= 0 ? (
+                      <p className="text-xs text-amber-700 dark:text-amber-400">
+                        ⚠ No deposit yet. Send the patient to Reception to request a deposit and pay at the Cashier.
+                        The card stays here until the balance shows up.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                        ✓ Deposit of {fmt(balance)} received — you can assign ward &amp; room.
+                      </p>
+                    )}
+
+                    <Button size="sm" className="w-full" onClick={() => setAssignFor(a)}>
+                      <BedDouble className="h-3.5 w-3.5 mr-1.5" /> Assign ward &amp; room
+                    </Button>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      {assignFor && (
+        <AssignBedDialog
+          admission={assignFor}
+          patient={patientOf.get(assignFor.patient_id)}
+          onClose={() => setAssignFor(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function SnapImage({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    snapPhotoUrl(path).then((u) => { if (alive) setUrl(u); });
+    return () => { alive = false; };
+  }, [path]);
+  return url ? (
+    <a href={url} target="_blank" rel="noreferrer">
+      <img src={url} alt="Admission order snap" className="w-full max-h-56 object-contain rounded bg-muted" />
+    </a>
+  ) : (
+    <div className="w-full h-24 bg-muted rounded animate-pulse" />
   );
 }

@@ -21,7 +21,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { AdmissionQueue } from '@/components/nurse/AdmissionQueue';
 import { AdmissionCaptureDialog } from '@/components/nurse/AdmissionCaptureDialog';
 import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { NurseTreatmentInbox } from '@/components/nurse/NurseTreatmentInbox';
@@ -84,7 +83,6 @@ const NurseStation = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-        <AdmissionQueue />
         <AwaitingRoomPanel />
         <LabResultInbox />
         <NurseTreatmentInbox />
@@ -170,7 +168,7 @@ const NurseStation = () => {
                   onClick={() => setAdmitOpen(true)}
                 >
                   <BedDouble className="h-4 w-4 mr-1.5" />
-                  Admit Patient
+                  Snap to Admit
                 </Button>
                 <QuickDischargeButton
                   patientId={selectedPatient.id}

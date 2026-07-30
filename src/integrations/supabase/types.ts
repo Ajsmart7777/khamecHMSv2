@@ -2906,6 +2906,14 @@ export type Database = {
         }
         Returns: number
       }
+      admission_bed_charge: {
+        Args: { _admission_id: string }
+        Returns: {
+          amount: number
+          daily_rate: number
+          days: number
+        }[]
+      }
       advance_journey: {
         Args: {
           _department?: string
@@ -2917,6 +2925,10 @@ export type Database = {
           _to_state: string
           _visit_id?: string
         }
+        Returns: string
+      }
+      bill_admission_bed_days: {
+        Args: { _admission_id: string }
         Returns: string
       }
       can_add_snap_for_patient: {
@@ -2937,6 +2949,10 @@ export type Database = {
         Returns: Json
       }
       close_visit: { Args: { _visit_id: string }; Returns: undefined }
+      copay_percent: {
+        Args: { _account_type: string; _plan?: string }
+        Returns: number
+      }
       create_admitted_snap: {
         Args: {
           _allow_debt?: boolean

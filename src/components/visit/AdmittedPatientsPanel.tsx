@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { snapPhotoUrl } from '@/hooks/useSnapOrders';
 import { useWardsRoomsBeds } from '@/hooks/useWardsRooms';
 import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
+import { useAdmissionPerms } from '@/lib/admissionPermissions';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -35,6 +36,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
   const [dischargeOrderFor, setDischargeOrderFor] = useState<{ admissionId: string; patientId: string; name: string } | null>(null);
   const [resultsFor, setResultsFor] = useState<{ patientId: string; name: string } | null>(null);
   const { rooms, beds } = useWardsRoomsBeds();
+  const can = useAdmissionPerms();
 
   const bedInfo = useMemo(() => {
     const roomOf = new Map(rooms.map((r) => [r.id, r]));
@@ -107,27 +109,33 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setSnapFor({ id: a.patient_id, name, balance: bal })}
-                  >
-                    <Camera className="h-3.5 w-3.5 mr-1.5" /> New Snap
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setForwardFor({ admissionId: a.id, patientId: a.patient_id, name, target: 'pharmacy' })}
-                  >
-                    <ScrollText className="h-3.5 w-3.5 mr-1.5" /> Send to Pharmacy
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setForwardFor({ admissionId: a.id, patientId: a.patient_id, name, target: 'lab' })}
-                  >
-                    <Beaker className="h-3.5 w-3.5 mr-1.5" /> Send to Lab
-                  </Button>
+                  {can('admittedSnap') && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSnapFor({ id: a.patient_id, name, balance: bal })}
+                    >
+                      <Camera className="h-3.5 w-3.5 mr-1.5" /> New Snap
+                    </Button>
+                  )}
+                  {can('forwardSnap') && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setForwardFor({ admissionId: a.id, patientId: a.patient_id, name, target: 'pharmacy' })}
+                    >
+                      <ScrollText className="h-3.5 w-3.5 mr-1.5" /> Send to Pharmacy
+                    </Button>
+                  )}
+                  {can('forwardSnap') && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setForwardFor({ admissionId: a.id, patientId: a.patient_id, name, target: 'lab' })}
+                    >
+                      <Beaker className="h-3.5 w-3.5 mr-1.5" /> Send to Lab
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -135,7 +143,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                   >
                     <FlaskConical className="h-3.5 w-3.5 mr-1.5" /> Lab Results
                   </Button>
-                  {sourceStation === 'doctor' && !isReady && (
+                  {sourceStation === 'doctor' && !isReady && can('dischargeOrder') && (
                     <Button
                       size="sm"
                       variant="secondary"
@@ -144,13 +152,15 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                       <Send className="h-3.5 w-3.5 mr-1.5" /> Discharge Order
                     </Button>
                   )}
-                  <Button
-                    size="sm"
-                    variant={isReady ? 'default' : 'secondary'}
-                    onClick={() => setDischargeFor({ admissionId: a.id, patientId: a.patient_id, name, balance: bal })}
-                  >
-                    <LogOut className="h-3.5 w-3.5 mr-1.5" /> Discharge
-                  </Button>
+                  {can('discharge') && (
+                    <Button
+                      size="sm"
+                      variant={isReady ? 'default' : 'secondary'}
+                      onClick={() => setDischargeFor({ admissionId: a.id, patientId: a.patient_id, name, balance: bal })}
+                    >
+                      <LogOut className="h-3.5 w-3.5 mr-1.5" /> Discharge
+                    </Button>
+                  )}
                 </div>
               </div>
             );

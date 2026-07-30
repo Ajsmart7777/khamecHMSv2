@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AdmissionCaptureDialog } from '@/components/nurse/AdmissionCaptureDialog';
+import { useAdmissionPerms } from '@/lib/admissionPermissions';
 import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { NurseTreatmentInbox } from '@/components/nurse/NurseTreatmentInbox';
 import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
@@ -33,6 +34,7 @@ const NurseStation = () => {
   const { patients, loading, refreshPatients, updatePatientStatus, getPatientsByStatus } = usePatients();
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [admitOpen, setAdmitOpen] = useState(false);
+  const canAct = useAdmissionPerms();
   
   // Filter patients that are waiting or with nurse
   // Patients returned from lab are set back to 'with_nurse' so their card
@@ -161,15 +163,17 @@ const NurseStation = () => {
                   variant="outline"
                   size="sm"
                 />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-9"
-                  onClick={() => setAdmitOpen(true)}
-                >
-                  <BedDouble className="h-4 w-4 mr-1.5" />
-                  Snap to Admit
-                </Button>
+                {canAct('admit') && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => setAdmitOpen(true)}
+                  >
+                    <BedDouble className="h-4 w-4 mr-1.5" />
+                    Snap to Admit
+                  </Button>
+                )}
                 <QuickDischargeButton
                   patientId={selectedPatient.id}
                   patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}

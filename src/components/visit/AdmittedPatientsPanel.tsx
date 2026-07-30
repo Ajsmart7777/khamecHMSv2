@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BedDouble, Camera, LogOut, User2, Wallet, Send, ScrollText, Beaker } from 'lucide-react';
+import { BedDouble, Camera, LogOut, User2, Wallet, Send, ScrollText, Beaker, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAdmissions, forwardSnapToBilling, markReadyForDischarge } from '@/hooks/useAdmissions';
@@ -9,6 +9,8 @@ import { DischargeDialog } from '@/components/nurse/DischargeDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { snapPhotoUrl } from '@/hooks/useSnapOrders';
+import { useWardsRoomsBeds } from '@/hooks/useWardsRooms';
+import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -31,6 +33,18 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
   const [dischargeFor, setDischargeFor] = useState<{ admissionId: string; patientId: string; name: string; balance: number } | null>(null);
   const [forwardFor, setForwardFor] = useState<{ admissionId: string; patientId: string; name: string; target: 'pharmacy' | 'lab' } | null>(null);
   const [dischargeOrderFor, setDischargeOrderFor] = useState<{ admissionId: string; patientId: string; name: string } | null>(null);
+  const [resultsFor, setResultsFor] = useState<{ patientId: string; name: string } | null>(null);
+  const { rooms, beds } = useWardsRoomsBeds();
+
+  const bedInfo = useMemo(() => {
+    const roomOf = new Map(rooms.map((r) => [r.id, r]));
+    const m = new Map<string, { label: string; rate: number }>();
+    beds.forEach((b) => {
+      const r = roomOf.get(b.room_id);
+      m.set(b.id, { label: r ? `Room ${r.room_number} · Bed ${b.bed_label}` : `Bed ${b.bed_label}`, rate: Number(r?.daily_rate ?? 0) });
+    });
+    return m;
+  }, [rooms, beds]);
 
   const patientOf = useMemo(() => {
     const m = new Map<string, any>();
@@ -61,6 +75,11 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
             const low = bal <= 0;
             const isReady = a.status === 'ready_for_discharge';
             const name = `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim();
+            const bed = a.bed_id ? bedInfo.get(a.bed_id) : undefined;
+            const days = a.admitted_at
+              ? Math.max(1, Math.ceil((Date.now() - new Date(a.admitted_at).getTime()) / 86_400_000))
+              : 0;
+            const accrued = bed ? days * bed.rate : 0;
             return (
               <div key={a.id} className="p-3 rounded-lg border">
                 <div className="flex items-center justify-between gap-2 mb-2">
@@ -72,6 +91,11 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                     <p className="text-xs text-muted-foreground">
                       {p?.card_number} · {p?.account_type ?? '—'}
                     </p>
+                    {bed && (
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        {bed.label} · {days} day{days === 1 ? '' : 's'} · bed charge ₦{accrued.toLocaleString()}
+                      </p>
+                    )}
                   </div>
                   {isReady ? (
                     <Badge variant="info" className="text-[10px]">Ready for Discharge</Badge>
@@ -95,14 +119,21 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                     variant="outline"
                     onClick={() => setForwardFor({ admissionId: a.id, patientId: a.patient_id, name, target: 'pharmacy' })}
                   >
-                    <ScrollText className="h-3.5 w-3.5 mr-1.5" /> Forward Rx
+                    <ScrollText className="h-3.5 w-3.5 mr-1.5" /> Send to Pharmacy
                   </Button>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => setForwardFor({ admissionId: a.id, patientId: a.patient_id, name, target: 'lab' })}
                   >
-                    <Beaker className="h-3.5 w-3.5 mr-1.5" /> Forward Lab
+                    <Beaker className="h-3.5 w-3.5 mr-1.5" /> Send to Lab
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setResultsFor({ patientId: a.patient_id, name })}
+                  >
+                    <FlaskConical className="h-3.5 w-3.5 mr-1.5" /> Lab Results
                   </Button>
                   {sourceStation === 'doctor' && !isReady && (
                     <Button
@@ -165,6 +196,20 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
           admissionId={dischargeOrderFor.admissionId}
           onClose={() => setDischargeOrderFor(null)}
         />
+      )}
+
+      {resultsFor && (
+        <Dialog open onOpenChange={(o) => !o && setResultsFor(null)}>
+          <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Lab Results · {resultsFor.name}</DialogTitle>
+            </DialogHeader>
+            <LabResultsViewer patientId={resultsFor.patientId} />
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setResultsFor(null)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

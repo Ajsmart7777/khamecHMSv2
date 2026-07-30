@@ -14,6 +14,7 @@ import { SnapCropDialog } from '@/components/visit/SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
 import { requestAdmission } from '@/hooks/useAdmissions';
 import { openOrResumeVisit } from '@/hooks/useVisits';
+import { useAdmissionPerms } from '@/lib/admissionPermissions';
 
 interface Props {
   patientId: string;
@@ -38,6 +39,8 @@ export function AdmissionCaptureDialog({ patientId, patientName, open, onOpenCha
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
+  const can = useAdmissionPerms();
+  const canAdmit = can('admit');
 
   const reset = () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -65,6 +68,7 @@ export function AdmissionCaptureDialog({ patientId, patientName, open, onOpenCha
   };
 
   const submit = async () => {
+    if (!canAdmit) { toast.error('Only a nurse or doctor can admit a patient'); return; }
     if (!file) { toast.error('Snap the admission order first'); return; }
     setBusy(true);
     try {
@@ -132,8 +136,8 @@ export function AdmissionCaptureDialog({ patientId, patientName, open, onOpenCha
 
           <DialogFooter>
             <Button variant="ghost" onClick={close} disabled={busy}>Cancel</Button>
-            <Button onClick={submit} disabled={busy || !file}>
-              {busy ? 'Admitting…' : 'Confirm Admission'}
+            <Button onClick={submit} disabled={busy || !file || !canAdmit}>
+              {busy ? 'Admitting…' : canAdmit ? 'Confirm Admission' : 'Not permitted for your role'}
             </Button>
           </DialogFooter>
         </DialogContent>

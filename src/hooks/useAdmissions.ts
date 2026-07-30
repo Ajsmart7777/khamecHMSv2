@@ -104,32 +104,20 @@ export async function forwardSnapToBilling(sourceSnapId: string, target: 'pharma
 }
 
 export async function assignBed(admissionId: string, bedId: string): Promise<boolean> {
-  const { data: userData } = await supabase.auth.getUser();
-  const { error } = await supabase
-    .from('admissions')
-    .update({
-      bed_id: bedId,
-      assigned_by_nurse: userData.user?.id ?? null,
-      status: 'active',
-      admitted_at: new Date().toISOString(),
-    })
-    .eq('id', admissionId);
+  const { error } = await supabase.rpc('assign_admission_bed', {
+    _admission_id: admissionId,
+    _bed_id: bedId,
+  });
   if (error) { toast.error(error.message); return false; }
   toast.success('Bed assigned. Patient admitted.');
   return true;
 }
 
 export async function dischargeAdmission(admissionId: string, notes?: string): Promise<boolean> {
-  const { data: userData } = await supabase.auth.getUser();
-  const { error } = await supabase
-    .from('admissions')
-    .update({
-      status: 'discharged',
-      discharged_at: new Date().toISOString(),
-      discharged_by: userData.user?.id ?? null,
-      discharge_notes: notes ?? null,
-    })
-    .eq('id', admissionId);
+  const { error } = await supabase.rpc('discharge_admission', {
+    _admission_id: admissionId,
+    _notes: notes ?? null,
+  });
   if (error) { toast.error(error.message); return false; }
   toast.success('Patient discharged');
   return true;

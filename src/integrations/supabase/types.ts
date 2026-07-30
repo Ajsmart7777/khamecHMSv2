@@ -2927,6 +2927,10 @@ export type Database = {
         }
         Returns: string
       }
+      assign_admission_bed: {
+        Args: { _admission_id: string; _bed_id: string }
+        Returns: undefined
+      }
       bill_admission_bed_days: {
         Args: { _admission_id: string }
         Returns: string

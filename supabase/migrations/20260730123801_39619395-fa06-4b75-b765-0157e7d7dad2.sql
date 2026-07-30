@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.anc_touch_updated_at() FROM anon, authenticated, PUBLIC;

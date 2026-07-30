@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { isPermissionError, permissionErrorMessage } from '@/lib/permissionError';
+import { getCurrentRole, type AdmissionAction } from '@/lib/admissionPermissions';
+
+/** Surface a server-side rejection with the missing role permission spelled out. */
+function reportActionError(action: AdmissionAction, error: { code?: string; message?: string }) {
+  if (isPermissionError(error)) {
+    const { title, description } = permissionErrorMessage(action, getCurrentRole(), error.message);
+    toast.error(title, { description });
+    return;
+  }
+  toast.error(error.message ?? 'Action failed');
+}
 
 export type AdmissionStatus =
   | 'waiting_assignment'
@@ -74,7 +86,7 @@ export async function requestAdmission(input: {
     _visit_id: input.visitId ?? null,
   });
   if (error) {
-    toast.error(`Admission failed: ${error.message}`);
+    reportActionError('admit', error);
     return null;
   }
   toast.success('Admission opened — sent to Nurse for bed assignment');
@@ -87,7 +99,7 @@ export async function markReadyForDischarge(admissionId: string, snapId: string 
     _snap_id: snapId,
     _note: note ?? null,
   });
-  if (error) { toast.error(error.message); return false; }
+  if (error) { reportActionError('dischargeOrder', error); return false; }
   toast.success('Discharge order signed — nurse notified');
   return true;
 }
@@ -98,7 +110,7 @@ export async function forwardSnapToBilling(sourceSnapId: string, target: 'pharma
     _target_station: target,
     _note: note ?? null,
   });
-  if (error) { toast.error(error.message); return null; }
+  if (error) { reportActionError('forwardSnap', error); return null; }
   toast.success(`Forwarded to Billing → ${target === 'lab' ? 'Lab' : 'Pharmacy'}`);
   return data as string;
 }
@@ -108,7 +120,7 @@ export async function assignBed(admissionId: string, bedId: string): Promise<boo
     _admission_id: admissionId,
     _bed_id: bedId,
   });
-  if (error) { toast.error(error.message); return false; }
+  if (error) { reportActionError('assignBed', error); return false; }
   toast.success('Bed assigned. Patient admitted.');
   return true;
 }
@@ -118,7 +130,7 @@ export async function dischargeAdmission(admissionId: string, notes?: string): P
     _admission_id: admissionId,
     _notes: notes ?? null,
   });
-  if (error) { toast.error(error.message); return false; }
+  if (error) { reportActionError('discharge', error); return false; }
   toast.success('Patient discharged');
   return true;
 }

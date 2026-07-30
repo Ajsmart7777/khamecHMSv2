@@ -27,8 +27,15 @@ export function roleCan(role: AppRole | null | undefined, action: AdmissionActio
   return !!role && (ADMISSION_PERMS[action] as readonly string[]).includes(role);
 }
 
+let lastKnownRole: AppRole | null = null;
+/** Best-effort current role, used to enrich server permission error messages. */
+export function getCurrentRole() {
+  return lastKnownRole;
+}
+
 /** Hook form: `const can = useAdmissionPerms(); can('discharge')` */
 export function useAdmissionPerms() {
   const { role } = useAuth();
+  lastKnownRole = role ?? null;
   return (action: AdmissionAction) => roleCan(role, action);
 }

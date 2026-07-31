@@ -240,7 +240,7 @@ export function PricelistManager() {
               </TableRow>
             ))}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No items</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No items</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -313,13 +313,13 @@ function PricelistEditor({
               <Input value={size} onChange={(e) => setSize(e.target.value)} placeholder="500MG, 100ML…" />
             </div>
             <div className="space-y-1.5">
-              <Label>Pack Qty</Label>
+              <Label>Pack Qty (units per pack)</Label>
               <Input type="number" min={1} value={packQty} onChange={(e) => setPackQty(parseInt(e.target.value) || 1)} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Price (₦) *</Label>
+              <Label>Pack Price (₦) *</Label>
               <Input type="number" min={0} step="0.01" value={price}
                 onChange={(e) => setPrice(parseFloat(e.target.value) || 0)} />
             </div>

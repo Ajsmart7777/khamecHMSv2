@@ -97,6 +97,7 @@ export async function requestAdmission(input: {
     reportActionError('admit', error);
     return null;
   }
+  window.dispatchEvent(new Event('admissions:changed'));
   toast.success('Admission opened — sent to Nurse for bed assignment');
   return data as string;
 }
@@ -108,6 +109,7 @@ export async function markReadyForDischarge(admissionId: string, snapId: string 
     _note: note ?? null,
   });
   if (error) { reportActionError('dischargeOrder', error); return false; }
+  window.dispatchEvent(new Event('admissions:changed'));
   toast.success('Discharge order signed — nurse notified');
   return true;
 }
@@ -129,6 +131,7 @@ export async function assignBed(admissionId: string, bedId: string): Promise<boo
     _bed_id: bedId,
   });
   if (error) { reportActionError('assignBed', error); return false; }
+  window.dispatchEvent(new Event('admissions:changed'));
   toast.success('Bed assigned. Patient admitted.');
   return true;
 }
@@ -139,6 +142,7 @@ export async function dischargeAdmission(admissionId: string, notes?: string): P
     _notes: notes ?? null,
   });
   if (error) { reportActionError('discharge', error); return false; }
+  window.dispatchEvent(new Event('admissions:changed'));
   toast.success('Patient discharged');
   return true;
 }

@@ -53,7 +53,9 @@ export function WardsRoomsManager() {
 
   return (
     <div className="space-y-4">
+      <RoomRatesCard state={s} />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
         {/* WARDS */}
         <div className="bg-card rounded-xl border p-4">
           <div className="flex items-center justify-between mb-3">
@@ -230,6 +232,74 @@ export function WardsRoomsManager() {
     </div>
   );
 }
+
+/** Bulk daily-rate editor for Normal Room and VIP Room wards. */
+function RoomRatesCard({ state }: { state: ReturnType<typeof useWardsRoomsBeds> }) {
+  const rateFor = (type: string) => {
+    const wardIds = state.wards.filter((w) => w.ward_type === type).map((w) => w.id);
+    const rates = state.rooms.filter((r) => wardIds.includes(r.ward_id)).map((r) => Number(r.daily_rate));
+    if (rates.length === 0) return { value: 0, mixed: false, count: 0 };
+    const mixed = new Set(rates).size > 1;
+    return { value: rates[0], mixed, count: rates.length };
+  };
+
+  const types: { key: string; label: string }[] = [
+    { key: 'normal', label: 'Normal Room' },
+    { key: 'vip', label: 'VIP Room' },
+  ];
+
+  return (
+    <div className="bg-card rounded-xl border p-4">
+      <h3 className="font-semibold mb-1">Room Rates</h3>
+      <p className="text-xs text-muted-foreground mb-3">
+        Set the daily bed rate charged for each room category. Saving applies the rate to every room in that category.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {types.map((t) => (
+          <RateRow key={t.key} label={t.label} info={rateFor(t.key)}
+            onSave={(v) => state.setRateForWardType(t.key, v)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RateRow({ label, info, onSave }: {
+  label: string;
+  info: { value: number; mixed: boolean; count: number };
+  onSave: (rate: number) => Promise<boolean> | void;
+}) {
+  const [val, setVal] = useState<string>(String(info.value));
+  const [saving, setSaving] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const shown = touched ? val : String(info.value);
+  return (
+    <div className="p-3 rounded-lg border bg-muted/30 space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm">{label}</Label>
+        <Badge variant="outline" className="text-[10px]">{info.count} room(s)</Badge>
+      </div>
+      <div className="flex gap-2">
+        <Input type="number" min={0} value={shown}
+          onChange={(e) => { setTouched(true); setVal(e.target.value); }} />
+        <Button size="sm" disabled={saving || info.count === 0}
+          onClick={async () => {
+            setSaving(true);
+            await onSave(Number(shown) || 0);
+            setSaving(false);
+            setTouched(false);
+          }}>
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+      {info.mixed && (
+        <p className="text-[10px] text-warning">Rooms currently have different rates — saving sets them all to this value.</p>
+      )}
+    </div>
+  );
+}
+
+
 
 function WardDialog({ initial, onClose, onSave }: {
   initial?: Ward;

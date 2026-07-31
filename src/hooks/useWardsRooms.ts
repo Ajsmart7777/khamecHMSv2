@@ -147,5 +147,20 @@ export function useWardsRoomsBeds() {
     toast.success('Bed removed'); return true;
   };
 
-  return { wards, rooms, beds, loading, refresh, saveWard, deleteWard, saveRoom, deleteRoom, saveBed, deleteBed };
+  /** Set the daily rate for every room inside wards of a given type (normal | vip). */
+  const setRateForWardType = async (wardType: string, rate: number) => {
+    const wardIds = wards.filter((w) => w.ward_type === wardType).map((w) => w.id);
+    if (wardIds.length === 0) { toast.error('No wards of this type'); return false; }
+    const { error } = await supabase
+      .from('rooms')
+      .update({ daily_rate: rate })
+      .in('ward_id', wardIds);
+    if (error) { toast.error(error.message); return false; }
+    toast.success(`Rate updated to ₦${rate.toLocaleString()}/day`);
+    await refresh();
+    return true;
+  };
+
+  return { wards, rooms, beds, loading, refresh, saveWard, deleteWard, saveRoom, deleteRoom, saveBed, deleteBed, setRateForWardType };
 }
+

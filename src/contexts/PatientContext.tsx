@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { PatientStatus, AccountType } from '@/types/hms';
 import { logError, logInfo } from '@/lib/errorHandler';
 import { patientAuditLogger } from '@/lib/auditLogger';
+import { isPermissionError } from '@/lib/permissionError';
 import { createNotification } from '@/hooks/useNotifications';
 
 export interface Patient {

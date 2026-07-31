@@ -53,7 +53,9 @@ export function WardsRoomsManager() {
 
   return (
     <div className="space-y-4">
+      <RoomRatesCard state={s} />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
         {/* WARDS */}
         <div className="bg-card rounded-xl border p-4">
           <div className="flex items-center justify-between mb-3">

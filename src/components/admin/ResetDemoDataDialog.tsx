@@ -23,7 +23,6 @@ type ModuleKey =
   | 'prescriptions'
   | 'lab'
   | 'admissions'
-  | 'anc'
   | 'notifications'
   | 'audit'
   | 'errors'
@@ -44,7 +43,6 @@ const MODULES: {
   { key: 'billing', label: 'Billing & payments', description: 'Delete invoices, items, balance requests and transactions.' },
   { key: 'snaps', label: 'Snap orders', description: 'Delete snap photos and OCR data.' },
   { key: 'admissions', label: 'Admissions', description: 'Delete admissions and reset all beds to available.' },
-  { key: 'anc', label: 'ANC records', description: 'Delete ANC programs and visits.' },
   { key: 'visits', label: 'Visits & clinical data', description: 'Delete visits, vitals, journey and attachments.' },
   { key: 'patients', label: 'Patients', description: 'Delete all patient records. Requires clearing dependents.' },
 ];

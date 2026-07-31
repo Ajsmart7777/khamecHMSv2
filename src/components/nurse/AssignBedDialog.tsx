@@ -24,13 +24,16 @@ interface Props {
 /** Nurse picks ward → room → bed. Once assigned the patient becomes admitted. */
 export function AssignBedDialog({ admission, patient, onClose }: Props) {
   const { wards, rooms, beds } = useWardsRoomsBeds();
+  const [category, setCategory] = useState<'normal' | 'vip' | ''>('');
   const [wardId, setWardId] = useState('');
   const [roomId, setRoomId] = useState('');
-  const [bedId, setBedId] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const availableRooms = rooms.filter((r) => r.ward_id === wardId && r.active);
-  const availableBeds = beds.filter((b) => b.room_id === roomId && b.status === 'available' && b.active);
+  const categoryWards = wards.filter((w) => w.active && w.ward_type === category);
+  const bedOfRoom = (rid: string) =>
+    beds.find((b) => b.room_id === rid && b.active && b.status === 'available');
+  const availableRooms = rooms.filter((r) => r.ward_id === wardId && r.active && bedOfRoom(r.id));
+  const bedId = roomId ? bedOfRoom(roomId)?.id ?? '' : '';
 
   const pct = copayPercent({ account_type: patient?.account_type, insurance_plan: patient?.insurance_plan });
   const selectedWard = wards.find((w) => w.id === wardId);

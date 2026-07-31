@@ -26,12 +26,15 @@ export function StaffSelector({ value, onChange, label, helper }: Props) {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase
-        .from('staff')
-        .select('id, employee_id, first_name, last_name, role, department, family_deduction_consent')
-        .eq('status', 'active')
-        .order('first_name');
-      if (!error && data) setStaff(data as StaffRow[]);
+      const { data, error } = await supabase.rpc('get_staff_directory');
+      if (!error && data) {
+        setStaff(
+          (data as StaffRow[] & { status?: string }[])
+            .filter((s: StaffRow & { status?: string }) => s.status === 'active')
+            .sort((a, b) => (a.first_name || '').localeCompare(b.first_name || '')) as StaffRow[],
+        );
+      }
+
       setLoading(false);
     })();
   }, []);

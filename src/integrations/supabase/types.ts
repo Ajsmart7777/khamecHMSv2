@@ -3016,6 +3016,19 @@ export type Database = {
         Args: { _month: number; _sponsor_id: string; _year: number }
         Returns: string
       }
+      get_staff_directory: {
+        Args: never
+        Returns: {
+          department: string
+          employee_id: string
+          family_deduction_consent: boolean
+          first_name: string
+          id: string
+          last_name: string
+          role: string
+          status: string
+        }[]
+      }
       get_visit_audit_trail: {
         Args: { _visit_id: string }
         Returns: {

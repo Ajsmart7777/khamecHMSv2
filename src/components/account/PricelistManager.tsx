@@ -27,6 +27,8 @@ const CATEGORIES: { value: PricelistCategory; label: string }[] = [
 ];
 
 const fmt = (n: number) => `₦${n.toLocaleString()}`;
+const fmtUnit = (n: number) =>
+  `₦${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
 const VALID_CATS: PricelistCategory[] = [
   'drug_tablet','drug_capsule','drug_liquid','drug_injection','drug_topical',

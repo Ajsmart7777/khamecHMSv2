@@ -253,8 +253,14 @@ function WardDialog({ initial, onClose, onSave }: {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Type</Label>
-              <Input value={wardType} onChange={(e) => setWardType(e.target.value)} placeholder="general / maternity / pediatric" />
+              <Label>Category</Label>
+              <Select value={wardType} onValueChange={setWardType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="normal">Normal Room</SelectItem>
+                  <SelectItem value="vip">VIP Room</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Gender</Label>

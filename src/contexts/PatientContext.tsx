@@ -231,7 +231,14 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       logError('Error updating patient', err);
       patientAuditLogger('patient_updated', patientId, { error: String(err) }, 'failure');
-      toast.error('Failed to update patient');
+      const message = String((err as Error)?.message ?? err);
+      if (isPermissionError(err as { code?: string; message?: string })) {
+        toast.error('Not permitted', {
+          description: message.replace(/^NOT_PERMITTED:\s*/, ''),
+        });
+      } else {
+        toast.error('Failed to update patient', { description: message });
+      }
       return false;
     }
   }, []);

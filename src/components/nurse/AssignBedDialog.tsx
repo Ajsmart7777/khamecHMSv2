@@ -24,13 +24,16 @@ interface Props {
 /** Nurse picks ward → room → bed. Once assigned the patient becomes admitted. */
 export function AssignBedDialog({ admission, patient, onClose }: Props) {
   const { wards, rooms, beds } = useWardsRoomsBeds();
+  const [category, setCategory] = useState<'normal' | 'vip' | ''>('');
   const [wardId, setWardId] = useState('');
   const [roomId, setRoomId] = useState('');
-  const [bedId, setBedId] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const availableRooms = rooms.filter((r) => r.ward_id === wardId && r.active);
-  const availableBeds = beds.filter((b) => b.room_id === roomId && b.status === 'available' && b.active);
+  const categoryWards = wards.filter((w) => w.active && w.ward_type === category);
+  const bedOfRoom = (rid: string) =>
+    beds.find((b) => b.room_id === rid && b.active && b.status === 'available');
+  const availableRooms = rooms.filter((r) => r.ward_id === wardId && r.active && bedOfRoom(r.id));
+  const bedId = roomId ? bedOfRoom(roomId)?.id ?? '' : '';
 
   const pct = copayPercent({ account_type: patient?.account_type, insurance_plan: patient?.insurance_plan });
   const selectedWard = wards.find((w) => w.id === wardId);
@@ -80,11 +83,27 @@ export function AssignBedDialog({ admission, patient, onClose }: Props) {
           )}
 
           <div>
+            <Label>Room type *</Label>
+            <Select
+              value={category}
+              onValueChange={(v) => { setCategory(v as 'normal' | 'vip'); setWardId(''); setRoomId(''); }}
+            >
+              <SelectTrigger><SelectValue placeholder="Select room type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="normal">Normal Room</SelectItem>
+                <SelectItem value="vip">VIP Room</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
             <Label>Ward *</Label>
-            <Select value={wardId} onValueChange={(v) => { setWardId(v); setRoomId(''); setBedId(''); }}>
+            <Select value={wardId} onValueChange={(v) => { setWardId(v); setRoomId(''); }} disabled={!category}>
               <SelectTrigger><SelectValue placeholder="Select ward" /></SelectTrigger>
               <SelectContent>
-                {wards.filter((w) => w.active).map((w) => (
+                {categoryWards.length === 0 ? (
+                  <div className="p-2 text-xs text-muted-foreground">No wards in this category</div>
+                ) : categoryWards.map((w) => (
                   <SelectItem key={w.id} value={w.id}>
                     {w.name}
                     {w.min_admission_deposit > 0 && ` · min ${fmtNaira(w.min_admission_deposit)}`}
@@ -96,31 +115,23 @@ export function AssignBedDialog({ admission, patient, onClose }: Props) {
 
           <div>
             <Label>Room *</Label>
-            <Select value={roomId} onValueChange={(v) => { setRoomId(v); setBedId(''); }} disabled={!wardId}>
+            <Select value={roomId} onValueChange={setRoomId} disabled={!wardId}>
               <SelectTrigger><SelectValue placeholder="Select room" /></SelectTrigger>
               <SelectContent>
-                {availableRooms.map((r) => (
+                {availableRooms.length === 0 ? (
+                  <div className="p-2 text-xs text-muted-foreground">No free rooms in this ward</div>
+                ) : availableRooms.map((r) => (
                   <SelectItem key={r.id} value={r.id}>
-                    Room {r.room_number} · {r.room_class} · {fmtNaira(r.daily_rate)}/day
+                    Room {r.room_number} · {fmtNaira(r.daily_rate)}/day
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Each room holds one bed — it is assigned automatically.
+            </p>
           </div>
 
-          <div>
-            <Label>Available bed *</Label>
-            <Select value={bedId} onValueChange={setBedId} disabled={!roomId}>
-              <SelectTrigger><SelectValue placeholder="Select bed" /></SelectTrigger>
-              <SelectContent>
-                {availableBeds.length === 0 ? (
-                  <div className="p-2 text-xs text-muted-foreground">No beds available in this room</div>
-                ) : availableBeds.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>Bed {b.bed_label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
         </div>
 
         <DialogFooter>

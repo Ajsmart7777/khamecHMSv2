@@ -199,8 +199,9 @@ export function PricelistManager() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Size</TableHead>
-              <TableHead className="text-right">Pack</TableHead>
-              <TableHead className="text-right">Price</TableHead>
+              <TableHead className="text-right">Pack Qty</TableHead>
+              <TableHead className="text-right">Pack Price</TableHead>
+              <TableHead className="text-right">Unit Price</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -213,6 +214,9 @@ export function PricelistManager() {
                 <TableCell className="text-muted-foreground">{it.size ?? '—'}</TableCell>
                 <TableCell className="text-right">{it.pack_qty}</TableCell>
                 <TableCell className="text-right font-mono">{fmt(it.price)}</TableCell>
+                <TableCell className="text-right font-mono text-muted-foreground">
+                  {fmtUnit(it.price / Math.max(1, it.pack_qty))}
+                </TableCell>
                 <TableCell><Badge variant="outline" className="text-[10px]">{it.category}</Badge></TableCell>
                 <TableCell>
                   {it.active

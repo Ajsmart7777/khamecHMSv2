@@ -27,6 +27,8 @@ const CATEGORIES: { value: PricelistCategory; label: string }[] = [
 ];
 
 const fmt = (n: number) => `₦${n.toLocaleString()}`;
+const fmtUnit = (n: number) =>
+  `₦${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
 const VALID_CATS: PricelistCategory[] = [
   'drug_tablet','drug_capsule','drug_liquid','drug_injection','drug_topical',
@@ -199,8 +201,9 @@ export function PricelistManager() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Size</TableHead>
-              <TableHead className="text-right">Pack</TableHead>
-              <TableHead className="text-right">Price</TableHead>
+              <TableHead className="text-right">Pack Qty</TableHead>
+              <TableHead className="text-right">Pack Price</TableHead>
+              <TableHead className="text-right">Unit Price</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -213,6 +216,9 @@ export function PricelistManager() {
                 <TableCell className="text-muted-foreground">{it.size ?? '—'}</TableCell>
                 <TableCell className="text-right">{it.pack_qty}</TableCell>
                 <TableCell className="text-right font-mono">{fmt(it.price)}</TableCell>
+                <TableCell className="text-right font-mono text-muted-foreground">
+                  {fmtUnit(it.price / Math.max(1, it.pack_qty))}
+                </TableCell>
                 <TableCell><Badge variant="outline" className="text-[10px]">{it.category}</Badge></TableCell>
                 <TableCell>
                   {it.active
@@ -234,7 +240,7 @@ export function PricelistManager() {
               </TableRow>
             ))}
             {filtered.length === 0 && (
-              <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No items</TableCell></TableRow>
+              <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No items</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -307,13 +313,13 @@ function PricelistEditor({
               <Input value={size} onChange={(e) => setSize(e.target.value)} placeholder="500MG, 100ML…" />
             </div>
             <div className="space-y-1.5">
-              <Label>Pack Qty</Label>
+              <Label>Pack Qty (units per pack)</Label>
               <Input type="number" min={1} value={packQty} onChange={(e) => setPackQty(parseInt(e.target.value) || 1)} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Price (₦) *</Label>
+              <Label>Pack Price (₦) *</Label>
               <Input type="number" min={0} step="0.01" value={price}
                 onChange={(e) => setPrice(parseFloat(e.target.value) || 0)} />
             </div>

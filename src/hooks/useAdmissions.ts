@@ -60,6 +60,14 @@ export function useAdmissions(filter: { statuses?: AdmissionStatus[]; patientId?
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  // Local fallback so a newly created admission shows up immediately in panels
+  // mounted in the same tab, even before the realtime event lands.
+  useEffect(() => {
+    const h = () => refresh();
+    window.addEventListener('admissions:changed', h);
+    return () => window.removeEventListener('admissions:changed', h);
+  }, [refresh]);
+
   useEffect(() => {
     const ch = supabase
       .channel('admissions-realtime')

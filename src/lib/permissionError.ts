@@ -18,7 +18,7 @@ export function isPermissionError(error: { code?: string; message?: string } | n
   return (
     code === '42501' ||
     code === 'PGRST301' ||
-    /permission denied|not authorized|unauthorized|only .* (can|may)|insufficient/.test(msg)
+    /not_permitted|permission denied|not authorized|unauthorized|only .* (can|may)|insufficient/.test(msg)
   );
 }
 

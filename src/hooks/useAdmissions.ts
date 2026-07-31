@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { isPermissionError, permissionErrorMessage } from '@/lib/permissionError';
@@ -46,6 +46,7 @@ export interface Admission {
 export function useAdmissions(filter: { statuses?: AdmissionStatus[]; patientId?: string } = {}) {
   const [admissions, setAdmissions] = useState<Admission[]>([]);
   const [loading, setLoading] = useState(false);
+  const channelId = useId();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -69,12 +70,15 @@ export function useAdmissions(filter: { statuses?: AdmissionStatus[]; patientId?
   }, [refresh]);
 
   useEffect(() => {
+    // Unique topic per hook instance: several panels use this hook on the same
+    // page, and a shared topic name makes one panel's unmount tear down the
+    // subscription for the others.
     const ch = supabase
-      .channel('admissions-realtime')
+      .channel(`admissions-realtime-${channelId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'admissions' }, () => refresh())
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [refresh]);
+  }, [refresh, channelId]);
 
   return { admissions, loading, refresh };
 }

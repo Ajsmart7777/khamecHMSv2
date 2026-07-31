@@ -237,7 +237,7 @@ function WardDialog({ initial, onClose, onSave }: {
   onSave: (data: Partial<Ward> & { name: string }) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? '');
-  const [wardType, setWardType] = useState(initial?.ward_type ?? 'general');
+  const [wardType, setWardType] = useState(initial?.ward_type ?? 'normal');
   const [gender, setGender] = useState<WardGender>(initial?.gender ?? 'any');
   const [description, setDescription] = useState(initial?.description ?? '');
   return (

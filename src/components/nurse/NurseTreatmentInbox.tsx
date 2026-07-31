@@ -7,9 +7,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 import { useSnapOrders, snapPhotoUrl, SnapOrder } from '@/hooks/useSnapOrders';
+import { forwardSnapToBilling } from '@/hooks/useAdmissions';
 import { usePatients } from '@/contexts/PatientContext';
 
 /**
@@ -101,13 +100,13 @@ function ReviewDialog({
 
   const forward = async () => {
     setBusy(true);
-    const { error } = await supabase
-      .from('snap_orders')
-      .update({ target_station: target, note: (snap.note ?? '') + ' [Nurse-reviewed]' })
-      .eq('id', snap.id);
+    const newId = await forwardSnapToBilling(
+      snap.id,
+      target,
+      `${snap.note ?? ''} [Nurse-reviewed]`.trim(),
+    );
     setBusy(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success(`Forwarded to Billing → ${target}`);
+    if (!newId) return;
     onDone();
   };
 

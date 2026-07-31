@@ -261,10 +261,34 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchPatients]);
 
+  // Track the authenticated user so the realtime channel is only opened (and
+  // re-opened) with a valid token. A channel subscribed while signed out is
+  // evaluated as `anon` by RLS and silently receives no rows.
+  const [realtimeUserId, setRealtimeUserId] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setRealtimeUserId(data.session?.user?.id ?? null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+      setRealtimeUserId(session?.user?.id ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Refetch whenever the tab regains focus — safety net if a realtime event is missed.
+  useEffect(() => {
+    const onFocus = () => { if (document.visibilityState === 'visible') fetchPatients(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [fetchPatients]);
+
   // Real-time subscription
   useEffect(() => {
+    if (!realtimeUserId) return;
     const channel = supabase
-      .channel('patients-realtime')
+      .channel(`patients-realtime-${realtimeUserId}`)
       .on(
         'postgres_changes',
         {
@@ -288,7 +312,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
           } else if (payload.eventType === 'UPDATE') {
             const updatedPatient = payload.new as unknown as Patient;
             setPatients(prev => 
-              prev.map(p => p.id === updatedPatient.id ? updatedPatient : p)
+              prev.map(p => p.id === updatedPatient.id ? { ...p, ...updatedPatient } : p)
             );
           } else if (payload.eventType === 'DELETE') {
             const deletedId = (payload.old as { id: string }).id;
@@ -301,7 +325,8 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [realtimeUserId]);
+
 
   return (
     <PatientContext.Provider value={{

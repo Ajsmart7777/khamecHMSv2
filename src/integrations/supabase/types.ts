@@ -3103,8 +3103,8 @@ export type Database = {
         Args: {
           _note?: string
           _patient_id: string
-          _photo_path: string
-          _reason: string
+          _photo_path?: string
+          _reason?: string
           _visit_id?: string
         }
         Returns: string

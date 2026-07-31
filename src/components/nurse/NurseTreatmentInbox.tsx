@@ -7,9 +7,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 import { useSnapOrders, snapPhotoUrl, SnapOrder } from '@/hooks/useSnapOrders';
+import { forwardSnapToBilling } from '@/hooks/useAdmissions';
 import { usePatients } from '@/contexts/PatientContext';
 
 /**

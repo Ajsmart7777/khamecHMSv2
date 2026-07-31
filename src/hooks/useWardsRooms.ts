@@ -102,11 +102,21 @@ export function useWardsRoomsBeds() {
       daily_rate: r.daily_rate ?? 0,
       active: r.active ?? true,
     };
-    const { error } = r.id
-      ? await supabase.from('rooms').update(payload).eq('id', r.id)
-      : await supabase.from('rooms').insert(payload);
+    if (r.id) {
+      const { error } = await supabase.from('rooms').update(payload).eq('id', r.id);
+      if (error) { toast.error(error.message); return false; }
+      toast.success('Room updated');
+      return true;
+    }
+    const { data, error } = await supabase.from('rooms').insert(payload).select('id').single();
     if (error) { toast.error(error.message); return false; }
-    toast.success(r.id ? 'Room updated' : 'Room added');
+    // Every room holds exactly one bed — create it automatically so nurses
+    // never have to pick a bed when assigning a room.
+    const { error: bedErr } = await supabase
+      .from('beds')
+      .insert({ room_id: data.id, bed_label: '1', status: 'available', active: true });
+    if (bedErr) { toast.error(bedErr.message); return false; }
+    toast.success('Room added');
     return true;
   };
 

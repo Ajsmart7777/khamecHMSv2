@@ -101,13 +101,13 @@ function ReviewDialog({
 
   const forward = async () => {
     setBusy(true);
-    const { error } = await supabase
-      .from('snap_orders')
-      .update({ target_station: target, note: (snap.note ?? '') + ' [Nurse-reviewed]' })
-      .eq('id', snap.id);
+    const newId = await forwardSnapToBilling(
+      snap.id,
+      target,
+      `${snap.note ?? ''} [Nurse-reviewed]`.trim(),
+    );
     setBusy(false);
-    if (error) { toast.error(error.message); return; }
-    toast.success(`Forwarded to Billing → ${target}`);
+    if (!newId) return;
     onDone();
   };
 

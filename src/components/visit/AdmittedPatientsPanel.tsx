@@ -186,11 +186,17 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                   />
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant={newResults[a.patient_id] ? 'default' : 'outline'}
                     onClick={() => setResultsFor({ patientId: a.patient_id, name })}
                   >
                     <FlaskConical className="h-3.5 w-3.5 mr-1.5" /> Lab Results
+                    {newResults[a.patient_id] ? (
+                      <Badge variant="success" className="ml-1.5 text-[10px]">
+                        {newResults[a.patient_id]} new
+                      </Badge>
+                    ) : null}
                   </Button>
+
                   {sourceStation === 'doctor' && !isReady && can('dischargeOrder') && (
                     <Button
                       size="sm"

@@ -54,9 +54,13 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
     return m;
   }, [patients]);
 
-  // Filter by assigned doctor if scoping for a doctor view
+  // Doctor scoping: show admissions for patients assigned to me, admissions I
+  // opened myself, and unassigned patients (so nobody falls through a gap).
   const scoped = assignedDoctor
-    ? admissions.filter((a) => patientOf.get(a.patient_id)?.assigned_doctor === assignedDoctor)
+    ? admissions.filter((a) => {
+        const doc = patientOf.get(a.patient_id)?.assigned_doctor;
+        return doc === assignedDoctor || !doc || a.admitting_doctor === userId;
+      })
     : admissions;
 
   return (

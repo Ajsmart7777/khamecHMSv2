@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { BedDouble, Camera, LogOut, User2, Wallet, Send, ScrollText, Beaker, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -49,6 +49,29 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
   const { user } = useAuth();
   const userId = user?.id;
 
+  // New (un-archived) lab result photos per admitted patient
+  const [newResults, setNewResults] = useState<Record<string, number>>({});
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      const { data } = await supabase
+        .from('snap_orders')
+        .select('patient_id')
+        .eq('order_type', 'lab_result')
+        .eq('status', 'returned');
+      if (!active) return;
+      const counts: Record<string, number> = {};
+      (data ?? []).forEach((r: any) => { counts[r.patient_id] = (counts[r.patient_id] ?? 0) + 1; });
+      setNewResults(counts);
+    };
+    load();
+    const ch = supabase
+      .channel(`admitted-lab-results-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders' }, () => load())
+      .subscribe();
+    return () => { active = false; supabase.removeChannel(ch); };
+  }, []);
+
   const bedInfo = useMemo(() => {
     const roomOf = new Map(rooms.map((r) => [r.id, r]));
     const m = new Map<string, { label: string; rate: number }>();
@@ -58,6 +81,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
     });
     return m;
   }, [rooms, beds]);
+
 
   const patientOf = useMemo(() => {
     const m = new Map<string, any>();
@@ -162,11 +186,17 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                   />
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant={newResults[a.patient_id] ? 'default' : 'outline'}
                     onClick={() => setResultsFor({ patientId: a.patient_id, name })}
                   >
                     <FlaskConical className="h-3.5 w-3.5 mr-1.5" /> Lab Results
+                    {newResults[a.patient_id] ? (
+                      <Badge variant="success" className="ml-1.5 text-[10px]">
+                        {newResults[a.patient_id]} new
+                      </Badge>
+                    ) : null}
                   </Button>
+
                   {sourceStation === 'doctor' && !isReady && can('dischargeOrder') && (
                     <Button
                       size="sm"

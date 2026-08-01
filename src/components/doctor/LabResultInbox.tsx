@@ -36,15 +36,25 @@ export function LabResultInbox() {
     // doctor) must see them too — e.g. an admitted patient's snap forwarded by
     // a colleague on another shift.
     const station = role === 'nurse' ? 'nurse' : 'doctor';
-    const { data } = await supabase
-      .from('snap_orders')
-      .select('*')
-      .eq('order_type', 'lab_result')
-      .eq('status', 'returned')
-      .or(`returned_to.eq.${user.id},target_station.eq.${station}`)
-      .order('returned_at', { ascending: false });
-    setItems(((data ?? []) as unknown) as SnapOrder[]);
+    const [{ data }, { data: adm }] = await Promise.all([
+      supabase
+        .from('snap_orders')
+        .select('*')
+        .eq('order_type', 'lab_result')
+        .eq('status', 'returned')
+        .or(`returned_to.eq.${user.id},target_station.eq.${station}`)
+        .order('returned_at', { ascending: false }),
+      supabase
+        .from('admissions')
+        .select('patient_id')
+        .in('status', ['active', 'ready_for_discharge']),
+    ]);
+    // Admitted patients' results live under the "Lab Results" button on the
+    // Admitted Patients panel — keep this inbox for outpatients only.
+    const admitted = new Set((adm ?? []).map((a: any) => a.patient_id));
+    setItems((((data ?? []) as unknown) as SnapOrder[]).filter((s) => !admitted.has(s.patient_id)));
   };
+
 
 
   useEffect(() => { refresh(); }, [user?.id, role]);

@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { snapPhotoUrl } from '@/hooks/useSnapOrders';
 import { useWardsRoomsBeds } from '@/hooks/useWardsRooms';
 import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
+import { SnapLabResults } from '@/components/doctor/SnapLabResults';
 import { useAdmissionPerms } from '@/lib/admissionPermissions';
 import { useAuth } from '@/contexts/AuthContext';
 import {

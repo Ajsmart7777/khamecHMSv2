@@ -61,47 +61,96 @@ export function SnapLabResults({ patientId }: { patientId: string }) {
     return () => { active = false; };
   }, [items]);
 
-  const count = useMemo(() => items.length, [items]);
+  const archivedCount = useMemo(
+    () => items.filter((s) => s.status === 'acknowledged').length,
+    [items],
+  );
+  const visible = useMemo(
+    () => (showArchived ? items : items.filter((s) => s.status !== 'acknowledged')),
+    [items, showArchived],
+  );
+
+  const archive = async (id: string) => {
+    setBusy(id);
+    const { error } = await supabase
+      .from('snap_orders')
+      .update({ status: 'acknowledged', ack_by: user?.id, ack_at: new Date().toISOString() } as any)
+      .eq('id', id);
+    setBusy(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Result archived');
+    refresh();
+  };
 
   if (loading) {
     return <p className="text-sm text-muted-foreground py-3">Loading lab result photos…</p>;
   }
 
-  if (count === 0) return null;
+  if (items.length === 0) return null;
 
   return (
     <div className="rounded-xl border p-3 space-y-3">
       <div className="flex items-center gap-2">
         <FlaskConical className="h-4 w-4 text-module-laboratory" />
         <h4 className="text-sm font-semibold">Result Photos from Lab</h4>
-        <Badge variant="outline" className="text-[10px]">{count}</Badge>
+        <Badge variant="outline" className="text-[10px]">{visible.length}</Badge>
+        {archivedCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="ml-auto h-7 text-xs"
+            onClick={() => setShowArchived((v) => !v)}
+          >
+            <Eye className="h-3.5 w-3.5 mr-1" />
+            {showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}
+          </Button>
+        )}
       </div>
-      <div className="space-y-3">
-        {items.map((s) => (
-          <div key={s.id} className="rounded-lg border overflow-hidden">
-            <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/40">
-              <p className="text-xs text-muted-foreground">
-                {new Date(s.returned_at ?? s.created_at).toLocaleString()}
-              </p>
-              <Badge variant={s.status === 'returned' ? 'success' : 'outline'} className="text-[10px]">
-                {s.status === 'returned' ? 'New' : s.status}
-              </Badge>
-            </div>
-            {urls[s.id] ? (
-              <a href={urls[s.id]} target="_blank" rel="noreferrer">
-                <img src={urls[s.id]} alt="Lab result" className="w-full max-h-[55vh] object-contain bg-muted" />
-              </a>
-            ) : (
-              <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
-                <ImageIcon className="h-4 w-4" /> Loading photo…
+      {visible.length === 0 ? (
+        <p className="text-sm text-muted-foreground">All results archived.</p>
+      ) : (
+        <div className="space-y-3">
+          {visible.map((s) => (
+            <div key={s.id} className="rounded-lg border overflow-hidden">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 bg-muted/40">
+                <p className="text-xs text-muted-foreground">
+                  {new Date(s.returned_at ?? s.created_at).toLocaleString()}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Badge variant={s.status === 'returned' ? 'success' : 'outline'} className="text-[10px]">
+                    {s.status === 'returned' ? 'New' : s.status === 'acknowledged' ? 'Archived' : s.status}
+                  </Badge>
+                  {s.status !== 'acknowledged' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={busy === s.id}
+                      onClick={() => archive(s.id)}
+                    >
+                      <Archive className="h-3.5 w-3.5 mr-1" />
+                      {busy === s.id ? 'Archiving…' : 'Archive'}
+                    </Button>
+                  )}
+                </div>
               </div>
-            )}
-            {s.note && (
-              <p className="px-3 py-2 text-sm border-t"><span className="font-medium">Lab note:</span> {s.note}</p>
-            )}
-          </div>
-        ))}
-      </div>
+              {urls[s.id] ? (
+                <a href={urls[s.id]} target="_blank" rel="noreferrer">
+                  <img src={urls[s.id]} alt="Lab result" className="w-full max-h-[55vh] object-contain bg-muted" />
+                </a>
+              ) : (
+                <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
+                  <ImageIcon className="h-4 w-4" /> Loading photo…
+                </div>
+              )}
+              {s.note && (
+                <p className="px-3 py-2 text-sm border-t"><span className="font-medium">Lab note:</span> {s.note}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
+

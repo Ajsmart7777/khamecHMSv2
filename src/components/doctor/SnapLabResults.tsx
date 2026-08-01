@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlaskConical, Image as ImageIcon } from 'lucide-react';
+import { FlaskConical, Image as ImageIcon, Archive, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 import { SnapOrder, snapPhotoUrl } from '@/hooks/useSnapOrders';
 
 /**
@@ -9,11 +12,18 @@ import { SnapOrder, snapPhotoUrl } from '@/hooks/useSnapOrders';
  * for a single patient — regardless of who requested or who they were
  * returned to. Used inside the "Lab Results" dialog so admitted-patient
  * lab snaps are always visible to nurse / doctor1 / doctor2.
+ *
+ * Once seen, a result can be archived (status -> 'acknowledged') so it stops
+ * showing up as "New" in the Returned from Lab inbox.
  */
 export function SnapLabResults({ patientId }: { patientId: string }) {
+  const { user } = useAuth();
   const [items, setItems] = useState<SnapOrder[]>([]);
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [showArchived, setShowArchived] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
 
   const refresh = async () => {
     const { data } = await supabase

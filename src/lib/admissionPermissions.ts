@@ -13,8 +13,6 @@ export const ADMISSION_PERMS = {
   forwardSnap: ['nurse', 'doctor1', 'doctor2', 'admin'],
   /** Create a new admitted snap (deducts from patient balance) */
   admittedSnap: ['nurse', 'doctor1', 'doctor2', 'admin'],
-  /** Sign a discharge order */
-  dischargeOrder: ['doctor1', 'doctor2', 'admin'],
   /** Complete the discharge (bills bed-days, settles debt) */
   discharge: ['nurse', 'doctor1', 'doctor2', 'billing', 'accountant', 'admin'],
   /** Waive outstanding debt at discharge */

@@ -86,47 +86,52 @@ export function SnapFulfillDialog({
     setBusy(true);
     const ok = await markSnapFulfilled(snap.id);
     if (ok) {
-      // Pharmacy = final station for outpatients. If not admitted, auto-discharge.
-      if (kind === 'pharmacy') {
-        const { data: adm } = await supabase
-          .from('admissions')
-          .select('id')
-          .eq('patient_id', snap.patient_id)
-          .eq('status', 'active')
-          .maybeSingle();
-        if (!adm) {
-          let nextStatus: PatientStatus = 'discharged';
+      // Admitted patients always go back to the ward after dispensing/lab.
+      const { data: adm } = await supabase
+        .from('admissions')
+        .select('id')
+        .eq('patient_id', snap.patient_id)
+        .in('status', ['active', 'ready_for_discharge'])
+        .maybeSingle();
+
+      if (adm) {
+        const back = await updatePatientStatus(snap.patient_id, 'admitted');
+        if (!back) toast.error('Dispensed, but ward status not updated. Refresh and retry.');
+        else toast.info('Patient returned to ward (Admitted)');
+      } else if (kind === 'pharmacy') {
+        // Pharmacy = final station for outpatients. If not admitted, auto-discharge.
+        let nextStatus: PatientStatus = 'discharged';
+        try {
+          nextStatus = (await getPendingWorkflowStation(snap.patient_id)) ?? 'discharged';
+        } catch (err: any) {
+          toast.error('Could not verify pending workflow', { description: err?.message });
+          setBusy(false);
+          return;
+        }
+
+        // Auto-close the open visit before discharging so insured claims land
+        // in the Claims queue and the discharge guard in advance_journey passes.
+        if (nextStatus === 'discharged') {
           try {
-            nextStatus = (await getPendingWorkflowStation(snap.patient_id)) ?? 'discharged';
+            const openVisit = await findOpenVisit(snap.patient_id);
+            if (openVisit) await closeVisit(openVisit.id);
           } catch (err: any) {
-            toast.error('Could not verify pending workflow', { description: err?.message });
+            toast.error('Could not close visit', { description: err?.message });
             setBusy(false);
             return;
           }
+        }
 
-          // Auto-close the open visit before discharging so insured claims land
-          // in the Claims queue and the discharge guard in advance_journey passes.
-          if (nextStatus === 'discharged') {
-            try {
-              const openVisit = await findOpenVisit(snap.patient_id);
-              if (openVisit) await closeVisit(openVisit.id);
-            } catch (err: any) {
-              toast.error('Could not close visit', { description: err?.message });
-              setBusy(false);
-              return;
-            }
-          }
-
-          const routed = await updatePatientStatus(
-            snap.patient_id, nextStatus, { guardInpatient: true },
-          );
-          if (!routed) {
-            toast.error('Dispensed, but patient could not be routed. Refresh and retry.');
-          } else {
-            toast.info(`Patient routed to ${workflowStationLabel(nextStatus)}`);
-          }
+        const routed = await updatePatientStatus(
+          snap.patient_id, nextStatus, { guardInpatient: true },
+        );
+        if (!routed) {
+          toast.error('Dispensed, but patient could not be routed. Refresh and retry.');
+        } else {
+          toast.info(`Patient routed to ${workflowStationLabel(nextStatus)}`);
         }
       }
+
     }
     setBusy(false);
     if (ok) onClose();

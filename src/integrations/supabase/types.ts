@@ -1912,7 +1912,7 @@ export type Database = {
           paid_at: string | null
           parent_snap_id: string | null
           patient_id: string
-          photo_path: string
+          photo_path: string | null
           rejection_reason: string | null
           returned_at: string | null
           returned_to: string | null
@@ -1956,7 +1956,7 @@ export type Database = {
           paid_at?: string | null
           parent_snap_id?: string | null
           patient_id: string
-          photo_path: string
+          photo_path?: string | null
           rejection_reason?: string | null
           returned_at?: string | null
           returned_to?: string | null
@@ -2000,7 +2000,7 @@ export type Database = {
           paid_at?: string | null
           parent_snap_id?: string | null
           patient_id?: string
-          photo_path?: string
+          photo_path?: string | null
           rejection_reason?: string | null
           returned_at?: string | null
           returned_to?: string | null

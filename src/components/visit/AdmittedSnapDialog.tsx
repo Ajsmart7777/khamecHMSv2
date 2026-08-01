@@ -20,6 +20,7 @@ import { usePricelist } from '@/hooks/usePricelist';
 import { InAppCameraDialog } from './InAppCameraDialog';
 import { SnapCropDialog } from './SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
+import { copayPercent, sponsorLabel } from '@/lib/copay';
 
 type OrderType = 'prescription' | 'lab' | 'treatment';
 type Target = 'pharmacy' | 'lab' | 'nurse' | 'doctor';
@@ -43,22 +44,34 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: () => void;
+  /**
+   * 'items' — pick what was prescribed/ordered straight from the pricelist;
+   *           photo is optional. The order goes directly to Pharmacy/Lab.
+   * 'snap'  — the classic paper-photo flow (photo required).
+   */
+  mode?: 'items' | 'snap';
+  /** Locks the order type (and therefore the destination) when provided. */
+  orderType?: OrderType;
+  accountType?: string | null;
+  insurancePlan?: string | null;
 }
 
 /**
- * In-ward snap for ADMITTED patients — bypasses Billing.
- * Cost is priced from the pricelist and deducted directly from the patient's balance.
- * If balance < total, sender may override with a reason (creates debt).
+ * In-ward order for ADMITTED patients — bypasses Billing.
+ * Cost is priced from the pricelist; the patient's own share (copay for
+ * sponsored accounts, 100% for cash) is deducted from their balance.
  */
 export function AdmittedSnapDialog({
   patientId, patientName, patientBalance, sourceStation, open, onOpenChange, onCreated,
+  mode = 'snap', orderType: fixedOrderType, accountType, insurancePlan,
 }: Props) {
   const { items: pricelist, loading } = usePricelist();
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [orderType, setOrderType] = useState<OrderType>('prescription');
-  const [target, setTarget] = useState<Target>('pharmacy');
+  const [orderTypeState, setOrderType] = useState<OrderType>(fixedOrderType ?? 'prescription');
+  const orderType = fixedOrderType ?? orderTypeState;
+  const target: Target = orderType === 'lab' ? 'lab' : orderType === 'treatment' ? 'nurse' : 'pharmacy';
   const [note, setNote] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -70,6 +83,7 @@ export function AdmittedSnapDialog({
   const [rawUrl, setRawUrl] = useState<string | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
   const hasCam = hasInAppCamera();
+  const photoRequired = mode === 'snap';
 
   const acceptFile = (f: File) => {
     if (!f.type.startsWith('image/')) { toast.error('Please select an image file'); return; }
@@ -81,7 +95,10 @@ export function AdmittedSnapDialog({
   };
 
   const total = useMemo(() => lines.reduce((s, l) => s + l.unit_price * l.qty, 0), [lines]);
-  const shortfall = Math.max(0, total - patientBalance);
+  const pct = copayPercent({ account_type: accountType, insurance_plan: insurancePlan });
+  const patientShare = Math.round((total * pct) / 100 * 100) / 100;
+  const covered = Math.max(0, Math.round((total - patientShare) * 100) / 100);
+  const shortfall = Math.max(0, patientShare - patientBalance);
   const insufficient = shortfall > 0;
 
   const filteredPricelist = useMemo(() => {
@@ -127,8 +144,11 @@ export function AdmittedSnapDialog({
   const removeLine = (idx: number) => setLines((prev) => prev.filter((_, i) => i !== idx));
 
   const submit = async () => {
-    if (!file) { toast.error('Take a photo of the order first'); return; }
-    if (lines.length === 0) { toast.error('Add at least one item from the pricelist'); return; }
+    if (photoRequired && !file) { toast.error('Take a photo of the order first'); return; }
+    if (lines.length === 0) {
+      toast.error(orderType === 'lab' ? 'Add at least one lab test' : 'Add at least one item from the pricelist');
+      return;
+    }
     if (insufficient && !allowDebt) {
       toast.error('Insufficient balance', {
         description: `Patient needs ${fmt(shortfall)} more. Ask reception to top up, or tick "Proceed as debt" with a reason.`,
@@ -142,19 +162,20 @@ export function AdmittedSnapDialog({
 
     setBusy(true);
     try {
-      // 1. Upload photo
-      const path = `admitted/${patientId}/${crypto.randomUUID()}.jpg`;
-      const { error: upErr } = await supabase.storage
-        .from('visit-cards')
-        .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
-      if (upErr) throw upErr;
+      let path: string | null = null;
+      if (file) {
+        path = `admitted/${patientId}/${crypto.randomUUID()}.jpg`;
+        const { error: upErr } = await supabase.storage
+          .from('visit-cards')
+          .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
+        if (upErr) throw upErr;
+      }
 
-      // 2. Call RPC
-      const { data, error } = await supabase.rpc('create_admitted_snap', {
+      const { error } = await supabase.rpc('create_admitted_snap', {
         _patient_id: patientId,
         _order_type: orderType,
         _target_station: target,
-        _photo_path: path,
+        _photo_path: path as any,
         _note: note.trim() || null,
         _items: lines as any,
         _total: total,
@@ -174,7 +195,7 @@ export function AdmittedSnapDialog({
       }
 
       toast.success('Sent to ' + target, {
-        description: `${fmt(total)} deducted from patient balance${insufficient ? ` (₦${shortfall.toLocaleString()} debt)` : ''}.`,
+        description: `${fmt(patientShare)} deducted from patient balance${covered > 0 ? ` · ${fmt(covered)} covered by sponsor` : ''}${insufficient ? ` (₦${shortfall.toLocaleString()} debt)` : ''}.`,
       });
       onCreated?.();
       reset();
@@ -186,11 +207,15 @@ export function AdmittedSnapDialog({
     }
   };
 
+  const heading = mode === 'items'
+    ? (orderType === 'lab' ? 'Order Lab Tests' : orderType === 'treatment' ? 'Ward Treatment' : 'Dispense Order · Pharmacy')
+    : 'In-Ward Snap';
+
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>In-Ward Snap · {patientName}</DialogTitle>
+          <DialogTitle>{heading} · {patientName}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -198,18 +223,25 @@ export function AdmittedSnapDialog({
           <div className={`p-3 rounded-lg border flex items-center gap-2 ${insufficient ? 'bg-amber-50 border-amber-300 dark:bg-amber-950/20' : 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/20'}`}>
             <Wallet className="h-4 w-4" />
             <div className="text-sm flex-1">
-              <p className="font-medium">Balance: {fmt(patientBalance)}</p>
+              <p className="font-medium">
+                Balance: {fmt(patientBalance)}
+                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  {sponsorLabel({ account_type: accountType, insurance_plan: insurancePlan })} · patient pays {pct}%
+                </span>
+              </p>
               {insufficient ? (
-                <p className="text-xs">Order total {fmt(total)} exceeds balance by {fmt(shortfall)}</p>
+                <p className="text-xs">Patient share {fmt(patientShare)} exceeds balance by {fmt(shortfall)}</p>
               ) : (
-                <p className="text-xs text-muted-foreground">Order total {fmt(total)} — will remain {fmt(patientBalance - total)}</p>
+                <p className="text-xs text-muted-foreground">
+                  Order {fmt(total)} → patient {fmt(patientShare)}{covered > 0 ? ` · sponsor ${fmt(covered)}` : ''} — balance left {fmt(patientBalance - patientShare)}
+                </p>
               )}
             </div>
           </div>
 
           {/* Photo */}
           <div className="space-y-2">
-            <Label>Photo of the paper order *</Label>
+            <Label>{photoRequired ? 'Photo of the paper order *' : 'Photo (optional)'}</Label>
             <input ref={inputRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
             <InAppCameraDialog open={cameraOpen} onCancel={() => setCameraOpen(false)} onCapture={acceptFile} />
             {rawUrl && rawFile && (
@@ -238,42 +270,43 @@ export function AdmittedSnapDialog({
                 if (hasCam) setCameraOpen(true);
                 else inputRef.current?.click();
               }}>
-                <Camera className="h-4 w-4 mr-2" /> Take photo
+                <Camera className="h-4 w-4 mr-2" />
+                {photoRequired ? 'Take photo' : 'Attach photo (optional)'}
               </Button>
             )}
           </div>
 
-          {/* Order type */}
-          <div className="space-y-2">
-            <Label>Order type</Label>
-            <RadioGroup value={orderType} onValueChange={(v) => {
-              setOrderType(v as OrderType);
-              if (v === 'lab') setTarget('lab');
-              else if (v === 'prescription') setTarget('pharmacy');
-            }} className="grid grid-cols-3 gap-2">
-              <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
-                <RadioGroupItem value="prescription" /><span className="text-sm">Prescription</span>
-              </label>
-              <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
-                <RadioGroupItem value="lab" /><span className="text-sm">Lab</span>
-              </label>
-              <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
-                <RadioGroupItem value="treatment" /><span className="text-sm">Treatment</span>
-              </label>
-            </RadioGroup>
-          </div>
+          {/* Order type — only when not locked by the caller */}
+          {!fixedOrderType && (
+            <div className="space-y-2">
+              <Label>Order type</Label>
+              <RadioGroup value={orderType} onValueChange={(v) => setOrderType(v as OrderType)} className="grid grid-cols-3 gap-2">
+                <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
+                  <RadioGroupItem value="prescription" /><span className="text-sm">Prescription</span>
+                </label>
+                <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
+                  <RadioGroupItem value="lab" /><span className="text-sm">Lab</span>
+                </label>
+                <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
+                  <RadioGroupItem value="treatment" /><span className="text-sm">Treatment</span>
+                </label>
+              </RadioGroup>
+            </div>
+          )}
 
           {/* Items */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>Items (from pricelist) *</Label>
+              <Label>{orderType === 'lab' ? 'Lab tests ordered *' : 'Items prescribed (from pricelist) *'}</Label>
               <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
                 <PopoverTrigger asChild>
-                  <Button size="sm" variant="outline"><Plus className="h-3 w-3 mr-1" /> Add item</Button>
+                  <Button size="sm" variant="outline">
+                    <Plus className="h-3 w-3 mr-1" /> {orderType === 'lab' ? 'Add test' : 'Add item'}
+                  </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[400px] p-0" align="end">
                   <Command>
-                    <CommandInput placeholder={loading ? 'Loading pricelist…' : 'Search item…'} />
+                    <CommandInput placeholder={loading ? 'Loading pricelist…' : orderType === 'lab' ? 'Search lab test…' : 'Search item…'} />
                     <CommandList>
                       <CommandEmpty>No items found.</CommandEmpty>
                       <CommandGroup>
@@ -293,7 +326,9 @@ export function AdmittedSnapDialog({
             </div>
 
             {lines.length === 0 ? (
-              <p className="text-xs text-muted-foreground text-center py-3">No items added yet.</p>
+              <p className="text-xs text-muted-foreground text-center py-3">
+                {orderType === 'lab' ? 'No tests added yet.' : 'No items added yet.'}
+              </p>
             ) : (
               <div className="space-y-1">
                 {lines.map((l, i) => (

@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { BedDouble, Camera, LogOut, User2, Wallet, Send, ScrollText, Beaker, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useAdmissions, forwardSnapToBilling, markReadyForDischarge } from '@/hooks/useAdmissions';
+import { useAdmissions, markReadyForDischarge } from '@/hooks/useAdmissions';
 import { usePatients } from '@/contexts/PatientContext';
 import { AdmittedSnapDialog } from './AdmittedSnapDialog';
+import { SnapToCard } from './SnapToCard';
+
 import { DischargeDialog } from '@/components/nurse/DischargeDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { snapPhotoUrl } from '@/hooks/useSnapOrders';
+
 import { useWardsRoomsBeds } from '@/hooks/useWardsRooms';
 import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
 import { SnapLabResults } from '@/components/doctor/SnapLabResults';
@@ -32,9 +34,14 @@ interface Props {
 export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patients', assignedDoctor }: Props) {
   const { admissions } = useAdmissions({ statuses: ['active', 'ready_for_discharge'] });
   const { patients } = usePatients();
-  const [snapFor, setSnapFor] = useState<{ id: string; name: string; balance: number } | null>(null);
+  const [orderFor, setOrderFor] = useState<{
+    id: string; name: string; balance: number;
+    mode: 'items' | 'snap';
+    orderType: 'prescription' | 'lab' | 'treatment';
+    accountType?: string | null; plan?: string | null;
+  } | null>(null);
   const [dischargeFor, setDischargeFor] = useState<{ admissionId: string; patientId: string; name: string; balance: number } | null>(null);
-  const [forwardFor, setForwardFor] = useState<{ admissionId: string; patientId: string; name: string; target: 'pharmacy' | 'lab' } | null>(null);
+
   const [dischargeOrderFor, setDischargeOrderFor] = useState<{ admissionId: string; patientId: string; name: string } | null>(null);
   const [resultsFor, setResultsFor] = useState<{ patientId: string; name: string } | null>(null);
   const { rooms, beds } = useWardsRoomsBeds();
@@ -116,30 +123,43 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                   {can('admittedSnap') && (
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={() => setSnapFor({ id: a.patient_id, name, balance: bal })}
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'prescription', accountType: p?.account_type, plan: p?.insurance_plan })}
                     >
-                      <Camera className="h-3.5 w-3.5 mr-1.5" /> New Snap
+                      <ScrollText className="h-3.5 w-3.5 mr-1.5" /> Add Items · Pharmacy
                     </Button>
                   )}
-                  {can('forwardSnap') && (
+                  {can('admittedSnap') && (
+                    <Button
+                      size="sm"
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'lab', accountType: p?.account_type, plan: p?.insurance_plan })}
+                    >
+                      <Beaker className="h-3.5 w-3.5 mr-1.5" /> Add Lab Tests
+                    </Button>
+                  )}
+                  {can('admittedSnap') && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setForwardFor({ admissionId: a.id, patientId: a.patient_id, name, target: 'pharmacy' })}
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'snap', orderType: 'prescription', accountType: p?.account_type, plan: p?.insurance_plan })}
                     >
-                      <ScrollText className="h-3.5 w-3.5 mr-1.5" /> Send to Pharmacy
+                      <Camera className="h-3.5 w-3.5 mr-1.5" /> Snap → Pharmacy
                     </Button>
                   )}
-                  {can('forwardSnap') && (
+                  {can('admittedSnap') && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setForwardFor({ admissionId: a.id, patientId: a.patient_id, name, target: 'lab' })}
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'snap', orderType: 'lab', accountType: p?.account_type, plan: p?.insurance_plan })}
                     >
-                      <Beaker className="h-3.5 w-3.5 mr-1.5" /> Send to Lab
+                      <Camera className="h-3.5 w-3.5 mr-1.5" /> Snap → Lab
                     </Button>
                   )}
+                  <SnapToCard
+                    patientId={a.patient_id}
+                    station={sourceStation}
+                    defaultLabel="Ward note"
+                    className="w-full"
+                  />
                   <Button
                     size="sm"
                     variant="outline"
@@ -166,20 +186,25 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                     </Button>
                   )}
                 </div>
+
               </div>
             );
           })}
         </div>
       )}
 
-      {snapFor && (
+      {orderFor && (
         <AdmittedSnapDialog
           open
-          onOpenChange={(o) => !o && setSnapFor(null)}
-          patientId={snapFor.id}
-          patientName={snapFor.name}
-          patientBalance={snapFor.balance}
+          onOpenChange={(o) => !o && setOrderFor(null)}
+          patientId={orderFor.id}
+          patientName={orderFor.name}
+          patientBalance={orderFor.balance}
           sourceStation={sourceStation}
+          mode={orderFor.mode}
+          orderType={orderFor.orderType}
+          accountType={orderFor.accountType}
+          insurancePlan={orderFor.plan}
         />
       )}
 
@@ -194,18 +219,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
         />
       )}
 
-      {forwardFor && (
-        <ForwardSnapDialog
-          patientId={forwardFor.patientId}
-          patientName={forwardFor.name}
-          target={forwardFor.target}
-          onClose={() => setForwardFor(null)}
-          onNeedNewSnap={() => {
-            const p = patientOf.get(forwardFor.patientId);
-            setSnapFor({ id: forwardFor.patientId, name: forwardFor.name, balance: Number(p?.balance ?? 0) });
-          }}
-        />
-      )}
+
 
 
       {dischargeOrderFor && (
@@ -237,93 +251,6 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
   );
 }
 
-// ---- Forward the (single-use) admission snap to Pharmacy/Lab via Billing ----
-function ForwardSnapDialog({ patientId, patientName, target, onClose, onNeedNewSnap }:
-  { patientId: string; patientName: string; target: 'pharmacy' | 'lab'; onClose: () => void; onNeedNewSnap: () => void }) {
-  const [snaps, setSnaps] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [urls, setUrls] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      const { data } = await supabase.from('snap_orders').select('*')
-        .eq('patient_id', patientId)
-        .order('created_at', { ascending: false })
-        .limit(30);
-      if (!alive) return;
-      const all = data ?? [];
-      const usedParents = new Set(all.map((s: any) => s.parent_snap_id).filter(Boolean));
-      // Admission snaps are single-use: hide any that were already forwarded
-      // or acknowledged — they now live only on the patient's card.
-      const rows = all.filter((s: any) =>
-        s.intent === 'admission_order' && !s.ack_at && !usedParents.has(s.id));
-      setSnaps(rows);
-      setLoading(false);
-      rows.forEach((s: any) => {
-        if (s.photo_path) snapPhotoUrl(s.photo_path).then((u) => u && setUrls((m) => ({ ...m, [s.id]: u })));
-      });
-    })();
-    return () => { alive = false; };
-  }, [patientId]);
-
-  const forward = async (id: string) => {
-    setBusyId(id);
-    const r = await forwardSnapToBilling(id, target);
-    setBusyId(null);
-    if (r) onClose();
-  };
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Forward to {target === 'lab' ? 'Lab' : 'Pharmacy'} · {patientName}</DialogTitle>
-        </DialogHeader>
-        <p className="text-xs text-muted-foreground">
-          The admission snap can be forwarded only once. After that it stays on the
-          patient's card and any new order needs a fresh snap.
-        </p>
-        {loading ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>
-        ) : snaps.length === 0 ? (
-          <div className="py-6 text-center space-y-3">
-            <p className="text-sm text-muted-foreground">
-              The admission snap has already been used. Take a new snap for this order.
-            </p>
-            <Button size="sm" onClick={() => { onClose(); onNeedNewSnap(); }}>
-              <Camera className="h-3.5 w-3.5 mr-1.5" /> Take New Snap
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {snaps.map((s) => (
-              <div key={s.id} className="border rounded-lg p-2 space-y-2">
-                {urls[s.id] ? (
-                  <img src={urls[s.id]} alt="snap" className="w-full h-32 object-cover rounded" />
-                ) : (
-                  <div className="w-full h-32 bg-muted rounded" />
-                )}
-                <div className="text-xs">
-                  <span className="capitalize font-medium">Admission order</span>
-                  <div className="text-muted-foreground">{new Date(s.created_at).toLocaleString()}</div>
-                </div>
-                <Button size="sm" className="w-full" onClick={() => forward(s.id)} disabled={busyId === s.id}>
-                  <Send className="h-3.5 w-3.5 mr-1" />
-                  {busyId === s.id ? 'Forwarding…' : `Forward to ${target}`}
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Close</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 
 

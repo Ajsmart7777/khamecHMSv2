@@ -57,14 +57,10 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
     return m;
   }, [patients]);
 
-  // Doctor scoping: show admissions for patients assigned to me, admissions I
-  // opened myself, and unassigned patients (so nobody falls through a gap).
-  const scoped = assignedDoctor
-    ? admissions.filter((a) => {
-        const doc = patientOf.get(a.patient_id)?.assigned_doctor;
-        return doc === assignedDoctor || !doc || a.admitting_doctor === userId;
-      })
-    : admissions;
+  // Every admitted patient in the hospital is visible in every doctor console,
+  // regardless of who admitted them or who they are assigned to.
+  const scoped = admissions;
+
 
   return (
     <div className="bg-card rounded-xl border p-4">

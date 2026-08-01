@@ -151,12 +151,16 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
 
       // Route through the workflow engine (Phase 1). advance_journey
       // mirrors the value into patients.status for backward compatibility.
+      // There is no generic "doctor" role any more — work is owned by the
+      // patient's assigned doctor workspace (doctor1 / doctor2).
+      const doctorRole =
+        current.assigned_doctor === 'doctor2' ? 'doctor2' : 'doctor1';
       const ownerRoleMap: Record<string, string> = {
         with_nurse: 'nurse',
         awaiting_room: 'nurse',
-        with_doctor: 'doctor',
+        with_doctor: doctorRole,
         in_lab: 'lab_tech',
-        lab_results_ready: 'doctor',
+        lab_results_ready: doctorRole,
         awaiting_billing: 'billing',
         awaiting_payment: 'cashier',
         at_pharmacy: 'pharmacist',

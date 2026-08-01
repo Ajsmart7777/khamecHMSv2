@@ -47,7 +47,7 @@ export function LabResultInbox() {
   };
 
 
-  useEffect(() => { refresh(); }, [user?.id]);
+  useEffect(() => { refresh(); }, [user?.id, role]);
 
   useEffect(() => {
     if (!user?.id) return;

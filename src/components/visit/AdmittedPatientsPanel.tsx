@@ -10,7 +10,7 @@ import { SnapToCard } from './SnapToCard';
 import { DischargeDialog } from '@/components/nurse/DischargeDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { snapPhotoUrl } from '@/hooks/useSnapOrders';
+
 import { useWardsRoomsBeds } from '@/hooks/useWardsRooms';
 import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
 import { SnapLabResults } from '@/components/doctor/SnapLabResults';

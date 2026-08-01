@@ -6,17 +6,17 @@ import { useAuth, type AppRole } from '@/contexts/AuthContext';
  */
 export const ADMISSION_PERMS = {
   /** Snap to Admit — create an admission request */
-  admit: ['nurse', 'doctor', 'doctor1', 'doctor2', 'admin'],
+  admit: ['nurse', 'doctor1', 'doctor2', 'admin'],
   /** Awaiting Room — assign ward / room / bed */
   assignBed: ['nurse', 'admin'],
   /** Forward an admitted patient's snap to Pharmacy / Lab (creates billing) */
-  forwardSnap: ['nurse', 'doctor', 'doctor1', 'doctor2', 'admin'],
+  forwardSnap: ['nurse', 'doctor1', 'doctor2', 'admin'],
   /** Create a new admitted snap (deducts from patient balance) */
-  admittedSnap: ['nurse', 'doctor', 'doctor1', 'doctor2', 'admin'],
+  admittedSnap: ['nurse', 'doctor1', 'doctor2', 'admin'],
   /** Sign a discharge order */
-  dischargeOrder: ['doctor', 'doctor1', 'doctor2', 'admin'],
+  dischargeOrder: ['doctor1', 'doctor2', 'admin'],
   /** Complete the discharge (bills bed-days, settles debt) */
-  discharge: ['nurse', 'doctor', 'doctor1', 'doctor2', 'billing', 'accountant', 'admin'],
+  discharge: ['nurse', 'doctor1', 'doctor2', 'billing', 'accountant', 'admin'],
   /** Waive outstanding debt at discharge */
   waiveDebt: ['accountant', 'admin'],
 } satisfies Record<string, AppRole[]>;

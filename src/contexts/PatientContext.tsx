@@ -131,7 +131,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       // Read fresh row to guard against stale local cache
       const { data: current, error: readErr } = await supabase
         .from('patients')
-        .select('id, status, first_name, last_name')
+        .select('id, status, first_name, last_name, assigned_doctor')
         .eq('id', patientId)
         .single();
       if (readErr || !current) {

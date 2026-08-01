@@ -199,8 +199,13 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
           patientName={forwardFor.name}
           target={forwardFor.target}
           onClose={() => setForwardFor(null)}
+          onNeedNewSnap={() => {
+            const p = patientOf.get(forwardFor.patientId);
+            setSnapFor({ id: forwardFor.patientId, name: forwardFor.name, balance: Number(p?.balance ?? 0) });
+          }}
         />
       )}
+
 
       {dischargeOrderFor && (
         <DischargeOrderDialog

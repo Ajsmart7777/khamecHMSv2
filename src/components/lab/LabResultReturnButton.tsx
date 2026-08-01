@@ -120,10 +120,20 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
       // (e.g., nurse may need to send another lab request, Rx, or route to doctor)
       try {
         const newStatus = targetStation === 'nurse' ? 'with_nurse' : 'with_doctor';
-        await supabase
-          .from('patients')
-          .update({ status: newStatus, last_visit: new Date().toISOString() })
-          .eq('id', parentSnap.patient_id);
+        // Admitted patients stay in the ward — never move them to an
+        // outpatient station just because a lab result came back.
+        const { data: activeAdmission } = await supabase
+          .from('admissions')
+          .select('id')
+          .eq('patient_id', parentSnap.patient_id)
+          .in('status', ['active', 'ready_for_discharge', 'waiting_assignment'])
+          .maybeSingle();
+        if (!activeAdmission) {
+          await supabase
+            .from('patients')
+            .update({ status: newStatus, last_visit: new Date().toISOString() })
+            .eq('id', parentSnap.patient_id);
+        }
       } catch (statusErr) {
         console.warn('Could not update patient status after lab return', statusErr);
       }

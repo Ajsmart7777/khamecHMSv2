@@ -228,25 +228,35 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
   );
 }
 
-// ---- Forward existing snap to Pharmacy/Lab (goes via Billing) ---------------
-function ForwardSnapDialog({ patientId, patientName, target, onClose }:
-  { patientId: string; patientName: string; target: 'pharmacy' | 'lab'; onClose: () => void }) {
+// ---- Forward the (single-use) admission snap to Pharmacy/Lab via Billing ----
+function ForwardSnapDialog({ patientId, patientName, target, onClose, onNeedNewSnap }:
+  { patientId: string; patientName: string; target: 'pharmacy' | 'lab'; onClose: () => void; onNeedNewSnap: () => void }) {
   const [snaps, setSnaps] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    supabase.from('snap_orders').select('*')
-      .eq('patient_id', patientId)
-      .order('created_at', { ascending: false })
-      .limit(20)
-      .then(({ data }) => {
-        const rows = data ?? [];
-        setSnaps(rows);
-        rows.forEach((s: any) => {
-          if (s.photo_path) snapPhotoUrl(s.photo_path).then((u) => u && setUrls((m) => ({ ...m, [s.id]: u })));
-        });
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.from('snap_orders').select('*')
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (!alive) return;
+      const all = data ?? [];
+      const usedParents = new Set(all.map((s: any) => s.parent_snap_id).filter(Boolean));
+      // Admission snaps are single-use: hide any that were already forwarded
+      // or acknowledged — they now live only on the patient's card.
+      const rows = all.filter((s: any) =>
+        s.intent === 'admission_order' && !s.ack_at && !usedParents.has(s.id));
+      setSnaps(rows);
+      setLoading(false);
+      rows.forEach((s: any) => {
+        if (s.photo_path) snapPhotoUrl(s.photo_path).then((u) => u && setUrls((m) => ({ ...m, [s.id]: u })));
       });
+    })();
+    return () => { alive = false; };
   }, [patientId]);
 
   const forward = async (id: string) => {
@@ -263,11 +273,20 @@ function ForwardSnapDialog({ patientId, patientName, target, onClose }:
           <DialogTitle>Forward to {target === 'lab' ? 'Lab' : 'Pharmacy'} · {patientName}</DialogTitle>
         </DialogHeader>
         <p className="text-xs text-muted-foreground">
-          Pick an existing snap. It will be sent to Billing as a new task — the original
-          image is reused (no rewriting). Card stays in the admission queue.
+          The admission snap can be forwarded only once. After that it stays on the
+          patient's card and any new order needs a fresh snap.
         </p>
-        {snaps.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-6 text-center">No snaps found for this patient.</p>
+        {loading ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">Loading…</p>
+        ) : snaps.length === 0 ? (
+          <div className="py-6 text-center space-y-3">
+            <p className="text-sm text-muted-foreground">
+              The admission snap has already been used. Take a new snap for this order.
+            </p>
+            <Button size="sm" onClick={() => { onClose(); onNeedNewSnap(); }}>
+              <Camera className="h-3.5 w-3.5 mr-1.5" /> Take New Snap
+            </Button>
+          </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
             {snaps.map((s) => (
@@ -278,8 +297,7 @@ function ForwardSnapDialog({ patientId, patientName, target, onClose }:
                   <div className="w-full h-32 bg-muted rounded" />
                 )}
                 <div className="text-xs">
-                  <span className="capitalize font-medium">{s.order_type}</span>
-                  {s.intent && <> · <span className="text-muted-foreground">{s.intent}</span></>}
+                  <span className="capitalize font-medium">Admission order</span>
                   <div className="text-muted-foreground">{new Date(s.created_at).toLocaleString()}</div>
                 </div>
                 <Button size="sm" className="w-full" onClick={() => forward(s.id)} disabled={busyId === s.id}>
@@ -297,6 +315,8 @@ function ForwardSnapDialog({ patientId, patientName, target, onClose }:
     </Dialog>
   );
 }
+
+
 
 // ---- Doctor discharge-order snap → auto-flips admission to ready ------------
 function DischargeOrderDialog({ patientId, patientName, admissionId, onClose }:

@@ -37,6 +37,8 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
   const [resultsFor, setResultsFor] = useState<{ patientId: string; name: string } | null>(null);
   const { rooms, beds } = useWardsRoomsBeds();
   const can = useAdmissionPerms();
+  const { user } = useAuth();
+  const userId = user?.id;
 
   const bedInfo = useMemo(() => {
     const roomOf = new Map(rooms.map((r) => [r.id, r]));

@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { snapPhotoUrl } from '@/hooks/useSnapOrders';
 import { useWardsRoomsBeds } from '@/hooks/useWardsRooms';
 import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
+import { SnapLabResults } from '@/components/doctor/SnapLabResults';
 import { useAdmissionPerms } from '@/lib/admissionPermissions';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -222,7 +223,10 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
             <DialogHeader>
               <DialogTitle>Lab Results · {resultsFor.name}</DialogTitle>
             </DialogHeader>
-            <LabResultsViewer patientId={resultsFor.patientId} />
+            <div className="space-y-4">
+              <SnapLabResults patientId={resultsFor.patientId} />
+              <LabResultsViewer patientId={resultsFor.patientId} />
+            </div>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setResultsFor(null)}>Close</Button>
             </DialogFooter>

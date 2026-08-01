@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { BedDouble, Camera, LogOut, User2, Wallet, Send, ScrollText, Beaker, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useAdmissions, forwardSnapToBilling, markReadyForDischarge } from '@/hooks/useAdmissions';
+import { useAdmissions, markReadyForDischarge } from '@/hooks/useAdmissions';
 import { usePatients } from '@/contexts/PatientContext';
 import { AdmittedSnapDialog } from './AdmittedSnapDialog';
+import { SnapToCard } from './SnapToCard';
+
 import { DischargeDialog } from '@/components/nurse/DischargeDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';

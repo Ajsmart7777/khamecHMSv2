@@ -5,7 +5,7 @@ const ACTION_LABELS: Record<AdmissionAction, string> = {
   assignBed: 'Assign ward / room / bed',
   forwardSnap: 'Send snap to Pharmacy / Lab',
   admittedSnap: 'Create admitted snap',
-  dischargeOrder: 'Sign discharge order',
+  
   discharge: 'Complete discharge',
   waiveDebt: 'Waive outstanding debt',
 };

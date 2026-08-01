@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BedDouble, Camera, LogOut, User2, Wallet, Send, ScrollText, Beaker, FlaskConical } from 'lucide-react';
+import { BedDouble, Camera, LogOut, User2, Wallet, ScrollText, Beaker, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useAdmissions, markReadyForDischarge } from '@/hooks/useAdmissions';
+import { useAdmissions } from '@/hooks/useAdmissions';
 import { usePatients } from '@/contexts/PatientContext';
 import { AdmittedSnapDialog } from './AdmittedSnapDialog';
 import { SnapToCard } from './SnapToCard';
@@ -42,7 +42,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
   } | null>(null);
   const [dischargeFor, setDischargeFor] = useState<{ admissionId: string; patientId: string; name: string; balance: number } | null>(null);
 
-  const [dischargeOrderFor, setDischargeOrderFor] = useState<{ admissionId: string; patientId: string; name: string } | null>(null);
+  
   const [resultsFor, setResultsFor] = useState<{ patientId: string; name: string } | null>(null);
   const { rooms, beds } = useWardsRoomsBeds();
   const can = useAdmissionPerms();
@@ -197,15 +197,6 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                     ) : null}
                   </Button>
 
-                  {sourceStation === 'doctor' && !isReady && can('dischargeOrder') && (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => setDischargeOrderFor({ admissionId: a.id, patientId: a.patient_id, name })}
-                    >
-                      <Send className="h-3.5 w-3.5 mr-1.5" /> Discharge Order
-                    </Button>
-                  )}
                   {can('discharge') && (
                     <Button
                       size="sm"
@@ -252,14 +243,6 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
 
 
 
-      {dischargeOrderFor && (
-        <DischargeOrderDialog
-          patientId={dischargeOrderFor.patientId}
-          patientName={dischargeOrderFor.name}
-          admissionId={dischargeOrderFor.admissionId}
-          onClose={() => setDischargeOrderFor(null)}
-        />
-      )}
 
       {resultsFor && (
         <Dialog open onOpenChange={(o) => !o && setResultsFor(null)}>
@@ -284,76 +267,3 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
 
 
 
-// ---- Doctor discharge-order snap → auto-flips admission to ready ------------
-function DischargeOrderDialog({ patientId, patientName, admissionId, onClose }:
-  { patientId: string; patientName: string; admissionId: string; onClose: () => void }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [note, setNote] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const pick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (!f) return;
-    if (preview) URL.revokeObjectURL(preview);
-    setFile(f); setPreview(URL.createObjectURL(f));
-  };
-
-  const submit = async () => {
-    if (!file) { toast.error('Snap the discharge order first'); return; }
-    setBusy(true);
-    try {
-      const { data: v } = await supabase.from('visits').select('id').eq('patient_id', patientId).eq('status', 'open')
-        .order('opened_at', { ascending: false }).limit(1).maybeSingle();
-      const visitId = v?.id ?? crypto.randomUUID();
-      const path = `${visitId}/discharge-order-${crypto.randomUUID()}.jpg`;
-      const { error: upErr } = await supabase.storage.from('visit-cards').upload(path, file, { contentType: file.type || 'image/jpeg' });
-      if (upErr) throw upErr;
-      const { data: userRes } = await supabase.auth.getUser();
-      const { data: role } = await supabase.from('user_roles').select('role').eq('user_id', userRes.user?.id).limit(1).maybeSingle();
-      const { data: snap, error: snapErr } = await supabase.from('snap_orders').insert({
-        patient_id: patientId, visit_id: v?.id ?? null,
-        order_type: 'treatment', target_station: 'nurse',
-        source_role: role?.role ?? 'doctor',
-        photo_path: path, note: note.trim() || 'Discharge order',
-        status: 'acknowledged', created_by: userRes.user?.id,
-        original_sender_role: role?.role ?? 'doctor',
-        intent: 'discharge_order',
-      } as any).select('id').single();
-      if (snapErr) throw snapErr;
-      const ok = await markReadyForDischarge(admissionId, snap.id, note.trim() || undefined);
-      if (ok) onClose();
-    } catch (e: any) {
-      toast.error(e.message ?? 'Failed to sign discharge order');
-    } finally { setBusy(false); }
-  };
-
-  return (
-    <Dialog open onOpenChange={(o) => { if (busy) return; if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader><DialogTitle>Sign Discharge Order · {patientName}</DialogTitle></DialogHeader>
-        <div className="space-y-3">
-          <input type="file" accept="image/*" capture="environment" onChange={pick} />
-          {preview && <img src={preview} alt="discharge order" className="w-full max-h-64 object-contain rounded bg-muted" />}
-          <textarea
-            className="w-full border rounded p-2 text-sm"
-            rows={2}
-            placeholder="Discharge instructions (optional)"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-          <p className="text-xs text-muted-foreground">
-            The nurse will see this patient under "Ready for Discharge" and complete the discharge.
-          </p>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button onClick={submit} disabled={busy || !file}>
-            {busy ? 'Signing…' : 'Sign Discharge Order'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}

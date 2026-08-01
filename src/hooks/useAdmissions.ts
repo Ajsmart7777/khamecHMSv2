@@ -106,17 +106,6 @@ export async function requestAdmission(input: {
   return data as string;
 }
 
-export async function markReadyForDischarge(admissionId: string, snapId: string | null, note?: string): Promise<boolean> {
-  const { error } = await supabase.rpc('mark_ready_for_discharge', {
-    _admission_id: admissionId,
-    _snap_id: snapId,
-    _note: note ?? null,
-  });
-  if (error) { reportActionError('dischargeOrder', error); return false; }
-  window.dispatchEvent(new Event('admissions:changed'));
-  toast.success('Discharge order signed — nurse notified');
-  return true;
-}
 
 export async function forwardSnapToBilling(sourceSnapId: string, target: 'pharmacy' | 'lab', note?: string): Promise<string | null> {
   const { data, error } = await supabase.rpc('forward_snap_to_billing', {

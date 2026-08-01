@@ -222,7 +222,10 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
             <DialogHeader>
               <DialogTitle>Lab Results · {resultsFor.name}</DialogTitle>
             </DialogHeader>
-            <LabResultsViewer patientId={resultsFor.patientId} />
+            <div className="space-y-4">
+              <SnapLabResults patientId={resultsFor.patientId} />
+              <LabResultsViewer patientId={resultsFor.patientId} />
+            </div>
             <DialogFooter>
               <Button variant="ghost" onClick={() => setResultsFor(null)}>Close</Button>
             </DialogFooter>

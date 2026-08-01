@@ -116,30 +116,43 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                   {can('admittedSnap') && (
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={() => setSnapFor({ id: a.patient_id, name, balance: bal })}
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'prescription', accountType: p?.account_type, plan: p?.insurance_plan })}
                     >
-                      <Camera className="h-3.5 w-3.5 mr-1.5" /> New Snap
+                      <ScrollText className="h-3.5 w-3.5 mr-1.5" /> Add Items · Pharmacy
                     </Button>
                   )}
-                  {can('forwardSnap') && (
+                  {can('admittedSnap') && (
+                    <Button
+                      size="sm"
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'lab', accountType: p?.account_type, plan: p?.insurance_plan })}
+                    >
+                      <Beaker className="h-3.5 w-3.5 mr-1.5" /> Add Lab Tests
+                    </Button>
+                  )}
+                  {can('admittedSnap') && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setForwardFor({ admissionId: a.id, patientId: a.patient_id, name, target: 'pharmacy' })}
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'snap', orderType: 'prescription', accountType: p?.account_type, plan: p?.insurance_plan })}
                     >
-                      <ScrollText className="h-3.5 w-3.5 mr-1.5" /> Send to Pharmacy
+                      <Camera className="h-3.5 w-3.5 mr-1.5" /> Snap → Pharmacy
                     </Button>
                   )}
-                  {can('forwardSnap') && (
+                  {can('admittedSnap') && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setForwardFor({ admissionId: a.id, patientId: a.patient_id, name, target: 'lab' })}
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'snap', orderType: 'lab', accountType: p?.account_type, plan: p?.insurance_plan })}
                     >
-                      <Beaker className="h-3.5 w-3.5 mr-1.5" /> Send to Lab
+                      <Camera className="h-3.5 w-3.5 mr-1.5" /> Snap → Lab
                     </Button>
                   )}
+                  <SnapToCard
+                    patientId={a.patient_id}
+                    station={sourceStation}
+                    defaultLabel="Ward note"
+                    className="w-full"
+                  />
                   <Button
                     size="sm"
                     variant="outline"
@@ -166,6 +179,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                     </Button>
                   )}
                 </div>
+
               </div>
             );
           })}

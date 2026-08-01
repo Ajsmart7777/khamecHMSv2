@@ -33,9 +33,11 @@ import { cn } from '@/lib/utils';
 
 interface LabResultsViewerProps {
   patientId?: string;
+  /** Limit results to patients assigned to this doctor workspace (doctor1 / doctor2). */
+  assignedDoctor?: string;
 }
 
-export function LabResultsViewer({ patientId }: LabResultsViewerProps) {
+export function LabResultsViewer({ patientId, assignedDoctor }: LabResultsViewerProps) {
   const { labRequests } = useLabRequests();
   const { patients } = usePatients();
   const [selectedResult, setSelectedResult] = useState<{
@@ -56,6 +58,12 @@ export function LabResultsViewer({ patientId }: LabResultsViewerProps) {
       
       // If patientId prop is provided, filter by it
       if (patientId && req.patient_id !== patientId) return false;
+
+      // Scope to the current doctor's own workspace
+      if (assignedDoctor) {
+        const owner = patients.find(p => p.id === req.patient_id);
+        if (!owner || owner.assigned_doctor !== assignedDoctor) return false;
+      }
       
       // Patient name search filter
       if (patientSearch) {
@@ -84,7 +92,7 @@ export function LabResultsViewer({ patientId }: LabResultsViewerProps) {
       
       return true;
     });
-  }, [labRequests, patientId, patientSearch, startDate, endDate, patients]);
+  }, [labRequests, patientId, assignedDoctor, patientSearch, startDate, endDate, patients]);
 
   const getPatient = (pid: string): Patient | undefined => {
     return patients.find(p => p.id === pid);

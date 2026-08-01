@@ -14,7 +14,12 @@ import { PrintableLabRequestDialog } from '@/components/receipts/PrintableLabReq
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
-export function LabRequestPrintQueue() {
+interface LabRequestPrintQueueProps {
+  /** Limit the queue to patients assigned to this doctor workspace. */
+  assignedDoctor?: string;
+}
+
+export function LabRequestPrintQueue({ assignedDoctor }: LabRequestPrintQueueProps = {}) {
   const { labRequests, markAsPrinted, getUnprintedRequests } = useLabRequests();
   const { patients } = usePatients();
   const [selectedRequest, setSelectedRequest] = useState<{
@@ -22,7 +27,13 @@ export function LabRequestPrintQueue() {
     patient: Patient;
   } | null>(null);
 
-  const unprintedRequests = getUnprintedRequests();
+  const allUnprinted = getUnprintedRequests();
+  const unprintedRequests = assignedDoctor
+    ? allUnprinted.filter(r => {
+        const owner = patients.find(p => p.id === r.patient_id);
+        return owner?.assigned_doctor === assignedDoctor;
+      })
+    : allUnprinted;
 
   const getPatient = (patientId: string): Patient | undefined => {
     return patients.find(p => p.id === patientId);

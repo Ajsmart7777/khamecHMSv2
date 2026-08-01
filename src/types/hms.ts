@@ -3,7 +3,6 @@
 export type UserRole = 
   | 'reception' 
   | 'nurse' 
-  | 'doctor' 
   | 'doctor1'
   | 'doctor2'
   | 'lab' 

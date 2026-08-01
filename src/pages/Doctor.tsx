@@ -149,8 +149,8 @@ const Doctor = () => {
             title="My Admitted Patients"
             assignedDoctor={myDoctorKey ?? undefined}
           />
-          <LabRequestPrintQueue />
-          <LabResultsViewer />
+          <LabRequestPrintQueue assignedDoctor={myDoctorKey ?? undefined} />
+          <LabResultsViewer assignedDoctor={myDoctorKey ?? undefined} />
         </div>
 
         {/* Consultation area */}

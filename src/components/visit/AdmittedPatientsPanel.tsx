@@ -12,6 +12,7 @@ import { snapPhotoUrl } from '@/hooks/useSnapOrders';
 import { useWardsRoomsBeds } from '@/hooks/useWardsRooms';
 import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
 import { useAdmissionPerms } from '@/lib/admissionPermissions';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';

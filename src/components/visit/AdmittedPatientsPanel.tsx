@@ -12,6 +12,7 @@ import { snapPhotoUrl } from '@/hooks/useSnapOrders';
 import { useWardsRoomsBeds } from '@/hooks/useWardsRooms';
 import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
 import { useAdmissionPerms } from '@/lib/admissionPermissions';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -37,6 +38,8 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
   const [resultsFor, setResultsFor] = useState<{ patientId: string; name: string } | null>(null);
   const { rooms, beds } = useWardsRoomsBeds();
   const can = useAdmissionPerms();
+  const { user } = useAuth();
+  const userId = user?.id;
 
   const bedInfo = useMemo(() => {
     const roomOf = new Map(rooms.map((r) => [r.id, r]));
@@ -54,9 +57,13 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
     return m;
   }, [patients]);
 
-  // Filter by assigned doctor if scoping for a doctor view
+  // Doctor scoping: show admissions for patients assigned to me, admissions I
+  // opened myself, and unassigned patients (so nobody falls through a gap).
   const scoped = assignedDoctor
-    ? admissions.filter((a) => patientOf.get(a.patient_id)?.assigned_doctor === assignedDoctor)
+    ? admissions.filter((a) => {
+        const doc = patientOf.get(a.patient_id)?.assigned_doctor;
+        return doc === assignedDoctor || !doc || a.admitting_doctor === userId;
+      })
     : admissions;
 
   return (

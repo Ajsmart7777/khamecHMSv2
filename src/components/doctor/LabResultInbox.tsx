@@ -17,7 +17,7 @@ import { SnapClinicalOrder } from '@/components/visit/SnapClinicalOrder';
  * Shows snap_orders where order_type='lab_result' and returned_to = current user.
  */
 export function LabResultInbox() {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const { patients, updatePatientStatus } = usePatients();
   const [items, setItems] = useState<SnapOrder[]>([]);
   const [selected, setSelected] = useState<SnapOrder | null>(null);
@@ -32,15 +32,20 @@ export function LabResultInbox() {
 
   const refresh = async () => {
     if (!user?.id) return;
+    // Results are delivered to the requester, but the whole station (nurse /
+    // doctor) must see them too — e.g. an admitted patient's snap forwarded by
+    // a colleague on another shift.
+    const station = role === 'nurse' ? 'nurse' : 'doctor';
     const { data } = await supabase
       .from('snap_orders')
       .select('*')
       .eq('order_type', 'lab_result')
-      .eq('returned_to', user.id)
-      .in('status', ['returned'])
+      .eq('status', 'returned')
+      .or(`returned_to.eq.${user.id},target_station.eq.${station}`)
       .order('returned_at', { ascending: false });
     setItems(((data ?? []) as unknown) as SnapOrder[]);
   };
+
 
   useEffect(() => { refresh(); }, [user?.id]);
 

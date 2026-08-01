@@ -149,6 +149,24 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
         return true;
       }
 
+      // Inpatient location guard — an admitted patient physically stays in the
+      // ward. Station work (lab, pharmacy, billing, doctor review) happens via
+      // snaps/orders, so those station statuses must NOT overwrite 'admitted'.
+      const inpatientSafeStatuses = ['admitted', 'ready_for_discharge', 'discharged', 'awaiting_room'];
+      if (!inpatientSafeStatuses.includes(status)) {
+        const { data: activeAdmission } = await supabase
+          .from('admissions')
+          .select('id, status')
+          .eq('patient_id', patientId)
+          .in('status', ['active', 'ready_for_discharge', 'waiting_assignment'])
+          .maybeSingle();
+        if (activeAdmission) {
+          // Keep the ward as the source of truth for location.
+          return true;
+        }
+      }
+
+
       // Route through the workflow engine (Phase 1). advance_journey
       // mirrors the value into patients.status for backward compatibility.
       // There is no generic "doctor" role any more — work is owned by the

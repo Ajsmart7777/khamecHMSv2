@@ -32,9 +32,14 @@ interface Props {
 export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patients', assignedDoctor }: Props) {
   const { admissions } = useAdmissions({ statuses: ['active', 'ready_for_discharge'] });
   const { patients } = usePatients();
-  const [snapFor, setSnapFor] = useState<{ id: string; name: string; balance: number } | null>(null);
+  const [orderFor, setOrderFor] = useState<{
+    id: string; name: string; balance: number;
+    mode: 'items' | 'snap';
+    orderType: 'prescription' | 'lab' | 'treatment';
+    accountType?: string | null; plan?: string | null;
+  } | null>(null);
   const [dischargeFor, setDischargeFor] = useState<{ admissionId: string; patientId: string; name: string; balance: number } | null>(null);
-  const [forwardFor, setForwardFor] = useState<{ admissionId: string; patientId: string; name: string; target: 'pharmacy' | 'lab' } | null>(null);
+
   const [dischargeOrderFor, setDischargeOrderFor] = useState<{ admissionId: string; patientId: string; name: string } | null>(null);
   const [resultsFor, setResultsFor] = useState<{ patientId: string; name: string } | null>(null);
   const { rooms, beds } = useWardsRoomsBeds();

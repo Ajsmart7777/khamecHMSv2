@@ -186,14 +186,18 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
         </div>
       )}
 
-      {snapFor && (
+      {orderFor && (
         <AdmittedSnapDialog
           open
-          onOpenChange={(o) => !o && setSnapFor(null)}
-          patientId={snapFor.id}
-          patientName={snapFor.name}
-          patientBalance={snapFor.balance}
+          onOpenChange={(o) => !o && setOrderFor(null)}
+          patientId={orderFor.id}
+          patientName={orderFor.name}
+          patientBalance={orderFor.balance}
           sourceStation={sourceStation}
+          mode={orderFor.mode}
+          orderType={orderFor.orderType}
+          accountType={orderFor.accountType}
+          insurancePlan={orderFor.plan}
         />
       )}
 
@@ -208,18 +212,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
         />
       )}
 
-      {forwardFor && (
-        <ForwardSnapDialog
-          patientId={forwardFor.patientId}
-          patientName={forwardFor.name}
-          target={forwardFor.target}
-          onClose={() => setForwardFor(null)}
-          onNeedNewSnap={() => {
-            const p = patientOf.get(forwardFor.patientId);
-            setSnapFor({ id: forwardFor.patientId, name: forwardFor.name, balance: Number(p?.balance ?? 0) });
-          }}
-        />
-      )}
+
 
 
       {dischargeOrderFor && (

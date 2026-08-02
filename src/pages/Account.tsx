@@ -129,6 +129,9 @@ const Account = () => {
           <TabsTrigger value="pricelist" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <DollarSign className="h-4 w-4" /> Pricelist
           </TabsTrigger>
+          <TabsTrigger value="daily-sales" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <FileText className="h-4 w-4" /> Daily Sales Report
+          </TabsTrigger>
           <TabsTrigger value="external-doctors" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Stethoscope className="h-4 w-4" /> External Doctors
           </TabsTrigger>

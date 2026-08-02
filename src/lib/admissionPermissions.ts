@@ -15,8 +15,6 @@ export const ADMISSION_PERMS = {
   admittedSnap: ['nurse', 'doctor1', 'doctor2', 'admin'],
   /** Complete the discharge (bills bed-days, settles debt) */
   discharge: ['nurse', 'doctor1', 'doctor2', 'billing', 'accountant', 'admin'],
-  /** Waive outstanding debt at discharge */
-  waiveDebt: ['accountant', 'admin'],
 } satisfies Record<string, AppRole[]>;
 
 export type AdmissionAction = keyof typeof ADMISSION_PERMS;

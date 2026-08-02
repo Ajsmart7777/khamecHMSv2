@@ -7,7 +7,6 @@ const ACTION_LABELS: Record<AdmissionAction, string> = {
   admittedSnap: 'Create admitted snap',
   
   discharge: 'Complete discharge',
-  waiveDebt: 'Waive outstanding debt',
 };
 
 /** Postgres/PostgREST signals that mean "server rejected this on permissions". */

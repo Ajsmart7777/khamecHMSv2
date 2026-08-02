@@ -163,13 +163,15 @@ export function DischargeDialog({
               {preview.bed_already_billed && (
                 <p className="text-[11px] text-muted-foreground">Bed charge already billed for this admission.</p>
               )}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Wallet balance</span>
-                <span>{fmt(preview.current_balance)}</span>
-              </div>
+              {preview.has_wallet && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Wallet balance</span>
+                  <span>{fmt(preview.current_balance)}</span>
+                </div>
+              )}
               {preview.prior_outstanding > 0 && (
                 <div className="flex justify-between text-amber-700 dark:text-amber-400">
-                  <span>Existing debt (drugs / tests while admitted)</span>
+                  <span>Outstanding (drugs / tests while admitted)</span>
                   <span>{fmt(preview.prior_outstanding)}</span>
                 </div>
               )}

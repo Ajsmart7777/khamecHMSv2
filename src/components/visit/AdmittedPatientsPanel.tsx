@@ -214,13 +214,15 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                     ) : null}
                   </Button>
 
-                  {can('discharge') && (
+                  {can('requestDischarge') && (
                     <Button
                       size="sm"
-                      variant={isReady ? 'default' : 'secondary'}
+                      variant={isReady ? 'outline' : 'secondary'}
+                      disabled={isReady}
                       onClick={() => setDischargeFor({ admissionId: a.id, patientId: a.patient_id, name, balance: bal })}
                     >
-                      <LogOut className="h-3.5 w-3.5 mr-1.5" /> Discharge
+                      <LogOut className="h-3.5 w-3.5 mr-1.5" />
+                      {isReady ? 'At Cashier' : 'Confirm Discharge'}
                     </Button>
                   )}
                 </div>

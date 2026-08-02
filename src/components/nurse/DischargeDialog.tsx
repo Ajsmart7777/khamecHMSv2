@@ -36,19 +36,48 @@ export function DischargeDialog({
   admissionId, patientId, patientName, patientBalance, open, onOpenChange, onDischarged,
 }: Props) {
   const { role } = useAuth();
-  const debt = Math.max(0, -patientBalance);
+  const [bedCharge, setBedCharge] = useState<{ days: number; rate: number; amount: number } | null>(null);
+  const [copayPct, setCopayPct] = useState<number>(100);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    (async () => {
+      const [{ data: bc }, { data: pat }] = await Promise.all([
+        supabase.rpc('admission_bed_charge', { _admission_id: admissionId }),
+        supabase.from('patients').select('account_type, insurance_plan').eq('id', patientId).maybeSingle(),
+      ]);
+      if (!active) return;
+      const row = Array.isArray(bc) ? bc[0] : null;
+      if (row) setBedCharge({ days: Number(row.days), rate: Number(row.daily_rate), amount: Number(row.amount) });
+      if (pat) {
+        const { data: pct } = await supabase.rpc('copay_percent', {
+          _account_type: pat.account_type, _plan: pat.insurance_plan ?? null,
+        });
+        if (active && pct != null) setCopayPct(Number(pct));
+      }
+    })();
+    return () => { active = false; };
+  }, [open, admissionId, patientId]);
+
+  const bedCopay = bedCharge ? Math.round((bedCharge.amount * copayPct) / 100) : 0;
+  const projectedBalance = patientBalance - bedCopay;
+  const debt = Math.max(0, -projectedBalance);
   const hasDebt = debt > 0;
 
   const [notes, setNotes] = useState('');
   const [method, setMethod] = useState<Method>('cash');
-  const [amount, setAmount] = useState<string>(debt.toString());
+  const [amount, setAmount] = useState<string>('');
   const [settlementNotes, setSettlementNotes] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => { setAmount(debt ? String(debt) : ''); }, [debt]);
 
   const canWaive = role === 'accountant' || role === 'admin';
   const payMethods: Method[] = ['cash', 'pos', 'transfer'];
   const amountNum = Number(amount) || 0;
   const collectShort = payMethods.includes(method) && hasDebt && amountNum < debt;
+
 
   const submit = async () => {
     setBusy(true);

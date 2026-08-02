@@ -27,6 +27,9 @@ interface Props {
 
 interface Preview {
   admitted_at: string | null;
+  account_type: string | null;
+  insurance_plan: string | null;
+  has_wallet: boolean;
   nights: number;
   daily_rate: number;
   bed_total: number;
@@ -123,6 +126,12 @@ export function DischargeDialog({
 
           {preview && (
             <div className="p-3 rounded-lg border text-sm space-y-1.5">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Sponsor</span>
+                <Badge variant="outline" className="text-[10px] uppercase">
+                  {(preview.account_type || 'cash')}{preview.insurance_plan ? ` · ${preview.insurance_plan}` : ''} · patient {preview.copay_pct}%
+                </Badge>
+              </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Admitted</span>
                 <span>{preview.admitted_at ? new Date(preview.admitted_at).toLocaleDateString() : '—'}</span>
@@ -154,13 +163,15 @@ export function DischargeDialog({
               {preview.bed_already_billed && (
                 <p className="text-[11px] text-muted-foreground">Bed charge already billed for this admission.</p>
               )}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Wallet balance</span>
-                <span>{fmt(preview.current_balance)}</span>
-              </div>
+              {preview.has_wallet && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Wallet balance</span>
+                  <span>{fmt(preview.current_balance)}</span>
+                </div>
+              )}
               {preview.prior_outstanding > 0 && (
                 <div className="flex justify-between text-amber-700 dark:text-amber-400">
-                  <span>Existing debt (drugs / tests while admitted)</span>
+                  <span>Outstanding (drugs / tests while admitted)</span>
                   <span>{fmt(preview.prior_outstanding)}</span>
                 </div>
               )}
@@ -179,13 +190,19 @@ export function DischargeDialog({
           }`}>
             <Wallet className="h-4 w-4" />
             <div className="text-sm flex-1">
-              <p className="font-medium">Balance: {fmt(patientBalance)}</p>
+              <p className="font-medium">
+                {preview && !preview.has_wallet
+                  ? `Sponsored account — no wallet`
+                  : `Balance: ${fmt(patientBalance)}`}
+              </p>
               <p className="text-xs">
                 {hasDebt
                   ? `Patient owes ${fmt(due)} — collect, waive, or carry as debt`
-                  : (preview?.balance_after_bed ?? 0) > 0
-                    ? `Refund ${fmt(preview?.balance_after_bed ?? 0)} available at Reception`
-                    : 'Zero balance — ready to discharge'}
+                  : preview && !preview.has_wallet
+                    ? 'Sponsor covers the bill — nothing to collect'
+                    : (preview?.balance_after_bed ?? 0) > 0
+                      ? `Refund ${fmt(preview?.balance_after_bed ?? 0)} available at Reception`
+                      : 'Zero balance — ready to discharge'}
               </p>
             </div>
           </div>

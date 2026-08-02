@@ -20,7 +20,7 @@ import { usePricelist } from '@/hooks/usePricelist';
 import { InAppCameraDialog } from './InAppCameraDialog';
 import { SnapCropDialog } from './SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
-import { copayPercent, sponsorLabel } from '@/lib/copay';
+import { copayPercent, sponsorLabel, hasWallet } from '@/lib/copay';
 
 type OrderType = 'prescription' | 'lab' | 'treatment';
 type Target = 'pharmacy' | 'lab' | 'nurse' | 'doctor';
@@ -98,7 +98,8 @@ export function AdmittedSnapDialog({
   const pct = copayPercent({ account_type: accountType, insurance_plan: insurancePlan });
   const patientShare = Math.round((total * pct) / 100 * 100) / 100;
   const covered = Math.max(0, Math.round((total - patientShare) * 100) / 100);
-  const shortfall = Math.max(0, patientShare - patientBalance);
+  const walletPatient = hasWallet({ account_type: accountType });
+  const shortfall = walletPatient ? Math.max(0, patientShare - patientBalance) : 0;
   const insufficient = shortfall > 0;
 
   const filteredPricelist = useMemo(() => {
@@ -224,7 +225,7 @@ export function AdmittedSnapDialog({
             <Wallet className="h-4 w-4" />
             <div className="text-sm flex-1">
               <p className="font-medium">
-                Balance: {fmt(patientBalance)}
+                {walletPatient ? `Balance: ${fmt(patientBalance)}` : 'Sponsored account — no wallet'}
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
                   {sponsorLabel({ account_type: accountType, insurance_plan: insurancePlan })} · patient pays {pct}%
                 </span>
@@ -233,7 +234,8 @@ export function AdmittedSnapDialog({
                 <p className="text-xs">Patient share {fmt(patientShare)} exceeds balance by {fmt(shortfall)}</p>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Order {fmt(total)} → patient {fmt(patientShare)}{covered > 0 ? ` · sponsor ${fmt(covered)}` : ''} — balance left {fmt(patientBalance - patientShare)}
+                  Order {fmt(total)} → patient {fmt(patientShare)}{covered > 0 ? ` · sponsor ${fmt(covered)}` : ''}
+                  {walletPatient ? ` — balance left ${fmt(patientBalance - patientShare)}` : ' — settled at discharge / claim'}
                 </p>
               )}
             </div>

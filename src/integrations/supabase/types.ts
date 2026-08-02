@@ -3060,6 +3060,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_wallet: { Args: { _account_type: string }; Returns: boolean }
       is_authenticated_staff: { Args: never; Returns: boolean }
       mark_claim_rejected: {
         Args: { _notes?: string; _reason_code: string; _visit_id: string }
@@ -3101,6 +3102,7 @@ export type Database = {
         }
         Returns: string
       }
+      patient_outstanding: { Args: { _patient_id: string }; Returns: number }
       patient_pending_workflow_station: {
         Args: { _patient_id: string }
         Returns: string

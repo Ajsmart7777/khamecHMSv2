@@ -1,6 +1,7 @@
 import { ReactNode, useState } from 'react';
 import { AppSidebar } from './AppSidebar';
 import { TopBar } from './TopBar';
+import { StationAlertOverlay } from './StationAlertOverlay';
 import { Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
@@ -16,6 +17,7 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      <StationAlertOverlay />
       {/* Desktop Sidebar */}
       <div className="hidden lg:block">
         <AppSidebar />

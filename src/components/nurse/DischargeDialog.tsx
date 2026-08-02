@@ -238,12 +238,6 @@ export function DischargeDialog({
                   <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
                     <RadioGroupItem value="carry" /><span className="text-sm">Carry as debt</span>
                   </label>
-                  {canWaive && (
-                    <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted col-span-2">
-                      <RadioGroupItem value="waive" />
-                      <span className="text-sm">Waive debt <Badge variant="outline" className="ml-1 text-[10px]">Accountant</Badge></span>
-                    </label>
-                  )}
                 </RadioGroup>
               </div>
 

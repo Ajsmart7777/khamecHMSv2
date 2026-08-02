@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BedDouble, Camera, LogOut, User2, Wallet, ScrollText, Beaker, FlaskConical } from 'lucide-react';
+import { BedDouble, Camera, FileImage, LogOut, User2, Wallet, ScrollText, Beaker, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAdmissions } from '@/hooks/useAdmissions';
 import { usePatients } from '@/contexts/PatientContext';
 import { AdmittedSnapDialog } from './AdmittedSnapDialog';
 import { SnapToCard } from './SnapToCard';
+import { AdmissionSnapDialog } from './AdmissionSnapDialog';
 
 import { ConfirmDischargeDialog } from '@/components/nurse/ConfirmDischargeDialog';
 import { supabase } from '@/integrations/supabase/client';
@@ -44,6 +45,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
 
   
   const [resultsFor, setResultsFor] = useState<{ patientId: string; name: string } | null>(null);
+  const [admissionSnapFor, setAdmissionSnapFor] = useState<{ patientId: string; name: string; path: string | null } | null>(null);
   const { rooms, beds } = useWardsRoomsBeds();
   const can = useAdmissionPerms();
   const { user } = useAuth();
@@ -213,6 +215,14 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                       </Badge>
                     ) : null}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setAdmissionSnapFor({ patientId: a.patient_id, name, path: a.admission_snap_path ?? null })}
+                  >
+                    <FileImage className="h-3.5 w-3.5 mr-1.5" /> Admission Snap
+                  </Button>
+
 
                   {can('requestDischarge') && (
                     <Button
@@ -260,6 +270,16 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
 
 
 
+
+      {admissionSnapFor && (
+        <AdmissionSnapDialog
+          open
+          onOpenChange={(o) => !o && setAdmissionSnapFor(null)}
+          patientId={admissionSnapFor.patientId}
+          patientName={admissionSnapFor.name}
+          fallbackPath={admissionSnapFor.path}
+        />
+      )}
 
       {resultsFor && (
         <Dialog open onOpenChange={(o) => !o && setResultsFor(null)}>

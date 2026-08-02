@@ -11,9 +11,8 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 
-type Method = 'cash' | 'pos' | 'transfer' | 'waive' | 'carry';
+type Method = 'cash' | 'pos' | 'transfer' | 'carry';
 
 interface Props {
   admissionId: string;
@@ -55,7 +54,7 @@ const fmt = (n: number) => `₦${Number(n || 0).toLocaleString(undefined, { maxi
 export function DischargeDialog({
   admissionId, patientId, patientName, patientBalance, open, onOpenChange, onDischarged,
 }: Props) {
-  const { role } = useAuth();
+
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -86,7 +85,7 @@ export function DischargeDialog({
 
   useEffect(() => { setAmount(due ? String(due) : ''); }, [due]);
 
-  const canWaive = role === 'accountant' || role === 'admin';
+  
   const payMethods: Method[] = ['cash', 'pos', 'transfer'];
   const amountNum = Number(amount) || 0;
   const isPay = payMethods.includes(method);
@@ -211,7 +210,7 @@ export function DischargeDialog({
               </p>
               <p className="text-xs">
                 {hasDebt
-                  ? `Patient owes ${fmt(due)} — collect, waive, or carry as debt`
+                  ? `Patient owes ${fmt(due)} — collect or carry as debt`
                   : preview && !preview.has_wallet
                     ? 'Sponsor covers the bill — nothing to collect'
                     : (preview?.balance_after_bed ?? 0) > 0
@@ -238,12 +237,6 @@ export function DischargeDialog({
                   <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
                     <RadioGroupItem value="carry" /><span className="text-sm">Carry as debt</span>
                   </label>
-                  {canWaive && (
-                    <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted col-span-2">
-                      <RadioGroupItem value="waive" />
-                      <span className="text-sm">Waive debt <Badge variant="outline" className="ml-1 text-[10px]">Accountant</Badge></span>
-                    </label>
-                  )}
                 </RadioGroup>
               </div>
 

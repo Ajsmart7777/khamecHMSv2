@@ -2997,6 +2997,7 @@ export type Database = {
         Args: {
           _admission_id: string
           _notes?: string
+          _refund_amount?: number
           _settlement_amount?: number
           _settlement_method?: string
           _settlement_notes?: string
@@ -3140,6 +3141,10 @@ export type Database = {
       retainer_deposit: {
         Args: { _amount: number; _notes?: string; _sponsor_id: string }
         Returns: number
+      }
+      send_admission_to_cashier: {
+        Args: { _admission_id: string; _note?: string }
+        Returns: undefined
       }
       settle_invoice_atomic: {
         Args: {

@@ -13,8 +13,10 @@ export const ADMISSION_PERMS = {
   forwardSnap: ['nurse', 'doctor1', 'doctor2', 'admin'],
   /** Create a new admitted snap (deducts from patient balance) */
   admittedSnap: ['nurse', 'doctor1', 'doctor2', 'admin'],
-  /** Complete the discharge (bills bed-days, settles debt) */
-  discharge: ['nurse', 'doctor1', 'doctor2', 'billing', 'accountant', 'admin'],
+  /** Ward confirms the patient can go — sends them to the Cashier for settlement */
+  requestDischarge: ['nurse', 'doctor1', 'doctor2', 'admin'],
+  /** Settle the bill and complete the discharge — Cashier only */
+  discharge: ['cashier', 'billing', 'accountant', 'admin'],
 } satisfies Record<string, AppRole[]>;
 
 export type AdmissionAction = keyof typeof ADMISSION_PERMS;

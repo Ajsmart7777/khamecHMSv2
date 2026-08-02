@@ -85,7 +85,7 @@ export function DischargeDialog({
 
   useEffect(() => { setAmount(due ? String(due) : ''); }, [due]);
 
-  
+
   const payMethods: Method[] = ['cash', 'pos', 'transfer'];
   const amountNum = Number(amount) || 0;
   const isPay = payMethods.includes(method);
@@ -93,6 +93,16 @@ export function DischargeDialog({
   const needsReason = hasDebt && (method === 'carry' || shortfall > 0);
   const reasonMissing = needsReason && settlementNotes.trim().length < 3;
   const invalidAmount = isPay && hasDebt && amountNum <= 0;
+
+  // Change owed back to the patient: leftover wallet credit + any overpayment.
+  const walletLeft = preview?.has_wallet
+    ? Math.max(0, Math.round(((preview.wallet_credit ?? 0) - (preview.wallet_applied ?? 0)) * 100) / 100)
+    : 0;
+  const overpay = isPay && hasDebt ? Math.max(0, Math.round((amountNum - due) * 100) / 100) : 0;
+  const changeDue = Math.round((walletLeft + overpay) * 100) / 100;
+
+  const [refund, setRefund] = useState(false);
+  useEffect(() => { if (changeDue <= 0) setRefund(false); }, [changeDue]);
 
   const submit = async () => {
     setBusy(true);
@@ -102,19 +112,24 @@ export function DischargeDialog({
       _settlement_method: hasDebt ? method : null,
       _settlement_amount: hasDebt && isPay ? amountNum : 0,
       _settlement_notes: settlementNotes.trim() || null,
+      _refund_amount: refund ? changeDue : 0,
     });
     setBusy(false);
     if (error) { toast.error(error.message); return; }
-    const res = (data ?? {}) as { collected?: number; outstanding?: number };
+    const res = (data ?? {}) as { collected?: number; outstanding?: number; refunded?: number };
     const outstanding = Number(res.outstanding ?? 0);
+    const refunded = Number(res.refunded ?? 0);
     toast.success(
       outstanding > 0
         ? `Discharged — collected ${fmt(Number(res.collected ?? 0))}, ${fmt(outstanding)} carried as debt`
-        : 'Patient discharged — account settled',
+        : refunded > 0
+          ? `Discharged — ${fmt(refunded)} change paid back to patient`
+          : 'Patient discharged — account settled',
     );
     onDischarged?.();
     onOpenChange(false);
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -276,6 +291,28 @@ export function DischargeDialog({
               </div>
             </>
           )}
+
+          {changeDue > 0 && (
+            <div className="p-3 rounded-lg border space-y-2">
+              <p className="text-sm font-medium">Change due to patient: {fmt(changeDue)}</p>
+              <RadioGroup
+                value={refund ? 'refund' : 'keep'}
+                onValueChange={(v) => setRefund(v === 'refund')}
+                className="grid grid-cols-1 gap-2"
+              >
+                <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
+                  <RadioGroupItem value="keep" />
+                  <span className="text-sm">Leave on patient balance</span>
+                </label>
+                <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
+                  <RadioGroupItem value="refund" />
+                  <span className="text-sm">Pay change back to patient now</span>
+                </label>
+              </RadioGroup>
+            </div>
+          )}
+
+
 
           <div className="space-y-1.5">
             <Label>Discharge notes (optional)</Label>

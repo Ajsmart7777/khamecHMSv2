@@ -5,8 +5,8 @@ const ACTION_LABELS: Record<AdmissionAction, string> = {
   assignBed: 'Assign ward / room / bed',
   forwardSnap: 'Send snap to Pharmacy / Lab',
   admittedSnap: 'Create admitted snap',
-  
-  discharge: 'Complete discharge',
+  requestDischarge: 'Confirm discharge (send to Cashier)',
+  discharge: 'Settle & complete discharge',
 };
 
 /** Postgres/PostgREST signals that mean "server rejected this on permissions". */

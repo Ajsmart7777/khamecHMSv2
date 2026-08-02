@@ -1,0 +1,2 @@
+ALTER TABLE public.admissions DROP CONSTRAINT IF EXISTS admissions_status_check;
+ALTER TABLE public.admissions ADD CONSTRAINT admissions_status_check CHECK (status = ANY (ARRAY['waiting_assignment'::text, 'active'::text, 'ready_for_discharge'::text, 'discharged'::text, 'cancelled'::text]));

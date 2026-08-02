@@ -21,6 +21,7 @@ import { ExternalDoctorsManager } from '@/components/account/ExternalDoctorsMana
 import { RetainerClaimsPanel } from '@/components/account/RetainerClaimsPanel';
 import { CorporateClaimsPanel } from '@/components/account/CorporateClaimsPanel';
 import { SponsorStatementsPanel } from '@/components/account/SponsorStatementsPanel';
+import { DailySalesReport } from '@/components/account/DailySalesReport';
 import type { PayrollPeriod } from '@/hooks/usePayroll';
 
 function TabHeader({ title, onRefresh }: { title: string; onRefresh: () => void }) {

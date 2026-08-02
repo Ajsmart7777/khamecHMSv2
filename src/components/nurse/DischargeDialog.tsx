@@ -86,7 +86,7 @@ export function DischargeDialog({
 
   useEffect(() => { setAmount(due ? String(due) : ''); }, [due]);
 
-  const canWaive = role === 'accountant' || role === 'admin';
+  
   const payMethods: Method[] = ['cash', 'pos', 'transfer'];
   const amountNum = Number(amount) || 0;
   const isPay = payMethods.includes(method);

@@ -126,6 +126,12 @@ export function DischargeDialog({
 
           {preview && (
             <div className="p-3 rounded-lg border text-sm space-y-1.5">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground">Sponsor</span>
+                <Badge variant="outline" className="text-[10px] uppercase">
+                  {(preview.account_type || 'cash')}{preview.insurance_plan ? ` · ${preview.insurance_plan}` : ''} · patient {preview.copay_pct}%
+                </Badge>
+              </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Admitted</span>
                 <span>{preview.admitted_at ? new Date(preview.admitted_at).toLocaleDateString() : '—'}</span>

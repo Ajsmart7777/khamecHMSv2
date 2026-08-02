@@ -306,7 +306,7 @@ export function DischargeDialog({
               )}
 
               <div className="space-y-1.5">
-                <Label>{needsReason ? 'Reason for outstanding debt *' : 'Settlement notes (optional)'}</Label>
+                <Label>{needsReason ? 'Reason for outstanding debt (optional)' : 'Settlement notes (optional)'}</Label>
                 <Input
                   value={settlementNotes}
                   onChange={(e) => setSettlementNotes(e.target.value)}

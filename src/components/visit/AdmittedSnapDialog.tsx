@@ -225,7 +225,7 @@ export function AdmittedSnapDialog({
             <Wallet className="h-4 w-4" />
             <div className="text-sm flex-1">
               <p className="font-medium">
-                Balance: {fmt(patientBalance)}
+                {walletPatient ? `Balance: ${fmt(patientBalance)}` : 'Sponsored account — no wallet'}
                 <span className="ml-2 text-xs font-normal text-muted-foreground">
                   {sponsorLabel({ account_type: accountType, insurance_plan: insurancePlan })} · patient pays {pct}%
                 </span>

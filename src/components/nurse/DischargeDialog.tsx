@@ -292,6 +292,28 @@ export function DischargeDialog({
             </>
           )}
 
+          {changeDue > 0 && (
+            <div className="p-3 rounded-lg border space-y-2">
+              <p className="text-sm font-medium">Change due to patient: {fmt(changeDue)}</p>
+              <RadioGroup
+                value={refund ? 'refund' : 'keep'}
+                onValueChange={(v) => setRefund(v === 'refund')}
+                className="grid grid-cols-1 gap-2"
+              >
+                <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
+                  <RadioGroupItem value="keep" />
+                  <span className="text-sm">Leave on patient balance</span>
+                </label>
+                <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
+                  <RadioGroupItem value="refund" />
+                  <span className="text-sm">Pay change back to patient now</span>
+                </label>
+              </RadioGroup>
+            </div>
+          )}
+
+
+
           <div className="space-y-1.5">
             <Label>Discharge notes (optional)</Label>
             <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. stable, follow-up in 1 week" />

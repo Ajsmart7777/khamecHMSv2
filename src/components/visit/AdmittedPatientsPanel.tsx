@@ -7,7 +7,7 @@ import { usePatients } from '@/contexts/PatientContext';
 import { AdmittedSnapDialog } from './AdmittedSnapDialog';
 import { SnapToCard } from './SnapToCard';
 
-import { DischargeDialog } from '@/components/nurse/DischargeDialog';
+import { ConfirmDischargeDialog } from '@/components/nurse/ConfirmDischargeDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 

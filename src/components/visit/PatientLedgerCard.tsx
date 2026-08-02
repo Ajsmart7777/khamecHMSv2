@@ -15,6 +15,7 @@ import { Visit } from '@/hooks/useVisits';
 import { Button } from '@/components/ui/button';
 import { copayPercent, hasWallet, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
 import { ClaimActionsBar } from '@/components/claims/ClaimActionsBar';
+import { useAuth } from '@/contexts/AuthContext';
 import { downloadDischargeSummaryPdf } from '@/lib/dischargeSummaryPdf';
 import { toast } from '@/hooks/use-toast';
 import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';
@@ -926,10 +927,32 @@ function InvoiceRow({ inv, patient }: { inv: any; patient: Patient }) {
   const claimPosted = sponsored && paid >= total; // sponsor_claim payment closed it
   const copayCollected = sponsored ? Math.min(paid, split.copayAmount) : 0;
   const copayDue = sponsored ? Math.max(split.copayAmount - copayCollected, 0) : 0;
+  const { hasRole } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [submittedAt, setSubmittedAt] = useState<string | null>(inv.claim_submitted_at ?? null);
+  const [settledPaid, setSettledPaid] = useState<number | null>(null);
+  const effectivePaid = settledPaid ?? paid;
   const isInsurance = ['nhis', 'hmo', 'katchma'].includes(String(patient.account_type));
-  const showClaimAction = sponsored && isInsurance && paid >= total;
+  const canManageClaims = hasRole(['claims_manager', 'admin']);
+  const showClaimAction = sponsored && isInsurance && effectivePaid >= total;
+  const showSettleAction =
+    sponsored && isInsurance && canManageClaims && effectivePaid < total && inv.status !== 'cancelled';
+
+  const settleInvoice = async () => {
+    setSubmitting(true);
+    const { error } = await supabase.rpc('mark_invoice_claim_settled', {
+      _invoice_id: inv.id,
+      _notes: null,
+    });
+    setSubmitting(false);
+    if (error) {
+      toast({ title: 'Failed to mark invoice settled', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setSettledPaid(total);
+    setSubmittedAt((prev) => prev ?? new Date().toISOString());
+    toast({ title: 'Invoice settled', description: `Invoice ${inv.invoice_number} recorded as settled by the sponsor.` });
+  };
 
   const submitClaim = async () => {
     setSubmitting(true);
@@ -1040,6 +1063,17 @@ function InvoiceRow({ inv, patient }: { inv: any; patient: Patient }) {
               </Button>
             </>
           )}
+        </div>
+      )}
+      {showSettleAction && (
+        <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2">
+          <span className="text-xs text-muted-foreground">
+            Sponsor paid this invoice? Mark it settled to close it out.
+          </span>
+          <Button size="sm" variant="outline" disabled={submitting} onClick={settleInvoice} className="h-7 text-xs gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            {submitting ? 'Saving…' : 'Mark invoice settled'}
+          </Button>
         </div>
       )}
     </div>

@@ -2931,6 +2931,10 @@ export type Database = {
         }
         Returns: string
       }
+      apply_wallet_to_outstanding: {
+        Args: { _note?: string; _patient_id: string }
+        Returns: number
+      }
       assign_admission_bed: {
         Args: { _admission_id: string; _bed_id: string }
         Returns: undefined

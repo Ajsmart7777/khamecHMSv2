@@ -39,6 +39,9 @@ interface Preview {
   bed_patient_share: number;
   current_balance: number;
   prior_outstanding: number;
+  gross_total: number;
+  wallet_credit: number;
+  wallet_applied: number;
   total_due: number;
   balance_after_bed: number;
 }
@@ -163,24 +166,35 @@ export function DischargeDialog({
               {preview.bed_already_billed && (
                 <p className="text-[11px] text-muted-foreground">Bed charge already billed for this admission.</p>
               )}
-              {preview.has_wallet && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Wallet balance</span>
-                  <span>{fmt(preview.current_balance)}</span>
-                </div>
-              )}
               {preview.prior_outstanding > 0 && (
                 <div className="flex justify-between text-amber-700 dark:text-amber-400">
                   <span>Outstanding (drugs / tests while admitted)</span>
                   <span>{fmt(preview.prior_outstanding)}</span>
                 </div>
               )}
+              <div className="flex justify-between pt-1.5 border-t font-medium">
+                <span>Grand total</span>
+                <span>{fmt(preview.gross_total)}</span>
+              </div>
+              {preview.has_wallet && (
+                <>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Wallet balance</span>
+                    <span>{fmt(preview.current_balance)}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                    <span>Applied from balance</span>
+                    <span>−{fmt(preview.wallet_applied)}</span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between pt-1.5 border-t font-semibold">
-                <span>{hasDebt ? 'Total to pay' : 'Nothing to pay'}</span>
+                <span>{hasDebt ? 'Balance to pay' : 'Nothing to pay'}</span>
                 <span className={hasDebt ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-600'}>
                   {fmt(due)}
                 </span>
               </div>
+
             </div>
           )}
 

@@ -236,6 +236,12 @@ const Account = () => {
           <PricelistManager />
         </TabsContent>
 
+        <TabsContent value="daily-sales">
+          <DailySalesReport />
+        </TabsContent>
+
+
+
         <TabsContent value="register">
           <TabHeader title="Register Staff" onRefresh={refetchStaff} />
           <StaffRegistrationForm staff={staff} loading={staffLoading} onAddStaff={addStaff} onDeleteStaff={deleteStaff} onRefetch={refetchStaff} />

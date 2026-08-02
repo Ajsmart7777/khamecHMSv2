@@ -91,7 +91,7 @@ export function DischargeDialog({
   const isPay = payMethods.includes(method);
   const shortfall = isPay && hasDebt ? Math.max(0, Math.round((due - amountNum) * 100) / 100) : 0;
   const needsReason = hasDebt && (method === 'carry' || shortfall > 0);
-  const reasonMissing = needsReason && settlementNotes.trim().length < 3;
+  const reasonMissing = false;
   const invalidAmount = isPay && hasDebt && amountNum <= 0;
 
   // Change owed back to the patient: leftover wallet credit + any overpayment.
@@ -306,7 +306,7 @@ export function DischargeDialog({
               )}
 
               <div className="space-y-1.5">
-                <Label>{needsReason ? 'Reason for outstanding debt *' : 'Settlement notes (optional)'}</Label>
+                <Label>{needsReason ? 'Reason for outstanding debt (optional)' : 'Settlement notes (optional)'}</Label>
                 <Input
                   value={settlementNotes}
                   onChange={(e) => setSettlementNotes(e.target.value)}

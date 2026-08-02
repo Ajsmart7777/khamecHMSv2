@@ -15,6 +15,7 @@ import { Visit } from '@/hooks/useVisits';
 import { Button } from '@/components/ui/button';
 import { copayPercent, hasWallet, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
 import { ClaimActionsBar } from '@/components/claims/ClaimActionsBar';
+import { useAuth } from '@/contexts/AuthContext';
 import { downloadDischargeSummaryPdf } from '@/lib/dischargeSummaryPdf';
 import { toast } from '@/hooks/use-toast';
 import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';

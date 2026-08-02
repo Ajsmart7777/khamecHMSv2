@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LogOut, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,19 +36,48 @@ export function DischargeDialog({
   admissionId, patientId, patientName, patientBalance, open, onOpenChange, onDischarged,
 }: Props) {
   const { role } = useAuth();
-  const debt = Math.max(0, -patientBalance);
+  const [bedCharge, setBedCharge] = useState<{ days: number; rate: number; amount: number } | null>(null);
+  const [copayPct, setCopayPct] = useState<number>(100);
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    (async () => {
+      const [{ data: bc }, { data: pat }] = await Promise.all([
+        supabase.rpc('admission_bed_charge', { _admission_id: admissionId }),
+        supabase.from('patients').select('account_type, insurance_plan').eq('id', patientId).maybeSingle(),
+      ]);
+      if (!active) return;
+      const row = Array.isArray(bc) ? bc[0] : null;
+      if (row) setBedCharge({ days: Number(row.days), rate: Number(row.daily_rate), amount: Number(row.amount) });
+      if (pat) {
+        const { data: pct } = await supabase.rpc('copay_percent', {
+          _account_type: pat.account_type, _plan: pat.insurance_plan ?? null,
+        });
+        if (active && pct != null) setCopayPct(Number(pct));
+      }
+    })();
+    return () => { active = false; };
+  }, [open, admissionId, patientId]);
+
+  const bedCopay = bedCharge ? Math.round((bedCharge.amount * copayPct) / 100) : 0;
+  const projectedBalance = patientBalance - bedCopay;
+  const debt = Math.max(0, -projectedBalance);
   const hasDebt = debt > 0;
 
   const [notes, setNotes] = useState('');
   const [method, setMethod] = useState<Method>('cash');
-  const [amount, setAmount] = useState<string>(debt.toString());
+  const [amount, setAmount] = useState<string>('');
   const [settlementNotes, setSettlementNotes] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => { setAmount(debt ? String(debt) : ''); }, [debt]);
 
   const canWaive = role === 'accountant' || role === 'admin';
   const payMethods: Method[] = ['cash', 'pos', 'transfer'];
   const amountNum = Number(amount) || 0;
   const collectShort = payMethods.includes(method) && hasDebt && amountNum < debt;
+
 
   const submit = async () => {
     setBusy(true);
@@ -74,6 +103,17 @@ export function DischargeDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          {bedCharge && bedCharge.amount > 0 && (
+            <div className="p-3 rounded-lg border text-sm space-y-1">
+              <p className="font-medium">Bed days: {bedCharge.days} day{bedCharge.days === 1 ? '' : 's'}</p>
+              <p className="text-xs text-muted-foreground">
+                {fmt(bedCharge.rate)}/day × {bedCharge.days} = {fmt(bedCharge.amount)}
+                {copayPct < 100 && ` · patient share ${copayPct}% = ${fmt(bedCopay)}`}
+              </p>
+              <p className="text-xs text-muted-foreground">Billed automatically on discharge.</p>
+            </div>
+          )}
+
           <div className={`p-3 rounded-lg border flex items-center gap-2 ${
             hasDebt ? 'bg-amber-50 border-amber-300 dark:bg-amber-950/20'
                     : 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/20'
@@ -82,12 +122,13 @@ export function DischargeDialog({
             <div className="text-sm flex-1">
               <p className="font-medium">Balance: {fmt(patientBalance)}</p>
               <p className="text-xs">
-                {hasDebt ? `Patient owes ${fmt(debt)} — settle before discharge`
-                         : patientBalance > 0 ? `Refund ${fmt(patientBalance)} available at Reception`
+                {hasDebt ? `After bed charge, patient owes ${fmt(debt)} — settle before discharge`
+                         : projectedBalance > 0 ? `Refund ${fmt(projectedBalance)} available at Reception`
                          : 'Zero balance — ready to discharge'}
               </p>
             </div>
           </div>
+
 
           {hasDebt && (
             <>

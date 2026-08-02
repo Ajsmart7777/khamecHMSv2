@@ -25,45 +25,33 @@ interface Props {
   onDischarged?: () => void;
 }
 
-const fmt = (n: number) => `₦${Number(n || 0).toLocaleString()}`;
+interface Preview {
+  admitted_at: string | null;
+  nights: number;
+  daily_rate: number;
+  bed_total: number;
+  bed_already_billed: boolean;
+  copay_pct: number;
+  sponsor_covered: number;
+  bed_patient_share: number;
+  current_balance: number;
+  prior_outstanding: number;
+  total_due: number;
+  balance_after_bed: number;
+}
+
+const fmt = (n: number) => `₦${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
 /**
- * Discharge dialog — reconciles patient balance before discharge.
- * If balance is negative, cashier collects the shortfall, or accountant/admin waives it,
- * or the debt is carried on the patient balance.
+ * Discharge dialog — shows the exact server-side bill (bed nights + prior debt)
+ * and settles it. Partial payment is allowed; the remainder is carried as debt.
  */
 export function DischargeDialog({
   admissionId, patientId, patientName, patientBalance, open, onOpenChange, onDischarged,
 }: Props) {
   const { role } = useAuth();
-  const [bedCharge, setBedCharge] = useState<{ days: number; rate: number; amount: number } | null>(null);
-  const [copayPct, setCopayPct] = useState<number>(100);
-
-  useEffect(() => {
-    if (!open) return;
-    let active = true;
-    (async () => {
-      const [{ data: bc }, { data: pat }] = await Promise.all([
-        supabase.rpc('admission_bed_charge', { _admission_id: admissionId }),
-        supabase.from('patients').select('account_type, insurance_plan').eq('id', patientId).maybeSingle(),
-      ]);
-      if (!active) return;
-      const row = Array.isArray(bc) ? bc[0] : null;
-      if (row) setBedCharge({ days: Number(row.days), rate: Number(row.daily_rate), amount: Number(row.amount) });
-      if (pat) {
-        const { data: pct } = await supabase.rpc('copay_percent', {
-          _account_type: pat.account_type, _plan: pat.insurance_plan ?? null,
-        });
-        if (active && pct != null) setCopayPct(Number(pct));
-      }
-    })();
-    return () => { active = false; };
-  }, [open, admissionId, patientId]);
-
-  const bedCopay = bedCharge ? Math.round((bedCharge.amount * copayPct) / 100) : 0;
-  const projectedBalance = patientBalance - bedCopay;
-  const debt = Math.max(0, -projectedBalance);
-  const hasDebt = debt > 0;
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const [notes, setNotes] = useState('');
   const [method, setMethod] = useState<Method>('cash');
@@ -71,46 +59,117 @@ export function DischargeDialog({
   const [settlementNotes, setSettlementNotes] = useState('');
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { setAmount(debt ? String(debt) : ''); }, [debt]);
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    setLoading(true);
+    (async () => {
+      const { data, error } = await supabase.rpc('admission_discharge_preview', {
+        _admission_id: admissionId,
+      });
+      if (!active) return;
+      setLoading(false);
+      if (error) { toast.error(error.message); return; }
+      setPreview(data as unknown as Preview);
+    })();
+    return () => { active = false; };
+  }, [open, admissionId]);
+
+  const due = Number(preview?.total_due ?? 0);
+  const hasDebt = due > 0;
+
+  useEffect(() => { setAmount(due ? String(due) : ''); }, [due]);
 
   const canWaive = role === 'accountant' || role === 'admin';
   const payMethods: Method[] = ['cash', 'pos', 'transfer'];
   const amountNum = Number(amount) || 0;
-  const collectShort = payMethods.includes(method) && hasDebt && amountNum < debt;
-
+  const isPay = payMethods.includes(method);
+  const shortfall = isPay && hasDebt ? Math.max(0, Math.round((due - amountNum) * 100) / 100) : 0;
+  const needsReason = hasDebt && (method === 'carry' || shortfall > 0);
+  const reasonMissing = needsReason && settlementNotes.trim().length < 3;
+  const invalidAmount = isPay && hasDebt && amountNum <= 0;
 
   const submit = async () => {
     setBusy(true);
-    const { error } = await supabase.rpc('discharge_admission', {
+    const { data, error } = await supabase.rpc('discharge_admission', {
       _admission_id: admissionId,
       _notes: notes.trim() || null,
       _settlement_method: hasDebt ? method : null,
-      _settlement_amount: hasDebt && payMethods.includes(method) ? amountNum : 0,
+      _settlement_amount: hasDebt && isPay ? amountNum : 0,
       _settlement_notes: settlementNotes.trim() || null,
     });
     setBusy(false);
     if (error) { toast.error(error.message); return; }
-    toast.success('Patient discharged');
+    const res = (data ?? {}) as { collected?: number; outstanding?: number };
+    const outstanding = Number(res.outstanding ?? 0);
+    toast.success(
+      outstanding > 0
+        ? `Discharged — collected ${fmt(Number(res.collected ?? 0))}, ${fmt(outstanding)} carried as debt`
+        : 'Patient discharged — account settled',
+    );
     onDischarged?.();
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Discharge · {patientName}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
-          {bedCharge && bedCharge.amount > 0 && (
-            <div className="p-3 rounded-lg border text-sm space-y-1">
-              <p className="font-medium">Bed days: {bedCharge.days} day{bedCharge.days === 1 ? '' : 's'}</p>
-              <p className="text-xs text-muted-foreground">
-                {fmt(bedCharge.rate)}/day × {bedCharge.days} = {fmt(bedCharge.amount)}
-                {copayPct < 100 && ` · patient share ${copayPct}% = ${fmt(bedCopay)}`}
-              </p>
-              <p className="text-xs text-muted-foreground">Billed automatically on discharge.</p>
+          {loading && <p className="text-sm text-muted-foreground">Calculating bill…</p>}
+
+          {preview && (
+            <div className="p-3 rounded-lg border text-sm space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Admitted</span>
+                <span>{preview.admitted_at ? new Date(preview.admitted_at).toLocaleDateString() : '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Discharge date</span>
+                <span>{new Date().toLocaleDateString()}</span>
+              </div>
+              <div className="flex justify-between font-medium">
+                <span>Bed nights</span>
+                <span>{preview.nights} night{preview.nights === 1 ? '' : 's'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">
+                  {fmt(preview.daily_rate)}/night × {preview.nights}
+                </span>
+                <span>{fmt(preview.bed_total)}</span>
+              </div>
+              {preview.sponsor_covered > 0 && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Sponsor covers ({100 - preview.copay_pct}%)</span>
+                  <span>−{fmt(preview.sponsor_covered)}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Bed charge (patient share)</span>
+                <span>{fmt(preview.bed_patient_share)}</span>
+              </div>
+              {preview.bed_already_billed && (
+                <p className="text-[11px] text-muted-foreground">Bed charge already billed for this admission.</p>
+              )}
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Wallet balance</span>
+                <span>{fmt(preview.current_balance)}</span>
+              </div>
+              {preview.prior_outstanding > 0 && (
+                <div className="flex justify-between text-amber-700 dark:text-amber-400">
+                  <span>Existing debt (drugs / tests while admitted)</span>
+                  <span>{fmt(preview.prior_outstanding)}</span>
+                </div>
+              )}
+              <div className="flex justify-between pt-1.5 border-t font-semibold">
+                <span>{hasDebt ? 'Total to pay' : 'Nothing to pay'}</span>
+                <span className={hasDebt ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-600'}>
+                  {fmt(due)}
+                </span>
+              </div>
             </div>
           )}
 
@@ -122,13 +181,14 @@ export function DischargeDialog({
             <div className="text-sm flex-1">
               <p className="font-medium">Balance: {fmt(patientBalance)}</p>
               <p className="text-xs">
-                {hasDebt ? `After bed charge, patient owes ${fmt(debt)} — settle before discharge`
-                         : projectedBalance > 0 ? `Refund ${fmt(projectedBalance)} available at Reception`
-                         : 'Zero balance — ready to discharge'}
+                {hasDebt
+                  ? `Patient owes ${fmt(due)} — collect, waive, or carry as debt`
+                  : (preview?.balance_after_bed ?? 0) > 0
+                    ? `Refund ${fmt(preview?.balance_after_bed ?? 0)} available at Reception`
+                    : 'Zero balance — ready to discharge'}
               </p>
             </div>
           </div>
-
 
           {hasDebt && (
             <>
@@ -156,18 +216,21 @@ export function DischargeDialog({
                 </RadioGroup>
               </div>
 
-              {payMethods.includes(method) && (
+              {isPay && (
                 <div className="space-y-1.5">
                   <Label>Amount collected *</Label>
                   <Input type="number" min={0} step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
-                  {collectShort && (
+                  {invalidAmount && (
+                    <p className="text-xs text-destructive">Enter an amount greater than zero.</p>
+                  )}
+                  {shortfall > 0 && !invalidAmount && (
                     <p className="text-xs text-amber-700 dark:text-amber-400">
-                      Must be at least {fmt(debt)}.
+                      Collecting {fmt(amountNum)} · {fmt(shortfall)} will stay as debt on the patient's balance.
                     </p>
                   )}
-                  {amountNum > debt && (
+                  {amountNum > due && (
                     <p className="text-xs text-muted-foreground">
-                      Excess {fmt(amountNum - debt)} will remain on patient balance.
+                      Excess {fmt(amountNum - due)} will remain as credit on the patient balance.
                     </p>
                   )}
                 </div>
@@ -175,13 +238,17 @@ export function DischargeDialog({
 
               {method === 'carry' && (
                 <p className="text-xs text-muted-foreground">
-                  Debt of {fmt(debt)} stays on the patient's balance. Cleared on next top-up.
+                  Debt of {fmt(due)} stays on the patient's balance. Cleared on next top-up.
                 </p>
               )}
 
               <div className="space-y-1.5">
-                <Label>Settlement notes (optional)</Label>
-                <Input value={settlementNotes} onChange={(e) => setSettlementNotes(e.target.value)} placeholder="e.g. paid to cashier Amina" />
+                <Label>{needsReason ? 'Reason for outstanding debt *' : 'Settlement notes (optional)'}</Label>
+                <Input
+                  value={settlementNotes}
+                  onChange={(e) => setSettlementNotes(e.target.value)}
+                  placeholder={needsReason ? 'e.g. patient to pay balance next week' : 'e.g. paid to cashier Amina'}
+                />
               </div>
             </>
           )}
@@ -194,7 +261,7 @@ export function DischargeDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
-          <Button onClick={submit} disabled={busy || (hasDebt && payMethods.includes(method) && collectShort)}>
+          <Button onClick={submit} disabled={busy || loading || invalidAmount || reasonMissing}>
             <LogOut className="h-4 w-4 mr-2" />
             {busy ? 'Discharging…' : 'Confirm Discharge'}
           </Button>

@@ -114,10 +114,18 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
             const name = `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim();
             const bed = a.bed_id ? bedInfo.get(a.bed_id) : undefined;
             const startedAt = a.admitted_at ?? a.created_at ?? null;
-            const days = startedAt
-              ? Math.max(1, Math.ceil((Date.now() - new Date(startedAt).getTime()) / 86_400_000))
+            // Calendar nights: admission date -> today (min 1), matches server billing
+            const nights = startedAt
+              ? Math.max(
+                  1,
+                  Math.round(
+                    (new Date(new Date().toDateString()).getTime() -
+                      new Date(new Date(startedAt).toDateString()).getTime()) / 86_400_000,
+                  ),
+                )
               : 0;
-            const accrued = bed ? days * bed.rate : 0;
+            const days = nights;
+            const accrued = bed ? nights * bed.rate : 0;
             return (
               <div key={a.id} className="p-3 rounded-lg border">
                 <div className="flex items-center justify-between gap-2 mb-2">
@@ -132,13 +140,13 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                     <p className="text-[11px] text-muted-foreground mt-0.5">
                       {bed ? `${bed.label} · ` : ''}
                       {startedAt ? `since ${new Date(startedAt).toLocaleDateString()}` : 'not yet admitted'}
-                      {bed ? ` · bed charge ₦${accrued.toLocaleString()} (₦${bed.rate.toLocaleString()}/day)` : ''}
+                      {bed ? ` · bed charge ₦${accrued.toLocaleString()} (₦${bed.rate.toLocaleString()}/night)` : ''}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     {days > 0 && (
                       <Badge variant="outline" className="text-[10px] whitespace-nowrap">
-                        Day {days} · {days} day{days === 1 ? '' : 's'}
+                        Day {days} · {nights} night{nights === 1 ? '' : 's'}
                       </Badge>
                     )}
                     {isReady ? (

@@ -1,51 +1,51 @@
-## Goal
-Make every module transition the patient's `status` correctly, verify the write succeeded, and fix the specific Pharmacy bug where dispensing didn't move the patient to `discharged`. Inpatients (admitted) must NEVER be auto-discharged by Pharmacy — only outpatients.
+## Matsalar da ake ciki (an tabbatar daga database)
 
-## Root causes to fix
+- `bill_admission_bed_days` yana kiran `adjust_patient_balance(..., 'invoice_payment')`, kuma wannan function yana **jefa error idan balance zai koma negative**. Shi ya sa screenshot ɗin ya nuna `Insufficient balance (current: 13000, requested delta: -14000)` — gaba ɗaya discharge ya faɗi, ba a caje kome ba, ba a sallami patient ba.
+- `discharge_admission` yana ƙin karɓar partial payment: `IF _settlement_amount < _debt THEN RAISE`. Ba a iya karɓar wani ɓangare a bar sauran bashi.
+- Ƙidayar kwana a `admission_bed_charge` tana amfani da `CEIL(hours/24)` — sa'o'i 25 = kwana 2, ba calendar nights ba.
+- Dialog ɗin yana yin lissafi a client (`patientBalance - bedCopay`) — yana iya bambanta da abin da server zai caje (rounding, sponsor share, tsofaffin invoices da ba a biya ba).
 
-1. **Pharmacy auto-discharge is silently swallowed.**
-   - `confirmDispense` in `src/pages/Pharmacy.tsx` calls `updatePatientStatus(id, 'discharged')` but:
-     - It does not re-fetch the patient's current status, so a stale `admitted` patient still gets flipped (wrong for inpatients).
-     - It has no verification step — if the DB update fails silently (RLS, race with realtime, or the local `patients` cache is behind), the UI thinks it succeeded but the row on the server is unchanged.
-     - The `success` boolean from `updatePatientStatus` is only truthy when the local `patients.find(...)` matched — if the patient just moved states in realtime, the receipt still opens but the toast/log path is skipped.
+## Abin da za a gina
 
-2. **No standardized transition helper.** Every page hand-rolls `updatePatientStatus(...)`, so we can't guarantee: (a) validity of the transition, (b) inpatient guard, (c) confirmation via re-read.
+### 1. Ƙidayar kwana — calendar nights
+`admission_bed_charge` zai koma:
+`nights = GREATEST(1, date(COALESCE(discharged_at, now())) - date(COALESCE(admitted_at, created_at)))`
+Litinin → Talata = dare 1. Duk inda ake nuna "Day N" (`AdmittedPatientsPanel`) zai bi wannan lissafin daga RPC ɗaya, ba lissafin client ba.
 
-3. **Other modules have similar quiet failures** — Nurse → Doctor, Doctor → Lab/Pharmacy/Billing/Nurse, Lab → Doctor, Billing → Pharmacy — none verify the write landed; they only check the local return.
+### 2. Bed charge ba zai ƙara faɗuwa saboda ƙarancin balance ba
+A cikin `bill_admission_bed_days`:
+- A ƙidaya `patient_share` (copay) kamar yadda yake yanzu.
+- Sannan a raba: `from_wallet = LEAST(GREATEST(balance,0), patient_share)`, `debt = patient_share - from_wallet`.
+- `from_wallet` zai shiga a matsayin `invoice_payment`; `debt` zai shiga a matsayin `debt_incurred` (wannan shi kaɗai ake yarda ya sa balance negative).
+- Invoice ɗin bed zai zama `partial` idan akwai saura, `paid` idan an cika. Ana kiyaye `BED_DAYS:<admission_id>` guard ɗin don kar a caje sau biyu.
 
-## Changes
+### 3. Sabon preview RPC (source of truth ɗaya)
+`admission_discharge_preview(_admission_id)` zai dawo da:
+nights, daily_rate, bed_total, copay_pct, sponsor_covered, patient_share, current_balance, prior_outstanding (bashin da ya rigaya — misali maganin/test ɗin da aka bashi yana kwance), **total_due**, da balance bayan discharge.
+Dialog ɗin zai nuna waɗannan lambobin kai tsaye daga server — babu lissafin client, don haka babu miscalculation.
 
-### 1. Harden `updatePatientStatus` (src/contexts/PatientContext.tsx)
-- After `update()`, chain `.select('id,status').single()` and confirm the returned `status === status` sent. Return `false` + toast on mismatch.
-- Accept an optional `{ guardInpatient?: boolean }` — when true, refuse to set `discharged` if current row status is `admitted` (read fresh row first).
-- Emit a single audit entry only on confirmed success.
+### 4. `discharge_admission` — partial da carry
+- A ci gaba da kiran `bill_admission_bed_days` da farko (yanzu ba zai faɗi ba).
+- A ƙidaya `debt = GREATEST(0, -balance)`.
+- `cash/pos/transfer`: a karɓi **kowane adadi > 0**; idan bai kai bashi ba, sauran ya rage a balance a matsayin bashi (audit log `discharge_partial_settlement` da adadin saura). Idan ya wuce bashi, saurar ta rage a matsayin credit.
+- `carry`: a sallama da bashi gaba ɗaya — audit log kamar yadda yake, amma yanzu **kowane mai discharge** (nurse/doctor/billing/accountant/admin) na iya, kuma za a buƙaci gajeriyar dalili.
+- `waive`: accountant/admin kaɗai (kamar yadda yake).
+- Kuɗin da aka karɓa zai rufe invoices ɗin da ba a biya ba (oldest first: bed invoice da in-ward invoices) — `paid_amount`/`status` su daidaita, don Billing, Account da Auditing su yi tally.
+- Idan babu bashi, a ci gaba kai tsaye kamar yadda yake.
 
-### 2. Fix Pharmacy dispense (src/pages/Pharmacy.tsx `confirmDispense`)
-- Re-read the patient row (`supabase.from('patients').select('status').eq('id', ...).single()`) before deciding discharge.
-- If `status === 'admitted'` → skip status change, just mark prescription dispensed, show "Dispensed to inpatient — no discharge" toast.
-- Else → call the hardened `updatePatientStatus(id, 'discharged', { guardInpatient: true })`, verify success, then open the receipt.
-- Show a clear error toast if the status write fails, and do NOT clear the queue entry (so the pharmacist can retry).
+### 5. UI — `DischargeDialog`
+- A ɗauko komai daga `admission_discharge_preview`.
+- Nuna teburin bill: ranar shiga, ranar fita, adadin dare, rate/dare, jimillar bed, sponsor covered, patient share, **tsohon bashi (magani/lab da aka bashi yana kwance)**, **Jimillar da za a biya**.
+- Amount collected: an cika da cikakken bashi ta default, amma **an yarda a rage** — a nuna live: "Za a karɓa ₦X · saura ₦Y zai rage a matsayin bashi".
+- Cire toshewar button (`disabled` saboda short amount); sai dai a nemi dalili idan akwai saura.
+- Bayan discharge, a nuna toast da jimillar da aka karɓa da sauran bashin.
 
-### 3. Verify every other transition
-Wrap each existing call site with the same verify pattern (uses the hardened helper — no new logic per page):
-- `Reception.tsx`: `registered → waiting`, discharge button.
-- `NurseStation.tsx`: `waiting/registered → with_nurse`, `with_nurse → with_doctor`.
-- `Doctor.tsx`: `with_doctor → in_lab | awaiting_billing | at_pharmacy | with_nurse`.
-- `Laboratory.tsx`: `in_lab → with_doctor` on result return.
-- `Billing.tsx`: `awaiting_billing → awaiting_payment | at_pharmacy` after invoice/cashier.
-- Discharge dialog: confirm admission `active → discharged` and patient row aligns.
+## Fannin fasaha
+- Migration ɗaya: `admission_bed_charge`, `bill_admission_bed_days`, `discharge_admission`, sabon `admission_discharge_preview` (SECURITY DEFINER, `REVOKE ... FROM PUBLIC, anon`, `GRANT EXECUTE TO authenticated, service_role`).
+- Duk lissafi `ROUND(..., 2)`; ana amfani da `SELECT ... FOR UPDATE` a kan `patients` da `admissions` (yana nan) don guje wa race condition.
+- Regression check: patient mai balance ƙasa da bed charge yana iya discharge; partial payment yana barin balance daidai negative; invoice totals = balance transactions.
 
-For each, if the verify step fails, surface a red toast with the reason and leave the UI in the pre-transition state.
-
-### 4. Realtime sanity
-- After a successful transition, rely on the existing realtime subscription to refresh; also call `refreshPatients()` once as a fallback for the acting user so their own screen never lags behind their action.
-
-## Out of scope
-- No schema changes.
-- No new tables, RPCs, or roles.
-- No UI redesign — only correctness + toasts.
-
-## Acceptance
-- Outpatient Auwal: dispense at Pharmacy → row in DB shows `status = 'discharged'` and card updates everywhere in <2s.
-- Admitted patient: dispense at Pharmacy → prescription marked dispensed, `status` stays `admitted`, no false discharge.
-- Any failed transition anywhere surfaces a specific error toast and leaves state unchanged.
+## Files
+- Migration (DB functions sama)
+- `src/components/nurse/DischargeDialog.tsx`
+- `src/components/visit/AdmittedPatientsPanel.tsx` (Day badge ya bi nights daga RPC)

@@ -2914,6 +2914,10 @@ export type Database = {
           days: number
         }[]
       }
+      admission_discharge_preview: {
+        Args: { _admission_id: string }
+        Returns: Json
+      }
       advance_journey: {
         Args: {
           _department?: string
@@ -2993,7 +2997,7 @@ export type Database = {
           _settlement_method?: string
           _settlement_notes?: string
         }
-        Returns: undefined
+        Returns: Json
       }
       discharge_patient: {
         Args: { _patient_id: string; _reason?: string }

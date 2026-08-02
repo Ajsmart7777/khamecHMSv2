@@ -146,7 +146,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                   <div className="flex flex-col items-end gap-1">
                     {days > 0 && (
                       <Badge variant="outline" className="text-[10px] whitespace-nowrap">
-                        Day {days} · {days} day{days === 1 ? '' : 's'}
+                        Day {days} · {nights} night{nights === 1 ? '' : 's'}
                       </Badge>
                     )}
                     {isReady ? (

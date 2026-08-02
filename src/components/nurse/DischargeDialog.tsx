@@ -27,6 +27,9 @@ interface Props {
 
 interface Preview {
   admitted_at: string | null;
+  account_type: string | null;
+  insurance_plan: string | null;
+  has_wallet: boolean;
   nights: number;
   daily_rate: number;
   bed_total: number;

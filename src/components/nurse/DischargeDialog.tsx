@@ -103,6 +103,17 @@ export function DischargeDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          {bedCharge && bedCharge.amount > 0 && (
+            <div className="p-3 rounded-lg border text-sm space-y-1">
+              <p className="font-medium">Bed days: {bedCharge.days} day{bedCharge.days === 1 ? '' : 's'}</p>
+              <p className="text-xs text-muted-foreground">
+                {fmt(bedCharge.rate)}/day × {bedCharge.days} = {fmt(bedCharge.amount)}
+                {copayPct < 100 && ` · patient share ${copayPct}% = ${fmt(bedCopay)}`}
+              </p>
+              <p className="text-xs text-muted-foreground">Billed automatically on discharge.</p>
+            </div>
+          )}
+
           <div className={`p-3 rounded-lg border flex items-center gap-2 ${
             hasDebt ? 'bg-amber-50 border-amber-300 dark:bg-amber-950/20'
                     : 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/20'
@@ -111,12 +122,13 @@ export function DischargeDialog({
             <div className="text-sm flex-1">
               <p className="font-medium">Balance: {fmt(patientBalance)}</p>
               <p className="text-xs">
-                {hasDebt ? `Patient owes ${fmt(debt)} — settle before discharge`
-                         : patientBalance > 0 ? `Refund ${fmt(patientBalance)} available at Reception`
+                {hasDebt ? `After bed charge, patient owes ${fmt(debt)} — settle before discharge`
+                         : projectedBalance > 0 ? `Refund ${fmt(projectedBalance)} available at Reception`
                          : 'Zero balance — ready to discharge'}
               </p>
             </div>
           </div>
+
 
           {hasDebt && (
             <>

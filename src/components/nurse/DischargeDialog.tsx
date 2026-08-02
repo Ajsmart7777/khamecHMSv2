@@ -39,6 +39,9 @@ interface Preview {
   bed_patient_share: number;
   current_balance: number;
   prior_outstanding: number;
+  gross_total: number;
+  wallet_credit: number;
+  wallet_applied: number;
   total_due: number;
   balance_after_bed: number;
 }

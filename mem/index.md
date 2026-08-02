@@ -7,3 +7,4 @@ Discharge is two-step: ward (nurse/doctor) only confirms and sends to Cashier; b
 ## Memories
 - [Admission flow](mem://features/admission-flow) — Snap to Admit → Awaiting Room → bed assignment → Admitted Patients; bed-day billing
 - [Sponsor scope](mem://features/sponsor-scope) — which sponsor types go to claims manager vs accountant
+- [Discharge settlement](mem://features/discharge-settlement) — cashier money allocation order; no double-counting of collected cash

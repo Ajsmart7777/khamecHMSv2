@@ -17,6 +17,7 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      <StationAlertOverlay />
       {/* Desktop Sidebar */}
       <div className="hidden lg:block">
         <AppSidebar />

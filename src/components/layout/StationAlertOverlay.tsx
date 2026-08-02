@@ -16,7 +16,7 @@ export function StationAlertOverlay() {
       {alerts.slice(0, 3).map((a) => (
         <div
           key={a.id}
-          className="pointer-events-auto w-full max-w-xl rounded-xl border-2 border-destructive bg-destructive text-destructive-foreground shadow-2xl animate-pulse-slow"
+          className="pointer-events-auto w-full max-w-xl rounded-xl border-2 border-destructive bg-destructive text-destructive-foreground shadow-2xl animate-pulse"
         >
           <div className="flex items-start gap-3 p-3 sm:p-4">
             <BellRing className="h-5 w-5 shrink-0 mt-0.5 animate-bounce" />

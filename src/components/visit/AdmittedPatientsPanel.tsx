@@ -114,10 +114,18 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
             const name = `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim();
             const bed = a.bed_id ? bedInfo.get(a.bed_id) : undefined;
             const startedAt = a.admitted_at ?? a.created_at ?? null;
-            const days = startedAt
-              ? Math.max(1, Math.ceil((Date.now() - new Date(startedAt).getTime()) / 86_400_000))
+            // Calendar nights: admission date -> today (min 1), matches server billing
+            const nights = startedAt
+              ? Math.max(
+                  1,
+                  Math.round(
+                    (new Date(new Date().toDateString()).getTime() -
+                      new Date(new Date(startedAt).toDateString()).getTime()) / 86_400_000,
+                  ),
+                )
               : 0;
-            const accrued = bed ? days * bed.rate : 0;
+            const days = nights;
+            const accrued = bed ? nights * bed.rate : 0;
             return (
               <div key={a.id} className="p-3 rounded-lg border">
                 <div className="flex items-center justify-between gap-2 mb-2">

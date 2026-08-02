@@ -113,8 +113,9 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
             const isReady = a.status === 'ready_for_discharge';
             const name = `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim();
             const bed = a.bed_id ? bedInfo.get(a.bed_id) : undefined;
-            const days = a.admitted_at
-              ? Math.max(1, Math.ceil((Date.now() - new Date(a.admitted_at).getTime()) / 86_400_000))
+            const startedAt = a.admitted_at ?? a.created_at ?? null;
+            const days = startedAt
+              ? Math.max(1, Math.ceil((Date.now() - new Date(startedAt).getTime()) / 86_400_000))
               : 0;
             const accrued = bed ? days * bed.rate : 0;
             return (
@@ -128,21 +129,29 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                     <p className="text-xs text-muted-foreground">
                       {p?.card_number} · {p?.account_type ?? '—'}
                     </p>
-                    {bed && (
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        {bed.label} · {days} day{days === 1 ? '' : 's'} · bed charge ₦{accrued.toLocaleString()}
-                      </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {bed ? `${bed.label} · ` : ''}
+                      {startedAt ? `since ${new Date(startedAt).toLocaleDateString()}` : 'not yet admitted'}
+                      {bed ? ` · bed charge ₦${accrued.toLocaleString()} (₦${bed.rate.toLocaleString()}/day)` : ''}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    {days > 0 && (
+                      <Badge variant="outline" className="text-[10px] whitespace-nowrap">
+                        Day {days} · {days} day{days === 1 ? '' : 's'}
+                      </Badge>
+                    )}
+                    {isReady ? (
+                      <Badge variant="info" className="text-[10px]">Ready for Discharge</Badge>
+                    ) : (
+                      <Badge variant={low ? 'warning' : 'success'} className="text-[10px]">
+                        <Wallet className="h-3 w-3 mr-1" />
+                        ₦{bal.toLocaleString()}
+                      </Badge>
                     )}
                   </div>
-                  {isReady ? (
-                    <Badge variant="info" className="text-[10px]">Ready for Discharge</Badge>
-                  ) : (
-                    <Badge variant={low ? 'warning' : 'success'} className="text-[10px]">
-                      <Wallet className="h-3 w-3 mr-1" />
-                      ₦{bal.toLocaleString()}
-                    </Badge>
-                  )}
                 </div>
+
                 <div className="grid grid-cols-2 gap-2">
                   {can('admittedSnap') && (
                     <Button

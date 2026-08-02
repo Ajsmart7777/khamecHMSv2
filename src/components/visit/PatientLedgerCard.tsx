@@ -1065,6 +1065,17 @@ function InvoiceRow({ inv, patient }: { inv: any; patient: Patient }) {
           )}
         </div>
       )}
+      {showSettleAction && (
+        <div className="mt-2 flex items-center justify-between gap-2 border-t pt-2">
+          <span className="text-xs text-muted-foreground">
+            Sponsor paid this invoice? Mark it settled to close it out.
+          </span>
+          <Button size="sm" variant="outline" disabled={submitting} onClick={settleInvoice} className="h-7 text-xs gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            {submitting ? 'Saving…' : 'Mark invoice settled'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

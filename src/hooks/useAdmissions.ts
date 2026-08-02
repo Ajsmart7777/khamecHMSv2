@@ -129,13 +129,15 @@ export async function assignBed(admissionId: string, bedId: string): Promise<boo
   return true;
 }
 
-export async function dischargeAdmission(admissionId: string, notes?: string): Promise<boolean> {
-  const { error } = await supabase.rpc('discharge_admission', {
+/** Ward step: confirm the patient can leave — settlement happens at the Cashier. */
+export async function sendAdmissionToCashier(admissionId: string, note?: string): Promise<boolean> {
+  const { error } = await supabase.rpc('send_admission_to_cashier', {
     _admission_id: admissionId,
-    _notes: notes ?? null,
+    _note: note ?? null,
   });
-  if (error) { reportActionError('discharge', error); return false; }
+  if (error) { reportActionError('requestDischarge', error); return false; }
   window.dispatchEvent(new Event('admissions:changed'));
-  toast.success('Patient discharged');
+  toast.success('Discharge confirmed — patient sent to Cashier for settlement');
   return true;
 }
+

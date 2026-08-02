@@ -213,6 +213,14 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                       </Badge>
                     ) : null}
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setAdmissionSnapFor({ patientId: a.patient_id, name, path: a.admission_snap_path ?? null })}
+                  >
+                    <FileImage className="h-3.5 w-3.5 mr-1.5" /> Admission Snap
+                  </Button>
+
 
                   {can('requestDischarge') && (
                     <Button

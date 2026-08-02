@@ -140,7 +140,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                     <p className="text-[11px] text-muted-foreground mt-0.5">
                       {bed ? `${bed.label} · ` : ''}
                       {startedAt ? `since ${new Date(startedAt).toLocaleDateString()}` : 'not yet admitted'}
-                      {bed ? ` · bed charge ₦${accrued.toLocaleString()} (₦${bed.rate.toLocaleString()}/day)` : ''}
+                      {bed ? ` · bed charge ₦${accrued.toLocaleString()} (₦${bed.rate.toLocaleString()}/night)` : ''}
                     </p>
                   </div>
                   <div className="flex flex-col items-end gap-1">

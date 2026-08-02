@@ -190,13 +190,19 @@ export function DischargeDialog({
           }`}>
             <Wallet className="h-4 w-4" />
             <div className="text-sm flex-1">
-              <p className="font-medium">Balance: {fmt(patientBalance)}</p>
+              <p className="font-medium">
+                {preview && !preview.has_wallet
+                  ? `Sponsored account — no wallet`
+                  : `Balance: ${fmt(patientBalance)}`}
+              </p>
               <p className="text-xs">
                 {hasDebt
                   ? `Patient owes ${fmt(due)} — collect, waive, or carry as debt`
-                  : (preview?.balance_after_bed ?? 0) > 0
-                    ? `Refund ${fmt(preview?.balance_after_bed ?? 0)} available at Reception`
-                    : 'Zero balance — ready to discharge'}
+                  : preview && !preview.has_wallet
+                    ? 'Sponsor covers the bill — nothing to collect'
+                    : (preview?.balance_after_bed ?? 0) > 0
+                      ? `Refund ${fmt(preview?.balance_after_bed ?? 0)} available at Reception`
+                      : 'Zero balance — ready to discharge'}
               </p>
             </div>
           </div>

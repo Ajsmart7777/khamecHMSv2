@@ -91,7 +91,7 @@ export function DischargeDialog({
   const isPay = payMethods.includes(method);
   const shortfall = isPay && hasDebt ? Math.max(0, Math.round((due - amountNum) * 100) / 100) : 0;
   const needsReason = hasDebt && (method === 'carry' || shortfall > 0);
-  const reasonMissing = needsReason && settlementNotes.trim().length < 3;
+  const reasonMissing = false;
   const invalidAmount = isPay && hasDebt && amountNum <= 0;
 
   // Change owed back to the patient: leftover wallet credit + any overpayment.

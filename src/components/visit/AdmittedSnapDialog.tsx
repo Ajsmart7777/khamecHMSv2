@@ -234,7 +234,8 @@ export function AdmittedSnapDialog({
                 <p className="text-xs">Patient share {fmt(patientShare)} exceeds balance by {fmt(shortfall)}</p>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Order {fmt(total)} → patient {fmt(patientShare)}{covered > 0 ? ` · sponsor ${fmt(covered)}` : ''} — balance left {fmt(patientBalance - patientShare)}
+                  Order {fmt(total)} → patient {fmt(patientShare)}{covered > 0 ? ` · sponsor ${fmt(covered)}` : ''}
+                  {walletPatient ? ` — balance left ${fmt(patientBalance - patientShare)}` : ' — settled at discharge / claim'}
                 </p>
               )}
             </div>

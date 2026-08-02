@@ -20,7 +20,7 @@ import { usePricelist } from '@/hooks/usePricelist';
 import { InAppCameraDialog } from './InAppCameraDialog';
 import { SnapCropDialog } from './SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
-import { copayPercent, sponsorLabel } from '@/lib/copay';
+import { copayPercent, sponsorLabel, hasWallet } from '@/lib/copay';
 
 type OrderType = 'prescription' | 'lab' | 'treatment';
 type Target = 'pharmacy' | 'lab' | 'nurse' | 'doctor';
@@ -98,7 +98,8 @@ export function AdmittedSnapDialog({
   const pct = copayPercent({ account_type: accountType, insurance_plan: insurancePlan });
   const patientShare = Math.round((total * pct) / 100 * 100) / 100;
   const covered = Math.max(0, Math.round((total - patientShare) * 100) / 100);
-  const shortfall = Math.max(0, patientShare - patientBalance);
+  const walletPatient = hasWallet({ account_type: accountType });
+  const shortfall = walletPatient ? Math.max(0, patientShare - patientBalance) : 0;
   const insufficient = shortfall > 0;
 
   const filteredPricelist = useMemo(() => {

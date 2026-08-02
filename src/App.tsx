@@ -8,6 +8,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { RoleHome } from "@/components/auth/RoleHome";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Reception from "./pages/Reception";
@@ -42,7 +43,7 @@ const App = () => (
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/" element={
                   <ProtectedRoute>
-                    <Index />
+                    <RoleHome />
                   </ProtectedRoute>
                 } />
                 <Route path="/reception" element={

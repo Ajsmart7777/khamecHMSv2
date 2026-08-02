@@ -3075,6 +3075,10 @@ export type Database = {
         Args: { _notes?: string; _visit_id: string }
         Returns: undefined
       }
+      mark_invoice_claim_settled: {
+        Args: { _invoice_id: string; _notes?: string }
+        Returns: Json
+      }
       mark_invoice_claim_submitted: {
         Args: { _invoice_id: string; _notes?: string }
         Returns: undefined

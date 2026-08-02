@@ -346,9 +346,9 @@ export function DischargeDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
-          <Button onClick={submit} disabled={busy || loading || invalidAmount || reasonMissing}>
+          <Button onClick={submit} disabled={busy || done || loading || invalidAmount || reasonMissing}>
             <LogOut className="h-4 w-4 mr-2" />
-            {busy ? 'Discharging…' : 'Confirm Discharge'}
+            {busy ? 'Discharging…' : done ? 'Settled' : 'Confirm Discharge'}
           </Button>
         </DialogFooter>
       </DialogContent>

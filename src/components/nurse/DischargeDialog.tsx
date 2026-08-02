@@ -104,7 +104,11 @@ export function DischargeDialog({
   const [refund, setRefund] = useState(false);
   useEffect(() => { if (changeDue <= 0) setRefund(false); }, [changeDue]);
 
+  const [done, setDone] = useState(false);
+
   const submit = async () => {
+    // Guard against double submits (double click / re-entry): one settlement only.
+    if (busy || done) return;
     setBusy(true);
     const { data, error } = await supabase.rpc('discharge_admission', {
       _admission_id: admissionId,
@@ -115,7 +119,26 @@ export function DischargeDialog({
       _refund_amount: refund ? changeDue : 0,
     });
     setBusy(false);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      const msg = error.message ?? '';
+      if (msg.includes('ALREADY_DISCHARGED')) {
+        setDone(true);
+        toast.error('Already settled', { description: 'This admission has already been discharged. Refreshing the queue.' });
+        onDischarged?.();
+        onOpenChange(false);
+      } else if (msg.includes('DISCHARGE_IN_PROGRESS')) {
+        toast.error('Settlement already in progress', { description: 'Another cashier is settling this discharge right now.' });
+      } else if (msg.includes('NOT_IN_CASHIER_QUEUE')) {
+        setDone(true);
+        toast.error('Not ready for settlement', { description: 'The ward has not confirmed this discharge yet.' });
+        onDischarged?.();
+        onOpenChange(false);
+      } else {
+        toast.error(msg || 'Failed to complete discharge');
+      }
+      return;
+    }
+    setDone(true);
     const res = (data ?? {}) as { collected?: number; outstanding?: number; refunded?: number };
     const outstanding = Number(res.outstanding ?? 0);
     const refunded = Number(res.refunded ?? 0);
@@ -129,6 +152,7 @@ export function DischargeDialog({
     onDischarged?.();
     onOpenChange(false);
   };
+
 
 
   return (
@@ -322,9 +346,9 @@ export function DischargeDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
-          <Button onClick={submit} disabled={busy || loading || invalidAmount || reasonMissing}>
+          <Button onClick={submit} disabled={busy || done || loading || invalidAmount || reasonMissing}>
             <LogOut className="h-4 w-4 mr-2" />
-            {busy ? 'Discharging…' : 'Confirm Discharge'}
+            {busy ? 'Discharging…' : done ? 'Settled' : 'Confirm Discharge'}
           </Button>
         </DialogFooter>
       </DialogContent>

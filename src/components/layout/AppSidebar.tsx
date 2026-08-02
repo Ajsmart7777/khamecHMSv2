@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 const allMenuItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/', color: 'text-primary', roles: ['admin', 'receptionist'] },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/', color: 'text-primary', roles: ['admin'] },
   { id: 'reception', label: 'Reception', icon: Users, path: '/reception', color: 'text-module-reception', roles: ['receptionist', 'admin'] },
   { id: 'nurse', label: 'Nurse Station', icon: Activity, path: '/nurse', color: 'text-module-nurse', roles: ['nurse', 'admin'] },
   { id: 'doctor1', label: 'Doctor 1', icon: Stethoscope, path: '/doctor?as=doctor1', color: 'text-module-doctor', roles: ['doctor1', 'admin'] },

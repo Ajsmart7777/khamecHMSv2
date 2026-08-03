@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Printer, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { HOSPITAL } from '@/lib/hospital';
+import { HOSPITAL, HOSPITAL_LOGO_URL } from '@/lib/hospital';
 
 
 type Row = {
@@ -125,6 +125,9 @@ export function DailySalesReport() {
         .hosp{text-align:center;margin-bottom:12px;border-bottom:2px solid #111;padding-bottom:8px}
         .hosp h2{font-size:17px;margin:0;text-transform:uppercase;letter-spacing:.5px}
         .hosp p{font-size:11px;color:#444;margin:2px 0}
+        .hosp-logo{width:56px;height:56px;object-fit:contain;margin:0 auto 6px;display:block}
+        .hosp-fallback{width:56px;height:56px;margin:0 auto 6px;border:2px solid #111;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:bold;font-size:16px}
+
         .sub{font-size:12px;color:#555;margin-bottom:16px;text-align:center}
 
         table{width:100%;border-collapse:collapse;font-size:11px}
@@ -167,9 +170,15 @@ export function DailySalesReport() {
 
       <div id="daily-sales-print">
         <div className="hosp text-center mb-3">
+          {HOSPITAL_LOGO_URL ? (
+            <img src={HOSPITAL_LOGO_URL} alt={`${HOSPITAL.name} logo`} className="hosp-logo" width={56} height={56} />
+          ) : (
+            <div className="hosp-fallback">{HOSPITAL.shortName}</div>
+          )}
           <h2 className="text-base font-bold uppercase">{HOSPITAL.name}</h2>
           <p className="text-xs text-muted-foreground">{HOSPITAL.address}</p>
           <p className="text-xs text-muted-foreground">{HOSPITAL.rc} · {HOSPITAL.email} · {HOSPITAL.phone}</p>
+
         </div>
         <h1>Daily Sales Report</h1>
         <div className="sub text-xs text-muted-foreground mb-3">

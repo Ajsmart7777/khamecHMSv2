@@ -1,3 +1,4 @@
+import { HOSPITAL_LOGO_URL } from '@/lib/hospital';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { supabase } from '@/integrations/supabase/client';
@@ -82,6 +83,8 @@ const CSS = `
   .doc { width: 794px; padding: 40px 48px; background: #fff; }
   .hero { display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:16px; border-bottom:3px double #0f3c64; }
   .brand { display:flex; gap:12px; align-items:center; }
+  .mark img { width:100%; height:100%; object-fit:contain; display:block; }
+  .mark:has(img) { background:#fff !important; border:1px solid #e5e7eb; padding:4px; }
   .mark { width:48px; height:48px; background:#0f3c64; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; border-radius:8px; }
   .brand h1 { font-size:18px; color:#0f3c64; font-weight:700; }
   .brand .sub { font-size:10px; color:#6b7280; }
@@ -205,7 +208,7 @@ function packetHtml(args: {
   <div class="doc">
     <header class="hero">
       <div class="brand">
-        <div class="mark">KMC</div>
+        <div class="mark">${HOSPITAL_LOGO_URL ? `<img src="${HOSPITAL_LOGO_URL}" alt="logo" onerror="this.remove();this.parentNode.textContent='KMC'" />` : 'KMC'}</div>
         <div>
           <h1>Khadija Medical Center</h1>
           <p class="sub">No: 53, Katsina Road, P.O. Box 121, Funtua, Katsina State, Nigeria</p>

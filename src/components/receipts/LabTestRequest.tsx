@@ -2,6 +2,8 @@ import { forwardRef } from 'react';
 import { format } from 'date-fns';
 import { Patient } from '@/contexts/PatientContext';
 import { HOSPITAL } from '@/lib/hospital';
+import { PrintHeader } from './PrintHeader';
+
 
 
 interface LabTestRequestProps {
@@ -20,12 +22,10 @@ export const LabTestRequest = forwardRef<HTMLDivElement, LabTestRequestProps>(
     return (
       <div ref={ref} className="bg-white text-black p-6 w-[350px] font-mono text-sm">
         {/* Header */}
-        <div className="text-center border-b-2 border-black pb-4 mb-4">
-          <h1 className="text-base font-bold uppercase">{HOSPITAL.name}</h1>
-          <p className="text-[10px] text-gray-600">{HOSPITAL.address}</p>
-          <p className="text-[10px] text-gray-600">{HOSPITAL.rc}</p>
-          <p className="text-[10px] text-gray-600">{HOSPITAL.email} · {HOSPITAL.phone}</p>
+        <div className="border-b-2 border-black pb-4 mb-4">
+          <PrintHeader department="LABORATORY DEPARTMENT" />
         </div>
+
 
 
         {/* Title */}

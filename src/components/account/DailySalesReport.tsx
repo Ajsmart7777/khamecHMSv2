@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Printer, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { HOSPITAL } from '@/lib/hospital';
+
 
 type Row = {
   id: string;

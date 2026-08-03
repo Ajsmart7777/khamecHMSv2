@@ -82,16 +82,8 @@ export const loginSchema = z.object({
     .min(6, 'Password must be at least 6 characters'),
 });
 
-// Signup validation schema
-export const signupSchema = loginSchema.extend({
-  confirmPassword: z.string().min(1, 'Please confirm your password'),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: 'Passwords do not match',
-  path: ['confirmPassword'],
-});
 
 // Type exports
 export type PatientFormData = z.infer<typeof patientSchema>;
 export type PaymentFormData = z.infer<typeof paymentSchema>;
 export type LoginFormData = z.infer<typeof loginSchema>;
-export type SignupFormData = z.infer<typeof signupSchema>;

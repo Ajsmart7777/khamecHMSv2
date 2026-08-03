@@ -22,5 +22,3 @@ export const HOSPITAL_LOGO_URL = (() => {
   }
 })();
 
-/** Single-line contact string: "email · 08033928843" */
-export const HOSPITAL_CONTACT = `${HOSPITAL.email} · ${HOSPITAL.phone}`;

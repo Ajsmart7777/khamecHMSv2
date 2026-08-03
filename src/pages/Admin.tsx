@@ -22,7 +22,6 @@ import { ErrorLogsViewer } from '@/components/admin/ErrorLogsViewer';
 import { WardsRoomsManager } from '@/components/admin/WardsRoomsManager';
 import { ResetDemoDataDialog } from '@/components/admin/ResetDemoDataDialog';
 import { useStaff } from '@/hooks/useStaff';
-import { useInventory } from '@/hooks/useInventory';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { formatDistanceToNow } from 'date-fns';
 import { RotateCcw } from 'lucide-react';
@@ -50,13 +49,11 @@ const Admin = () => {
   const [isResetHistoryOpen, setIsResetHistoryOpen] = useState(false);
   const [resettingHistory, setResettingHistory] = useState(false);
   const { staff } = useStaff();
-  const { items: inventoryItems } = useInventory();
   const [activeAdmissions, setActiveAdmissions] = useState(0);
   const [recentErrors, setRecentErrors] = useState<{ id: string; error_type: string; error_message: string; created_at: string }[]>([]);
 
   const totalStaff = staff.length;
   const pendingAccounts = staff.filter(s => !s.isSystemUser && s.status === 'active').length;
-  const lowStockItems = inventoryItems.filter(i => i.quantity <= i.min_stock);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,12 +70,6 @@ const Admin = () => {
   }, []);
 
   const systemAlerts: SystemAlert[] = [
-    ...lowStockItems.slice(0, 3).map((i) => ({
-      id: `stock-${i.id}`,
-      message: `Low stock: ${i.name} (${i.quantity} / min ${i.min_stock})`,
-      type: 'warning' as const,
-      time: i.last_restocked ? `Restocked ${formatDistanceToNow(new Date(i.last_restocked), { addSuffix: true })}` : 'No restock recorded',
-    })),
     ...recentErrors.map((e) => ({
       id: `err-${e.id}`,
       message: `${e.error_type}: ${e.error_message.slice(0, 80)}`,
@@ -145,12 +136,6 @@ const Admin = () => {
           color="text-success"
         />
         <StatsCard
-          title="Low Stock Items"
-          value={lowStockItems.length}
-          icon={Package}
-          color="text-warning"
-        />
-        <StatsCard
           title="Active Admissions"
           value={activeAdmissions}
           icon={BedSingle}
@@ -208,7 +193,7 @@ const Admin = () => {
 
             {systemAlerts.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">
-                No active alerts. Stock and errors are within normal range.
+                No active alerts. System errors are within normal range.
               </p>
             ) : (
               <div className="space-y-3">

@@ -121,8 +121,12 @@ export function DailySalesReport() {
       <style>
         *{box-sizing:border-box}
         body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#111}
-        h1{font-size:18px;margin:0 0 4px}
-        .sub{font-size:12px;color:#555;margin-bottom:16px}
+        h1{font-size:18px;margin:0 0 4px;text-align:center}
+        .hosp{text-align:center;margin-bottom:12px;border-bottom:2px solid #111;padding-bottom:8px}
+        .hosp h2{font-size:17px;margin:0;text-transform:uppercase;letter-spacing:.5px}
+        .hosp p{font-size:11px;color:#444;margin:2px 0}
+        .sub{font-size:12px;color:#555;margin-bottom:16px;text-align:center}
+
         table{width:100%;border-collapse:collapse;font-size:11px}
         th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}
         th{background:#f2f2f2}

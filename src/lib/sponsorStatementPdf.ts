@@ -71,7 +71,8 @@ function statementHtml(statement: SponsorStatement, items: SponsorStatementItem[
         <div class="mark">KMC</div>
         <div>
           <h1>Khadija Medical Center</h1>
-          <p class="sub">Comprehensive healthcare · Accounts department</p>
+          <p class="sub">No: 53, Katsina Road, P.O. Box 121, Funtua, Katsina State, Nigeria</p>
+          <p class="sub small">RC: 43552 · khamecfuntua@gmail.com · 08033928843</p>
         </div>
       </div>
       <div class="stamp">

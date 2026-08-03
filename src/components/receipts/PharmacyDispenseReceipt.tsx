@@ -1,6 +1,8 @@
 import { forwardRef } from 'react';
 import { format } from 'date-fns';
 import { Patient } from '@/contexts/PatientContext';
+import { HOSPITAL } from '@/lib/hospital';
+
 
 interface DispensedItem {
   name: string;
@@ -23,11 +25,13 @@ export const PharmacyDispenseReceipt = forwardRef<HTMLDivElement, PharmacyDispen
       <div ref={ref} className="bg-white text-black p-6 w-[320px] font-mono text-sm">
         {/* Header */}
         <div className="text-center border-b border-dashed border-gray-400 pb-4 mb-4">
-          <h1 className="text-lg font-bold">KMC CLINIC</h1>
+          <h1 className="text-base font-bold uppercase">{HOSPITAL.name}</h1>
           <p className="text-xs text-gray-600">PHARMACY DEPARTMENT</p>
-          <p className="text-xs text-gray-600">123 Medical Avenue, Lagos</p>
-          <p className="text-xs text-gray-600">Tel: +234 801 234 5678</p>
+          <p className="text-[10px] text-gray-600">{HOSPITAL.address}</p>
+          <p className="text-[10px] text-gray-600">{HOSPITAL.rc}</p>
+          <p className="text-[10px] text-gray-600">{HOSPITAL.email} · {HOSPITAL.phone}</p>
         </div>
+
 
         {/* Title */}
         <div className="text-center mb-4">
@@ -94,7 +98,7 @@ export const PharmacyDispenseReceipt = forwardRef<HTMLDivElement, PharmacyDispen
 
         {/* Footer */}
         <div className="text-center text-xs text-gray-600 border-t border-dashed border-gray-400 pt-4">
-          <p>Thank you for choosing KMC Clinic</p>
+          <p>Thank you for choosing {HOSPITAL.name}</p>
           <p className="mt-2 font-semibold text-black">*** Proof of Medication Collection ***</p>
         </div>
 

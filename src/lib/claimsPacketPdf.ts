@@ -208,7 +208,9 @@ function packetHtml(args: {
         <div class="mark">KMC</div>
         <div>
           <h1>Khadija Medical Center</h1>
-          <p class="sub">Claims &amp; sponsor billing · Confidential</p>
+          <p class="sub">No: 53, Katsina Road, P.O. Box 121, Funtua, Katsina State, Nigeria</p>
+          <p class="sub small">RC: 43552 · khamecfuntua@gmail.com · 08033928843</p>
+          <p class="sub small">Claims &amp; sponsor billing · Confidential</p>
         </div>
       </div>
       <div class="stamp">

@@ -62,12 +62,10 @@ export function useDashboardStats() {
     setLoading(true);
     try {
       // Fetch all real data in parallel
-      const [labRes, invoiceRes, prescRes, inventoryRes, stockReqRes, auditRes] = await Promise.all([
+      const [labRes, invoiceRes, prescRes, auditRes] = await Promise.all([
         supabase.from('lab_requests').select('id, status'),
         supabase.from('invoices').select('id, status, total_amount, paid_amount, created_at'),
         supabase.from('prescriptions').select('id, status'),
-        supabase.from('inventory_items').select('id, quantity, min_stock, location'),
-        supabase.from('stock_requests').select('id, status'),
         supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(10),
       ]);
 
@@ -89,17 +87,6 @@ export function useDashboardStats() {
       const allPresc = prescRes.data || [];
       const pendingPresc = allPresc.filter(p => p.status === 'pending').length;
       const dispensedPresc = allPresc.filter(p => p.status === 'dispensed').length;
-
-      // Inventory stats
-      const allInventory = inventoryRes.data || [];
-      const storeItems = allInventory.filter(i => i.location === 'store');
-      const pharmacyItems = allInventory.filter(i => i.location === 'pharmacy');
-      const lowStockStore = storeItems.filter(i => i.quantity <= i.min_stock).length;
-      const lowStockPharmacy = pharmacyItems.filter(i => i.quantity <= i.min_stock).length;
-
-      // Stock requests
-      const allStockReq = stockReqRes.data || [];
-      const pendingStockReq = allStockReq.filter(r => r.status === 'pending').length;
 
       setStats({
         totalPatients: activePatients.length,
@@ -125,7 +112,7 @@ export function useDashboardStats() {
       };
 
       const moduleCounts: Record<string, { active: number; pending: number; completed: number }> = {};
-      const moduleNames = ['Reception', 'Nurse', 'Doctor', 'Lab', 'Billing', 'Pharmacy', 'Store', 'Account', 'Auditing', 'Admin'];
+      const moduleNames = ['Reception', 'Nurse', 'Doctor', 'Lab', 'Billing', 'Pharmacy', 'Account', 'Auditing', 'Admin'];
       moduleNames.forEach(m => { moduleCounts[m] = { active: 0, pending: 0, completed: 0 }; });
 
       patients.forEach(p => {
@@ -142,8 +129,6 @@ export function useDashboardStats() {
       moduleCounts['Billing'].completed = paidInvoices.length;
       moduleCounts['Pharmacy'].pending = pendingPresc;
       moduleCounts['Pharmacy'].completed = dispensedPresc;
-      moduleCounts['Store'].pending = pendingStockReq + lowStockStore;
-      moduleCounts['Store'].completed = storeItems.length;
       moduleCounts['Reception'].completed = discharged.length;
       moduleCounts['Reception'].pending = patients.filter(p => p.status === 'registered' || p.status === 'waiting').length;
       moduleCounts['Nurse'].pending = patients.filter(p => p.status === 'waiting' || p.status === 'with_nurse').length;

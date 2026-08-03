@@ -24,7 +24,7 @@ const clinicalNodes = [
 const supportNodes = [
   { id: 'billing', label: 'Billing', icon: Receipt, color: 'bg-module-billing' },
   { id: 'pharmacy', label: 'Pharmacy', icon: Pill, color: 'bg-module-pharmacy' },
-  { id: 'store', label: 'Store', icon: Package, color: 'bg-module-store' },
+  
 ];
 
 const financialNodes = [

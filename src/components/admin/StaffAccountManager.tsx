@@ -54,7 +54,7 @@ const roleOptions: { value: AppRole; label: string }[] = [
   { value: 'cashier', label: 'Cashier' },
   { value: 'claims_manager', label: 'Claims Manager' },
   { value: 'accountant', label: 'Accountant' },
-  { value: 'store', label: 'Store' },
+  
 ];
 
 const roleBadgeColor: Record<string, string> = {

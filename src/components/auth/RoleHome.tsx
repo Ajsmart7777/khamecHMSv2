@@ -11,7 +11,7 @@ const roleHomePath: Record<Exclude<AppRole, 'admin'>, string> = {
   billing: '/billing',
   cashier: '/cashier',
   pharmacist: '/pharmacy',
-  store: '/store',
+  
   accountant: '/account',
   claims_manager: '/claims',
 };

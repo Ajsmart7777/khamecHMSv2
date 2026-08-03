@@ -18,7 +18,7 @@ import Laboratory from "./pages/Laboratory";
 import Billing from "./pages/Billing";
 import Cashier from "./pages/Cashier";
 import Pharmacy from "./pages/Pharmacy";
-import Store from "./pages/Store";
+
 import Account from "./pages/Account";
 import Auditing from "./pages/Auditing";
 import Admin from "./pages/Admin";
@@ -80,11 +80,6 @@ const App = () => (
                 <Route path="/pharmacy" element={
                   <ProtectedRoute allowedRoles={['pharmacist', 'admin']}>
                     <Pharmacy />
-                  </ProtectedRoute>
-                } />
-                <Route path="/store" element={
-                  <ProtectedRoute allowedRoles={['store', 'admin']}>
-                    <Store />
                   </ProtectedRoute>
                 } />
                 <Route path="/account" element={

@@ -8,7 +8,6 @@ export type UserRole =
   | 'lab' 
   | 'billing' 
   | 'pharmacy' 
-  | 'store' 
   | 'account' 
   | 'auditing' 
   | 'admin';
@@ -121,26 +120,6 @@ export interface InvoiceItem {
   total: number;
 }
 
-export interface InventoryItem {
-  id: string;
-  name: string;
-  category: string;
-  quantity: number;
-  minStock: number;
-  unitPrice: number;
-  expiryDate?: string;
-  location: 'pharmacy' | 'store';
-  lastRestocked?: string;
-}
-
-export interface StockRequest {
-  id: string;
-  requestedBy: string;
-  items: { itemId: string; quantity: number }[];
-  status: 'pending' | 'approved' | 'fulfilled' | 'rejected';
-  createdAt: string;
-  fulfilledAt?: string;
-}
 
 export interface Staff {
   id: string;

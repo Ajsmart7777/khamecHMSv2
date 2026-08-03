@@ -22,7 +22,6 @@ const badgeVariants = cva(
         lab: "border-transparent bg-module-lab/15 text-module-lab",
         billing: "border-transparent bg-module-billing/15 text-module-billing",
         pharmacy: "border-transparent bg-module-pharmacy/15 text-module-pharmacy",
-        store: "border-transparent bg-module-store/15 text-module-store",
         account: "border-transparent bg-module-account/15 text-module-account",
         auditing: "border-transparent bg-module-auditing/15 text-module-auditing",
         admin: "border-transparent bg-module-admin/15 text-module-admin",

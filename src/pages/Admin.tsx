@@ -14,7 +14,6 @@ import {
   AlertTriangle,
   BedDouble,
   BedSingle,
-  Package,
 } from 'lucide-react';
 import { AuditLogsViewer } from '@/components/admin/AuditLogsViewer';
 import { StaffAccountManager } from '@/components/admin/StaffAccountManager';

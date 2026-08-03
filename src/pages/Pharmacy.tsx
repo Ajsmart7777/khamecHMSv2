@@ -17,7 +17,6 @@ import {
   WifiOff,
   RefreshCw
 } from 'lucide-react';
-import { useInventory } from '@/hooks/useInventory';
 import { toast } from 'sonner';
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { PharmacySnapQueue } from '@/components/pharmacy/PharmacySnapQueue';
@@ -50,11 +49,8 @@ import { getPendingWorkflowStation, workflowStationLabel } from '@/lib/workflowR
 
 const Pharmacy = () => {
   const { patients, loading, updatePatientStatus, getPatientsByStatus, refreshPatients } = usePatients();
-  const { items: inventoryItems } = useInventory();
   const { prescriptions, updatePrescriptionStatus, markItemDispensed, getPendingPrescriptions, refreshPrescriptions } = usePrescriptions();
-  const [searchQuery, setSearchQuery] = useState('');
   const [isDispenseDialogOpen, setIsDispenseDialogOpen] = useState(false);
-  const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
   const [dispensedPatients, setDispensedPatients] = useState<Set<string>>(new Set());
@@ -68,8 +64,6 @@ const Pharmacy = () => {
 
   // Get pending prescriptions from database
   const pendingPrescriptions = getPendingPrescriptions();
-
-  const lowStockItems = inventoryItems.filter(item => item.quantity <= item.min_stock && item.location === 'pharmacy');
 
   const getPatientForPrescription = (patientId: string) => {
     return patients.find(p => p.id === patientId);
@@ -88,34 +82,6 @@ const Pharmacy = () => {
     const timestamp = Date.now().toString(36).toUpperCase();
     const random = Math.random().toString(36).substring(2, 6).toUpperCase();
     return `DSP-${timestamp}-${random}`;
-  };
-
-  // Auto-deduct inventory when dispensing
-  const deductInventory = async (items: { medication: string; quantity: number }[]) => {
-    for (const item of items) {
-      // Find matching inventory item (pharmacy location or any)
-      const { data: invItems } = await supabase
-        .from('inventory_items')
-        .select('id, quantity, name')
-        .ilike('name', `%${item.medication}%`)
-        .limit(1);
-
-      if (invItems && invItems.length > 0) {
-        const inv = invItems[0];
-        const newQty = Math.max(0, inv.quantity - item.quantity);
-        await supabase.from('inventory_items').update({ quantity: newQty }).eq('id', inv.id);
-        
-        // Record stock movement
-        await supabase.from('stock_movements').insert({
-          item_id: inv.id,
-          movement_type: 'dispensed',
-          quantity: -item.quantity,
-          reference: `Prescription dispense`,
-          notes: `Dispensed ${item.quantity} units of ${item.medication}`,
-          created_by: 'Pharmacy',
-        });
-      }
-    }
   };
 
   const confirmDispense = async () => {
@@ -140,9 +106,6 @@ const Pharmacy = () => {
     if (selectedPrescription.items?.length) {
       await Promise.all(
         selectedPrescription.items.map(item => markItemDispensed(item.id, true))
-      );
-      await deductInventory(
-        selectedPrescription.items.map(i => ({ medication: i.medication, quantity: i.quantity }))
       );
     }
 
@@ -235,58 +198,18 @@ const Pharmacy = () => {
     refreshPatients();
   };
 
-  const handleRequestStock = (patientId: string) => {
-    setSelectedPatientId(patientId);
-    setIsRequestDialogOpen(true);
-  };
-
-  const confirmStockRequest = () => {
-    toast.success('Stock Request Sent', {
-      description: 'Stock request has been sent to the Store department.'
-    });
-    setIsRequestDialogOpen(false);
-  };
-
   const handlePartialDispense = async (patientId: string) => {
     const patient = patients.find(p => p.id === patientId);
     toast.success('Partial Dispense', {
-      description: `Dispensed available items for ${patient?.first_name} ${patient?.last_name}. Remaining items await stock.`
+      description: `Dispensed available items for ${patient?.first_name} ${patient?.last_name}. Remaining items pending.`
     });
-  };
-
-  const handleRequestFromStore = () => {
-    if (lowStockItems.length === 0) {
-      toast.success('No Low Stock Items', {
-        description: 'All pharmacy items are adequately stocked.'
-      });
-      return;
-    }
-    toast.success('Stock Request Sent', {
-      description: `Request for ${lowStockItems.length} low-stock item(s) sent to Store.`
-    });
-  };
-
-  const handleStockSearch = () => {
-    if (!searchQuery) return;
-    const found = inventoryItems.find(i => 
-      i.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    if (found) {
-      toast.success(found.name, {
-        description: `Stock: ${found.quantity} units | Min: ${found.min_stock} | Location: ${found.location}`
-      });
-    } else {
-      toast.error('Not Found', {
-        description: `No medication matching "${searchQuery}" found.`
-      });
-    }
   };
 
   const selectedPatient = patients.find(p => p.id === selectedPatientId);
   const activePrescriptions = pendingPrescriptions.filter(p => !dispensedPatients.has(p.patient_id));
 
   return (
-    <MainLayout title="Pharmacy" subtitle="Medication dispensing and stock management">
+    <MainLayout title="Pharmacy" subtitle="Medication dispensing">
       {/* Connection Status */}
       <div className="mb-4 flex items-center gap-2">
         {loading ? (
@@ -386,18 +309,6 @@ const Pharmacy = () => {
 
                     <div className="flex justify-end gap-2">
                       <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => {
-                          setSelectedPatientId(patient.id);
-                          setIsRequestDialogOpen(true);
-                        }}
-                        className="press-effect"
-                      >
-                        <Package className="h-4 w-4 mr-1" />
-                        Request Stock
-                      </Button>
-                      <Button 
                         variant="module" 
                         size="sm" 
                         onClick={() => handlePartialDispense(patient.id)}
@@ -429,70 +340,6 @@ const Pharmacy = () => {
           </div>
         </div>
 
-        {/* Inventory & Stock Alerts */}
-        <div className="space-y-6">
-          {/* Quick Stock Search */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <h3 className="font-semibold mb-4">Quick Stock Check</h3>
-            <div className="relative flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Search medications..." 
-                  className="pl-10"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleStockSearch()}
-                />
-              </div>
-              <Button variant="outline" size="icon" onClick={handleStockSearch} className="press-effect">
-                <Search className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Low Stock Alerts */}
-          <div className="bg-card rounded-xl border border-border p-4">
-            <h3 className="font-semibold mb-4 flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning" />
-              Low Stock Alerts
-            </h3>
-            
-            {lowStockItems.length > 0 ? (
-              <div className="space-y-3">
-                {lowStockItems.map((item) => (
-                  <div 
-                    key={item.id} 
-                    className="flex items-center justify-between p-3 bg-warning/10 rounded-lg border border-warning/20 cursor-pointer hover:bg-warning/20 transition-colors"
-                    onClick={() => toast.success(item.name, { 
-                      description: `Current stock: ${item.quantity} units. Minimum required: ${item.min_stock} units.` 
-                    })}
-                  >
-                    <div>
-                      <p className="font-medium text-sm">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">Min: {item.min_stock} units</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-warning">{item.quantity}</p>
-                      <p className="text-xs text-muted-foreground">in stock</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">No low stock items</p>
-            )}
-
-            <Button 
-              variant="outline" 
-              className="w-full mt-4 press-effect"
-              onClick={handleRequestFromStore}
-            >
-              <Package className="h-4 w-4 mr-2" />
-              Request from Store
-            </Button>
-          </div>
-        </div>
       </div>
 
       {/* Dispense Confirmation Dialog */}
@@ -522,30 +369,6 @@ const Pharmacy = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Request Stock Dialog */}
-      <Dialog open={isRequestDialogOpen} onOpenChange={setIsRequestDialogOpen}>
-        <DialogContent className="animate-scale-in">
-          <DialogHeader>
-            <DialogTitle>Request Stock from Store</DialogTitle>
-            <DialogDescription>
-              Request out-of-stock items for {selectedPatient?.first_name} {selectedPatient?.last_name}'s prescription
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground">
-              Stock request will be sent to the Store department for fulfillment.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRequestDialogOpen(false)}>Cancel</Button>
-            <Button onClick={confirmStockRequest} className="press-effect">
-              <Package className="h-4 w-4 mr-1" />
-              Send Request
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Dispense Receipt Dialog */}
       {dispenseReceiptData && (

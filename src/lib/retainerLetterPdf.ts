@@ -225,6 +225,7 @@ const CSS = `
   }
   .brand { display: flex; gap: 14px; align-items: center; }
   .brand .mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .brand .mark:has(img) { background: #fff !important; border: 1px solid #e5e7eb; padding: 4px; }
   .brand .mark {
     width: 56px; height: 56px;
     background: linear-gradient(135deg,#0f3c64,#1e5a8f);

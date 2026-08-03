@@ -21,6 +21,7 @@ import { ExternalDoctorsManager } from '@/components/account/ExternalDoctorsMana
 import { RetainerClaimsPanel } from '@/components/account/RetainerClaimsPanel';
 import { CorporateClaimsPanel } from '@/components/account/CorporateClaimsPanel';
 import { SponsorStatementsPanel } from '@/components/account/SponsorStatementsPanel';
+import { DailySalesReport } from '@/components/account/DailySalesReport';
 import type { PayrollPeriod } from '@/hooks/usePayroll';
 
 function TabHeader({ title, onRefresh }: { title: string; onRefresh: () => void }) {
@@ -128,6 +129,9 @@ const Account = () => {
           <TabsTrigger value="pricelist" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <DollarSign className="h-4 w-4" /> Pricelist
           </TabsTrigger>
+          <TabsTrigger value="daily-sales" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <FileText className="h-4 w-4" /> Daily Sales Report
+          </TabsTrigger>
           <TabsTrigger value="external-doctors" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Stethoscope className="h-4 w-4" /> External Doctors
           </TabsTrigger>
@@ -231,6 +235,12 @@ const Account = () => {
           <TabHeader title="Hospital Pricelist" onRefresh={() => {}} />
           <PricelistManager />
         </TabsContent>
+
+        <TabsContent value="daily-sales">
+          <DailySalesReport />
+        </TabsContent>
+
+
 
         <TabsContent value="register">
           <TabHeader title="Register Staff" onRefresh={refetchStaff} />

@@ -27,6 +27,7 @@ import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import Claims from "./pages/Claims";
 import EMR from "./pages/EMR";
+import DailySalesReportPage from "./pages/DailySalesReport";
 
 const queryClient = new QueryClient();
 
@@ -89,6 +90,11 @@ const App = () => (
                 <Route path="/account" element={
                   <ProtectedRoute allowedRoles={['accountant', 'admin']}>
                     <Account />
+                  </ProtectedRoute>
+                } />
+                <Route path="/daily-sales-report" element={
+                  <ProtectedRoute allowedRoles={['accountant', 'admin']}>
+                    <DailySalesReportPage />
                   </ProtectedRoute>
                 } />
                 <Route path="/auditing" element={

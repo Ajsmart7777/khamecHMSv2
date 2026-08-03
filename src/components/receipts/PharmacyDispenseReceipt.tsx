@@ -30,8 +30,8 @@ export const PharmacyDispenseReceipt = forwardRef<HTMLDivElement, PharmacyDispen
           <p className="text-[10px] text-gray-600">{HOSPITAL.address}</p>
           <p className="text-[10px] text-gray-600">{HOSPITAL.rc}</p>
           <p className="text-[10px] text-gray-600">{HOSPITAL.email} · {HOSPITAL.phone}</p>
-
         </div>
+
 
         {/* Title */}
         <div className="text-center mb-4">

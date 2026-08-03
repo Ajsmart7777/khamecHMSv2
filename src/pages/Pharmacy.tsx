@@ -5,14 +5,11 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { 
   Pill, 
   CheckCircle,
   User,
-  Package,
   AlertTriangle,
-  Search,
   Wifi,
   WifiOff,
   RefreshCw
@@ -22,14 +19,6 @@ import { SnapToCard } from '@/components/visit/SnapToCard';
 import { PharmacySnapQueue } from '@/components/pharmacy/PharmacySnapQueue';
 import { prescriptionAuditLogger } from '@/lib/auditLogger';
 import { findOpenVisit, closeVisit } from '@/hooks/useVisits';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -240,9 +229,9 @@ const Pharmacy = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div>
         {/* Prescriptions to Dispense */}
-        <div className="lg:col-span-2">
+        <div>
           <div className="bg-card rounded-xl border border-border">
             <div className="p-4 border-b border-border flex items-center justify-between">
               <h3 className="font-semibold flex items-center gap-2">

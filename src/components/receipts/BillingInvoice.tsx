@@ -1,6 +1,8 @@
 import { forwardRef } from 'react';
 import { format } from 'date-fns';
 import { HOSPITAL } from '@/lib/hospital';
+import { PrintHeader } from './PrintHeader';
+
 
 
 interface InvoiceItem {
@@ -28,15 +30,13 @@ export const BillingInvoice = forwardRef<HTMLDivElement, BillingInvoiceProps>(
       <div ref={ref} className="bg-white text-black p-8 max-w-[400px] mx-auto font-mono text-sm print:p-4">
         {/* Header */}
         <div className="text-center border-b-2 border-dashed border-gray-400 pb-4 mb-4">
-          <h1 className="text-lg font-bold uppercase tracking-wider">{HOSPITAL.name}</h1>
-          <p className="text-[10px] text-gray-600 mt-1">{HOSPITAL.address}</p>
-          <p className="text-[10px] text-gray-600">{HOSPITAL.rc}</p>
-          <p className="text-[10px] text-gray-600">{HOSPITAL.email} · {HOSPITAL.phone}</p>
+          <PrintHeader />
 
           <div className="mt-3 py-2 bg-gray-100 rounded">
             <p className="font-bold text-lg">INVOICE</p>
           </div>
         </div>
+
 
         {/* Invoice Info */}
         <div className="grid grid-cols-2 gap-2 text-xs mb-4 pb-4 border-b border-dashed border-gray-300">

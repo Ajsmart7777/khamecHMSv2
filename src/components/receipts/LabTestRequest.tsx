@@ -25,8 +25,8 @@ export const LabTestRequest = forwardRef<HTMLDivElement, LabTestRequestProps>(
           <p className="text-[10px] text-gray-600">{HOSPITAL.address}</p>
           <p className="text-[10px] text-gray-600">{HOSPITAL.rc}</p>
           <p className="text-[10px] text-gray-600">{HOSPITAL.email} · {HOSPITAL.phone}</p>
-
         </div>
+
 
         {/* Title */}
         <div className="text-center mb-4 py-2 bg-gray-100 border border-gray-300">

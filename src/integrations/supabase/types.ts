@@ -826,51 +826,6 @@ export type Database = {
         }
         Relationships: []
       }
-      inventory_items: {
-        Row: {
-          category: string
-          created_at: string
-          expiry_date: string | null
-          id: string
-          last_restocked: string | null
-          location: string
-          min_stock: number
-          name: string
-          quantity: number
-          supplier: string | null
-          unit_price: number
-          updated_at: string
-        }
-        Insert: {
-          category?: string
-          created_at?: string
-          expiry_date?: string | null
-          id?: string
-          last_restocked?: string | null
-          location?: string
-          min_stock?: number
-          name: string
-          quantity?: number
-          supplier?: string | null
-          unit_price?: number
-          updated_at?: string
-        }
-        Update: {
-          category?: string
-          created_at?: string
-          expiry_date?: string | null
-          id?: string
-          last_restocked?: string | null
-          location?: string
-          min_stock?: number
-          name?: string
-          quantity?: number
-          supplier?: string | null
-          unit_price?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
       invoice_items: {
         Row: {
           category: string | null
@@ -2307,94 +2262,6 @@ export type Database = {
           },
         ]
       }
-      stock_movements: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          id: string
-          item_id: string
-          movement_type: string
-          notes: string | null
-          quantity: number
-          reference: string | null
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          item_id: string
-          movement_type: string
-          notes?: string | null
-          quantity: number
-          reference?: string | null
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          item_id?: string
-          movement_type?: string
-          notes?: string | null
-          quantity?: number
-          reference?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "stock_movements_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "inventory_items"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      stock_requests: {
-        Row: {
-          created_at: string
-          fulfilled_at: string | null
-          id: string
-          item_id: string | null
-          item_name: string
-          notes: string | null
-          quantity: number
-          requested_by: string
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          fulfilled_at?: string | null
-          id?: string
-          item_id?: string | null
-          item_name: string
-          notes?: string | null
-          quantity?: number
-          requested_by?: string
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          fulfilled_at?: string | null
-          id?: string
-          item_id?: string | null
-          item_name?: string
-          notes?: string | null
-          quantity?: number
-          requested_by?: string
-          status?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "stock_requests_item_id_fkey"
-            columns: ["item_id"]
-            isOneToOne: false
-            referencedRelation: "inventory_items"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       task_claims: {
         Row: {
           claimed_at: string
@@ -2718,23 +2585,7 @@ export type Database = {
       }
     }
     Views: {
-      v_tasks: {
-        Row: {
-          assigned_role: string | null
-          assigned_user_id: string | null
-          created_at: string | null
-          patient_id: string | null
-          payload: Json | null
-          priority: number | null
-          source: string | null
-          source_id: string | null
-          status: string | null
-          task_id: string | null
-          updated_at: string | null
-          visit_id: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       adjust_patient_balance: {

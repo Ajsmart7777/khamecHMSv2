@@ -1,3 +1,4 @@
+import { HOSPITAL_LOGO } from '@/lib/hospital';
 import { useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 

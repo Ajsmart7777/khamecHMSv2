@@ -326,5 +326,6 @@ function createProviderActions(functionName: string) {
   return { getBalance, listBanks, resolveAccount, initiateTransfer, bulkTransfer, verifyTransfer };
 }
 
+export function useProviderActions(provider: PaymentProvider) {
   return provider === 'paystack' ? createProviderActions('payroll-payment-paystack') : createProviderActions('payroll-payment');
 }

@@ -10,7 +10,7 @@ interface ModuleCardProps {
   patientsToday: number;
   pendingTasks: number;
   status: 'active' | 'busy' | 'idle';
-  variant: 'reception' | 'nurse' | 'doctor' | 'lab' | 'billing' | 'pharmacy' | 'store' | 'account' | 'auditing' | 'admin';
+  variant: 'reception' | 'nurse' | 'doctor' | 'lab' | 'billing' | 'pharmacy' | 'account' | 'auditing' | 'admin';
 }
 
 const statusColors = {

@@ -69,15 +69,3 @@ export function validateMemberFields(
   }
   return { ok: Object.keys(errors).length === 0, errors };
 }
-
-/** Human-readable summary "Label: value · Label: value". */
-export function summariseMemberData(
-  fields: ProviderField[],
-  data: Record<string, string> | null | undefined,
-): string {
-  if (!data) return '';
-  return fields
-    .filter((f) => data[f.key])
-    .map((f) => `${f.label}: ${data[f.key]}`)
-    .join(' · ');
-}

@@ -326,14 +326,6 @@ function createProviderActions(functionName: string) {
   return { getBalance, listBanks, resolveAccount, initiateTransfer, bulkTransfer, verifyTransfer };
 }
 
-export function useFlutterwaveActions() {
-  return createProviderActions('payroll-payment');
-}
-
-export function usePaystackActions() {
-  return createProviderActions('payroll-payment-paystack');
-}
-
 export function useProviderActions(provider: PaymentProvider) {
   return provider === 'paystack' ? createProviderActions('payroll-payment-paystack') : createProviderActions('payroll-payment');
 }

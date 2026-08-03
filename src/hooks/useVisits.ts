@@ -157,58 +157,6 @@ export function usePatientVisits(patientId?: string | null) {
   return { visits, loading, refresh };
 }
 
-/** Settled sponsored visits (for the Claims queue). */
-export function useClaimsQueue(filters?: {
-  sponsorType?: string | null;
-  from?: string;
-  to?: string;
-  claimStatus?: 'pending' | 'settled' | 'rejected' | 'info_requested';
-  sponsors?: string[];
-}) {
-  const [visits, setVisits] = useState<Visit[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    // Claims Manager scope: external insurance schemes only.
-    // staff = 100% free (no claim). staff_family = 50% patient + 50% payroll deduction (no claim).
-    const defaultSponsors = ['nhia', 'hmo', 'katchma'];
-    let q = supabase
-      .from('visits')
-      .select('*')
-      .eq('status', 'settled')
-      .in('sponsor_type', filters?.sponsors ?? defaultSponsors)
-      .order('closed_at', { ascending: false });
-    if (filters?.claimStatus) q = q.eq('claim_status', filters.claimStatus);
-    if (filters?.sponsorType) q = q.eq('sponsor_type', filters.sponsorType);
-    if (filters?.from) q = q.gte('closed_at', filters.from);
-    if (filters?.to) q = q.lte('closed_at', filters.to);
-    const { data, error } = await q;
-    setLoading(false);
-    if (error) {
-      toast.error('Failed to load claims queue');
-      return;
-    }
-    setVisits((data ?? []) as Visit[]);
-  }, [filters?.sponsorType, filters?.from, filters?.to, filters?.claimStatus, filters?.sponsors?.join(',')]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  useEffect(() => {
-    const ch = supabase
-      .channel('claims-queue-visits')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, () => refresh())
-      .subscribe();
-    return () => {
-      supabase.removeChannel(ch);
-    };
-  }, [refresh]);
-
-  return { visits, loading, refresh };
-}
-
 /** Mark an insured visit's claim as settled (claims_manager / admin). */
 export async function markClaimSettled(visitId: string, notes?: string): Promise<void> {
   const { error } = await supabase.rpc('mark_claim_settled', {

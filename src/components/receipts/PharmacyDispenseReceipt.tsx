@@ -98,7 +98,7 @@ export const PharmacyDispenseReceipt = forwardRef<HTMLDivElement, PharmacyDispen
 
         {/* Footer */}
         <div className="text-center text-xs text-gray-600 border-t border-dashed border-gray-400 pt-4">
-          <p>Thank you for choosing KMC Clinic</p>
+          <p>Thank you for choosing {HOSPITAL.name}</p>
           <p className="mt-2 font-semibold text-black">*** Proof of Medication Collection ***</p>
         </div>
 

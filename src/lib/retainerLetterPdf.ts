@@ -1,3 +1,4 @@
+import { HOSPITAL_LOGO_URL } from '@/lib/hospital';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
@@ -92,7 +93,7 @@ function letterBody(data: RetainerLetterData) {
 
     <header class="hero">
       <div class="brand">
-        <div class="mark">KMC</div>
+        <div class="mark">${HOSPITAL_LOGO_URL ? `<img src="${HOSPITAL_LOGO_URL}" alt="logo" onerror="this.remove();this.parentNode.textContent='KMC'" />` : 'KMC'}</div>
         <div>
           <h1>Khadija Medical Center</h1>
           <p class="sub">No: 53, Katsina Road, P.O. Box 121, Funtua, Katsina State, Nigeria</p>
@@ -223,6 +224,7 @@ const CSS = `
     border-bottom: 3px double #0f3c64;
   }
   .brand { display: flex; gap: 14px; align-items: center; }
+  .brand .mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
   .brand .mark {
     width: 56px; height: 56px;
     background: linear-gradient(135deg,#0f3c64,#1e5a8f);

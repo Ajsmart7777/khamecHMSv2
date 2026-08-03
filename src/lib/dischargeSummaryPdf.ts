@@ -1,3 +1,4 @@
+import { HOSPITAL_LOGO_URL } from '@/lib/hospital';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { supabase } from '@/integrations/supabase/client';
@@ -218,7 +219,7 @@ function summaryHtml(args: {
   <div class="doc">
     <header class="hero">
       <div class="brand">
-        <div class="mark">KMC</div>
+        <div class="mark">${HOSPITAL_LOGO_URL ? `<img src="${HOSPITAL_LOGO_URL}" alt="logo" onerror="this.remove();this.parentNode.textContent='KMC'" />` : 'KMC'}</div>
         <div>
           <h1>Khadija Medical Center</h1>
           <p class="sub">No: 53, Katsina Road, P.O. Box 121, Funtua, Katsina State, Nigeria</p>

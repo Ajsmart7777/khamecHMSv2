@@ -119,7 +119,7 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
         <div className="text-center text-xs text-gray-600">
           <p className="mb-2">Present this receipt at</p>
           <p className="font-semibold text-black">PHARMACY / LABORATORY</p>
-          <p className="mt-4">Thank you for choosing KMC Clinic</p>
+          <p className="mt-4">Thank you for choosing {HOSPITAL.name}</p>
           <p className="mt-2">*** Valid for services today ***</p>
         </div>
 

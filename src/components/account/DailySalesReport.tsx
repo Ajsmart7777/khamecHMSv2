@@ -160,11 +160,17 @@ export function DailySalesReport() {
       </Card>
 
       <div id="daily-sales-print">
+        <div className="hosp text-center mb-3">
+          <h2 className="text-base font-bold uppercase">{HOSPITAL.name}</h2>
+          <p className="text-xs text-muted-foreground">{HOSPITAL.address}</p>
+          <p className="text-xs text-muted-foreground">{HOSPITAL.rc} · {HOSPITAL.email} · {HOSPITAL.phone}</p>
+        </div>
         <h1>Daily Sales Report</h1>
         <div className="sub text-xs text-muted-foreground mb-3">
           Date: {new Date(`${date}T00:00:00`).toLocaleDateString('en-NG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           {' · '}Generated: {new Date().toLocaleString('en-NG')}
         </div>
+
 
         <Table>
           <TableHeader>

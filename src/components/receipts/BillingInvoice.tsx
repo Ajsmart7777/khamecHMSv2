@@ -26,9 +26,11 @@ export const BillingInvoice = forwardRef<HTMLDivElement, BillingInvoiceProps>(
       <div ref={ref} className="bg-white text-black p-8 max-w-[400px] mx-auto font-mono text-sm print:p-4">
         {/* Header */}
         <div className="text-center border-b-2 border-dashed border-gray-400 pb-4 mb-4">
-          <h1 className="text-xl font-bold uppercase tracking-wider">Khadija Medical Center</h1>
-          <p className="text-xs text-gray-600 mt-1">123 Healthcare Avenue, Medical District</p>
-          <p className="text-xs text-gray-600">Tel: +234 800 123 4567</p>
+          <h1 className="text-lg font-bold uppercase tracking-wider">{HOSPITAL.name}</h1>
+          <p className="text-[10px] text-gray-600 mt-1">{HOSPITAL.address}</p>
+          <p className="text-[10px] text-gray-600">{HOSPITAL.rc}</p>
+          <p className="text-[10px] text-gray-600">{HOSPITAL.email} · {HOSPITAL.phone}</p>
+
           <div className="mt-3 py-2 bg-gray-100 rounded">
             <p className="font-bold text-lg">INVOICE</p>
           </div>

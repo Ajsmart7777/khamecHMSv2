@@ -1,13 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
 interface Settings {
-  emailNotifications: boolean;
-  pushNotifications: boolean;
   soundAlerts: boolean;
   darkMode: boolean;
-  compactView: boolean;
-  twoFactorAuth: boolean;
-  sessionTimeout: boolean;
 }
 
 interface SettingsContextType {
@@ -17,13 +12,8 @@ interface SettingsContextType {
 }
 
 const defaultSettings: Settings = {
-  emailNotifications: false,
-  pushNotifications: false,
   soundAlerts: true,
   darkMode: false,
-  compactView: false,
-  twoFactorAuth: false,
-  sessionTimeout: true,
 };
 
 const STORAGE_KEY = 'hms-user-settings';

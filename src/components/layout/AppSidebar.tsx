@@ -1,3 +1,4 @@
+import { HOSPITAL_LOGO } from '@/lib/hospital';
 import { useState, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
@@ -96,9 +97,11 @@ export function AppSidebar({ isMobile = false, onNavigate }: AppSidebarProps) {
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-sidebar-border">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shrink-0">
-          <span className="text-primary-foreground font-bold text-lg">K</span>
-        </div>
+        <img
+          src={HOSPITAL_LOGO}
+          alt="Khadija Medical Center logo"
+          className="w-10 h-10 object-contain shrink-0"
+        />
         {!isCollapsed && (
           <div className="animate-fade-in min-w-0">
             <h1 className="font-bold text-sidebar-foreground text-sm truncate">Khadija Medical</h1>

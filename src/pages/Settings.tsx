@@ -55,35 +55,15 @@ export default function Settings() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bell className="h-5 w-5 text-primary" />
-              Notifications
+              Alerts
             </CardTitle>
-            <CardDescription>Configure notification preferences</CardDescription>
+            <CardDescription>Station alert preferences</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Email Notifications</Label>
-                <p className="text-sm text-muted-foreground">Receive email alerts</p>
-              </div>
-              <Switch 
-                checked={settings.emailNotifications}
-                onCheckedChange={(checked) => handleToggle('emailNotifications', checked)}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Push Notifications</Label>
-                <p className="text-sm text-muted-foreground">Browser notifications</p>
-              </div>
-              <Switch 
-                checked={settings.pushNotifications}
-                onCheckedChange={(checked) => handleToggle('pushNotifications', checked)}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
                 <Label>Sound Alerts</Label>
-                <p className="text-sm text-muted-foreground">Play sound for alerts</p>
+                <p className="text-sm text-muted-foreground">Play sound when a patient arrives at your station</p>
               </div>
               <Switch 
                 checked={settings.soundAlerts}
@@ -113,16 +93,6 @@ export default function Settings() {
                 onCheckedChange={(checked) => handleToggle('darkMode', checked)}
               />
             </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Compact View</Label>
-                <p className="text-sm text-muted-foreground">Reduce spacing</p>
-              </div>
-              <Switch 
-                checked={settings.compactView}
-                onCheckedChange={(checked) => handleToggle('compactView', checked)}
-              />
-            </div>
           </CardContent>
         </Card>
 
@@ -136,26 +106,6 @@ export default function Settings() {
             <CardDescription>Account security options</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Two-Factor Authentication</Label>
-                <p className="text-sm text-muted-foreground">Add extra security</p>
-              </div>
-              <Switch 
-                checked={settings.twoFactorAuth}
-                onCheckedChange={(checked) => handleToggle('twoFactorAuth', checked)}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Session Timeout</Label>
-                <p className="text-sm text-muted-foreground">Auto logout after inactivity</p>
-              </div>
-              <Switch 
-                checked={settings.sessionTimeout}
-                onCheckedChange={(checked) => handleToggle('sessionTimeout', checked)}
-              />
-            </div>
             <Button variant="outline" className="w-full" onClick={() => setShowHistoryDialog(true)}>
               View Login History
             </Button>

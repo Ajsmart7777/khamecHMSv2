@@ -1,3 +1,4 @@
+import { HOSPITAL_LOGO } from '@/lib/hospital';
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -76,9 +77,11 @@ export default function Auth() {
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary/80 mx-auto mb-4 flex items-center justify-center shadow-lg">
-            <Hospital className="h-8 w-8 text-primary-foreground" />
-          </div>
+          <img
+            src={HOSPITAL_LOGO}
+            alt="Khadija Medical Center logo"
+            className="w-20 h-20 object-contain mx-auto mb-4"
+          />
           <h1 className="text-2xl font-bold">Khadija Medical Center</h1>
           <p className="text-muted-foreground mt-1">Hospital Management System</p>
         </div>

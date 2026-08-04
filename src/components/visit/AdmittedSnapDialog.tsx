@@ -16,6 +16,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { uploadFile } from '@/lib/storage';
 import { usePricelist } from '@/hooks/usePricelist';
 import { InAppCameraDialog } from './InAppCameraDialog';
 import { SnapCropDialog } from './SnapCropDialog';
@@ -166,10 +167,7 @@ export function AdmittedSnapDialog({
       let path: string | null = null;
       if (file) {
         path = `admitted/${patientId}/${crypto.randomUUID()}.jpg`;
-        const { error: upErr } = await supabase.storage
-          .from('visit-cards')
-          .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
-        if (upErr) throw upErr;
+        await uploadFile('visit-cards', path, file, file.type || 'image/jpeg');
       }
 
       const { error } = await supabase.rpc('create_admitted_snap', {

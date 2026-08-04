@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { uploadFile, getFileUrl, deleteFile } from '@/lib/storage';
 import { toast } from 'sonner';
 
 export type VisitStation =
@@ -60,10 +61,7 @@ export async function uploadVisitAttachment(params: {
   try {
     const compressed = await compressImage(params.file);
     const path = `${params.visitId}/${crypto.randomUUID()}.jpg`;
-    const { error: upErr } = await supabase.storage
-      .from('visit-cards')
-      .upload(path, compressed, { contentType: 'image/jpeg', upsert: false });
-    if (upErr) throw upErr;
+    await uploadFile('visit-cards', path, compressed, 'image/jpeg');
 
     const { data, error } = await supabase
       .from('visit_attachments')
@@ -133,19 +131,14 @@ export function useVisitAttachments(visitId?: string | null) {
   return { attachments, loading, refresh };
 }
 
-/** Get a signed URL for a private storage path. */
+/** Get a readable URL for a stored attachment. */
 export async function signedUrl(path: string, expiresIn = 3600): Promise<string | null> {
-  const { data, error } = await supabase.storage.from('visit-cards').createSignedUrl(path, expiresIn);
-  if (error) {
-    console.error(error);
-    return null;
-  }
-  return data.signedUrl;
+  return await getFileUrl('visit-cards', path, expiresIn);
 }
 
 export async function deleteVisitAttachment(att: VisitAttachment): Promise<boolean> {
-  const { error: sErr } = await supabase.storage.from('visit-cards').remove([att.storage_path]);
-  if (sErr) {
+  const ok = await deleteFile('visit-cards', att.storage_path);
+  if (!ok) {
     toast.error('Failed to delete file');
     return false;
   }

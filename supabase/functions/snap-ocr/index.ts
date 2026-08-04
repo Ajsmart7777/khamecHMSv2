@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
           { role: 'system', content: 'You are a medical OCR assistant. Read handwritten hospital notes and return strict JSON only.' },
           { role: 'user', content: [
             { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: signed.signedUrl } },
+            { type: 'image_url', image_url: { url: imageUrl } },
           ]},
         ],
         temperature: 0,

@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { uploadFile } from '@/lib/storage';
 import { SnapOrder } from '@/hooks/useSnapOrders';
 import { useCanSnap } from '@/hooks/useCanSnap';
 import { Lock } from 'lucide-react';
@@ -73,10 +74,7 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
     setBusy(true);
     try {
       const path = `${parentSnap.visit_id ?? parentSnap.patient_id}/lab-result-${crypto.randomUUID()}.jpg`;
-      const { error: upErr } = await supabase.storage
-        .from('visit-cards')
-        .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
-      if (upErr) throw upErr;
+      await uploadFile('visit-cards', path, file, file.type || 'image/jpeg');
 
       const senderRole = parentSnap.source_role || 'doctor';
       const targetStation = senderRole.startsWith('doctor') ? 'doctor' : (senderRole === 'nurse' ? 'nurse' : 'doctor');

@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { uploadFile } from '@/lib/storage';
 import { useActiveVisit, openOrResumeVisit } from '@/hooks/useVisits';
 import { uploadVisitAttachment, VisitStation } from '@/hooks/useVisitAttachments';
 import { createSnapOrder, SnapOrderType, SnapTargetStation } from '@/hooks/useSnapOrders';
@@ -143,10 +144,7 @@ export function SnapClinicalOrder({
 
       // 1. Upload image to visit-cards bucket
       const path = `${visitId}/${crypto.randomUUID()}.jpg`;
-      const { error: upErr } = await supabase.storage
-        .from('visit-cards')
-        .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
-      if (upErr) throw upErr;
+      await uploadFile('visit-cards', path, file, file.type || 'image/jpeg');
 
       // 2. Attach to visit envelope (for the card timeline)
       await uploadVisitAttachment({

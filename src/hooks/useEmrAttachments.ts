@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { uploadFile, getFileUrl } from '@/lib/storage';
 import { toast } from 'sonner';
 
 export interface EmrAttachment {
@@ -67,11 +68,10 @@ export function useEmrAttachments(patientId?: string) {
         return null;
       }
       const path = `${patientId}/${Date.now()}-${file.name.replace(/[^A-Za-z0-9._-]/g, '_')}`;
-      const { error: upErr } = await supabase.storage
-        .from('emr-attachments')
-        .upload(path, file, { contentType: file.type });
-      if (upErr) {
-        toast.error(upErr.message || 'Upload failed');
+      try {
+        await uploadFile('emr-attachments', path, file, file.type);
+      } catch (e: any) {
+        toast.error(e?.message || 'Upload failed');
         return null;
       }
       const { data, error } = await supabase
@@ -101,11 +101,7 @@ export function useEmrAttachments(patientId?: string) {
   );
 
   const getSignedUrl = useCallback(async (path: string) => {
-    const { data, error } = await supabase.storage
-      .from('emr-attachments')
-      .createSignedUrl(path, 60 * 10);
-    if (error) return null;
-    return data.signedUrl;
+    return await getFileUrl('emr-attachments', path, 60 * 10);
   }, []);
 
   return { attachments, loading, refresh: fetchAttachments, uploadAttachment, getSignedUrl };

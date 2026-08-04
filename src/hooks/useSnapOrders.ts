@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { getFileUrl } from '@/lib/storage';
 import { toast } from 'sonner';
 
 export type SnapOrderType = 'prescription' | 'lab' | 'treatment' | 'lab_result';
@@ -161,9 +162,7 @@ export async function rejectSnap(id: string, reason: string) {
   return true;
 }
 
-/** Signed URL for the snap photo (stored in visit-cards bucket). */
+/** Readable URL for the snap photo (visit-cards bucket). */
 export async function snapPhotoUrl(path: string, expiresIn = 3600): Promise<string | null> {
-  const { data, error } = await supabase.storage.from('visit-cards').createSignedUrl(path, expiresIn);
-  if (error) return null;
-  return data.signedUrl;
+  return await getFileUrl('visit-cards', path, expiresIn);
 }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
+import { uploadFile, getFileUrl } from '@/lib/storage';
 
 export interface EligibilityVerification {
   id: string;

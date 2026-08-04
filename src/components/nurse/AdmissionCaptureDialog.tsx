@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dialog';
 import { Camera, BedDouble } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { uploadFile } from '@/lib/storage';
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
 import { SnapCropDialog } from '@/components/visit/SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
@@ -74,10 +74,7 @@ export function AdmissionCaptureDialog({ patientId, patientName, open, onOpenCha
     try {
       const visitId = await openOrResumeVisit({ patientId });
       const path = `${visitId}/admission-${crypto.randomUUID()}.jpg`;
-      const { error: upErr } = await supabase.storage
-        .from('visit-cards')
-        .upload(path, file, { contentType: file.type || 'image/jpeg', upsert: false });
-      if (upErr) throw upErr;
+      await uploadFile('visit-cards', path, file, file.type || 'image/jpeg');
       const id = await requestAdmission({
         patientId, visitId, photoPath: path,
         reason: reason.trim() || undefined,

@@ -29,10 +29,17 @@ Deno.serve(async (req) => {
     const { data: setting } = await admin.from('app_settings').select('value').eq('key', 'ocr').maybeSingle();
     const model = (setting?.value as any)?.model ?? DEFAULT_MODEL;
 
-    // Signed URL for photo
-    const { data: signed, error: urlErr } = await admin.storage
-      .from('visit-cards').createSignedUrl(snap.photo_path, 600);
-    if (urlErr || !signed) return await fail(admin, snap_id, model, `image url: ${urlErr?.message ?? 'unknown'}`);
+    // Image URL: public R2 domain when configured, otherwise a Supabase signed URL
+    const r2Public = Deno.env.get('R2_PUBLIC_URL')?.replace(/\/+$/, '');
+    let imageUrl: string;
+    if (r2Public) {
+      imageUrl = `${r2Public}/visit-cards/${snap.photo_path.split('/').map(encodeURIComponent).join('/')}`;
+    } else {
+      const { data: signed, error: urlErr } = await admin.storage
+        .from('visit-cards').createSignedUrl(snap.photo_path, 600);
+      if (urlErr || !signed) return await fail(admin, snap_id, model, `image url: ${urlErr?.message ?? 'unknown'}`);
+      imageUrl = signed.signedUrl;
+    }
 
     const kind = snap.order_type; // 'prescription' | 'lab' | 'treatment' | 'lab_result'
     const prompt = buildPrompt(kind);

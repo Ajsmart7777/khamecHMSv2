@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Upload, User, Loader2, Trash2 } from 'lucide-react';
-import { uploadFile, getFileUrl, deleteFile } from '@/lib/storage';
+import { uploadFile as putFile, getFileUrl, deleteFile } from '@/lib/storage';
 import { usePatients, Patient } from '@/contexts/PatientContext';
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
 import { toast } from 'sonner';
@@ -59,7 +59,7 @@ export function PatientPhotoAvatar({
     try {
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
       const path = `${patient.id}/${Date.now()}.${ext}`;
-      await uploadFile(BUCKET, path, file, file.type);
+      await putFile(BUCKET, path, file, file.type);
 
       // Best-effort cleanup of previous photo
       if (photoPath) {

@@ -1,51 +1,83 @@
-## Matsalar da ake ciki (an tabbatar daga database)
+# Migration: Snaps zuwa Cloudflare R2 + sabon Supabase account + Netlify
 
-- `bill_admission_bed_days` yana kiran `adjust_patient_balance(..., 'invoice_payment')`, kuma wannan function yana **jefa error idan balance zai koma negative**. Shi ya sa screenshot ɗin ya nuna `Insufficient balance (current: 13000, requested delta: -14000)` — gaba ɗaya discharge ya faɗi, ba a caje kome ba, ba a sallami patient ba.
-- `discharge_admission` yana ƙin karɓar partial payment: `IF _settlement_amount < _debt THEN RAISE`. Ba a iya karɓar wani ɓangare a bar sauran bashi.
-- Ƙidayar kwana a `admission_bed_charge` tana amfani da `CEIL(hours/24)` — sa'o'i 25 = kwana 2, ba calendar nights ba.
-- Dialog ɗin yana yin lissafi a client (`patientBalance - bedCopay`) — yana iya bambanta da abin da server zai caje (rounding, sponsor share, tsofaffin invoices da ba a biya ba).
+Manufa: kada database/storage na Supabase ya cika da hotuna. Duk snaps, patient photos, EMR attachments da eligibility snaps su koma Cloudflare R2. Sannan a shirya project don migration zuwa sabon Supabase account da deploy a Netlify.
 
-## Abin da za a gina
+## Yanayin yanzu
 
-### 1. Ƙidayar kwana — calendar nights
-`admission_bed_charge` zai koma:
-`nights = GREATEST(1, date(COALESCE(discharged_at, now())) - date(COALESCE(admitted_at, created_at)))`
-Litinin → Talata = dare 1. Duk inda ake nuna "Day N" (`AdmittedPatientsPanel`) zai bi wannan lissafin daga RPC ɗaya, ba lissafin client ba.
+Duk hotuna suna Supabase Storage a buckets guda uku:
 
-### 2. Bed charge ba zai ƙara faɗuwa saboda ƙarancin balance ba
-A cikin `bill_admission_bed_days`:
-- A ƙidaya `patient_share` (copay) kamar yadda yake yanzu.
-- Sannan a raba: `from_wallet = LEAST(GREATEST(balance,0), patient_share)`, `debt = patient_share - from_wallet`.
-- `from_wallet` zai shiga a matsayin `invoice_payment`; `debt` zai shiga a matsayin `debt_incurred` (wannan shi kaɗai ake yarda ya sa balance negative).
-- Invoice ɗin bed zai zama `partial` idan akwai saura, `paid` idan an cika. Ana kiyaye `BED_DAYS:<admission_id>` guard ɗin don kar a caje sau biyu.
+- `visit-cards` — snap orders (photo_path), visit attachments, admission snaps, lab results, eligibility snaps
+- `emr-attachments` — EMR files
+- `patient-photos` — hoton fuskar patient
 
-### 3. Sabon preview RPC (source of truth ɗaya)
-`admission_discharge_preview(_admission_id)` zai dawo da:
-nights, daily_rate, bed_total, copay_pct, sponsor_covered, patient_share, current_balance, prior_outstanding (bashin da ya rigaya — misali maganin/test ɗin da aka bashi yana kwance), **total_due**, da balance bayan discharge.
-Dialog ɗin zai nuna waɗannan lambobin kai tsaye daga server — babu lissafin client, don haka babu miscalculation.
+Database tables suna ajiye path kawai (misali `snap_orders.photo_path`), ba binary ba — wannan yana da kyau, don haka migration zai zama canza inda ake karanta/rubuta fayil kawai, ba schema ba.
 
-### 4. `discharge_admission` — partial da carry
-- A ci gaba da kiran `bill_admission_bed_days` da farko (yanzu ba zai faɗi ba).
-- A ƙidaya `debt = GREATEST(0, -balance)`.
-- `cash/pos/transfer`: a karɓi **kowane adadi > 0**; idan bai kai bashi ba, sauran ya rage a balance a matsayin bashi (audit log `discharge_partial_settlement` da adadin saura). Idan ya wuce bashi, saurar ta rage a matsayin credit.
-- `carry`: a sallama da bashi gaba ɗaya — audit log kamar yadda yake, amma yanzu **kowane mai discharge** (nurse/doctor/billing/accountant/admin) na iya, kuma za a buƙaci gajeriyar dalili.
-- `waive`: accountant/admin kaɗai (kamar yadda yake).
-- Kuɗin da aka karɓa zai rufe invoices ɗin da ba a biya ba (oldest first: bed invoice da in-ward invoices) — `paid_amount`/`status` su daidaita, don Billing, Account da Auditing su yi tally.
-- Idan babu bashi, a ci gaba kai tsaye kamar yadda yake.
+## Tsarin da zan gina
 
-### 5. UI — `DischargeDialog`
-- A ɗauko komai daga `admission_discharge_preview`.
-- Nuna teburin bill: ranar shiga, ranar fita, adadin dare, rate/dare, jimillar bed, sponsor covered, patient share, **tsohon bashi (magani/lab da aka bashi yana kwance)**, **Jimillar da za a biya**.
-- Amount collected: an cika da cikakken bashi ta default, amma **an yarda a rage** — a nuna live: "Za a karɓa ₦X · saura ₦Y zai rage a matsayin bashi".
-- Cire toshewar button (`disabled` saboda short amount); sai dai a nemi dalili idan akwai saura.
-- Bayan discharge, a nuna toast da jimillar da aka karɓa da sauran bashin.
+### 1. Storage adapter guda daya (frontend)
 
-## Fannin fasaha
-- Migration ɗaya: `admission_bed_charge`, `bill_admission_bed_days`, `discharge_admission`, sabon `admission_discharge_preview` (SECURITY DEFINER, `REVOKE ... FROM PUBLIC, anon`, `GRANT EXECUTE TO authenticated, service_role`).
-- Duk lissafi `ROUND(..., 2)`; ana amfani da `SELECT ... FOR UPDATE` a kan `patients` da `admissions` (yana nan) don guje wa race condition.
-- Regression check: patient mai balance ƙasa da bed charge yana iya discharge; partial payment yana barin balance daidai negative; invoice totals = balance transactions.
+Sabon fayil `src/lib/storage.ts` da functions: `uploadFile(bucket, path, file)`, `getFileUrl(bucket, path)`, `deleteFile(bucket, path)`.
+Duk wuraren da suke kiran `supabase.storage` kai tsaye (hooks 4 + components 5) su koma amfani da wannan adapter. Bayan haka, canza provider = canza fayil guda.
 
-## Files
-- Migration (DB functions sama)
-- `src/components/nurse/DischargeDialog.tsx`
-- `src/components/visit/AdmittedPatientsPanel.tsx` (Day badge ya bi nights daga RPC)
+### 2. R2 backend
+
+- Edge function `r2-sign-upload`: yana tabbatar da JWT + role, yana dawo da presigned PUT URL (S3 API na R2, AWS SigV4 a Deno).
+- Browser yana upload kai tsaye zuwa R2 (ba ta cikin Supabase ba) — babu bandwidth cost a Supabase.
+- Karatu: saboda ka zaɓi public R2 domain, `getFileUrl` zai dawo da `${R2_PUBLIC_URL}/${bucket}/${path}` kai tsaye — babu kira, saurin loading.
+- Delete: edge function `r2-delete` (admin/role-checked).
+
+Secrets da za a bukata: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL`.
+
+### 3. Kariya kan public bucket
+
+Public domain yana nufin duk wanda ya san link ɗin zai ga hoton majinyaci. Don rage haɗari:
+
+- Duk sabon path zai zama `<bucket>/<patient_id>/<uuid>.jpg` — random UUID, ba za a iya hasashe ba.
+- `Cache-Control` + custom domain a Cloudflare, da Hotlink protection / WAF rule ta yadda sai daga domain ɗin app ɗin.
+- Za a rubuta wannan a security memory a matsayin accepted risk.
+
+Idan ka so daga baya, sauyawa zuwa presigned read URLs zai zama canjin function guda a `src/lib/storage.ts`.
+
+### 4. Matsar da tsofaffin fayiloli
+
+Script guda (`scripts/migrate-storage-to-r2.ts`) da zai:
+
+1. Lissafa duk objects a buckets uku ta Supabase service role.
+2. Download → upload zuwa R2 da path iri ɗaya (don kada a canza database komai).
+3. Tabbatar da count + size sun yi daidai, ya rubuta report.
+4. Bayan tabbatarwa, mataki na biyu (na daban) zai share Supabase buckets.
+
+Saboda paths ba za su canza ba, ba a bukatar UPDATE a database — abin da kawai zai canza shine base URL a code.
+
+### 5. Cloudflare setup (matakan da za ka yi da kanka)
+
+Zan ba ka jagora mataki-mataki: ƙirƙirar R2 bucket, kunna public access + custom domain (misali `files.khamec.com`), ƙirƙirar R2 API token (Object Read & Write), sannan ka saka su a matsayin secrets.
+
+### 6. Migration zuwa sabon Supabase account
+
+- Zan haɗa duk migrations ɗin da ake da su zuwa `supabase/schema.sql` guda (tables, enums, functions, triggers, RLS, grants) — sai a gudanar da shi sau ɗaya a sabon project.
+- Checklist na data export/import (patients, visits, invoices, da sauransu) ta CSV bisa tsarin dogaro (dependency order).
+- Jerin duk edge functions + secrets ɗin kowanne, don sake deploy.
+- Auth users: seed admin ta `seed-demo-users`, sauran staff ta `manage-staff-accounts`.
+- Bayan R2 migration, storage ba zai zama ɓangaren wannan aikin ba kwata-kwata — wannan shine babbar sauƙin.
+
+### 7. Netlify deploy
+
+- `netlify.toml` da SPA redirect (`/* -> /index.html 200`) da build command.
+- Jerin env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_SUPABASE_PROJECT_ID`, `VITE_R2_PUBLIC_URL`.
+- CORS a R2 bucket don domain ɗin Netlify.
+
+## Tsarin aiki (order)
+
+1. Storage adapter + refactor duk call sites (babu canjin hali tukuna — har yanzu Supabase).
+2. Cloudflare R2 setup + secrets.
+3. R2 upload/delete edge functions + kunna R2 a adapter.
+4. Migrate tsofaffin fayiloli, tabbatarwa, share Supabase buckets.
+5. Schema bundle + migration runbook zuwa sabon Supabase.
+6. Netlify config + deploy checklist.
+
+## Technical notes
+
+- R2 yana amfani da S3-compatible API; a Deno za a yi SigV4 signing da hannu (ko `aws4fetch` ta `npm:`) — babu bukatar sabon dependency a frontend.
+- `snap-ocr` edge function yanzu yana ɗaukar signed URL daga Supabase; zai koma karanta public R2 URL kai tsaye.
+- Babu canjin schema ko RLS a wannan aikin — paths ɗin da ke cikin `snap_orders.photo_path`, `visit_attachments.storage_path`, `emr_attachments.file_path`, `patients.photo_path` sun kasance haka.

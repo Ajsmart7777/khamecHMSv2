@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Upload, User, Loader2, Trash2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { uploadFile, getFileUrl, deleteFile } from '@/lib/storage';
 import { usePatients, Patient } from '@/contexts/PatientContext';
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
 import { toast } from 'sonner';
@@ -12,8 +12,7 @@ import {
 const BUCKET = 'patient-photos';
 
 async function signedPhotoUrl(path: string): Promise<string | null> {
-  const { data } = await supabase.storage.from(BUCKET).createSignedUrl(path, 60 * 60);
-  return data?.signedUrl ?? null;
+  return await getFileUrl(BUCKET, path, 60 * 60);
 }
 
 interface Props {
@@ -60,14 +59,11 @@ export function PatientPhotoAvatar({
     try {
       const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
       const path = `${patient.id}/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from(BUCKET)
-        .upload(path, file, { upsert: false, contentType: file.type });
-      if (upErr) throw upErr;
+      await uploadFile(BUCKET, path, file, file.type);
 
       // Best-effort cleanup of previous photo
       if (photoPath) {
-        await supabase.storage.from(BUCKET).remove([photoPath]).catch(() => {});
+        await deleteFile(BUCKET, photoPath);
       }
       const ok = await updatePatient(patient.id, { photo_path: path } as Partial<Patient>);
       if (!ok) throw new Error('Failed to save photo');
@@ -83,7 +79,7 @@ export function PatientPhotoAvatar({
     if (!photoPath) return;
     setBusy(true);
     try {
-      await supabase.storage.from(BUCKET).remove([photoPath]).catch(() => {});
+      await deleteFile(BUCKET, photoPath);
       await updatePatient(patient.id, { photo_path: null } as unknown as Partial<Patient>);
       toast.success('Photo removed');
     } finally {

@@ -17,3 +17,11 @@ providers so DB columns (`snap_orders.photo_path`, `visit_attachments.storage_pa
 
 Accepted risk: the R2 domain is public; paths use random UUIDs. Deploy target is
 Netlify (`netlify.toml` with SPA redirect). Runbook: `docs/r2-migration.md`.
+
+Image shrink rule: `uploadFile` downscales every raster image to max 1400 px
+longest edge, JPEG q0.72 (skips files < 120 KB) before upload — keeps R2 small.
+
+R2 presigning: sign query only with `host` as the only signed header and put
+`?X-Amz-Expires=600` in the URL; signing Content-Type or passing the expiry as a
+header gives `403 SignatureDoesNotMatch`. Bucket `khamec`, public URL
+`https://pub-bb9902c9277c4f4883f3dd53583e4336.r2.dev`.

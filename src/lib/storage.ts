@@ -29,16 +29,36 @@ export async function uploadFile(
   const type = contentType || (body as File).type || 'application/octet-stream';
 
   if (R2_PUBLIC_URL) {
-    const { data, error } = await supabase.functions.invoke('r2-sign-upload', {
-      body: { bucket, path, contentType: type },
-    });
-    if (error) throw new Error(await readFnError(error));
+    let data: unknown, error: unknown;
+    try {
+      ({ data, error } = await supabase.functions.invoke('r2-sign-upload', {
+        body: { bucket, path, contentType: type },
+      }));
+    } catch (e) {
+      throw new Error(
+        'Step 1/2 (sign upload) failed to reach the server. Check that the edge function ' +
+          '"r2-sign-upload" is deployed and that you are logged in. ' +
+          `Details: ${(e as Error).message}`,
+      );
+    }
+    if (error) throw new Error(`Step 1/2 (sign upload): ${await readFnError(error)}`);
     const url = (data as any)?.url;
-    if (!url) throw new Error('Could not get upload URL');
-    const put = await fetch(url, { method: 'PUT', body, headers: { 'Content-Type': type } });
-    if (!put.ok) throw new Error(`Upload failed (${put.status})`);
+    if (!url) throw new Error('Step 1/2 (sign upload): server did not return an upload URL');
+
+    let put: Response;
+    try {
+      put = await fetch(url, { method: 'PUT', body, headers: { 'Content-Type': type } });
+    } catch (e) {
+      throw new Error(
+        'Step 2/2 (upload to R2) was blocked by the browser — this is almost always the R2 ' +
+          'bucket CORS policy. Add your site URL to the bucket CORS rules (PUT + GET allowed). ' +
+          `Details: ${(e as Error).message}`,
+      );
+    }
+    if (!put.ok) throw new Error(`Step 2/2 (upload to R2) failed (${put.status})`);
     return path;
   }
+
 
   const { error } = await supabase.storage
     .from(bucket)

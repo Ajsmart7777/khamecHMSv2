@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     // Presigned PUT exactly as r2-sign-upload issues it, then upload without signing
     const key2 = objectKey('visit-cards', `_selftest/${crypto.randomUUID()}.jpg`);
     const signed = await cfg.client.sign(
-      new Request(`${cfg.endpoint}/${key2}`, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' } }),
+      new Request(`${cfg.endpoint}/${key2}`, { method: 'PUT' }),
       { aws: { signQuery: true }, headers: { 'X-Amz-Expires': '600' } },
     );
     const plain = await fetch(signed.url, {

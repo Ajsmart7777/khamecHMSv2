@@ -42,6 +42,21 @@ Deno.serve(async (req) => {
     steps.preflightStatus = pre.status;
     steps.preflightAllowOrigin = pre.headers.get('access-control-allow-origin');
 
+    // Presigned PUT exactly as r2-sign-upload issues it, then upload without signing
+    const key2 = objectKey('visit-cards', `_selftest/${crypto.randomUUID()}.jpg`);
+    const signed = await cfg.client.sign(
+      new Request(`${cfg.endpoint}/${key2}`, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg' } }),
+      { aws: { signQuery: true }, headers: { 'X-Amz-Expires': '600' } },
+    );
+    const plain = await fetch(signed.url, {
+      method: 'PUT',
+      body: new Uint8Array([1, 2, 3]),
+      headers: { 'Content-Type': 'image/jpeg' },
+    });
+    steps.presignedPut = plain.status;
+    if (!plain.ok) steps.presignedBody = (await plain.text()).slice(0, 300);
+    await cfg.client.fetch(`${cfg.endpoint}/${key2}`, { method: 'DELETE' });
+
     const del = await cfg.client.fetch(`${cfg.endpoint}/${key}`, { method: 'DELETE' });
     steps.delete = del.status;
 

@@ -54,7 +54,8 @@ Deno.serve(async (req) => {
       headers: { 'Content-Type': 'image/jpeg' },
     });
     steps.presignedPut = plain.status;
-    if (!plain.ok) steps.presignedBody = (await plain.text()).slice(0, 300);
+    if (!plain.ok) steps.presignedBody = (await plain.text()).slice(0, 1500);
+    steps.presignedQuery = new URL(signed.url).search;
     await cfg.client.fetch(`${cfg.endpoint}/${key2}`, { method: 'DELETE' });
 
     const del = await cfg.client.fetch(`${cfg.endpoint}/${key}`, { method: 'DELETE' });

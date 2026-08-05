@@ -18,8 +18,8 @@ Deno.serve(async (req) => {
     // Sign the query only, with no signed headers beyond host: the browser is
     // then free to send its own Content-Type without breaking the signature.
     const signed = await cfg.client.sign(
-      new Request(url, { method: 'PUT' }),
-      { aws: { signQuery: true }, headers: { 'X-Amz-Expires': '600' } },
+      new Request(`${url}?X-Amz-Expires=600`, { method: 'PUT' }),
+      { aws: { signQuery: true } },
     );
 
 

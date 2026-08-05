@@ -28,6 +28,20 @@ Deno.serve(async (req) => {
       steps.publicGet = 'R2_PUBLIC_URL not set';
     }
 
+    // CORS preflight check as a browser would do it
+    const origin = (await req.json().catch(() => ({})))?.origin || 'http://localhost:8080';
+    const pre = await fetch(`${cfg.endpoint}/${key}`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: origin,
+        'Access-Control-Request-Method': 'PUT',
+        'Access-Control-Request-Headers': 'content-type',
+      },
+    });
+    steps.preflightOrigin = origin;
+    steps.preflightStatus = pre.status;
+    steps.preflightAllowOrigin = pre.headers.get('access-control-allow-origin');
+
     const del = await cfg.client.fetch(`${cfg.endpoint}/${key}`, { method: 'DELETE' });
     steps.delete = del.status;
 

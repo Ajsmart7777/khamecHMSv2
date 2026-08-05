@@ -19,6 +19,44 @@ const R2_PUBLIC_URL = (import.meta.env.VITE_R2_PUBLIC_URL as string | undefined)
 
 export const usingR2 = !!R2_PUBLIC_URL;
 
+/**
+ * Global image-shrink rule: every image that goes to storage is downscaled to
+ * at most IMAGE_MAX_EDGE px on its longest side and re-encoded as JPEG.
+ * Snaps stay perfectly readable while using a fraction of the space.
+ */
+export const IMAGE_MAX_EDGE = 1400;
+export const IMAGE_QUALITY = 0.72;
+/** Images already smaller than this are left untouched. */
+const SKIP_BELOW_BYTES = 120 * 1024;
+
+/** Downscale + re-encode an image. Returns the original on any failure. */
+export async function shrinkImage(
+  input: File | Blob,
+  maxEdge = IMAGE_MAX_EDGE,
+  quality = IMAGE_QUALITY,
+): Promise<Blob> {
+  try {
+    const bitmap = await createImageBitmap(input);
+    const ratio = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    const width = Math.round(bitmap.width * ratio);
+    const height = Math.round(bitmap.height * ratio);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return input;
+    ctx.drawImage(bitmap, 0, 0, width, height);
+    bitmap.close?.();
+    const out = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), 'image/jpeg', quality),
+    );
+    if (!out) return input;
+    return out.size < input.size ? out : input;
+  } catch {
+    return input;
+  }
+}
+
 /** Upload a file/blob. Returns the storage path on success, throws on failure. */
 export async function uploadFile(
   bucket: StorageBucket,
@@ -26,7 +64,17 @@ export async function uploadFile(
   body: File | Blob,
   contentType?: string,
 ): Promise<string> {
-  const type = contentType || (body as File).type || 'application/octet-stream';
+  let type = contentType || (body as File).type || 'application/octet-stream';
+
+  // Shrink every raster image before it leaves the browser.
+  if (/^image\/(jpeg|jpg|png|webp|heic|heif)$/i.test(type) && body.size > SKIP_BELOW_BYTES) {
+    const shrunk = await shrinkImage(body);
+    if (shrunk !== body) {
+      body = shrunk;
+      type = 'image/jpeg';
+    }
+  }
+
 
   if (R2_PUBLIC_URL) {
     let data: unknown, error: unknown;

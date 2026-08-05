@@ -61,6 +61,10 @@ Deno.serve(async (req) => {
     const del = await cfg.client.fetch(`${cfg.endpoint}/${key}`, { method: 'DELETE' });
     steps.delete = del.status;
 
+    steps.browserTestUrl = (await cfg.client.sign(
+      new Request(`${cfg.endpoint}/${objectKey('visit-cards', `_selftest/browser-${crypto.randomUUID()}.jpg`)}?X-Amz-Expires=600`, { method: 'PUT' }),
+      { aws: { signQuery: true } },
+    )).url;
     return json({ ok: true, steps });
   } catch (e) {
     return json({ error: String((e as Error).message ?? e), steps }, 500);

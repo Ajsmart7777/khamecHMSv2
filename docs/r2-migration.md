@@ -85,3 +85,19 @@ The R2 domain is public: anyone with an exact URL can open the file. Paths use
 random UUIDs so they cannot be guessed. For stricter control, add a Cloudflare
 WAF / hotlink-protection rule limiting `Referer` to the app domain, or switch
 `getFileUrl` in `src/lib/storage.ts` to presigned read URLs.
+
+## Image shrink rule (storage saver)
+
+`uploadFile` in `src/lib/storage.ts` now downscales **every** raster image before
+it leaves the browser: longest edge max `IMAGE_MAX_EDGE` (1400 px), re-encoded as
+JPEG at quality 0.72. Images already under 120 KB are left untouched, and the
+original is kept if shrinking would not make it smaller. Typical phone snap goes
+from 3–6 MB to roughly 150–350 KB, so R2 storage lasts far longer. Tune the two
+exported constants if you ever need sharper snaps.
+
+## Presigned upload signing (important)
+
+`r2-sign-upload` signs **query only, with `host` as the sole signed header** and
+passes the lifetime as `?X-Amz-Expires=600` on the URL. Do not move the expiry
+into aws4fetch's `headers` option and do not sign `Content-Type` — either one
+makes R2 return `403 SignatureDoesNotMatch`.

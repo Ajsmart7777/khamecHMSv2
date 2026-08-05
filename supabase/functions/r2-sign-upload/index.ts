@@ -15,10 +15,13 @@ Deno.serve(async (req) => {
     if (!cfg) return json({ error: 'R2 is not configured' }, 500);
 
     const url = `${cfg.endpoint}/${objectKey(bucket, path)}`;
+    // Sign the query only, with no signed headers beyond host: the browser is
+    // then free to send its own Content-Type without breaking the signature.
     const signed = await cfg.client.sign(
-      new Request(url, { method: 'PUT', headers: { 'Content-Type': contentType || 'application/octet-stream' } }),
-      { aws: { signQuery: true }, headers: { 'X-Amz-Expires': '600' } },
+      new Request(`${url}?X-Amz-Expires=600`, { method: 'PUT' }),
+      { aws: { signQuery: true } },
     );
+
 
     return json({ url: signed.url, expires_in: 600 });
   } catch (e) {

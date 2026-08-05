@@ -349,6 +349,8 @@ Log in as admin on the Netlify URL and confirm:
 | "R2 is not configured" | One of the 5 `R2_*` secrets missing in Supabase → add and redeploy the functions. |
 | Login page refresh gives 404 | `netlify.toml` missing from the repo (it contains the SPA redirect). |
 | Function returns 401 | It was deployed without `--no-verify-jwt`; deploy again with that flag. |
+| "Failed to fetch" when taking a snap | Two possible steps. The app now says which one. **Step 1/2** = the `r2-sign-upload` function is not deployed / wrong Supabase URL → run `supabase functions deploy r2-sign-upload --no-verify-jwt`. **Step 2/2** = R2 bucket CORS does not allow your site → add your exact site origin (`http://localhost:8080` and/or the Netlify URL) with methods `GET, PUT, HEAD` and `AllowedHeaders: ["*"]`. |
+
 
 ## Security reminder
 

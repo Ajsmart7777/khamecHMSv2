@@ -380,6 +380,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { visit: activeVisit } = useActiveVisit(patient.id);
   const [balanceDialog, setBalanceDialog] = useState<'topup' | 'refund' | null>(null);
   // Wallet-enabled patients (cash + staff_family) can top-up, refund, and
@@ -724,31 +725,43 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
           Delete Patient Record
         </Button>
 
-        <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Permanent Deletion</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to delete <strong>{patient.first_name} {patient.last_name}</strong>? This will permanently remove their records from the system.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction 
-                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-                onClick={async () => {
-                  const success = await deletePatient(patient.id);
-                  if (success) {
-                    onClose();
-                  }
-                  setIsDeleteConfirmOpen(false);
-                }}
-              >
-                Delete Permanently
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. This will permanently delete the patient record
+                  for {patient.first_name} {patient.last_name} and remove all associated data including invoices, visits, and clinical records.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={isDeleting}
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    setIsDeleting(true);
+                    try {
+                      const success = await deletePatient(patient.id);
+                      if (success) {
+                        toast.success("Patient record deleted successfully");
+                        onClose();
+                      }
+                    } catch (error) {
+                      console.error("Delete error:", error);
+                      toast.error("Just trying to delete a patient but failed, kindly fix please");
+                    } finally {
+                      setIsDeleting(false);
+                      setIsDeleteConfirmOpen(false);
+                    }
+                  }}
+                >
+                  {isDeleting ? "Deleting..." : "Delete permanently"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
       </div>
 
       {canUseBalance && (

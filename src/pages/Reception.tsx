@@ -361,7 +361,7 @@ function EmptyState({ onNewPatient }: { onNewPatient: () => void }) {
 }
 
 function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Patient; onClose: () => void; onSendToNurse: (preferredDoctor?: 'doctor1' | 'doctor2') => void }) {
-  const { updatePatient, updatePatientStatus } = usePatients();
+  const { updatePatient, updatePatientStatus, deletePatient } = usePatients();
   const { getInvoicesForPatient, recordPayment } = useInvoices();
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
@@ -369,6 +369,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   const [isJourneyOpen, setIsJourneyOpen] = useState(false);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const { visit: activeVisit } = useActiveVisit(patient.id);
   const [balanceDialog, setBalanceDialog] = useState<'topup' | 'refund' | null>(null);
   // Wallet-enabled patients (cash + staff_family) can top-up, refund, and
@@ -700,6 +701,44 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
           </Button>
         )}
 
+      </div>
+
+      <div className="flex justify-end pt-4 border-t border-border mt-6">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="text-destructive hover:bg-destructive/10 gap-2"
+          onClick={() => setIsDeleteConfirmOpen(true)}
+        >
+          <X className="h-4 w-4" />
+          Delete Patient Record
+        </Button>
+
+        <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Permanent Deletion</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete <strong>{patient.first_name} {patient.last_name}</strong>? This will permanently remove their records from the system.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                onClick={async () => {
+                  const success = await deletePatient(patient.id);
+                  if (success) {
+                    onClose();
+                  }
+                  setIsDeleteConfirmOpen(false);
+                }}
+              >
+                Delete Permanently
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {canUseBalance && (

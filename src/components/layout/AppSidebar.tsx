@@ -180,7 +180,7 @@ export function AppSidebar({ isMobile = false, onNavigate }: AppSidebarProps) {
             )}
           >
             <Download className="h-4 w-4" />
-            {!isCollapsed && <span>Install App</span>}
+            {!isCollapsed && <span>So how can I migrate what you add to my new supabase if you made a changes?</span>}
           </Button>
         </Link>
         <Button 

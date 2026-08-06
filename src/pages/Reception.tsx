@@ -380,6 +380,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const { visit: activeVisit } = useActiveVisit(patient.id);
   const [balanceDialog, setBalanceDialog] = useState<'topup' | 'refund' | null>(null);
   // Wallet-enabled patients (cash + staff_family) can top-up, refund, and

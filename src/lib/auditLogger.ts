@@ -8,6 +8,7 @@ export type AuditAction =
   | 'patient_registered'
   | 'patient_updated'
   | 'patient_status_changed'
+  | 'patient_deleted'
   | 'lab_request_created'
   | 'lab_request_updated'
   | 'prescription_created'

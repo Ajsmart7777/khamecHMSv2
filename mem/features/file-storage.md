@@ -24,4 +24,4 @@ longest edge, JPEG q0.72 (skips files < 120 KB) before upload — keeps R2 small
 R2 presigning: sign query only with `host` as the only signed header and put
 `?X-Amz-Expires=600` in the URL; signing Content-Type or passing the expiry as a
 header gives `403 SignatureDoesNotMatch`. Bucket `khamec`, public URL
-`https://pub-bb9902c9277c4f4883f3dd53583e4336.r2.dev`.
+`https://<YOUR_R2_PUBLIC_URL>.r2.dev`.

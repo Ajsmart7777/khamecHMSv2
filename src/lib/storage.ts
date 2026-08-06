@@ -95,7 +95,15 @@ export async function uploadFile(
 
     let put: Response;
     try {
-      put = await fetch(url, { method: 'PUT', body, headers: { 'Content-Type': type } });
+      // We must match the Content-Type exactly as it was signed in the edge function.
+      // We also ensure no other extra headers are sent that might interfere with the signature.
+      put = await fetch(url, { 
+        method: 'PUT', 
+        body, 
+        headers: { 
+          'Content-Type': type 
+        } 
+      });
     } catch (e) {
       throw new Error(
         'Step 2/2 (upload to R2) was blocked by the browser — this is almost always the R2 ' +

@@ -15,13 +15,17 @@ Deno.serve(async (req) => {
     if (!cfg) return json({ error: 'R2 is not configured' }, 500);
 
     const url = `${cfg.endpoint}/${objectKey(bucket, path)}`;
-    // Sign the query only, with no signed headers beyond host: the browser is
-    // then free to send its own Content-Type without breaking the signature.
+    
+    // AWS S3 (and R2) presigned URLs for PUT usually REQUIRE the content-type to be signed
+    // if it is going to be sent by the browser, or omitted from both.
+    // To be safe, we sign it explicitly.
     const signed = await cfg.client.sign(
-      new Request(`${url}?X-Amz-Expires=600`, { method: 'PUT' }),
-      { aws: { signQuery: true } },
+      new Request(`${url}?X-Amz-Expires=600`, { 
+        method: 'PUT',
+        headers: { 'Content-Type': contentType }
+      }),
+      { aws: { signQuery: true, allHeaders: true } },
     );
-
 
     return json({ url: signed.url, expires_in: 600 });
   } catch (e) {

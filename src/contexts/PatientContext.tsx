@@ -43,6 +43,7 @@ interface PatientContextType {
   error: string | null;
   refreshPatients: () => Promise<void>;
   addPatient: (patient: Omit<Patient, 'id' | 'registered_at' | 'updated_at' | 'created_at'>) => Promise<Patient | null>;
+  deletePatient: (patientId: string) => Promise<boolean>;
   updatePatientStatus: (patientId: string, status: PatientStatus, opts?: { guardInpatient?: boolean }) => Promise<boolean>;
   updatePatient: (patientId: string, updates: Partial<Patient>) => Promise<boolean>;
   getPatientsByStatus: (statuses: PatientStatus[]) => Patient[];
@@ -238,6 +239,34 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const deletePatient = useCallback(async (patientId: string): Promise<boolean> => {
+    try {
+      const { error: deleteError } = await supabase
+        .from('patients')
+        .delete()
+        .eq('id', patientId);
+
+      if (deleteError) throw deleteError;
+      
+      patientAuditLogger('patient_deleted', patientId, { timestamp: new Date().toISOString() });
+      
+      toast.success('Patient deleted successfully');
+      return true;
+    } catch (err) {
+      logError('Error deleting patient', err);
+      patientAuditLogger('patient_deleted', patientId, { error: String(err) }, 'failure');
+      const message = String((err as Error)?.message ?? err);
+      if (isPermissionError(err as { code?: string; message?: string })) {
+        toast.error('Not permitted', {
+          description: 'You do not have permission to delete patients.',
+        });
+      } else {
+        toast.error('Failed to delete patient', { description: message });
+      }
+      return false;
+    }
+  }, []);
+
   const updatePatient = useCallback(async (patientId: string, updates: Partial<Patient>): Promise<boolean> => {
     try {
       const { error: updateError } = await supabase
@@ -365,6 +394,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       error,
       refreshPatients,
       addPatient,
+      deletePatient,
       updatePatientStatus,
       updatePatient,
       getPatientsByStatus,

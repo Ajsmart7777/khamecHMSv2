@@ -32,9 +32,11 @@ export function LabResultInbox() {
 
   const refresh = async () => {
     if (!user?.id) return;
-    // Results are delivered to the requester, but the whole station (nurse /
-    // doctor) must see them too — e.g. an admitted patient's snap forwarded by
-    // a colleague on another shift.
+    // STRICT OWNERSHIP: a lab result belongs to the exact user who requested it.
+    // Never fan it out to a whole station — target_station is 'doctor' for both
+    // doctor1 and doctor2, which previously leaked every result to everyone.
+    // Legacy rows with no owner (returned_to is null) still fall back to the
+    // station so nothing gets stranded.
     const station = role === 'nurse' ? 'nurse' : 'doctor';
     const [{ data }, { data: adm }] = await Promise.all([
       supabase
@@ -42,7 +44,7 @@ export function LabResultInbox() {
         .select('*')
         .eq('order_type', 'lab_result')
         .eq('status', 'returned')
-        .or(`returned_to.eq.${user.id},target_station.eq.${station}`)
+        .or(`returned_to.eq.${user.id},and(returned_to.is.null,target_station.eq.${station})`)
         .order('returned_at', { ascending: false }),
       supabase
         .from('admissions')

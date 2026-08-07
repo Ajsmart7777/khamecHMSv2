@@ -39,7 +39,10 @@ describe('labResultOrFilter', () => {
 
   it('never contains a bare station clause that could fan out', () => {
     const f = labResultOrFilter(DOC2, 'doctor2');
-    expect(f).not.toMatch(/(^|,)target_station\.eq\./);
+    // strip the guarded `and(returned_to.is.null, ...)` legacy group
+    const topLevel = f.replace(/and\([^)]*\)/g, '');
+    expect(topLevel).not.toMatch(/target_station\.eq\./);
+    expect(topLevel).toContain(`returned_to.eq.${DOC2}`);
   });
 });
 

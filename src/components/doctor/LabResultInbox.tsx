@@ -11,6 +11,7 @@ import { usePatients } from '@/contexts/PatientContext';
 import { SnapOrder, snapPhotoUrl } from '@/hooks/useSnapOrders';
 import { toast } from 'sonner';
 import { SnapClinicalOrder } from '@/components/visit/SnapClinicalOrder';
+import { labResultOrFilter, selectInboxResults, type LabResultRow } from '@/lib/labResultAccess';
 
 /**
  * "Returned from Lab" inbox for the current doctor/nurse.
@@ -37,14 +38,13 @@ export function LabResultInbox() {
     // doctor1 and doctor2, which previously leaked every result to everyone.
     // Legacy rows with no owner (returned_to is null) still fall back to the
     // station so nothing gets stranded.
-    const station = role === 'nurse' ? 'nurse' : 'doctor';
     const [{ data }, { data: adm }] = await Promise.all([
       supabase
         .from('snap_orders')
         .select('*')
         .eq('order_type', 'lab_result')
         .eq('status', 'returned')
-        .or(`returned_to.eq.${user.id},and(returned_to.is.null,target_station.eq.${station})`)
+        .or(labResultOrFilter(user.id, role))
         .order('returned_at', { ascending: false }),
       supabase
         .from('admissions')
@@ -53,8 +53,14 @@ export function LabResultInbox() {
     ]);
     // Admitted patients' results live under the "Lab Results" button on the
     // Admitted Patients panel — keep this inbox for outpatients only.
-    const admitted = new Set((adm ?? []).map((a: any) => a.patient_id));
-    setItems((((data ?? []) as unknown) as SnapOrder[]).filter((s) => !admitted.has(s.patient_id)));
+    const admitted = (adm ?? []).map((a: any) => a.patient_id as string);
+    const visible = selectInboxResults(
+      ((data ?? []) as unknown) as LabResultRow[],
+      user.id,
+      role,
+      admitted,
+    );
+    setItems((visible as unknown) as SnapOrder[]);
   };
 
 

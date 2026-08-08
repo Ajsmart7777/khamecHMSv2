@@ -44,8 +44,7 @@ export function ReferralEditorDialog({
     
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('referral_letters')
+      const { data, error } = await (supabase.from('referral_letters' as any) as any)
         .insert({
           patient_id: patientId,
           visit_id: visitId,
@@ -57,13 +56,13 @@ export function ReferralEditorDialog({
           input_method: 'typed',
           status: 'draft',
           created_by: user?.id
-        } as any)
+        })
         .select()
         .single();
 
       if (error) throw error;
       toast.success('Referral draft saved');
-      onSuccess?.(data.id);
+      onSuccess?.((data as any).id);
       onOpenChange(false);
     } catch (err: any) {
       toast.error(err.message || 'Failed to save referral');
@@ -78,8 +77,7 @@ export function ReferralEditorDialog({
     setFinalizing(true);
     try {
       // 1. Save draft first to get ID
-      const { data: draft, error: draftError } = await supabase
-        .from('referral_letters')
+      const { data: draft, error: draftError } = await (supabase.from('referral_letters' as any) as any)
         .insert({
           patient_id: patientId,
           visit_id: visitId,
@@ -91,16 +89,16 @@ export function ReferralEditorDialog({
           input_method: 'typed',
           status: 'draft',
           created_by: user?.id
-        } as any)
+        })
         .select()
         .single();
 
       if (draftError) throw draftError;
 
       // 2. Finalize
-      const result = await finalizeReferral(draft.id);
+      const result = await finalizeReferral((draft as any).id);
       toast.success(`Referral finalized: ${result.ref_number}`);
-      onSuccess?.(draft.id);
+      onSuccess?.((draft as any).id);
       onOpenChange(false);
     } catch (err: any) {
       toast.error(err.message || 'Failed to finalize referral');
@@ -108,6 +106,7 @@ export function ReferralEditorDialog({
       setFinalizing(false);
     }
   };
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

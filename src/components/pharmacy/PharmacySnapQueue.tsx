@@ -154,6 +154,15 @@ export function SnapFulfillDialog({
           </div>
 
           <div className="space-y-2">
+            {snap.ocr_text && (snap.ocr_text.startsWith('LINKED_PRESCRIPTION:') || snap.ocr_text.startsWith('LINKED_LAB_REQUEST:')) ? (
+              <div className="bg-muted/30 rounded-lg p-3 mb-4">
+                <p className="text-xs font-bold text-module-pharmacy uppercase mb-2 tracking-wider">Clinical Details (Typed Order)</p>
+                <div className="text-xs space-y-2 whitespace-pre-wrap">
+                  {snap.note}
+                </div>
+              </div>
+            ) : null}
+
             <p className="text-xs font-medium">Paid items to {kind === 'pharmacy' ? 'dispense' : 'process'}:</p>
             <div className="border rounded-lg divide-y">
               {(snap.matched_items ?? []).length === 0 && (
@@ -176,7 +185,7 @@ export function SnapFulfillDialog({
                 <span className="font-mono font-bold">{fmt(total)}</span>
               </div>
             </div>
-            {snap.note && <p className="text-xs text-muted-foreground">Note: {snap.note}</p>}
+            {snap.note && !snap.ocr_text?.startsWith('LINKED_') && <p className="text-xs text-muted-foreground">Note: {snap.note}</p>}
           </div>
         </div>
 

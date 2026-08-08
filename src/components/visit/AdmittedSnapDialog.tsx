@@ -221,12 +221,25 @@ export function AdmittedSnapDialog({
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{heading} · {patientName}</DialogTitle>
+          <DialogTitle className="flex items-center justify-between pr-8">
+            <span>{heading} · {patientName}</span>
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Balance banner */}
-          <div className={`p-3 rounded-lg border flex items-center gap-2 ${insufficient ? 'bg-amber-50 border-amber-300 dark:bg-amber-950/20' : 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/20'}`}>
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-4">
+            <TabsTrigger value="snap" className="flex items-center gap-2">
+              <Camera className="h-4 w-4" /> Snap
+            </TabsTrigger>
+            <TabsTrigger value="type" className="flex items-center gap-2">
+              <Type className="h-4 w-4" /> Type
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="snap" className="space-y-4">
+            {/* Balance banner */}
+            <div className={`p-3 rounded-lg border flex items-center gap-2 ${insufficient ? 'bg-amber-50 border-amber-300 dark:bg-amber-950/20' : 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/20'}`}>
+
             <Wallet className="h-4 w-4" />
             <div className="text-sm flex-1">
               <p className="font-medium">

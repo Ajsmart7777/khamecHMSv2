@@ -888,15 +888,42 @@ function SnapPhoto({ url, label, onOpen }: { url?: string; label: string; onOpen
 }
 
 function SnapRow({ snap, thumb, onOpen }: { snap: any; thumb?: string; onOpen: (u: string) => void }) {
+  const [linkedData, setLinkedData] = useState<any>(null);
   const status = snap.status as string;
   const statusTone =
     status === 'fulfilled' || status === 'paid' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
     status === 'rejected' ? 'bg-red-100 text-red-700 border-red-200' :
     status === 'awaiting_payment' ? 'bg-amber-100 text-amber-700 border-amber-200' :
     'bg-slate-100 text-slate-700 border-slate-200';
+
+  useEffect(() => {
+    if (!snap.ocr_text) return;
+    const fetchLinked = async () => {
+      if (snap.ocr_text?.startsWith('LINKED_PRESCRIPTION:')) {
+        const id = snap.ocr_text.split(':')[1];
+        const { data } = await supabase.from('prescriptions').select('*, prescription_items(*)').eq('id', id).single();
+        if (data) setLinkedData({ type: 'rx', items: data.prescription_items });
+      } else if (snap.ocr_text?.startsWith('LINKED_LAB_REQUEST:')) {
+        const id = snap.ocr_text.split(':')[1];
+        const { data } = await supabase.from('lab_requests').select('*, lab_test_requests(*)').eq('id', id).single();
+        if (data) setLinkedData({ type: 'lab', items: data.lab_test_requests });
+      }
+    };
+    fetchLinked();
+  }, [snap.ocr_text]);
+
+  const isTyped = snap.ocr_text?.startsWith('LINKED_');
+
   return (
     <div className="flex gap-3">
-      <SnapPhoto url={thumb} label={snap.order_type} onOpen={onOpen} />
+      {isTyped ? (
+        <div className="w-28 h-28 border-2 border-dashed border-primary/30 rounded flex flex-col items-center justify-center bg-primary/5 text-primary text-center p-2">
+          <Sparkles className="h-6 w-6 mb-1 opacity-50" />
+          <span className="text-[10px] font-bold uppercase leading-tight">Typed<br/>Order</span>
+        </div>
+      ) : (
+        <SnapPhoto url={thumb} label={snap.order_type} onOpen={onOpen} />
+      )}
       <div className="flex-1 min-w-0 space-y-1.5">
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`text-[10px] px-1.5 py-0.5 rounded border font-bold uppercase ${statusTone}`}>
@@ -905,13 +932,33 @@ function SnapRow({ snap, thumb, onOpen }: { snap: any; thumb?: string; onOpen: (
           <span className="text-[10px] text-muted-foreground uppercase font-bold">→ {snap.target_station}</span>
         </div>
         {snap.note && <p className="text-xs text-foreground italic">"{snap.note}"</p>}
-        {Array.isArray(snap.matched_items) && snap.matched_items.length > 0 && (
-          <ul className="text-[11px] text-muted-foreground list-disc pl-4">
-            {snap.matched_items.slice(0, 4).map((m: any, i: number) => (
-              <li key={i}>{m.name} × {m.qty} — {naira(m.unit_price * m.qty)}</li>
+        
+        {/* Linked items for typed orders */}
+        {linkedData?.items && (
+          <ul className="text-[11px] text-foreground font-medium list-none space-y-1 mt-1">
+            {linkedData.items.map((it: any, i: number) => (
+              <li key={i} className="flex items-start gap-1.5">
+                <span className="text-primary mt-0.5">•</span>
+                <span>
+                  {it.medication_name || it.test_name}
+                  {it.dosage && <span className="text-muted-foreground ml-1">({it.dosage} {it.frequency} × {it.duration})</span>}
+                </span>
+              </li>
             ))}
-            {snap.matched_items.length > 4 && <li>+{snap.matched_items.length - 4} more…</li>}
           </ul>
+        )}
+
+        {/* Matched items from pricelist (when billed/dispensed) */}
+        {Array.isArray(snap.matched_items) && snap.matched_items.length > 0 && (
+          <div className="mt-2 pt-2 border-t border-border/50">
+            <div className="text-[9px] font-bold uppercase text-muted-foreground mb-1">Billed Items</div>
+            <ul className="text-[11px] text-muted-foreground list-disc pl-4">
+              {snap.matched_items.slice(0, 4).map((m: any, i: number) => (
+                <li key={i}>{m.name} × {m.qty} — {naira(m.unit_price * m.qty)}</li>
+              ))}
+              {snap.matched_items.length > 4 && <li>+{snap.matched_items.length - 4} more…</li>}
+            </ul>
+          </div>
         )}
       </div>
     </div>

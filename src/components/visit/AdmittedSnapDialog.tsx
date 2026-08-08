@@ -401,7 +401,53 @@ export function AdmittedSnapDialog({
             {busy ? 'Sending…' : `Send to ${target}`}
           </Button>
         </DialogFooter>
+          </TabsContent>
+
+          <TabsContent value="type" className="space-y-4 pt-2">
+            {orderType === 'treatment' && target === 'nurse' ? (
+              <div className="flex flex-col items-center justify-center py-10 border rounded-xl bg-card dashed">
+                <FileText className="h-12 w-12 text-muted-foreground/30 mb-4" />
+                <p className="text-sm text-muted-foreground mb-4">Referrals are handled through a dedicated editor.</p>
+                <Button onClick={() => setReferralOpen(true)}>
+                  <FileText className="h-4 w-4 mr-2" /> Open Referral Editor
+                </Button>
+                <ReferralEditorDialog 
+                  open={referralOpen}
+                  onOpenChange={setReferralOpen}
+                  patientId={patientId}
+                  visitId={null} // Admitted patients use patient_id
+                  onSuccess={() => { onCreated?.(); onOpenChange(false); }}
+                />
+              </div>
+            ) : (
+              <div className="p-4 border rounded-xl bg-muted/20">
+                <div className="flex items-center gap-2 mb-4 border-b pb-2">
+                  {orderType === 'lab' ? <Beaker className="h-4 w-4 text-module-laboratory" /> : <Pill className="h-4 w-4 text-module-pharmacy" />}
+                  <h4 className="font-semibold text-sm">Type {orderType === 'lab' ? 'Lab Order' : 'Prescription'}</h4>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Note: Typed orders for admitted patients will bypass the immediate billing wallet check
+                  and be reconciled at discharge or through the pharmacy/lab fulfillment flow.
+                </p>
+                {orderType === 'lab' ? (
+                  <TypedLabRequestEditor 
+                    patientId={patientId}
+                    visitId={null}
+                    onSuccess={() => { onCreated?.(); onOpenChange(false); }}
+                  />
+                ) : (
+                  <TypedPrescriptionEditor 
+                    patientId={patientId}
+                    visitId={null}
+                    onSuccess={() => { onCreated?.(); onOpenChange(false); }}
+                  />
+                )}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
+
   );
 }

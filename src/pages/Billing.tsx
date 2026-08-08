@@ -345,8 +345,8 @@ const Billing = () => {
               <FileText className="h-4 w-4 text-module-billing" />
               Recent Invoices
             </h3>
-            <div className="space-y-2 max-h-[300px] overflow-y-auto">
-              {invoices.slice(0, 10).map(invoice => {
+            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+              {invoices.slice(0, 50).map(invoice => {
                 const patient = patients.find(p => p.id === invoice.patient_id);
                 return (
                   <div key={invoice.id} className="p-2 rounded-lg border border-border text-sm">

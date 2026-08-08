@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useSnapOrders, SnapOrder, snapPhotoUrl, saveSnapOcr, attachInvoiceToSnap, rejectSnap, MatchedItem } from '@/hooks/useSnapOrders';
 import { fuzzyMatchPricelist, PricelistItem } from '@/hooks/usePricelist';
 import { usePatients } from '@/contexts/PatientContext';

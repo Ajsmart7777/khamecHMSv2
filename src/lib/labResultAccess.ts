@@ -18,13 +18,14 @@ export type LabResultRow = {
 export type StationKey = 'nurse' | 'doctor';
 
 /** Station bucket used only as a legacy fallback for rows with no owner. */
-export function stationForRole(role: string | null | undefined): StationKey {
-  return role === 'nurse' ? 'nurse' : 'doctor';
+export function stationForRole(role: string | null | undefined, asParam: string | null = null): StationKey {
+  const effectiveRole = (role === 'admin' && asParam) ? asParam : role;
+  return effectiveRole === 'nurse' ? 'nurse' : 'doctor';
 }
 
 /** PostgREST `.or()` expression: mine, or legacy ownerless rows for my station. */
-export function labResultOrFilter(userId: string, role: string | null | undefined): string {
-  const station = stationForRole(role);
+export function labResultOrFilter(userId: string, role: string | null | undefined, asParam: string | null = null): string {
+  const station = stationForRole(role, asParam);
   return `returned_to.eq.${userId},and(returned_to.is.null,target_station.eq.${station})`;
 }
 
@@ -33,11 +34,12 @@ export function canSeeLabResult(
   row: LabResultRow,
   userId: string,
   role: string | null | undefined,
+  asParam: string | null = null,
 ): boolean {
   if (row.order_type !== 'lab_result') return false;
   if (row.status !== 'returned') return false;
   if (row.returned_to) return row.returned_to === userId;
-  return row.target_station === stationForRole(role);
+  return row.target_station === stationForRole(role, asParam);
 }
 
 /** Full inbox selection: owned results, excluding admitted patients. */
@@ -46,9 +48,10 @@ export function selectInboxResults(
   userId: string,
   role: string | null | undefined,
   admittedPatientIds: Iterable<string> = [],
+  asParam: string | null = null,
 ): LabResultRow[] {
   const admitted = new Set(admittedPatientIds);
-  return rows.filter((r) => canSeeLabResult(r, userId, role) && !admitted.has(r.patient_id));
+  return rows.filter((r) => canSeeLabResult(r, userId, role, asParam) && !admitted.has(r.patient_id));
 }
 
 /**

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePatients } from '@/contexts/PatientContext';
@@ -19,6 +20,8 @@ import { labResultOrFilter, selectInboxResults, type LabResultRow } from '@/lib/
  */
 export function LabResultInbox() {
   const { user, role } = useAuth();
+  const [searchParams] = useSearchParams();
+  const asParam = searchParams.get('as');
   const { patients, updatePatientStatus } = usePatients();
   const [items, setItems] = useState<SnapOrder[]>([]);
   const [selected, setSelected] = useState<SnapOrder | null>(null);
@@ -44,7 +47,7 @@ export function LabResultInbox() {
         .select('*')
         .eq('order_type', 'lab_result')
         .eq('status', 'returned')
-        .or(labResultOrFilter(user.id, role))
+        .or(labResultOrFilter(user.id, role, asParam))
         .order('returned_at', { ascending: false }),
       supabase
         .from('admissions')
@@ -59,13 +62,14 @@ export function LabResultInbox() {
       user.id,
       role,
       admitted,
+      asParam,
     );
     setItems((visible as unknown) as SnapOrder[]);
   };
 
 
 
-  useEffect(() => { refresh(); }, [user?.id, role]);
+  useEffect(() => { refresh(); }, [user?.id, role, asParam]);
 
   useEffect(() => {
     if (!user?.id) return;

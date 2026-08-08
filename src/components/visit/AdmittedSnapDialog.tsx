@@ -161,7 +161,7 @@ export function AdmittedSnapDialog({
         await uploadFile('visit-cards', path, file, file.type || 'image/jpeg');
       }
 
-      const { error } = await supabase.rpc('create_admitted_snap', {
+      const { data: snapId, error } = await supabase.rpc('create_admitted_snap', {
         _patient_id: patientId,
         _order_type: orderType,
         _target_station: target,
@@ -174,6 +174,14 @@ export function AdmittedSnapDialog({
       });
 
       if (error) { toast.error(error.message); return; }
+
+      // Update patient status to ensure visibility in the target station's queue (Lab/Pharmacy)
+      // Admissions are 'active', but station-level queues often filter by patient.status
+      if (target === 'lab') {
+        await supabase.from('patients').update({ status: 'in_lab' }).eq('id', patientId);
+      } else if (target === 'pharmacy') {
+        await supabase.from('patients').update({ status: 'at_pharmacy' }).eq('id', patientId);
+      }
 
       toast.success('Sent to ' + target);
       onCreated?.();
@@ -394,7 +402,7 @@ export function AdmittedSnapDialog({
                     patientId={patientId}
                     visitId={null}
                     onSuccess={() => { 
-                      toast.info("Lab order created. Since the patient is admitted, please add items to the snap details below for billing.");
+                      toast.info("Lab order created. You can now close this dialog or add items below to bill them.");
                       onCreated?.(); 
                     }}
                   />
@@ -403,7 +411,7 @@ export function AdmittedSnapDialog({
                     patientId={patientId}
                     visitId={null}
                     onSuccess={() => { 
-                      toast.info("Prescription created. Since the patient is admitted, please add items to the snap details below for billing.");
+                      toast.info("Prescription created. You can now close this dialog or add items below to bill them.");
                       onCreated?.(); 
                     }}
                   />

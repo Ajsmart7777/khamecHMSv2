@@ -191,14 +191,17 @@ const Laboratory = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Paid Lab Requests - The primary workflow */}
         <div className="lg:col-span-2">
-
-          {/* The legacy Test Queue is removed to ensure all orders follow the Paid Snap workflow */}
-
+          {/* All lab requests now flow through the LabSnapQueue above which handles paid orders */}
+          <div className="bg-card rounded-xl border border-border p-8 text-center text-muted-foreground">
+            <FlaskConical className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Please use the "Paid Lab Requests" queue above to process orders.</p>
+          </div>
+        </div>
 
         {/* Results Entry */}
         <div>
+
           <div className="bg-card rounded-xl border border-border p-4">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <FileText className="h-5 w-5 text-module-lab" />

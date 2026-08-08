@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Camera, Send, Lock, Crop } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Camera, Send, Lock, Crop, Type, Pill, Beaker, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,7 +14,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 import { uploadFile } from '@/lib/storage';
 import { useActiveVisit, openOrResumeVisit } from '@/hooks/useVisits';
 import { uploadVisitAttachment, VisitStation } from '@/hooks/useVisitAttachments';
@@ -26,6 +25,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { SnapCropDialog } from './SnapCropDialog';
 import { InAppCameraDialog } from './InAppCameraDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { TypedPrescriptionEditor } from '@/components/prescription/TypedPrescriptionEditor';
+import { TypedLabRequestEditor } from '@/components/lab/TypedLabRequestEditor';
+import { ReferralEditorDialog } from '@/components/referral/ReferralEditorDialog';
 
 interface Props {
   patientId: string;
@@ -39,10 +42,6 @@ interface Props {
   onSent?: () => void;
 }
 
-/**
- * Clinical snap: capture paper Rx/Lab/Treatment → route to Billing.
- * After payment, the snap auto-flips to `paid` and appears in Pharmacy/Lab queue.
- */
 export function SnapClinicalOrder({
   patientId,
   sourceStation,
@@ -57,16 +56,17 @@ export function SnapClinicalOrder({
   const { role } = useAuth();
   const { visit, refresh } = useActiveVisit(patientId);
   const { allowed, reason, loading: checking } = useCanSnap(patientId);
-  const { updatePatientStatus } = usePatients();
-  const { getPatientById } = usePatients();
+  const { updatePatientStatus, getPatientById } = usePatients();
   const patient = getPatientById(patientId);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [mode, setMode] = useState<'snap' | 'type'>('snap');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [rawUrl, setRawUrl] = useState<string | null>(null);
   const [rawFile, setRawFile] = useState<File | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [referralOpen, setReferralOpen] = useState(false);
   const [orderType] = useState<SnapOrderType>(defaultOrderType);
   const [target] = useState<SnapTargetStation>(
     defaultTarget ?? (defaultOrderType === 'lab' ? 'lab' : 'pharmacy'),
@@ -75,16 +75,11 @@ export function SnapClinicalOrder({
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
+  const isReferral = defaultOrderType === 'treatment' && defaultTarget === 'nurse';
+
   const onFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    console.log('[SnapClinicalOrder] onFile fired', {
-      hasFile: !!f,
-      name: f?.name,
-      type: f?.type,
-      size: f?.size,
-    });
     if (!f) {
-      // Some mobile browsers fire change with empty files after camera cancel.
       e.target.value = '';
       return;
     }
@@ -142,11 +137,9 @@ export function SnapClinicalOrder({
       }
       if (!visitId) throw new Error('Could not open a visit');
 
-      // 1. Upload image to visit-cards bucket
       const path = `${visitId}/${crypto.randomUUID()}.jpg`;
       await uploadFile('visit-cards', path, file, file.type || 'image/jpeg');
 
-      // 2. Attach to visit envelope (for the card timeline)
       await uploadVisitAttachment({
         visitId,
         patientId,
@@ -155,12 +148,6 @@ export function SnapClinicalOrder({
         station: sourceStation,
       }).catch(() => null);
 
-      // 3. Create snap_order row.
-      //    - target=nurse  → lands in the Nurse "Treatment Review" inbox
-      //      (the nurse reviews the photo and forwards to Billing).
-      //      Patient status is NOT changed to with_nurse, so the patient
-      //      does not re-appear in the main Nurse Patient Queue.
-      //    - other targets → straight to Billing.
       const snap = await createSnapOrder({
         patientId,
         visitId,
@@ -171,15 +158,12 @@ export function SnapClinicalOrder({
         note: note.trim(),
       });
       if (!snap) throw new Error('Snap order not created');
+      
       if (target === 'nurse') {
-        toast.success('Sent to Nurse for Review', {
-          description: 'Patient will appear in the nurse Treatment Review inbox.',
-        });
+        toast.success('Sent to Nurse for Review');
       } else {
         await updatePatientStatus(patientId, 'awaiting_billing').catch(() => null);
-        toast.success('Sent to Billing', {
-          description: `${orderType === 'lab' ? 'Lab test' : orderType === 'prescription' ? 'Prescription' : 'Treatment'} pending billing.`,
-        });
+        toast.success('Sent to Billing');
       }
       close();
       onSent?.();
@@ -191,178 +175,167 @@ export function SnapClinicalOrder({
   };
 
   return (
-    <>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        onChange={onFile}
-        className="hidden"
-      />
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className={allowed ? '' : 'inline-block'}>
-              <Button
-                variant={variant}
-                size={size}
-                className={className}
-                onClick={() => {
-                  if (hasCam) setCameraOpen(true);
-                  else inputRef.current?.click();
-                }}
-                disabled={!allowed || checking}
-                aria-disabled={!allowed}
-              >
-                {allowed
-                  ? <Camera className="h-4 w-4 mr-2" />
-                  : <Lock className="h-4 w-4 mr-2" />}
-                {label}
-              </Button>
-            </span>
-          </TooltipTrigger>
-          {!allowed && reason && (
-            <TooltipContent side="top" className="max-w-xs">{reason}</TooltipContent>
+    <div className={className}>
+      <Tabs value={mode} onValueChange={(v) => setMode(v as any)} className="w-full">
+        <TabsList className="grid w-full grid-cols-2 mb-2">
+          <TabsTrigger value="snap" className="text-xs">
+            <Camera className="h-3 w-3 mr-1.5" /> Snap
+          </TabsTrigger>
+          <TabsTrigger value="type" className="text-xs">
+            <Type className="h-3 w-3 mr-1.5" /> Type
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="snap" className="mt-0 pt-1">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex flex-col gap-1.5">
+                  <Button
+                    variant={variant}
+                    size={size}
+                    className="w-full"
+                    onClick={() => {
+                      if (hasCam) setCameraOpen(true);
+                      else inputRef.current?.click();
+                    }}
+                    disabled={!allowed || checking}
+                  >
+                    {allowed ? <Camera className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
+                    {label}
+                  </Button>
+                  {allowed && (
+                    <div className="flex justify-center">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-7 text-[10px] text-muted-foreground font-normal hover:bg-transparent"
+                        onClick={() => inputRef.current?.click()}
+                      >
+                        <Crop className="h-3 w-3 mr-1" /> Choose from files
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </TooltipTrigger>
+              {!allowed && reason && (
+                <TooltipContent side="top" className="max-w-xs">{reason}</TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
+        </TabsContent>
+
+        <TabsContent value="type" className="mt-0 pt-1 space-y-2">
+          {defaultOrderType === 'prescription' && (
+            <div className="border rounded-xl p-4 bg-card shadow-sm">
+              <div className="flex items-center gap-2 mb-4 border-b pb-2">
+                <Pill className="h-4 w-4 text-module-pharmacy" />
+                <h4 className="font-semibold text-sm">Type Prescription</h4>
+              </div>
+              <TypedPrescriptionEditor 
+                patientId={patientId}
+                visitId={visit?.id || null}
+                onSuccess={() => onSent?.()}
+                onCancel={() => setMode('snap')}
+              />
+            </div>
           )}
-        </Tooltip>
-      </TooltipProvider>
+          {defaultOrderType === 'lab' && (
+            <div className="border rounded-xl p-4 bg-card shadow-sm">
+              <div className="flex items-center gap-2 mb-4 border-b pb-2">
+                <Beaker className="h-4 w-4 text-module-laboratory" />
+                <h4 className="font-semibold text-sm">Type Lab Order</h4>
+              </div>
+              <TypedLabRequestEditor 
+                patientId={patientId}
+                visitId={visit?.id || null}
+                onSuccess={() => onSent?.()}
+                onCancel={() => setMode('snap')}
+              />
+            </div>
+          )}
+          {isReferral && (
+            <div className="flex flex-col items-center justify-center py-6 border rounded-xl bg-card dashed">
+              <FileText className="h-10 w-10 text-muted-foreground/30 mb-3" />
+              <Button onClick={() => setReferralOpen(true)}>
+                <FileText className="h-4 w-4 mr-2" /> Open Referral Editor
+              </Button>
+              <ReferralEditorDialog 
+                open={referralOpen}
+                onOpenChange={setReferralOpen}
+                patientId={patientId}
+                visitId={visit?.id || null}
+                onSuccess={() => onSent?.()}
+              />
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      <input ref={inputRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
 
       {rawUrl && rawFile && (
         <SnapCropDialog
           open={cropOpen}
           imageUrl={rawUrl}
           originalFile={rawFile}
-          onCancel={() => {
-            // Cancelling crop aborts the snap.
-            close();
-          }}
+          onCancel={close}
           onConfirm={(croppedFile, croppedUrl) => {
             if (previewUrl) URL.revokeObjectURL(previewUrl);
             setFile(croppedFile);
             setPreviewUrl(croppedUrl);
             setCropOpen(false);
-            // Radix locks body pointer-events while a Dialog is open. On mobile,
-            // opening a second dialog on the same tick can leave the lock stuck.
-            // Defer the confirm dialog until the crop dialog has fully unmounted.
             setTimeout(() => {
-              // Safety net: force-clear any leftover pointer-events lock.
-              if (typeof document !== 'undefined') {
-                document.body.style.pointerEvents = '';
-              }
+              if (typeof document !== 'undefined') document.body.style.pointerEvents = '';
               setConfirmOpen(true);
             }, 150);
           }}
         />
       )}
 
-      <InAppCameraDialog
-        open={cameraOpen}
-        onCancel={() => setCameraOpen(false)}
-        onCapture={(f) => acceptFile(f)}
-      />
+      <InAppCameraDialog open={cameraOpen} onCancel={() => setCameraOpen(false)} onCapture={acceptFile} />
 
-      <AlertDialog
-        open={confirmOpen}
-        onOpenChange={(o) => {
-          if (busy) return;
-          if (!o) close();
-        }}
-      >
+      <AlertDialog open={confirmOpen} onOpenChange={(o) => { if (!busy && !o) close(); }}>
         <AlertDialogContent className="sm:max-w-lg max-h-[95vh] overflow-y-auto p-4 sm:p-6">
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Confirm: Snap → {target === 'pharmacy' ? 'Pharmacy' : target === 'lab' ? 'Lab' : 'Nurse'}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Confirm Order</AlertDialogTitle>
             <AlertDialogDescription asChild>
-              <div className="space-y-2 text-sm">
+              <div className="space-y-4 text-sm mt-2">
                 {previewUrl && (
                   <div className="rounded-lg overflow-hidden bg-muted flex items-center justify-center max-h-[35vh]">
-                    <img
-                      src={previewUrl}
-                      alt="cropped snap"
-                      className="max-h-[35vh] object-contain"
-                    />
+                    <img src={previewUrl} alt="cropped snap" className="max-h-[35vh] object-contain" />
                   </div>
                 )}
                 <div className="rounded-md border p-3 bg-muted/40 space-y-1">
                   <div>
                     <span className="text-muted-foreground">Patient: </span>
-                    <span className="font-semibold text-foreground">
-                      {patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown'}
-                    </span>
-                    {patient?.card_number && (
-                      <span className="ml-2 font-mono text-xs text-muted-foreground">
-                        {patient.card_number}
-                      </span>
-                    )}
+                    <span className="font-semibold text-foreground">{patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown'}</span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Order type: </span>
+                    <span className="text-muted-foreground">Type: </span>
                     <span className="font-medium capitalize text-foreground">{orderType}</span>
                   </div>
                   <div>
-                    <span className="text-muted-foreground">Destination: </span>
-                    <span className="font-medium capitalize text-foreground">
-                      {target === 'nurse' ? 'Nurse (review)' : target}
-                    </span>
+                    <span className="text-muted-foreground">Station: </span>
+                    <span className="font-medium capitalize text-foreground">{target}</span>
                   </div>
-                  {visit && (
-                    <div>
-                      <span className="text-muted-foreground">Visit: </span>
-                      <span className="font-mono text-xs text-foreground">
-                        {visit.visit_number}
-                      </span>
-                    </div>
-                  )}
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="snap-note-confirm" className="text-xs">
-                    Note (optional)
-                  </Label>
-                  <Input
-                    id="snap-note-confirm"
-                    placeholder="e.g. urgent, patient waiting"
-                    value={note}
-                    onChange={(e) => setNote(e.target.value)}
-                    maxLength={200}
-                    disabled={busy}
-                  />
+                  <Label className="text-xs">Note (optional)</Label>
+                  <Input placeholder="e.g. urgent" value={note} onChange={(e) => setNote(e.target.value)} disabled={busy} />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {target === 'nurse'
-                    ? 'The patient card will move back to the Nurse queue for the next action.'
-                    : `Billing will price this snap; once paid it appears in ${target}.`}
-                </p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setConfirmOpen(false);
-                setCropOpen(true);
-              }}
-              disabled={busy || !rawUrl}
-            >
-              <Crop className="h-3.5 w-3.5 mr-1" /> Re-crop
-            </Button>
+            <Button variant="outline" size="sm" onClick={() => { setConfirmOpen(false); setCropOpen(true); }} disabled={busy}>Re-crop</Button>
             <AlertDialogCancel disabled={busy} onClick={close}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={busy}
-              onClick={async (e) => {
-                e.preventDefault();
-                await submit();
-              }}
-            >
-              <Send className="h-3.5 w-3.5 mr-1" />
-              {busy ? 'Sending…' : 'Confirm & Send'}
+            <AlertDialogAction disabled={busy} onClick={async (e) => { e.preventDefault(); await submit(); }}>
+              {busy ? 'Sending...' : 'Confirm & Send'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
   );
 }

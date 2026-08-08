@@ -235,7 +235,7 @@ export function SnapClinicalOrder({
               <TypedPrescriptionEditor 
                 patientId={patientId}
                 visitId={visit?.id || null}
-                onSuccess={() => onSent?.()}
+                onSuccess={() => { onSent?.(); close(); }}
                 onCancel={() => setMode('snap')}
               />
             </div>
@@ -249,7 +249,7 @@ export function SnapClinicalOrder({
               <TypedLabRequestEditor 
                 patientId={patientId}
                 visitId={visit?.id || null}
-                onSuccess={() => onSent?.()}
+                onSuccess={() => { onSent?.(); close(); }}
                 onCancel={() => setMode('snap')}
               />
             </div>

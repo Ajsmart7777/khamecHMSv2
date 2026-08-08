@@ -393,13 +393,19 @@ export function AdmittedSnapDialog({
                   <TypedLabRequestEditor 
                     patientId={patientId}
                     visitId={null}
-                    onSuccess={() => { onCreated?.(); onOpenChange(false); }}
+                    onSuccess={() => { 
+                      toast.info("Lab order created. Since the patient is admitted, please add items to the snap details below for billing.");
+                      onCreated?.(); 
+                    }}
                   />
                 ) : (
                   <TypedPrescriptionEditor 
                     patientId={patientId}
                     visitId={null}
-                    onSuccess={() => { onCreated?.(); onOpenChange(false); }}
+                    onSuccess={() => { 
+                      toast.info("Prescription created. Since the patient is admitted, please add items to the snap details below for billing.");
+                      onCreated?.(); 
+                    }}
                   />
                 )}
               </div>

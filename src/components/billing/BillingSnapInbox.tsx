@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 import { useSnapOrders, SnapOrder, snapPhotoUrl, saveSnapOcr, attachInvoiceToSnap, rejectSnap, MatchedItem } from '@/hooks/useSnapOrders';
 import { fuzzyMatchPricelist, PricelistItem } from '@/hooks/usePricelist';
 import { usePatients } from '@/contexts/PatientContext';
@@ -111,6 +112,8 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
   const [ocrProgress, setOcrProgress] = useState(0);
   const [lines, setLines] = useState<ReviewLine[]>([]);
   const [items, setItems] = useState<MatchedItem[]>(snap.matched_items ?? []);
+  const [linkedPrescription, setLinkedPrescription] = useState<any>(null);
+  const [linkedLabRequest, setLinkedLabRequest] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject] = useState(false);
@@ -125,6 +128,24 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
   }, [snap.photo_path]);
 
   // Live search as the user types (debounced), so "pan" matches "Panadol" instantly.
+  useEffect(() => {
+    if (!snap.ocr_text) return;
+    
+    const fetchLinked = async () => {
+      if (snap.ocr_text?.startsWith('LINKED_PRESCRIPTION:')) {
+        const id = snap.ocr_text.split(':')[1];
+        const { data } = await supabase.from('prescriptions').select('*, prescription_items(*)').eq('id', id).single();
+        if (data) setLinkedPrescription(data);
+      } else if (snap.ocr_text?.startsWith('LINKED_LAB_REQUEST:')) {
+        const id = snap.ocr_text.split(':')[1];
+        const { data } = await supabase.from('lab_requests').select('*').eq('id', id).single();
+        if (data) setLinkedLabRequest(data);
+      }
+    };
+    
+    fetchLinked();
+  }, [snap.ocr_text]);
+
   useEffect(() => {
     const q = manualQuery.trim();
     if (q.length === 0) { setManualMatches([]); return; }
@@ -324,6 +345,44 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
                 className="text-xs font-mono"
                 placeholder="OCR text will appear here"
               />
+            )}
+
+            {linkedPrescription && (
+              <div className="p-3 border rounded-lg bg-module-pharmacy/5 space-y-2">
+                <p className="text-xs font-bold text-module-pharmacy uppercase tracking-wider">Typed Prescription Details</p>
+                {linkedPrescription.diagnosis && (
+                  <p className="text-xs"><strong>Diagnosis:</strong> {linkedPrescription.diagnosis}</p>
+                )}
+                <div className="space-y-1">
+                  {linkedPrescription.prescription_items?.map((it: any, i: number) => (
+                    <div key={i} className="text-xs p-1.5 bg-background rounded border border-module-pharmacy/20">
+                      <p className="font-medium">{it.medication}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {it.dosage} · {it.frequency} · {it.duration} (Qty: {it.quantity})
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                {linkedPrescription.notes && (
+                  <p className="text-[10px] text-muted-foreground italic">Note: {linkedPrescription.notes}</p>
+                )}
+              </div>
+            )}
+
+            {linkedLabRequest && (
+              <div className="p-3 border rounded-lg bg-module-laboratory/5 space-y-2">
+                <p className="text-xs font-bold text-module-laboratory uppercase tracking-wider">Typed Lab Order Details</p>
+                {linkedLabRequest.diagnosis && (
+                  <p className="text-xs"><strong>Diagnosis:</strong> {linkedLabRequest.diagnosis}</p>
+                )}
+                <div className="flex flex-wrap gap-1">
+                  {linkedLabRequest.tests?.map((test: string, i: number) => (
+                    <Badge key={i} variant="outline" className="text-[10px] border-module-laboratory/30 bg-background">
+                      {test}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
             )}
 
             <SnapOcrPanel

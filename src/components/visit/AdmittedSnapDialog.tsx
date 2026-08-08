@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { Camera, Plus, Send, Trash2, Wallet, X } from 'lucide-react';
+import { useMemo, useRef, useState, useEffect } from 'react';
+import { Camera, Plus, Send, Trash2, Wallet, X, Type, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,6 +22,10 @@ import { InAppCameraDialog } from './InAppCameraDialog';
 import { SnapCropDialog } from './SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
 import { copayPercent, sponsorLabel, hasWallet } from '@/lib/copay';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ReferralEditorDialog } from '@/components/referral/ReferralEditorDialog';
+import { createPrescriptionFromTyped, createLabRequestFromTyped } from '@/integrations/supabase/rpcs';
+
 
 type OrderType = 'prescription' | 'lab' | 'treatment';
 type Target = 'pharmacy' | 'lab' | 'nurse' | 'doctor';

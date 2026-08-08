@@ -18,7 +18,7 @@ export async function createPrescriptionFromTyped(input: {
     quantity: number;
   }>;
 }) {
-  const { data, error } = await supabase.rpc('create_prescription_from_typed', {
+  const { data, error } = await (supabase.rpc as any)('create_prescription_from_typed', {
     _patient_id: input.patientId,
     _visit_id: input.visitId,
     _diagnosis: input.diagnosis || '',
@@ -35,7 +35,7 @@ export async function createLabRequestFromTyped(input: {
   diagnosis?: string;
   tests: string[];
 }) {
-  const { data, error } = await supabase.rpc('create_lab_request_from_typed', {
+  const { data, error } = await (supabase.rpc as any)('create_lab_request_from_typed', {
     _patient_id: input.patientId,
     _visit_id: input.visitId,
     _diagnosis: input.diagnosis || '',
@@ -46,10 +46,11 @@ export async function createLabRequestFromTyped(input: {
 }
 
 export async function finalizeReferral(referralId: string, filePath?: string) {
-  const { data, error } = await supabase.rpc('finalize_referral', {
+  const { data, error } = await (supabase.rpc as any)('finalize_referral', {
     _referral_id: referralId,
     _file_path: filePath,
   });
   if (error) throw error;
   return data as { referral_id: string; ref_number: string };
 }
+

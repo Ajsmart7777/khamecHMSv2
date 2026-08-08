@@ -2677,12 +2677,31 @@ export type Database = {
         Args: { _diagnosis?: string; _snap_id: string; _tests: string[] }
         Returns: string
       }
+      create_lab_request_from_typed: {
+        Args: {
+          _diagnosis: string
+          _patient_id: string
+          _tests: string[]
+          _visit_id: string
+        }
+        Returns: string
+      }
       create_prescription_from_snap: {
         Args: {
           _diagnosis?: string
           _items?: Json
           _notes?: string
           _snap_id: string
+        }
+        Returns: string
+      }
+      create_prescription_from_typed: {
+        Args: {
+          _diagnosis: string
+          _items: Json
+          _notes: string
+          _patient_id: string
+          _visit_id: string
         }
         Returns: string
       }

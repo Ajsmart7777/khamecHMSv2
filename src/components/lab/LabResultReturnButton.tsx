@@ -92,7 +92,7 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
         photo_path: path,
         note: note.trim() || null,
         status: 'returned',
-        returned_to: parentSnap.created_by,
+        returned_to: parentSnap.created_by || parentSnap.returned_to,
         returned_at: new Date().toISOString(),
         created_by: userData.user?.id ?? null,
       } as any);

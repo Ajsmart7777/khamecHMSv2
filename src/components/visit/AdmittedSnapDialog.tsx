@@ -394,7 +394,7 @@ export function AdmittedSnapDialog({
                     patientId={patientId}
                     visitId={null}
                     onSuccess={() => { 
-                      toast.info("Lab order created. Since the patient is admitted, please add items to the snap details below for billing.");
+                      toast.info("Lab order created. You can now close this dialog or add items below to bill them.");
                       onCreated?.(); 
                     }}
                   />
@@ -403,7 +403,7 @@ export function AdmittedSnapDialog({
                     patientId={patientId}
                     visitId={null}
                     onSuccess={() => { 
-                      toast.info("Prescription created. Since the patient is admitted, please add items to the snap details below for billing.");
+                      toast.info("Prescription created. You can now close this dialog or add items below to bill them.");
                       onCreated?.(); 
                     }}
                   />

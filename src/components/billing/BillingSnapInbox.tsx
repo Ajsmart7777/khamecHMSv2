@@ -111,6 +111,8 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
   const [ocrProgress, setOcrProgress] = useState(0);
   const [lines, setLines] = useState<ReviewLine[]>([]);
   const [items, setItems] = useState<MatchedItem[]>(snap.matched_items ?? []);
+  const [linkedPrescription, setLinkedPrescription] = useState<any>(null);
+  const [linkedLabRequest, setLinkedLabRequest] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject] = useState(false);

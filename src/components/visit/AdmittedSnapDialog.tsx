@@ -77,6 +77,7 @@ export function AdmittedSnapDialog({
   const [orderTypeState, setOrderType] = useState<OrderType>(fixedOrderType ?? 'prescription');
   const orderType = fixedOrderType ?? orderTypeState;
   const target: Target = orderType === 'lab' ? 'lab' : orderType === 'treatment' ? 'nurse' : 'pharmacy';
+  const [activeTab, setActiveTab] = useState<'snap' | 'type'>(mode === 'items' ? 'type' : 'snap');
   const [note, setNote] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -87,8 +88,10 @@ export function AdmittedSnapDialog({
   const [rawFile, setRawFile] = useState<File | null>(null);
   const [rawUrl, setRawUrl] = useState<string | null>(null);
   const [cropOpen, setCropOpen] = useState(false);
+  const [referralOpen, setReferralOpen] = useState(false);
   const hasCam = hasInAppCamera();
-  const photoRequired = mode === 'snap';
+  const photoRequired = activeTab === 'snap';
+
 
   const acceptFile = (f: File) => {
     if (!f.type.startsWith('image/')) { toast.error('Please select an image file'); return; }

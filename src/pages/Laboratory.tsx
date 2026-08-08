@@ -191,112 +191,17 @@ const Laboratory = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Test Queue */}
         <div className="lg:col-span-2">
-          <div className="bg-card rounded-xl border border-border">
-            <div className="p-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold">Test Queue</h3>
-              <div className="flex gap-2">
-                <Badge variant="warning">
-                  {activeLabRequests.filter(r => r.status === 'pending').length} Pending
-                </Badge>
-                <Badge variant="info">
-                  {activeLabRequests.filter(r => r.status === 'in_progress').length} In Progress
-                </Badge>
-                <Badge variant="success">
-                  {activeLabRequests.filter(r => r.status === 'completed').length} Completed
-                </Badge>
-              </div>
-            </div>
-
-            <div className="divide-y divide-border">
-              {activeLabRequests.map((request) => {
-                const patient = getPatient(request.patient_id);
-                if (!patient) return null;
-                
-                const config = statusConfig[request.status as keyof typeof statusConfig];
-                const StatusIcon = config.icon;
-                
-                return (
-                  <div key={request.id} className="p-4 hover:bg-muted/30 transition-colors animate-fade-in">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-full bg-module-lab/10 flex items-center justify-center">
-                          <User className="h-5 w-5 text-module-lab" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium">{patient.first_name} {patient.last_name}</h4>
-                          <p className="text-sm text-muted-foreground">{patient.card_number} • {request.request_number}</p>
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {request.tests.map((test, idx) => (
-                              <Badge key={idx} variant="outline" className="text-xs">
-                                {test}
-                              </Badge>
-                            ))}
-                          </div>
-                          <div className="mt-1">
-                            <PatientStatusIndicator status={patient.status} size="sm" />
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-3">
-                        <Badge variant={config.color as 'warning' | 'info' | 'success'} className="flex items-center gap-1">
-                          <StatusIcon className="h-3 w-3" />
-                          {config.label}
-                        </Badge>
-                        
-                        {request.status === 'pending' && (
-                          <Button 
-                            size="sm" 
-                            variant="module" 
-                            onClick={() => handleStart(request)}
-                            className="press-effect"
-                          >
-                            <Play className="h-4 w-4 mr-1" />
-                            Start
-                          </Button>
-                        )}
-                        {request.status === 'in_progress' && (
-                          <Button 
-                            size="sm" 
-                            variant="success" 
-                            onClick={() => handleComplete(request)}
-                            className="press-effect"
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" />
-                            Complete
-                          </Button>
-                        )}
-                        {request.status === 'completed' && patient.status === 'in_lab' && (
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            onClick={() => handleSendToDoctor(request)}
-                            className="press-effect"
-                          >
-                            <Send className="h-4 w-4 mr-1" />
-                            Send to Doctor
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {activeLabRequests.length === 0 && (
-                <div className="p-8 text-center text-muted-foreground">
-                  <FlaskConical className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No pending lab tests</p>
-                </div>
-              )}
-            </div>
+          {/* All lab requests now flow through the LabSnapQueue above which handles paid orders */}
+          <div className="bg-card rounded-xl border border-border p-8 text-center text-muted-foreground">
+            <FlaskConical className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            <p>Please use the "Paid Lab Requests" queue above to process orders.</p>
           </div>
         </div>
 
         {/* Results Entry */}
         <div>
+
           <div className="bg-card rounded-xl border border-border p-4">
             <h3 className="font-semibold mb-4 flex items-center gap-2">
               <FileText className="h-5 w-5 text-module-lab" />
@@ -307,10 +212,11 @@ const Laboratory = () => {
               <div className="p-3 bg-muted/30 rounded-lg">
                 <p className="font-medium mb-1">Test Workflow</p>
                 <ol className="list-decimal list-inside text-muted-foreground space-y-1">
-                  <li>Receive lab request from Doctor</li>
-                  <li>Click "Start" to begin processing</li>
-                  <li>Complete test and record results</li>
-                  <li>Send results back to Doctor</li>
+                  <li>Check "Paid Lab Requests" for incoming orders</li>
+                  <li>Click on a request to view details and start work</li>
+                  <li>Use "Snap & Send Result" to complete the request</li>
+                  <li>Mark the order as completed to notify the requester</li>
+
                 </ol>
               </div>
               

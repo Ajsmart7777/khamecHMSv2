@@ -212,10 +212,11 @@ const Laboratory = () => {
               <div className="p-3 bg-muted/30 rounded-lg">
                 <p className="font-medium mb-1">Test Workflow</p>
                 <ol className="list-decimal list-inside text-muted-foreground space-y-1">
-                  <li>Receive lab request from Doctor</li>
-                  <li>Click "Start" to begin processing</li>
-                  <li>Complete test and record results</li>
-                  <li>Send results back to Doctor</li>
+                  <li>Check "Paid Lab Requests" for incoming orders</li>
+                  <li>Click on a request to view details and start work</li>
+                  <li>Use "Snap & Send Result" to complete the request</li>
+                  <li>Mark the order as completed to notify the requester</li>
+
                 </ol>
               </div>
               

@@ -25,6 +25,9 @@ import { copayPercent, sponsorLabel, hasWallet } from '@/lib/copay';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReferralEditorDialog } from '@/components/referral/ReferralEditorDialog';
 import { createPrescriptionFromTyped, createLabRequestFromTyped } from '@/integrations/supabase/rpcs';
+import { TypedPrescriptionEditor } from '@/components/prescription/TypedPrescriptionEditor';
+import { TypedLabRequestEditor } from '@/components/lab/TypedLabRequestEditor';
+
 
 type OrderType = 'prescription' | 'lab' | 'treatment';
 type Target = 'pharmacy' | 'lab' | 'nurse' | 'doctor';

@@ -495,8 +495,19 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
       if (error) throw error;
       
       if (data === true) {
-        toast.error("Monthly consultation fee required", {
-          description: "Patient must pay the monthly consultation fee before being sent to the nurse."
+        // Automatically onboard the patient to generate the required fee invoice
+        const { error: onboardError } = await supabase.rpc('onboard_patient_v2', {
+          _patient_id: patient.id,
+          _is_new_registration: !patient.registration_fee_paid,
+          _consultation_already_paid: false,
+          _opening_debt: 0
+        });
+
+        if (onboardError) throw onboardError;
+
+        await refreshData();
+        toast.info("Consultation fee invoice generated", {
+          description: "Monthly consultation fee invoice has been created. Patient must pay before proceeding."
         });
         return;
       }
@@ -638,7 +649,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
               variant={patient.status === 'discharged' ? 'hero' : 'module'}
               className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
               onClick={handleOpenSendDialog}
-              disabled={isCheckingFee}
+              disabled={isCheckingFee || (patient.status !== 'registered' && patient.status !== 'discharged')}
             >
               {isCheckingFee ? (
                 <RefreshCw className="h-5 w-5 animate-spin" />

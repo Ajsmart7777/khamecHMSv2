@@ -31,6 +31,7 @@ export interface Patient {
   assigned_doctor?: 'doctor1' | 'doctor2' | null;
   balance: number;
   photo_path?: string | null;
+  registration_fee_paid: boolean;
   registered_at: string;
   last_visit?: string;
   updated_at: string;

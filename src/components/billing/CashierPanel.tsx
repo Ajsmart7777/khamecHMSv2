@@ -371,7 +371,7 @@ export function CashierPanel() {
       await paymentAuditLogger('payment_received', selected.invoice_number, {
         patient_id: selected.patient_id,
         patient_name: `${selectedPatient.first_name} ${selectedPatient.last_name}`,
-        action: isSalaryDeduction
+        action: salDed > 0
           ? 'salary_deduction_recorded'
           : sponsored
           ? 'copay_recorded_sponsor_billed'

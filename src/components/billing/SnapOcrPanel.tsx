@@ -128,7 +128,7 @@ export function SnapOcrPanel({
 
       {status === 'done' && matches.length > 0 && !reviewed && (
         <p className="text-[11px] text-warning">
-          Review each extracted line — accept, edit, or reject before adding to the invoice.
+          Review each extracted line — accept or edit before adding to the invoice.
         </p>
       )}
 

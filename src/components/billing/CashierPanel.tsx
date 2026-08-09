@@ -368,15 +368,18 @@ export function CashierPanel() {
       await paymentAuditLogger('payment_received', selected.invoice_number, {
         patient_id: selected.patient_id,
         patient_name: `${selectedPatient.first_name} ${selectedPatient.last_name}`,
-        action: sponsored
+        action: isSalaryDeduction
+          ? 'salary_deduction_recorded'
+          : sponsored
           ? 'copay_recorded_sponsor_billed'
           : shortfall > 0
           ? 'payment_recorded_with_debt'
           : 'payment_recorded',
-        sponsor: sponsored ? sponsorLabel(selectedPatient) : null,
+        sponsor: (sponsored || isSalaryDeduction) ? sponsorLabel(selectedPatient) : null,
         cash_amount: cash,
         balance_amount: bal,
-        copay_amount: sponsored ? cash + bal : undefined,
+        is_salary_deduction: isSalaryDeduction,
+        copay_amount: sponsored ? (isSalaryDeduction ? outstanding : cash + bal) : undefined,
         covered_amount: sponsored ? Math.max(invoiceTotal - split.copayAmount, 0) : undefined,
         method,
         shortfall: sponsored ? 0 : shortfall,

@@ -1,33 +1,31 @@
 # Database Synchronization Guide
 
-Your local migration history is currently out of sync with your remote Supabase project. To fix this and successfully run `supabase db push`, follow these steps:
+Your local migration history is out of sync with your remote Supabase project. The error in your terminal shows that your remote database has a version (`20260810000000`) that is missing locally.
 
-### 1. Identify the Mismatched Versions
-The error "Remote migration versions not found in local migrations directory" means your remote database thinks certain migration files exist that are missing from your `supabase/migrations` folder.
+Follow these steps in your terminal to fix it:
 
-### 2. Repair the Migration History
-Run the following commands in your terminal to tell Supabase to ignore the missing "ghost" migrations and mark your local state as the source of truth:
+### 1. Revert the "Ghost" Migration
+Run this command to tell your remote database to forget that specific version:
 
 ```bash
-supabase migration repair --status applied 20260809155732
-supabase migration repair --status applied 20260809155809
-supabase migration repair --status applied 20260809155819
-supabase migration repair --status applied 20260809161239
-supabase migration repair --status applied 20260809162027
+supabase migration repair --status reverted 20260810000000
 ```
 
-*Note: Replace the timestamps above with any other versions specifically mentioned in your terminal error.*
-
-### 3. Push Your Changes
-Once the history is repaired, push your local changes to your production project:
+### 2. Push Your Changes
+Now, push your current local state to the remote database:
 
 ```bash
 supabase db push
 ```
 
-### 4. Pull to Confirm
-Finally, ensure your local environment matches the remote state:
+### 3. Pull to Confirm
+Ensure your local folder matches the remote state:
 
 ```bash
 supabase db pull
 ```
+
+---
+
+**Why this happened:** 
+Your terminal error "glob supabase/migrations/20260810000000_*.sql: file does not exist" means the system was trying to verify a file you don't have. Using `--status reverted` instead of `applied` tells the database to clear that entry from its history since the file isn't there.

@@ -537,11 +537,13 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
           table: 'invoices',
           filter: `patient_id=eq.${patient.id}`
         },
-        (payload) => {
+        async (payload) => {
           const isPaid = (payload.new as any).status === 'paid';
-          const isConsultation = (payload.new as any).notes === 'MONTHLY_CONSULTATION' || (payload.new as any).notes === 'ONBOARDING_FEES';
-          if (isPaid && isConsultation) {
-            setConsultationStatus({ paid: true, loading: false });
+          if (isPaid) {
+            // Re-check both registration and consultation flags from the server
+            // to ensure UI stays perfectly in sync with the DB transaction
+            await refreshData();
+            await checkConsultationStatus();
           }
         }
       )

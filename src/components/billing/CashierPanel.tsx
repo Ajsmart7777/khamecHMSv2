@@ -439,6 +439,8 @@ export function CashierPanel() {
       setCashAmount('');
       setBalanceAmount('');
       setUseBalance(false);
+      setSalaryDeductionAmount('');
+      setIsSalaryDeduction(false);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to record payment');
     } finally {

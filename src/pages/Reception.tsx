@@ -1342,9 +1342,9 @@ function NewPatientForm({
       const { error: onboardErr } = await supabase.rpc('create_onboarding_invoices', {
         _patient_id: (result as any).id,
         _charge_reg: patientType === 'new',
-        _charge_con: !isConsultationPaid,
+        _charge_con: patientType === 'new' ? !isConsultationPaid : !isConsultationPaid,
         _opening_debt: parseFloat(openingDebt) || 0,
-        _mark_con_paid: patientType === 'existing' && isConsultationPaid,
+        _mark_con_paid: isConsultationPaid,
       });
 
       if (onboardErr) {

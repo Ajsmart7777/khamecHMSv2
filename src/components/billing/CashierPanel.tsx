@@ -240,6 +240,7 @@ export function CashierPanel() {
     setUseBalance(false);
     setBalanceAmount('');
     setIsSalaryDeduction(false);
+    setSalaryDeductionAmount('');
   };
 
   // When user toggles "use balance", auto-suggest amounts

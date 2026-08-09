@@ -64,6 +64,7 @@ async function settleInvoiceAtomic(params: {
   paymentMethod: string;
   notes?: string;
   sponsored: boolean;
+  isSalaryDeduction?: boolean;
 }) {
   const { data, error } = await supabase.rpc('settle_invoice_atomic', {
     _invoice_id: params.invoiceId,
@@ -73,6 +74,7 @@ async function settleInvoiceAtomic(params: {
     _payment_method: params.paymentMethod,
     _notes: params.notes ?? null,
     _sponsored: params.sponsored,
+    _is_salary_deduction: params.isSalaryDeduction ?? false,
   });
   if (error) throw new Error(`Failed to settle invoice: ${error.message}`);
   return data as any;
@@ -89,6 +91,7 @@ export function CashierPanel() {
   const [method, setMethod] = useState<string>('cash');
   const [useBalance, setUseBalance] = useState(false);
   const [balanceAmount, setBalanceAmount] = useState('');
+  const [isSalaryDeduction, setIsSalaryDeduction] = useState(false);
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState<{
     patient: any;

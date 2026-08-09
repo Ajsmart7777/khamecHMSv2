@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Users, FileSpreadsheet, CreditCard, FileText, Building2, UserCheck, UserPlus, RefreshCw, DollarSign } from 'lucide-react';
+import { LayoutDashboard, Users, FileSpreadsheet, CreditCard, FileText, Building2, UserCheck, UserPlus, RefreshCw, DollarSign, Wallet } from 'lucide-react';
 import { Stethoscope, ClipboardList } from 'lucide-react';
 import { PricelistManager } from '@/components/account/PricelistManager';
 import { useStaff } from '@/hooks/useStaff';
@@ -22,6 +22,7 @@ import { RetainerClaimsPanel } from '@/components/account/RetainerClaimsPanel';
 import { CorporateClaimsPanel } from '@/components/account/CorporateClaimsPanel';
 import { SponsorStatementsPanel } from '@/components/account/SponsorStatementsPanel';
 import { DailySalesReport } from '@/components/account/DailySalesReport';
+import { StaffFamilyDeductions } from '@/components/account/StaffFamilyDeductions';
 import type { PayrollPeriod } from '@/hooks/usePayroll';
 
 function TabHeader({ title, onRefresh }: { title: string; onRefresh: () => void }) {
@@ -132,6 +133,9 @@ const Account = () => {
           <TabsTrigger value="daily-sales" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <FileText className="h-4 w-4" /> Daily Sales Report
           </TabsTrigger>
+          <TabsTrigger value="staff-deductions" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <Wallet className="h-4 w-4" /> Staff Family Deductions
+          </TabsTrigger>
           <TabsTrigger value="external-doctors" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Stethoscope className="h-4 w-4" /> External Doctors
           </TabsTrigger>
@@ -238,6 +242,11 @@ const Account = () => {
 
         <TabsContent value="daily-sales">
           <DailySalesReport />
+        </TabsContent>
+
+        <TabsContent value="staff-deductions">
+          <TabHeader title="Staff Family Deductions" onRefresh={() => {}} />
+          <StaffFamilyDeductions />
         </TabsContent>
 
 

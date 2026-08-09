@@ -49,7 +49,7 @@ const Account = () => {
   const [selectedPeriod, setSelectedPeriod] = useState<PayrollPeriod | null>(null);
 
   const periodId = selectedPeriod?.id || (periods.length > 0 ? periods[0]?.id : null);
-  const { entries, loading: entriesLoading, addEntry, addAllStaff, updateEntry, removeEntry, refetch: refetchEntries } = usePayrollEntries(periodId);
+  const { entries, loading: entriesLoading, addEntry, addAllStaff, updateEntry, removeEntry, refetch: refetchEntries } = usePayrollEntries(periodId, periods);
 
   // Auto-select first period
   if (!selectedPeriod && periods.length > 0) {

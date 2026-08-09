@@ -132,7 +132,7 @@ export function usePayrollPeriods() {
   return { periods, loading, createPeriod, lockPeriod, unlockPeriod, markPaid, refetch: fetch };
 }
 
-export function usePayrollEntries(periodId: string | null) {
+export function usePayrollEntries(periodId: string | null, periods: PayrollPeriod[] = []) {
   const [entries, setEntries] = useState<PayrollEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -237,7 +237,7 @@ export function usePayrollEntries(periodId: string | null) {
     const rows = await Promise.all(newStaff.map(async s => {
       let familyDeductions = 0;
       if (startDate && endDate) {
-        const { data: deductData } = await supabase.rpc('calculate_payroll_deductions', {
+        const { data: deductData } = await supabase.rpc('calculate_payroll_deductions' as any, {
           _staff_id: s.id,
           _period_start: startDate,
           _period_end: endDate

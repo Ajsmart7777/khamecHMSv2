@@ -115,8 +115,6 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
   const [linkedPrescription, setLinkedPrescription] = useState<any>(null);
   const [linkedLabRequest, setLinkedLabRequest] = useState<any>(null);
   const [busy, setBusy] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [showReject, setShowReject] = useState(false);
   const [manualQuery, setManualQuery] = useState('');
   const [manualMatches, setManualMatches] = useState<PricelistItem[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
@@ -274,13 +272,6 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
     }
   };
 
-  const doReject = async () => {
-    if (!rejectReason.trim()) return;
-    setBusy(true);
-    const ok = await rejectSnap(snap.id, rejectReason.trim());
-    setBusy(false);
-    if (ok) { toast.success('Snap rejected'); onClose(); }
-  };
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -593,26 +584,10 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
               </div>
             </div>
 
-            {showReject && (
-              <div className="space-y-2 border rounded-lg p-2">
-                <Input
-                  placeholder="Reason for rejection…"
-                  value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
-                />
-                <div className="flex gap-2">
-                  <Button size="sm" variant="destructive" onClick={doReject} disabled={busy}>Confirm Reject</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setShowReject(false)}>Cancel</Button>
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="ghost" onClick={() => setShowReject(true)} disabled={busy || showReject}>
-            <XCircle className="h-4 w-4 mr-2 text-destructive" /> Reject
-          </Button>
           <Button variant="outline" onClick={onClose} disabled={busy}>Close</Button>
           {(() => {
             const pending = lines.filter(l => l.status === 'pending').length;

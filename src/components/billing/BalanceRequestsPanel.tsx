@@ -16,10 +16,10 @@ import { toast } from 'sonner';
 type PanelType = 'topup' | 'refund';
 
 export function BalanceRequestsPanel({ type }: { type: PanelType }) {
-  const { getPendingByType, confirmRequest, rejectRequest } = useBalanceRequests();
+  const { getPendingByType, confirmRequest } = useBalanceRequests();
   const { patients } = usePatients();
   const [active, setActive] = useState<BalanceRequest | null>(null);
-  const [action, setAction] = useState<'confirm' | 'reject' | null>(null);
+  const [action, setAction] = useState<'confirm' | null>(null);
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState('cash');
   const [reason, setReason] = useState('');
@@ -42,11 +42,6 @@ export function BalanceRequestsPanel({ type }: { type: PanelType }) {
     if (!isTopup && p) setAmount(String(p.balance));
   };
 
-  const openReject = (r: BalanceRequest) => {
-    setActive(r);
-    setAction('reject');
-    setReason('');
-  };
 
   const close = () => { setActive(null); setAction(null); };
 
@@ -66,14 +61,6 @@ export function BalanceRequestsPanel({ type }: { type: PanelType }) {
     if (ok) close();
   };
 
-  const handleReject = async () => {
-    if (!active) return;
-    if (!reason.trim()) { toast.error('Reason is required'); return; }
-    setBusy(true);
-    const ok = await rejectRequest(active.id, reason.trim());
-    setBusy(false);
-    if (ok) close();
-  };
 
   return (
     <>
@@ -113,9 +100,6 @@ export function BalanceRequestsPanel({ type }: { type: PanelType }) {
                   <Button size="sm" variant="hero" className="flex-1" onClick={() => openConfirm(r)}>
                     <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
                     {isTopup ? 'Payment Received' : 'Cash Out'}
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => openReject(r)}>
-                    <XCircle className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
@@ -180,21 +164,6 @@ export function BalanceRequestsPanel({ type }: { type: PanelType }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!active && action === 'reject'} onOpenChange={(o) => !o && close()}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Reject Request</DialogTitle>
-            <DialogDescription>Provide a reason so reception knows why.</DialogDescription>
-          </DialogHeader>
-          <div className="py-2">
-            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason for rejection" />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={close} disabled={busy}>Cancel</Button>
-            <Button variant="destructive" onClick={handleReject} disabled={busy}>Reject</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }

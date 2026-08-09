@@ -491,6 +491,11 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
       const { data: isRequired, error } = await supabase.rpc('is_consultation_fee_required', {
         _patient_id: patient.id
       } as any);
+
+      if (error) {
+        console.error('RPC Error:', error);
+        throw error;
+      }
       
       if (isRequired === true) {
         // Check if there is already a pending invoice for this patient that has a consultation fee

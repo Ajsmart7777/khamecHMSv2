@@ -339,7 +339,9 @@ export function CashierPanel() {
         : bal > 0 && cash === 0
         ? 'balance'
         : method;
-      const notes = sponsored
+      const notes = isSalaryDeduction
+        ? `Sponsor salary deduction recorded · ${sponsorLabel(selectedPatient)}`
+        : sponsored
         ? `Copay collected; sponsor claim routed to Claims · ${sponsorLabel(selectedPatient)}`
         : shortfall > 0
         ? `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`

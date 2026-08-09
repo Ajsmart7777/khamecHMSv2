@@ -488,13 +488,29 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
   const handleOpenSendDialog = async () => {
     setIsCheckingFee(true);
     try {
-      const { data, error } = await supabase.rpc('is_consultation_fee_required', {
+      const { data: isRequired, error } = await supabase.rpc('is_consultation_fee_required', {
         _patient_id: patient.id
       });
       
       if (error) throw error;
       
-      if (data === true) {
+      if (isRequired === true) {
+        // Check if there is already a pending invoice for this patient that has a consultation fee
+        const { data: pendingInvoices } = await supabase
+          .from('invoices')
+          .select('id, status, invoice_items!inner(category)')
+          .eq('patient_id', patient.id)
+          .in('status', ['pending', 'partial'])
+          .eq('invoice_items.category', 'consultation');
+
+        if (pendingInvoices && pendingInvoices.length > 0) {
+          toast.info("Patient has a pending consultation fee", {
+            description: "Please record the payment before sending to nurse."
+          });
+          await refreshData();
+          return;
+        }
+
         // Automatically onboard the patient to generate the required fee invoice
         const { error: onboardError } = await supabase.rpc('onboard_patient_v2', {
           _patient_id: patient.id,

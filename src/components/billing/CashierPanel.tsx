@@ -237,6 +237,7 @@ export function CashierPanel() {
     setMethod('cash');
     setUseBalance(false);
     setBalanceAmount('');
+    setIsSalaryDeduction(false);
   };
 
   // When user toggles "use balance", auto-suggest amounts
@@ -350,6 +351,7 @@ export function CashierPanel() {
         paymentMethod,
         notes,
         sponsored,
+        isSalaryDeduction,
       });
 
       // Update patient balance in context immediately for instant UI feedback

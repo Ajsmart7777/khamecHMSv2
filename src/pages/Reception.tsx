@@ -557,7 +557,8 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
         _patient_id: patient.id,
         _charge_reg: type === 'reg',
         _charge_con: type === 'con',
-        _opening_debt: 0
+        _opening_debt: 0,
+        _mark_con_paid: false
       });
       if (error) throw error;
       toast.success(`${type === 'reg' ? 'Registration' : 'Consultation'} fee invoice generated`);

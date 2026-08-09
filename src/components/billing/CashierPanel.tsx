@@ -782,12 +782,13 @@ export function CashierPanel() {
                 <span className="text-muted-foreground">{sponsored ? 'Copay due' : 'Outstanding'}</span>
                 <span className="font-semibold">₦{outstanding.toLocaleString()}</span>
               </div>
-              {isSalaryDeduction ? (
+              {salDed > 0 ? (
                 <div className="flex justify-between text-warning">
                   <span>Salary Deduction</span>
-                  <span>− ₦{outstanding.toLocaleString()}</span>
+                  <span>− ₦{salDed.toLocaleString()}</span>
                 </div>
-              ) : (
+              ) : null}
+              {!isSalaryDeduction || (salDed < outstanding) ? (
                 <>
                   {bal > 0 && (
                     <div className="flex justify-between text-success">
@@ -802,7 +803,7 @@ export function CashierPanel() {
                     </div>
                   )}
                 </>
-              )}
+              ) : null}
               <div className="flex justify-between pt-1 border-t border-border">
                 <span className="font-semibold">
                   {shortfall > 0

@@ -13,7 +13,7 @@
 //   staff              → 0%
 //   staff_family       → 50%   (family gets a 50% hospital discount and pays
 //                                the remaining 50% at the desk like a normal
-//                                cash patient — no payroll deduction)
+//                                cash patient, or via sponsor salary deduction)
 //   normal / cash      → 100%  (patient pays in full — not a claim)
 
 export type SponsorInfo = {

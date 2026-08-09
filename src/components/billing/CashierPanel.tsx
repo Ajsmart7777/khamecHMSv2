@@ -719,7 +719,7 @@ export function CashierPanel() {
                 <div className="pr-3">
                   <Label className="text-sm font-medium">Deduct from sponsor's salary</Label>
                   <p className="text-[10px] text-muted-foreground">
-                    Record this bill to be automatically deducted from the linked staff member's salary.
+                    Record the remaining 50% (₦{outstanding.toLocaleString()}) to be deducted from the sponsor's salary.
                   </p>
                 </div>
                 <Checkbox
@@ -745,17 +745,26 @@ export function CashierPanel() {
                 <span className="text-muted-foreground">{sponsored ? 'Copay due' : 'Outstanding'}</span>
                 <span className="font-semibold">₦{outstanding.toLocaleString()}</span>
               </div>
-              {bal > 0 && (
-                <div className="flex justify-between text-success">
-                  <span>From balance</span>
-                  <span>− ₦{bal.toLocaleString()}</span>
+              {isSalaryDeduction ? (
+                <div className="flex justify-between text-warning">
+                  <span>Salary Deduction</span>
+                  <span>− ₦{outstanding.toLocaleString()}</span>
                 </div>
-              )}
-              {cash > 0 && (
-                <div className="flex justify-between">
-                  <span className="capitalize text-muted-foreground">{method}</span>
-                  <span>− ₦{cash.toLocaleString()}</span>
-                </div>
+              ) : (
+                <>
+                  {bal > 0 && (
+                    <div className="flex justify-between text-success">
+                      <span>From balance</span>
+                      <span>− ₦{bal.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {cash > 0 && (
+                    <div className="flex justify-between">
+                      <span className="capitalize text-muted-foreground">{method}</span>
+                      <span>− ₦{cash.toLocaleString()}</span>
+                    </div>
+                  )}
+                </>
               )}
               <div className="flex justify-between pt-1 border-t border-border">
                 <span className="font-semibold">

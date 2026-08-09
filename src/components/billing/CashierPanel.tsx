@@ -219,7 +219,8 @@ export function CashierPanel() {
 
   const cash = Math.max(Number(cashAmount) || 0, 0);
   const bal = useBalance ? Math.max(Number(balanceAmount) || 0, 0) : 0;
-  const applied = isSalaryDeduction ? outstanding : (cash + bal);
+  const salDed = isSalaryDeduction ? Math.max(Number(salaryDeductionAmount) || 0, 0) : 0;
+  const applied = cash + bal + salDed;
   const shortfall = Math.max(outstanding - applied, 0);
   const overpay = Math.max(applied - outstanding, 0);
   const balExceedsAvail = bal > availableBalance;

@@ -64,6 +64,7 @@ async function settleInvoiceAtomic(params: {
   paymentMethod: string;
   notes?: string;
   sponsored: boolean;
+  isSalaryDeduction?: boolean;
 }) {
   const { data, error } = await supabase.rpc('settle_invoice_atomic', {
     _invoice_id: params.invoiceId,
@@ -73,6 +74,7 @@ async function settleInvoiceAtomic(params: {
     _payment_method: params.paymentMethod,
     _notes: params.notes ?? null,
     _sponsored: params.sponsored,
+    _is_salary_deduction: params.isSalaryDeduction ?? false,
   });
   if (error) throw new Error(`Failed to settle invoice: ${error.message}`);
   return data as any;
@@ -89,6 +91,7 @@ export function CashierPanel() {
   const [method, setMethod] = useState<string>('cash');
   const [useBalance, setUseBalance] = useState(false);
   const [balanceAmount, setBalanceAmount] = useState('');
+  const [isSalaryDeduction, setIsSalaryDeduction] = useState(false);
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState<{
     patient: any;
@@ -234,6 +237,7 @@ export function CashierPanel() {
     setMethod('cash');
     setUseBalance(false);
     setBalanceAmount('');
+    setIsSalaryDeduction(false);
   };
 
   // When user toggles "use balance", auto-suggest amounts
@@ -347,6 +351,7 @@ export function CashierPanel() {
         paymentMethod,
         notes,
         sponsored,
+        isSalaryDeduction,
       });
 
       // Update patient balance in context immediately for instant UI feedback
@@ -706,6 +711,30 @@ export function CashierPanel() {
                     <SelectItem value="transfer">Bank Transfer</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+
+            {selectedPatient?.account_type === 'staff_family' && (
+              <div className="flex items-start justify-between p-3 rounded-lg border border-warning/30 bg-warning/5">
+                <div className="pr-3">
+                  <Label className="text-sm font-medium">Deduct from sponsor's salary</Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    Record this bill to be automatically deducted from the linked staff member's salary.
+                  </p>
+                </div>
+                <Checkbox
+                  checked={isSalaryDeduction}
+                  onCheckedChange={(v) => {
+                    setIsSalaryDeduction(!!v);
+                    if (v) {
+                      setCashAmount('0');
+                      setUseBalance(false);
+                      setBalanceAmount('0');
+                    } else {
+                      setCashAmount(String(outstanding));
+                    }
+                  }}
+                />
               </div>
             )}
 

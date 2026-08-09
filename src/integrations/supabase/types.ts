@@ -878,6 +878,7 @@ export type Database = {
           discount_amount: number
           id: string
           invoice_number: string
+          is_salary_deduction: boolean | null
           notes: string | null
           original_amount: number
           paid_amount: number
@@ -885,6 +886,7 @@ export type Database = {
           patient_id: string
           payment_method: string | null
           sponsor_type: string | null
+          staff_sponsor_id: string | null
           status: string
           total_amount: number
           updated_at: string
@@ -900,6 +902,7 @@ export type Database = {
           discount_amount?: number
           id?: string
           invoice_number: string
+          is_salary_deduction?: boolean | null
           notes?: string | null
           original_amount?: number
           paid_amount?: number
@@ -907,6 +910,7 @@ export type Database = {
           patient_id: string
           payment_method?: string | null
           sponsor_type?: string | null
+          staff_sponsor_id?: string | null
           status?: string
           total_amount?: number
           updated_at?: string
@@ -922,6 +926,7 @@ export type Database = {
           discount_amount?: number
           id?: string
           invoice_number?: string
+          is_salary_deduction?: boolean | null
           notes?: string | null
           original_amount?: number
           paid_amount?: number
@@ -929,6 +934,7 @@ export type Database = {
           patient_id?: string
           payment_method?: string | null
           sponsor_type?: string | null
+          staff_sponsor_id?: string | null
           status?: string
           total_amount?: number
           updated_at?: string
@@ -947,6 +953,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_staff_sponsor_id_fkey"
+            columns: ["staff_sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
           {
@@ -2878,18 +2891,32 @@ export type Database = {
         Args: { _admission_id: string; _note?: string }
         Returns: undefined
       }
-      settle_invoice_atomic: {
-        Args: {
-          _balance_amount?: number
-          _cash_amount?: number
-          _debt_amount?: number
-          _invoice_id: string
-          _notes?: string
-          _payment_method?: string
-          _sponsored?: boolean
-        }
-        Returns: Json
-      }
+      settle_invoice_atomic:
+        | {
+            Args: {
+              _balance_amount?: number
+              _cash_amount?: number
+              _debt_amount?: number
+              _invoice_id: string
+              _notes?: string
+              _payment_method?: string
+              _sponsored?: boolean
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              _balance_amount?: number
+              _cash_amount?: number
+              _debt_amount?: number
+              _invoice_id: string
+              _is_salary_deduction?: boolean
+              _notes?: string
+              _payment_method?: string
+              _sponsored?: boolean
+            }
+            Returns: Json
+          }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       simple_id: { Args: { _n: number; _prefix: string }; Returns: string }

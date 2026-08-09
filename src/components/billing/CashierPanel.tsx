@@ -80,7 +80,7 @@ async function settleInvoiceAtomic(params: {
 
 export function CashierPanel() {
   const { getPendingInvoices, refreshInvoices } = useInvoices();
-  const { patients, updatePatientStatus, refreshPatients } = usePatients() as any;
+  const { patients, updatePatientStatus, refreshPatients, updatePatient } = usePatients() as any;
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'copay' | 'covered'>('all');
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -339,7 +339,7 @@ export function CashierPanel() {
         ? `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`
         : undefined;
       const debt = !sponsored && shortfall > 0 ? shortfall : 0;
-      await settleInvoiceAtomic({
+      const result = await settleInvoiceAtomic({
         invoiceId: selected.id,
         cashAmount: cash,
         balanceAmount: bal,
@@ -349,8 +349,12 @@ export function CashierPanel() {
         sponsored,
       });
 
+      // Update patient balance in context immediately for instant UI feedback
+      if (result?.new_wallet_balance !== undefined && typeof updatePatient === 'function') {
+        updatePatient(selected.patient_id, { balance: result.new_wallet_balance });
+      }
+
       await refreshInvoices();
-      if (typeof refreshPatients === 'function') await refreshPatients();
 
       await paymentAuditLogger('payment_received', selected.invoice_number, {
         patient_id: selected.patient_id,

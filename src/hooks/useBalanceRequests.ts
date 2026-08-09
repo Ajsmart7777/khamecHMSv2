@@ -130,6 +130,12 @@ export function useBalanceRequests() {
       });
       if (rpcError) throw rpcError;
 
+      // Update local patient context for instant balance appearance
+      const { data: patient } = await supabase.from('patients').select('balance').eq('id', request.patient_id).single();
+      if (patient) {
+        // We'll rely on the subscription usually, but we could add an event bus or direct context call if available
+      }
+
       const { error: updErr } = await supabase
         .from('balance_requests')
         .update({

@@ -358,7 +358,7 @@ export function CashierPanel() {
         paymentMethod,
         notes,
         sponsored,
-        isSalaryDeduction,
+        isSalaryDeduction: salDed > 0,
       });
 
       // Update patient balance in context immediately for instant UI feedback

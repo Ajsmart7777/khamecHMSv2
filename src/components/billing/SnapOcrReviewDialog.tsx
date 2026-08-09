@@ -96,8 +96,7 @@ export function SnapOcrReviewDialog({
 
   const stats = useMemo(() => {
     const a = rows.filter(r => r.decision === 'accepted').length;
-    const r = rows.filter(x => x.decision === 'rejected').length;
-    return { accepted: a, rejected: r, pending: rows.length - a - r };
+    return { accepted: a, pending: rows.length - a };
   }, [rows]);
 
   const update = (i: number, patch: Partial<ReviewRow>) =>
@@ -169,7 +168,7 @@ export function SnapOcrReviewDialog({
       return;
     }
     if (accepted.length) onAcceptItems(accepted);
-    toast.success(`Review saved · ${stats.accepted} accepted, ${stats.rejected} rejected`);
+    toast.success(`Review saved · ${stats.accepted} accepted`);
     onOpenChange(false);
   };
 
@@ -182,7 +181,7 @@ export function SnapOcrReviewDialog({
             Review OCR Extractions
           </DialogTitle>
           <DialogDescription>
-            Accept, edit, or reject each extracted line before it's added to the invoice.
+            Accept or edit each extracted line before it's added to the invoice.
             {confidence > 0 && <span className="ml-2 text-xs">Overall confidence {Math.round(confidence * 100)}%</span>}
           </DialogDescription>
         </DialogHeader>
@@ -259,13 +258,6 @@ export function SnapOcrReviewDialog({
                   <div className="flex justify-end gap-2 pt-1">
                     <Button
                       size="sm"
-                      variant={r.decision === 'rejected' ? 'destructive' : 'outline'}
-                      onClick={() => update(i, { decision: r.decision === 'rejected' ? 'pending' : 'rejected' })}
-                    >
-                      <X className="h-3.5 w-3.5 mr-1" /> Reject
-                    </Button>
-                    <Button
-                      size="sm"
                       variant={r.decision === 'accepted' ? 'default' : 'outline'}
                       onClick={() => update(i, { decision: r.decision === 'accepted' ? 'pending' : 'accepted' })}
                     >
@@ -280,7 +272,7 @@ export function SnapOcrReviewDialog({
 
         <DialogFooter className="items-center">
           <div className="text-xs text-muted-foreground mr-auto">
-            {stats.accepted} accepted · {stats.rejected} rejected · {stats.pending} pending
+            {stats.accepted} accepted · {stats.pending} pending
           </div>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={save} disabled={saving || loading}>

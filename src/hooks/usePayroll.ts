@@ -208,6 +208,8 @@ export function usePayrollEntries(periodId: string | null) {
 
   const addAllStaff = async () => {
     if (!periodId) return;
+    
+    // 1) Fetch active staff
     const { data: staffList, error: staffErr } = await supabase
       .from('staff')
       .select('id, salary')
@@ -218,23 +220,50 @@ export function usePayrollEntries(periodId: string | null) {
       return;
     }
 
+    // 2) Get current period dates for deduction calculation
+    const period = periods.find(p => p.id === periodId);
+    const startDate = period ? new Date(period.year, period.month - 1, 1).toISOString().split('T')[0] : null;
+    const endDate = period ? new Date(period.year, period.month, 0).toISOString().split('T')[0] : null;
+
     const existingIds = new Set(entries.map(e => e.staff_id));
     const newStaff = staffList.filter(s => !existingIds.has(s.id));
+    
     if (newStaff.length === 0) {
       toast({ title: 'Info', description: 'All active staff already added.' });
       return;
     }
 
-    const rows = newStaff.map(s => ({
-      payroll_period_id: periodId,
-      staff_id: s.id,
-      basic_salary: Number(s.salary),
-      allowances: {},
-      gross_pay: Number(s.salary),
-      deductions: {},
-      total_deductions: 0,
-      net_pay: Number(s.salary),
-      status: 'pending',
+    // 3) Calculate deductions for each staff (including family deductions)
+    const rows = await Promise.all(newStaff.map(async s => {
+      let familyDeductions = 0;
+      if (startDate && endDate) {
+        const { data: deductData } = await supabase.rpc('calculate_payroll_deductions', {
+          _staff_id: s.id,
+          _period_start: startDate,
+          _period_end: endDate
+        });
+        familyDeductions = Number(deductData) || 0;
+      }
+
+      const deductions: Record<string, number> = {};
+      if (familyDeductions > 0) {
+        deductions['family_medical'] = familyDeductions;
+      }
+
+      const basicSalary = Number(s.salary);
+      const totalDeductions = Object.values(deductions).reduce((a, b) => a + b, 0);
+
+      return {
+        payroll_period_id: periodId,
+        staff_id: s.id,
+        basic_salary: basicSalary,
+        allowances: {},
+        gross_pay: basicSalary,
+        deductions: deductions,
+        total_deductions: totalDeductions,
+        net_pay: basicSalary - totalDeductions,
+        status: 'pending',
+      };
     }));
 
     const { error } = await supabase.from('payroll_entries').insert(rows);

@@ -714,6 +714,30 @@ export function CashierPanel() {
               </div>
             )}
 
+            {selectedPatient?.account_type === 'staff_family' && (
+              <div className="flex items-start justify-between p-3 rounded-lg border border-warning/30 bg-warning/5">
+                <div className="pr-3">
+                  <Label className="text-sm font-medium">Deduct from sponsor's salary</Label>
+                  <p className="text-[10px] text-muted-foreground">
+                    Record this bill to be automatically deducted from the linked staff member's salary.
+                  </p>
+                </div>
+                <Checkbox
+                  checked={isSalaryDeduction}
+                  onCheckedChange={(v) => {
+                    setIsSalaryDeduction(!!v);
+                    if (v) {
+                      setCashAmount('0');
+                      setUseBalance(false);
+                      setBalanceAmount('0');
+                    } else {
+                      setCashAmount(String(outstanding));
+                    }
+                  }}
+                />
+              </div>
+            )}
+
             {/* Summary */}
             {!fullCover && (
             <div className="rounded-lg bg-muted/40 p-3 text-xs space-y-1">

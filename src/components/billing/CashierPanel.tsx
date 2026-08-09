@@ -92,6 +92,7 @@ export function CashierPanel() {
   const [useBalance, setUseBalance] = useState(false);
   const [balanceAmount, setBalanceAmount] = useState('');
   const [isSalaryDeduction, setIsSalaryDeduction] = useState(false);
+  const [salaryDeductionAmount, setSalaryDeductionAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState<{
     patient: any;
@@ -218,7 +219,8 @@ export function CashierPanel() {
 
   const cash = Math.max(Number(cashAmount) || 0, 0);
   const bal = useBalance ? Math.max(Number(balanceAmount) || 0, 0) : 0;
-  const applied = isSalaryDeduction ? outstanding : (cash + bal);
+  const salDed = isSalaryDeduction ? Math.max(Number(salaryDeductionAmount) || 0, 0) : 0;
+  const applied = cash + bal + salDed;
   const shortfall = Math.max(outstanding - applied, 0);
   const overpay = Math.max(applied - outstanding, 0);
   const balExceedsAvail = bal > availableBalance;
@@ -238,6 +240,7 @@ export function CashierPanel() {
     setUseBalance(false);
     setBalanceAmount('');
     setIsSalaryDeduction(false);
+    setSalaryDeductionAmount('');
   };
 
   // When user toggles "use balance", auto-suggest amounts
@@ -332,15 +335,15 @@ export function CashierPanel() {
     try {
       // Wallet deduction, debt recording, and invoice close all run in a single
       // server-side transaction — no partial states if any step fails.
-      const paymentMethod = isSalaryDeduction
+      const paymentMethod = salDed > 0 && cash === 0 && bal === 0
         ? 'salary_deduction'
         : sponsored
         ? 'sponsor_claim'
         : bal > 0 && cash === 0
         ? 'balance'
         : method;
-      const notes = isSalaryDeduction
-        ? `Sponsor salary deduction recorded · ${sponsorLabel(selectedPatient)}`
+      const notes = salDed > 0
+        ? `Salary deduction of ₦${salDed.toLocaleString()} recorded · ${sponsorLabel(selectedPatient)}`
         : sponsored
         ? `Copay collected; sponsor claim routed to Claims · ${sponsorLabel(selectedPatient)}`
         : shortfall > 0
@@ -355,7 +358,7 @@ export function CashierPanel() {
         paymentMethod,
         notes,
         sponsored,
-        isSalaryDeduction,
+        isSalaryDeduction: salDed > 0,
       });
 
       // Update patient balance in context immediately for instant UI feedback
@@ -368,7 +371,7 @@ export function CashierPanel() {
       await paymentAuditLogger('payment_received', selected.invoice_number, {
         patient_id: selected.patient_id,
         patient_name: `${selectedPatient.first_name} ${selectedPatient.last_name}`,
-        action: isSalaryDeduction
+        action: salDed > 0
           ? 'salary_deduction_recorded'
           : sponsored
           ? 'copay_recorded_sponsor_billed'
@@ -378,8 +381,9 @@ export function CashierPanel() {
         sponsor: (sponsored || isSalaryDeduction) ? sponsorLabel(selectedPatient) : null,
         cash_amount: cash,
         balance_amount: bal,
-        is_salary_deduction: isSalaryDeduction,
-        copay_amount: sponsored ? (isSalaryDeduction ? outstanding : cash + bal) : undefined,
+        is_salary_deduction: salDed > 0,
+        salary_deduction_amount: salDed,
+        copay_amount: sponsored ? (salDed + cash + bal) : undefined,
         covered_amount: sponsored ? Math.max(invoiceTotal - split.copayAmount, 0) : undefined,
         method,
         shortfall: sponsored ? 0 : shortfall,
@@ -393,11 +397,12 @@ export function CashierPanel() {
       const parts: string[] = [];
       if (cash > 0) parts.push(`₦${cash.toLocaleString()} ${method}`);
       if (bal > 0) parts.push(`₦${bal.toLocaleString()} balance`);
+      if (salDed > 0) parts.push(`₦${salDed.toLocaleString()} salary deduction`);
       if (!sponsored && shortfall > 0) parts.push(`₦${shortfall.toLocaleString()} owed on balance`);
       if (!sponsored && overpay > 0) parts.push(`₦${overpay.toLocaleString()} credited to wallet`);
       if (sponsored) parts.push(`sponsor ₦${(invoiceTotal - split.copayAmount).toLocaleString()} → Claims`);
 
-      const successMessage = isSalaryDeduction
+      const successMessage = salDed > 0 && cash === 0 && bal === 0
         ? 'Salary deduction recorded'
         : sponsored
         ? 'Copay collected — sent to Claims'
@@ -415,7 +420,7 @@ export function CashierPanel() {
       setReceipt({
         patient: selectedPatient,
         amount: cash + bal,
-        paymentMethod: isSalaryDeduction ? 'salary_deduction' : (bal > 0 && cash === 0 ? 'balance' : method),
+        paymentMethod: salDed > 0 && cash === 0 && bal === 0 ? 'salary_deduction' : (bal > 0 && cash === 0 ? 'balance' : method),
         receiptNumber: selected.invoice_number,
         date: new Date(),
         newBalance: Number(patientBalance) - bal - (!sponsored && shortfall > 0 ? shortfall : 0),
@@ -434,6 +439,8 @@ export function CashierPanel() {
       setCashAmount('');
       setBalanceAmount('');
       setUseBalance(false);
+      setSalaryDeductionAmount('');
+      setIsSalaryDeduction(false);
     } catch (err: any) {
       toast.error(err?.message || 'Failed to record payment');
     } finally {
@@ -729,25 +736,42 @@ export function CashierPanel() {
 
             {selectedPatient?.account_type === 'staff_family' && (
               <div className="flex items-start justify-between p-3 rounded-lg border border-warning/30 bg-warning/5">
-                <div className="pr-3">
-                  <Label className="text-sm font-medium">Deduct from sponsor's salary</Label>
-                  <p className="text-[10px] text-muted-foreground">
-                    Record the remaining 50% (₦{outstanding.toLocaleString()}) to be deducted from the sponsor's salary.
-                  </p>
+                <div className="space-y-2 w-full">
+                  <div className="flex items-start justify-between">
+                    <div className="pr-3">
+                      <Label className="text-sm font-medium">Deduct from sponsor's salary</Label>
+                      <p className="text-[10px] text-muted-foreground">
+                        Record a portion or the full remaining 50% (₦{outstanding.toLocaleString()}) to be deducted from the sponsor's salary.
+                      </p>
+                    </div>
+                    <Checkbox
+                      checked={isSalaryDeduction}
+                      onCheckedChange={(v) => {
+                        setIsSalaryDeduction(!!v);
+                        if (v) {
+                          setSalaryDeductionAmount(String(outstanding));
+                          setCashAmount('0');
+                          setUseBalance(false);
+                          setBalanceAmount('0');
+                        } else {
+                          setSalaryDeductionAmount('');
+                          setCashAmount(String(outstanding));
+                        }
+                      }}
+                    />
+                  </div>
+                  {isSalaryDeduction && (
+                    <div className="pt-1">
+                      <Label className="text-xs">Deduction amount (₦)</Label>
+                      <Input
+                        type="number"
+                        value={salaryDeductionAmount}
+                        onChange={(e) => setSalaryDeductionAmount(e.target.value)}
+                        max={outstanding}
+                      />
+                    </div>
+                  )}
                 </div>
-                <Checkbox
-                  checked={isSalaryDeduction}
-                  onCheckedChange={(v) => {
-                    setIsSalaryDeduction(!!v);
-                    if (v) {
-                      setCashAmount('0');
-                      setUseBalance(false);
-                      setBalanceAmount('0');
-                    } else {
-                      setCashAmount(String(outstanding));
-                    }
-                  }}
-                />
               </div>
             )}
 
@@ -758,12 +782,13 @@ export function CashierPanel() {
                 <span className="text-muted-foreground">{sponsored ? 'Copay due' : 'Outstanding'}</span>
                 <span className="font-semibold">₦{outstanding.toLocaleString()}</span>
               </div>
-              {isSalaryDeduction ? (
+              {salDed > 0 ? (
                 <div className="flex justify-between text-warning">
                   <span>Salary Deduction</span>
-                  <span>− ₦{outstanding.toLocaleString()}</span>
+                  <span>− ₦{salDed.toLocaleString()}</span>
                 </div>
-              ) : (
+              ) : null}
+              {!isSalaryDeduction || (salDed < outstanding) ? (
                 <>
                   {bal > 0 && (
                     <div className="flex justify-between text-success">
@@ -778,7 +803,7 @@ export function CashierPanel() {
                     </div>
                   )}
                 </>
-              )}
+              ) : null}
               <div className="flex justify-between pt-1 border-t border-border">
                 <span className="font-semibold">
                   {shortfall > 0
@@ -854,8 +879,10 @@ export function CashierPanel() {
                 ? 'Recording…'
                 : fullCover
                 ? 'Acknowledge & Send to Claims'
-                : isSalaryDeduction
+                : salDed > 0 && salDed === outstanding
                 ? 'Confirm Salary Deduction'
+                : salDed > 0
+                ? 'Confirm Mixed Payment'
                 : sponsored
                 ? 'Collect Copay & Send to Claims'
                 : shortfall > 0

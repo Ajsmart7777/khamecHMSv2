@@ -397,11 +397,17 @@ export function CashierPanel() {
       if (!sponsored && overpay > 0) parts.push(`₦${overpay.toLocaleString()} credited to wallet`);
       if (sponsored) parts.push(`sponsor ₦${(invoiceTotal - split.copayAmount).toLocaleString()} → Claims`);
 
-      toast.success(
-        sponsored
-          ? 'Copay collected — sent to Claims'
-          : overpay > 0 ? 'Payment recorded with change to wallet' : 
-            shortfall > 0 ? 'Partial payment recorded' : 'Payment recorded',
+      const successMessage = isSalaryDeduction
+        ? 'Salary deduction recorded'
+        : sponsored
+        ? 'Copay collected — sent to Claims'
+        : overpay > 0 
+        ? 'Payment recorded with change to wallet' 
+        : shortfall > 0 
+        ? 'Partial payment recorded' 
+        : 'Payment recorded';
+
+      toast.success(successMessage,
         { description: `${selected.invoice_number} · ${parts.join(' + ')} · routed to ${workflowStationLabel(nextStation)}` }
       );
 

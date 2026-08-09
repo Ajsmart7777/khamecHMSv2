@@ -56,9 +56,11 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { AccountType } from '@/types/hms';
+import { logError } from '@/lib/errorHandler';
 import { usePatients, Patient } from '@/contexts/PatientContext';
 import { supabase } from '@/integrations/supabase/client';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';

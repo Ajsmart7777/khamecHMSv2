@@ -165,7 +165,7 @@ const Reception = () => {
   const handleSendToNurse = async (preferredDoctor?: 'doctor1' | 'doctor2') => {
     if (!selectedPatient) return;
     
-    // Manual check for monthly consultation fee
+    // Refresh patient data to get latest consultation status
     const { data: isPaid, error: checkError } = await supabase.rpc('check_monthly_consultation_paid', {
       _patient_id: selectedPatient.id
     });
@@ -176,6 +176,17 @@ const Reception = () => {
     }
 
     if (!isPaid) {
+      // Final attempt: check if there's a pending invoice that was JUST paid
+      await refreshPatients();
+      
+      const p = patients.find(p => p.id === selectedPatient.id);
+      if (p && !p.registration_fee_paid && p.account_type === 'normal') {
+         toast.error("Registration Fee Required", {
+           description: "Please record the registration fee payment before sending to Nurse."
+         });
+         return;
+      }
+      
       toast.error("Monthly Consultation Fee Required", {
         description: "Please generate and record the consultation fee payment before sending to Nurse."
       });
@@ -537,11 +548,13 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
           table: 'invoices',
           filter: `patient_id=eq.${patient.id}`
         },
-        (payload) => {
+        async (payload) => {
           const isPaid = (payload.new as any).status === 'paid';
-          const isConsultation = (payload.new as any).notes === 'MONTHLY_CONSULTATION' || (payload.new as any).notes === 'ONBOARDING_FEES';
-          if (isPaid && isConsultation) {
-            setConsultationStatus({ paid: true, loading: false });
+          if (isPaid) {
+            // Re-check both registration and consultation flags from the server
+            // to ensure UI stays perfectly in sync with the DB transaction
+            await refreshData();
+            await checkConsultationStatus();
           }
         }
       )

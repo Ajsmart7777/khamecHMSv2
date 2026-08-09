@@ -399,7 +399,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isCheckingFee, setIsCheckingFee] = useState(false);
   const [isChargingFees, setIsChargingFees] = useState(false);
-  const [consultationPaidThisMonth, setConsultationPaidThisMonth] = useState<boolean | null>(null);
+  const [consultationStatus, setConsultationStatus] = useState<{ paid: boolean; loading: boolean }>({ paid: false, loading: true });
   const [preferredDoctor, setPreferredDoctor] = useState<'doctor1' | 'doctor2' | 'none'>('none');
   const [isJourneyOpen, setIsJourneyOpen] = useState(false);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
@@ -512,17 +512,43 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
 
   const checkConsultationStatus = useCallback(async () => {
     if (!patient.id) return;
+    setConsultationStatus(prev => ({ ...prev, loading: true }));
     const { data, error } = await supabase.rpc('check_monthly_consultation_paid', {
       _patient_id: patient.id
     });
     if (!error) {
-      setConsultationPaidThisMonth(!!data);
+      setConsultationStatus({ paid: !!data, loading: false });
+    } else {
+      setConsultationStatus(prev => ({ ...prev, loading: false }));
     }
   }, [patient.id]);
 
   useEffect(() => {
     checkConsultationStatus();
-  }, [checkConsultationStatus]);
+
+    // Instant update when invoices are marked as paid
+    const channel = supabase
+      .channel(`reception-invoices-${patient.id}`)
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'invoices',
+          filter: `patient_id=eq.${patient.id}`
+        },
+        (payload) => {
+          if ((payload.new as any).status === 'paid' && (payload.new as any).notes === 'MONTHLY_CONSULTATION') {
+            setConsultationStatus({ paid: true, loading: false });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [checkConsultationStatus, patient.id]);
 
   const handleManualCharge = async (type: 'reg' | 'con') => {
     setIsChargingFees(true);
@@ -604,7 +630,11 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
           
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Monthly Consultation ({format(new Date(), 'MMM')})</span>
-            {consultationPaidThisMonth ? (
+            {consultationStatus.loading ? (
+              <Badge variant="outline" className="w-fit gap-1 text-[10px] animate-pulse">
+                Checking...
+              </Badge>
+            ) : consultationStatus.paid ? (
               <Badge variant="success" className="w-fit gap-1 text-[10px]">
                 <CheckCircle2 className="h-3 w-3" /> Consultation Paid
               </Badge>
@@ -1298,6 +1328,7 @@ function NewPatientForm({
         _charge_reg: patientType === 'new',
         _charge_con: !isConsultationPaid,
         _opening_debt: parseFloat(openingDebt) || 0,
+        _mark_con_paid: patientType === 'existing' && isConsultationPaid,
       });
 
       if (onboardErr) {

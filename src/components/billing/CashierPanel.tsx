@@ -879,8 +879,10 @@ export function CashierPanel() {
                 ? 'Recording…'
                 : fullCover
                 ? 'Acknowledge & Send to Claims'
-                : isSalaryDeduction
+                : salDed > 0 && salDed === outstanding
                 ? 'Confirm Salary Deduction'
+                : salDed > 0
+                ? 'Confirm Mixed Payment'
                 : sponsored
                 ? 'Collect Copay & Send to Claims'
                 : shortfall > 0

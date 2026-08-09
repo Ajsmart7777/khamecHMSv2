@@ -397,6 +397,7 @@ export function CashierPanel() {
       const parts: string[] = [];
       if (cash > 0) parts.push(`₦${cash.toLocaleString()} ${method}`);
       if (bal > 0) parts.push(`₦${bal.toLocaleString()} balance`);
+      if (salDed > 0) parts.push(`₦${salDed.toLocaleString()} salary deduction`);
       if (!sponsored && shortfall > 0) parts.push(`₦${shortfall.toLocaleString()} owed on balance`);
       if (!sponsored && overpay > 0) parts.push(`₦${overpay.toLocaleString()} credited to wallet`);
       if (sponsored) parts.push(`sponsor ₦${(invoiceTotal - split.copayAmount).toLocaleString()} → Claims`);

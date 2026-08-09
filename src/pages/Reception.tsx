@@ -56,9 +56,11 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { AccountType } from '@/types/hms';
+import { logError } from '@/lib/errorHandler';
 import { usePatients, Patient } from '@/contexts/PatientContext';
 import { supabase } from '@/integrations/supabase/client';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
@@ -337,6 +339,7 @@ const Reception = () => {
                 patient={selectedPatient}
                 onClose={() => setSelectedPatientId(null)}
                 onSendToNurse={handleSendToNurse}
+                refreshData={refreshPatients}
               />
             </div>
           ) : (
@@ -370,7 +373,7 @@ function EmptyState({ onNewPatient }: { onNewPatient: () => void }) {
   );
 }
 
-function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Patient; onClose: () => void; onSendToNurse: (preferredDoctor?: 'doctor1' | 'doctor2') => void }) {
+function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { patient: Patient; onClose: () => void; onSendToNurse: (preferredDoctor?: 'doctor1' | 'doctor2') => void; refreshData: () => void }) {
   const { updatePatient, updatePatientStatus, deletePatient } = usePatients();
   const { getInvoicesForPatient, recordPayment } = useInvoices();
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
@@ -445,6 +448,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse }: { patient: Pati
       if (isInvoiceFullyPaid) {
         const nextStation = await nextStationForInvoice(pendingInvoice.id, patient.id, 'discharged');
         await updatePatientStatus(patient.id, nextStation);
+        refreshData();
         toast.info(
           nextStation === 'discharged'
             ? 'Patient discharged — no pending station work'
@@ -1026,6 +1030,9 @@ function NewPatientForm({
       : initialVerification.sponsor_type === 'hmo' ? 'hmo'
       : initialVerification.sponsor_type === 'katchma' ? 'katchma' : '')
     : '';
+  const [patientType, setPatientType] = useState<'new' | 'existing'>('new');
+  const [openingDebt, setOpeningDebt] = useState('0');
+  const [isConsultationPaid, setIsConsultationPaid] = useState(false);
   const [formData, setFormData] = useState({
     full_name: seededName,
     phone: seededPhone,
@@ -1171,6 +1178,22 @@ function NewPatientForm({
       balance: 0,
     } as any);
 
+    if (result && (result as any).id) {
+      const { error: onboardErr } = await supabase.rpc('onboard_patient_v2' as any, {
+        _patient_id: (result as any).id,
+        _is_new_registration: patientType === 'new',
+        _consultation_already_paid: isConsultationPaid,
+        _opening_debt: parseFloat(openingDebt) || 0,
+      });
+
+      if (onboardErr) {
+        logError('Error in patient onboarding fees', onboardErr);
+        toast.error('Patient created but fees initialization failed', {
+          description: onboardErr.message
+        });
+      }
+    }
+
     setIsSubmitting(false);
 
     if (result) {
@@ -1191,6 +1214,68 @@ function NewPatientForm({
 
   return (
     <div className="space-y-6 py-4">
+      <div className="bg-muted/30 p-4 rounded-lg border border-border space-y-4">
+        <div>
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+            Patient Type
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant={patientType === 'new' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPatientType('new')}
+              className="w-full"
+            >
+              New Patient
+            </Button>
+            <Button
+              type="button"
+              variant={patientType === 'existing' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setPatientType('existing')}
+              className="w-full"
+            >
+              Existing/Old Patient
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2">
+            {patientType === 'new' 
+              ? "Charge Registration Fee (₦1,000) and Monthly Consultation (₦3,000)."
+              : "No Registration Fee. Option to mark Consultation as already paid."}
+          </p>
+        </div>
+
+        {patientType === 'existing' && (
+          <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Opening Debt (₦)</label>
+              <Input
+                type="number"
+                placeholder="0.00"
+                value={openingDebt}
+                onChange={(e) => setOpeningDebt(e.target.value)}
+                className="h-8 text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground">Owed from physical card.</p>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium block">Consultation Status</label>
+              <div className="flex items-center gap-2 pt-1">
+                <Checkbox
+                  id="con-paid"
+                  checked={isConsultationPaid}
+                  onCheckedChange={(checked) => setIsConsultationPaid(!!checked)}
+                />
+                <label htmlFor="con-paid" className="text-xs cursor-pointer">
+                  Already paid this month
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       <div>
         <h4 className="text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wide">Patient Details</h4>
         <div className="grid grid-cols-2 gap-4">

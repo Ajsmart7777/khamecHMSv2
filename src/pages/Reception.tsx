@@ -632,23 +632,24 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
           </Button>
         )}
 
-        {(patient.status === 'registered' || patient.status === 'discharged') ? (
-        <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
-          <div className="hidden">
-            <DialogTrigger asChild>
-              <Button />
-            </DialogTrigger>
-          </div>
-            <Button 
+        {patient.status === 'registered' || patient.status === 'discharged' ? (
+          <>
+            <Button
               variant={patient.status === 'discharged' ? 'hero' : 'module'}
               className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
               onClick={handleOpenSendDialog}
               disabled={isCheckingFee}
             >
-              {isCheckingFee ? <RefreshCw className="h-5 w-5 animate-spin" /> : (patient.status === 'discharged' ? <RefreshCw className="h-5 w-5" /> : <Send className="h-5 w-5" />)}
+              {isCheckingFee ? (
+                <RefreshCw className="h-5 w-5 animate-spin" />
+              ) : patient.status === 'discharged' ? (
+                <RefreshCw className="h-5 w-5" />
+              ) : (
+                <Send className="h-5 w-5" />
+              )}
               <span>{patient.status === 'discharged' ? 'Start New Visit' : 'Send to Nurse'}</span>
             </Button>
-          </DialogTrigger>
+            <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -697,9 +698,10 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
                 Confirm Send
               </Button>
             </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        ) : (
+            </DialogContent>
+          </Dialog>
+        </>
+      ) : (
           <Button 
             variant="module" 
             className="h-20 flex-col gap-2 opacity-50 cursor-not-allowed"

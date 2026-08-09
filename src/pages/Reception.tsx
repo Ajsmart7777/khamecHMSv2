@@ -538,7 +538,9 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
           filter: `patient_id=eq.${patient.id}`
         },
         (payload) => {
-          if ((payload.new as any).status === 'paid' && (payload.new as any).notes === 'MONTHLY_CONSULTATION') {
+          const isPaid = (payload.new as any).status === 'paid';
+          const isConsultation = (payload.new as any).notes === 'MONTHLY_CONSULTATION' || (payload.new as any).notes === 'ONBOARDING_FEES';
+          if (isPaid && isConsultation) {
             setConsultationStatus({ paid: true, loading: false });
           }
         }

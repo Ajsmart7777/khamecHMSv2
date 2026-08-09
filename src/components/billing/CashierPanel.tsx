@@ -402,7 +402,7 @@ export function CashierPanel() {
       if (!sponsored && overpay > 0) parts.push(`₦${overpay.toLocaleString()} credited to wallet`);
       if (sponsored) parts.push(`sponsor ₦${(invoiceTotal - split.copayAmount).toLocaleString()} → Claims`);
 
-      const successMessage = isSalaryDeduction
+      const successMessage = salDed > 0 && cash === 0 && bal === 0
         ? 'Salary deduction recorded'
         : sponsored
         ? 'Copay collected — sent to Claims'

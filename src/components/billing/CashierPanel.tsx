@@ -332,7 +332,9 @@ export function CashierPanel() {
     try {
       // Wallet deduction, debt recording, and invoice close all run in a single
       // server-side transaction — no partial states if any step fails.
-      const paymentMethod = sponsored
+      const paymentMethod = isSalaryDeduction
+        ? 'salary_deduction'
+        : sponsored
         ? 'sponsor_claim'
         : bal > 0 && cash === 0
         ? 'balance'

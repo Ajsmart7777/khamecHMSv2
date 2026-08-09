@@ -177,8 +177,10 @@ const Reception = () => {
 
     if (!isPaid) {
       // Final attempt: check if there's a pending invoice that was JUST paid
-      await refreshData();
-      if (!selectedPatient.registration_fee_paid && selectedPatient.account_type === 'cash') {
+      await refreshPatients();
+      
+      const p = patients.find(p => p.id === selectedPatient.id);
+      if (p && !p.registration_fee_paid && p.account_type === 'normal') {
          toast.error("Registration Fee Required", {
            description: "Please record the registration fee payment before sending to Nurse."
          });

@@ -92,6 +92,7 @@ export function CashierPanel() {
   const [useBalance, setUseBalance] = useState(false);
   const [balanceAmount, setBalanceAmount] = useState('');
   const [isSalaryDeduction, setIsSalaryDeduction] = useState(false);
+  const [salaryDeductionAmount, setSalaryDeductionAmount] = useState('');
   const [busy, setBusy] = useState(false);
   const [receipt, setReceipt] = useState<{
     patient: any;

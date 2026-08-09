@@ -1179,7 +1179,7 @@ function NewPatientForm({
     } as any);
 
     if (result && (result as any).id) {
-      const { error: onboardErr } = await supabase.rpc('onboard_patient_v2', {
+      const { error: onboardErr } = await supabase.rpc('onboard_patient_v2' as any, {
         _patient_id: (result as any).id,
         _is_new_registration: patientType === 'new',
         _consultation_already_paid: isConsultationPaid,

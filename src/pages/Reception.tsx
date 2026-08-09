@@ -378,6 +378,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
   const { getInvoicesForPatient, recordPayment } = useInvoices();
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
+  const [isCheckingFee, setIsCheckingFee] = useState(false);
   const [preferredDoctor, setPreferredDoctor] = useState<'doctor1' | 'doctor2' | 'none'>('none');
   const [isJourneyOpen, setIsJourneyOpen] = useState(false);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
@@ -482,6 +483,31 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
     onSendToNurse(preferredDoctor === 'none' ? undefined : preferredDoctor);
     setIsSendDialogOpen(false);
     setPreferredDoctor('none');
+  };
+
+  const handleOpenSendDialog = async () => {
+    setIsCheckingFee(true);
+    try {
+      const { data, error } = await supabase.rpc('is_consultation_fee_required', {
+        _patient_id: patient.id
+      });
+      
+      if (error) throw error;
+      
+      if (data === true) {
+        toast.error("Monthly consultation fee required", {
+          description: "Patient must pay the monthly consultation fee before being sent to the nurse."
+        });
+        return;
+      }
+      
+      setIsSendDialogOpen(true);
+    } catch (error) {
+      console.error('Error checking consultation fee:', error);
+      toast.error("Failed to verify consultation fee status");
+    } finally {
+      setIsCheckingFee(false);
+    }
   };
 
   return (
@@ -608,12 +634,18 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
 
         {(patient.status === 'registered' || patient.status === 'discharged') ? (
         <Dialog open={isSendDialogOpen} onOpenChange={setIsSendDialogOpen}>
-          <DialogTrigger asChild>
+          <div className="hidden">
+            <DialogTrigger asChild>
+              <Button />
+            </DialogTrigger>
+          </div>
             <Button 
               variant={patient.status === 'discharged' ? 'hero' : 'module'}
               className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
+              onClick={handleOpenSendDialog}
+              disabled={isCheckingFee}
             >
-              {patient.status === 'discharged' ? <RefreshCw className="h-5 w-5" /> : <Send className="h-5 w-5" />}
+              {isCheckingFee ? <RefreshCw className="h-5 w-5 animate-spin" /> : (patient.status === 'discharged' ? <RefreshCw className="h-5 w-5" /> : <Send className="h-5 w-5" />)}
               <span>{patient.status === 'discharged' ? 'Start New Visit' : 'Send to Nurse'}</span>
             </Button>
           </DialogTrigger>

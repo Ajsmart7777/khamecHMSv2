@@ -736,25 +736,42 @@ export function CashierPanel() {
 
             {selectedPatient?.account_type === 'staff_family' && (
               <div className="flex items-start justify-between p-3 rounded-lg border border-warning/30 bg-warning/5">
-                <div className="pr-3">
-                  <Label className="text-sm font-medium">Deduct from sponsor's salary</Label>
-                  <p className="text-[10px] text-muted-foreground">
-                    Record the remaining 50% (₦{outstanding.toLocaleString()}) to be deducted from the sponsor's salary.
-                  </p>
+                <div className="space-y-2 w-full">
+                  <div className="flex items-start justify-between">
+                    <div className="pr-3">
+                      <Label className="text-sm font-medium">Deduct from sponsor's salary</Label>
+                      <p className="text-[10px] text-muted-foreground">
+                        Record a portion or the full remaining 50% (₦{outstanding.toLocaleString()}) to be deducted from the sponsor's salary.
+                      </p>
+                    </div>
+                    <Checkbox
+                      checked={isSalaryDeduction}
+                      onCheckedChange={(v) => {
+                        setIsSalaryDeduction(!!v);
+                        if (v) {
+                          setSalaryDeductionAmount(String(outstanding));
+                          setCashAmount('0');
+                          setUseBalance(false);
+                          setBalanceAmount('0');
+                        } else {
+                          setSalaryDeductionAmount('');
+                          setCashAmount(String(outstanding));
+                        }
+                      }}
+                    />
+                  </div>
+                  {isSalaryDeduction && (
+                    <div className="pt-1">
+                      <Label className="text-xs">Deduction amount (₦)</Label>
+                      <Input
+                        type="number"
+                        value={salaryDeductionAmount}
+                        onChange={(e) => setSalaryDeductionAmount(e.target.value)}
+                        max={outstanding}
+                      />
+                    </div>
+                  )}
                 </div>
-                <Checkbox
-                  checked={isSalaryDeduction}
-                  onCheckedChange={(v) => {
-                    setIsSalaryDeduction(!!v);
-                    if (v) {
-                      setCashAmount('0');
-                      setUseBalance(false);
-                      setBalanceAmount('0');
-                    } else {
-                      setCashAmount(String(outstanding));
-                    }
-                  }}
-                />
               </div>
             )}
 

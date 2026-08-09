@@ -1200,6 +1200,7 @@ export type Database = {
           phone: string
           photo_path: string | null
           registered_at: string
+          registration_fee_paid: boolean | null
           staff_link_id: string | null
           status: string
           updated_at: string
@@ -1231,6 +1232,7 @@ export type Database = {
           phone: string
           photo_path?: string | null
           registered_at?: string
+          registration_fee_paid?: boolean | null
           staff_link_id?: string | null
           status?: string
           updated_at?: string
@@ -1262,6 +1264,7 @@ export type Database = {
           phone?: string
           photo_path?: string | null
           registered_at?: string
+          registration_fee_paid?: boolean | null
           staff_link_id?: string | null
           status?: string
           updated_at?: string
@@ -2779,6 +2782,10 @@ export type Database = {
       }
       has_wallet: { Args: { _account_type: string }; Returns: boolean }
       is_authenticated_staff: { Args: never; Returns: boolean }
+      is_consultation_fee_required: {
+        Args: { _patient_id: string }
+        Returns: boolean
+      }
       mark_claim_rejected: {
         Args: { _notes?: string; _reason_code: string; _visit_id: string }
         Returns: undefined
@@ -2814,6 +2821,15 @@ export type Database = {
         Returns: string
       }
       next_visit_number: { Args: never; Returns: string }
+      onboard_patient_v2: {
+        Args: {
+          _consultation_already_paid: boolean
+          _is_new_registration: boolean
+          _opening_debt?: number
+          _patient_id: string
+        }
+        Returns: Json
+      }
       open_visit_for_patient: {
         Args: {
           _force_new?: boolean

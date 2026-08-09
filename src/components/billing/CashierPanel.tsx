@@ -218,7 +218,7 @@ export function CashierPanel() {
 
   const cash = Math.max(Number(cashAmount) || 0, 0);
   const bal = useBalance ? Math.max(Number(balanceAmount) || 0, 0) : 0;
-  const applied = cash + bal;
+  const applied = isSalaryDeduction ? outstanding : (cash + bal);
   const shortfall = Math.max(outstanding - applied, 0);
   const overpay = Math.max(applied - outstanding, 0);
   const balExceedsAvail = bal > availableBalance;
@@ -332,12 +332,16 @@ export function CashierPanel() {
     try {
       // Wallet deduction, debt recording, and invoice close all run in a single
       // server-side transaction — no partial states if any step fails.
-      const paymentMethod = sponsored
+      const paymentMethod = isSalaryDeduction
+        ? 'salary_deduction'
+        : sponsored
         ? 'sponsor_claim'
         : bal > 0 && cash === 0
         ? 'balance'
         : method;
-      const notes = sponsored
+      const notes = isSalaryDeduction
+        ? `Sponsor salary deduction recorded · ${sponsorLabel(selectedPatient)}`
+        : sponsored
         ? `Copay collected; sponsor claim routed to Claims · ${sponsorLabel(selectedPatient)}`
         : shortfall > 0
         ? `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`
@@ -364,15 +368,18 @@ export function CashierPanel() {
       await paymentAuditLogger('payment_received', selected.invoice_number, {
         patient_id: selected.patient_id,
         patient_name: `${selectedPatient.first_name} ${selectedPatient.last_name}`,
-        action: sponsored
+        action: isSalaryDeduction
+          ? 'salary_deduction_recorded'
+          : sponsored
           ? 'copay_recorded_sponsor_billed'
           : shortfall > 0
           ? 'payment_recorded_with_debt'
           : 'payment_recorded',
-        sponsor: sponsored ? sponsorLabel(selectedPatient) : null,
+        sponsor: (sponsored || isSalaryDeduction) ? sponsorLabel(selectedPatient) : null,
         cash_amount: cash,
         balance_amount: bal,
-        copay_amount: sponsored ? cash + bal : undefined,
+        is_salary_deduction: isSalaryDeduction,
+        copay_amount: sponsored ? (isSalaryDeduction ? outstanding : cash + bal) : undefined,
         covered_amount: sponsored ? Math.max(invoiceTotal - split.copayAmount, 0) : undefined,
         method,
         shortfall: sponsored ? 0 : shortfall,
@@ -390,11 +397,17 @@ export function CashierPanel() {
       if (!sponsored && overpay > 0) parts.push(`₦${overpay.toLocaleString()} credited to wallet`);
       if (sponsored) parts.push(`sponsor ₦${(invoiceTotal - split.copayAmount).toLocaleString()} → Claims`);
 
-      toast.success(
-        sponsored
-          ? 'Copay collected — sent to Claims'
-          : overpay > 0 ? 'Payment recorded with change to wallet' : 
-            shortfall > 0 ? 'Partial payment recorded' : 'Payment recorded',
+      const successMessage = isSalaryDeduction
+        ? 'Salary deduction recorded'
+        : sponsored
+        ? 'Copay collected — sent to Claims'
+        : overpay > 0 
+        ? 'Payment recorded with change to wallet' 
+        : shortfall > 0 
+        ? 'Partial payment recorded' 
+        : 'Payment recorded';
+
+      toast.success(successMessage,
         { description: `${selected.invoice_number} · ${parts.join(' + ')} · routed to ${workflowStationLabel(nextStation)}` }
       );
 
@@ -402,7 +415,7 @@ export function CashierPanel() {
       setReceipt({
         patient: selectedPatient,
         amount: cash + bal,
-        paymentMethod: bal > 0 && cash === 0 ? 'balance' : method,
+        paymentMethod: isSalaryDeduction ? 'salary_deduction' : (bal > 0 && cash === 0 ? 'balance' : method),
         receiptNumber: selected.invoice_number,
         date: new Date(),
         newBalance: Number(patientBalance) - bal - (!sponsored && shortfall > 0 ? shortfall : 0),
@@ -841,6 +854,8 @@ export function CashierPanel() {
                 ? 'Recording…'
                 : fullCover
                 ? 'Acknowledge & Send to Claims'
+                : isSalaryDeduction
+                ? 'Confirm Salary Deduction'
                 : sponsored
                 ? 'Collect Copay & Send to Claims'
                 : shortfall > 0

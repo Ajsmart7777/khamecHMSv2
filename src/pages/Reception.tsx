@@ -165,7 +165,7 @@ const Reception = () => {
   const handleSendToNurse = async (preferredDoctor?: 'doctor1' | 'doctor2') => {
     if (!selectedPatient) return;
     
-    // Manual check for monthly consultation fee
+    // Refresh patient data to get latest consultation status
     const { data: isPaid, error: checkError } = await supabase.rpc('check_monthly_consultation_paid', {
       _patient_id: selectedPatient.id
     });
@@ -176,6 +176,15 @@ const Reception = () => {
     }
 
     if (!isPaid) {
+      // Final attempt: check if there's a pending invoice that was JUST paid
+      await refreshData();
+      if (!selectedPatient.registration_fee_paid && selectedPatient.account_type === 'cash') {
+         toast.error("Registration Fee Required", {
+           description: "Please record the registration fee payment before sending to Nurse."
+         });
+         return;
+      }
+      
       toast.error("Monthly Consultation Fee Required", {
         description: "Please generate and record the consultation fee payment before sending to Nurse."
       });

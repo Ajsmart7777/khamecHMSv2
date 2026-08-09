@@ -163,9 +163,27 @@ const Reception = () => {
 
   const handleSendToNurse = async (preferredDoctor?: 'doctor1' | 'doctor2') => {
     if (!selectedPatient) return;
+    
+    // Manual check for monthly consultation fee
+    const { data: isPaid, error: checkError } = await supabase.rpc('check_monthly_consultation_paid', {
+      _patient_id: selectedPatient.id
+    });
+    
+    if (checkError) {
+      toast.error("Error verifying consultation fee status");
+      return;
+    }
+
+    if (!isPaid) {
+      toast.error("Monthly Consultation Fee Required", {
+        description: "Please generate and record the consultation fee payment before sending to Nurse."
+      });
+      return;
+    }
+
     const isNewVisit = selectedPatient.status === 'discharged';
-    // Prevent sending if already mid-visit (not registered and not discharged)
-    if (selectedPatient.status !== 'registered' && !isNewVisit) {
+    // Prevent sending if already mid-visit
+    if (selectedPatient.status !== 'registered' && !isNewVisit && selectedPatient.status !== 'awaiting_payment') {
       toast.error('Patient already in an active visit', {
         description: `${selectedPatient.first_name} ${selectedPatient.last_name} status: ${selectedPatient.status}.`
       });
@@ -379,6 +397,8 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isCheckingFee, setIsCheckingFee] = useState(false);
+  const [isChargingFees, setIsChargingFees] = useState(false);
+  const [consultationPaidThisMonth, setConsultationPaidThisMonth] = useState<boolean | null>(null);
   const [preferredDoctor, setPreferredDoctor] = useState<'doctor1' | 'doctor2' | 'none'>('none');
   const [isJourneyOpen, setIsJourneyOpen] = useState(false);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);
@@ -486,57 +506,41 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
   };
 
   const handleOpenSendDialog = async () => {
-    setIsCheckingFee(true);
+    setIsSendDialogOpen(true);
+  };
+
+  const checkConsultationStatus = useCallback(async () => {
+    if (!patient.id) return;
+    const { data, error } = await supabase.rpc('check_monthly_consultation_paid', {
+      _patient_id: patient.id
+    });
+    if (!error) {
+      setConsultationPaidThisMonth(!!data);
+    }
+  }, [patient.id]);
+
+  useEffect(() => {
+    checkConsultationStatus();
+  }, [checkConsultationStatus]);
+
+  const handleManualCharge = async (type: 'reg' | 'con') => {
+    setIsChargingFees(true);
     try {
-      const { data: isRequired, error } = await supabase.rpc('is_consultation_fee_required', {
-        _patient_id: patient.id
-      } as any);
-
-      if (error) {
-        console.error('RPC Error:', error);
-        throw error;
-      }
-      
-      if (isRequired === true) {
-        // Check if there is already a pending invoice for this patient that has a consultation fee
-        const { data: pendingInvoices } = await supabase
-          .from('invoices')
-          .select('id, status, invoice_items!inner(category)')
-          .eq('patient_id', patient.id)
-          .in('status', ['pending', 'partial'])
-          .eq('invoice_items.category', 'consultation');
-
-        if (pendingInvoices && pendingInvoices.length > 0) {
-          toast.info("Patient has a pending consultation fee", {
-            description: "Please record the payment before sending to nurse."
-          });
-          await refreshData();
-          return;
-        }
-
-        // Automatically onboard the patient to generate the required fee invoice
-        const { error: onboardError } = await supabase.rpc('onboard_patient_v2', {
-          _patient_id: patient.id,
-          _is_new_registration: !patient.registration_fee_paid,
-          _consultation_already_paid: false,
-          _opening_debt: 0
-        });
-
-        if (onboardError) throw onboardError;
-
-        await refreshData();
-        toast.info("Consultation fee invoice generated", {
-          description: "Monthly consultation fee invoice has been created. Patient must pay before proceeding."
-        });
-        return;
-      }
-      
-      setIsSendDialogOpen(true);
-    } catch (error) {
-      console.error('Error checking consultation fee:', error);
-      toast.error("Failed to verify consultation fee status");
+      const { error } = await supabase.rpc('create_onboarding_invoices', {
+        _patient_id: patient.id,
+        _charge_reg: type === 'reg',
+        _charge_con: type === 'con',
+        _opening_debt: 0
+      });
+      if (error) throw error;
+      toast.success(`${type === 'reg' ? 'Registration' : 'Consultation'} fee invoice generated`);
+      await refreshData();
+      await checkConsultationStatus();
+    } catch (err) {
+      logError('Manual charge failed', err);
+      toast.error('Failed to generate invoice');
     } finally {
-      setIsCheckingFee(false);
+      setIsChargingFees(false);
     }
   };
 
@@ -573,6 +577,51 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
           </div>
           <div className="text-right">
             <p className="text-sm text-muted-foreground">Account Balance</p>
+            <p className="text-2xl font-bold text-foreground">₦{patient.balance.toLocaleString()}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border/50 pt-4">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Registration Status</span>
+            {patient.registration_fee_paid ? (
+              <Badge variant="success" className="w-fit gap-1 text-[10px]">
+                <CheckCircle2 className="h-3 w-3" /> Registration Paid
+              </Badge>
+            ) : (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-7 text-[10px] text-destructive border-destructive/20 hover:bg-destructive/5"
+                onClick={() => handleManualCharge('reg')}
+                disabled={isChargingFees}
+              >
+                Charge Registration Fee (₦1,000)
+              </Button>
+            )}
+          </div>
+          
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Monthly Consultation ({format(new Date(), 'MMM')})</span>
+            {consultationPaidThisMonth ? (
+              <Badge variant="success" className="w-fit gap-1 text-[10px]">
+                <CheckCircle2 className="h-3 w-3" /> Consultation Paid
+              </Badge>
+            ) : (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-7 text-[10px] text-warning border-warning/20 hover:bg-warning/5"
+                onClick={() => handleManualCharge('con')}
+                disabled={isChargingFees}
+              >
+                Charge Consultation Fee (₦3,000)
+              </Button>
+            )}
+          </div>
+
+          <div className="ml-auto text-right">
+            <p className="text-xs text-muted-foreground">Account Balance</p>
             <p className="text-2xl font-bold text-foreground">₦{patient.balance.toLocaleString()}</p>
           </div>
         </div>
@@ -1243,10 +1292,10 @@ function NewPatientForm({
     } as any);
 
     if (result && (result as any).id) {
-      const { error: onboardErr } = await supabase.rpc('onboard_patient_v2' as any, {
+      const { error: onboardErr } = await supabase.rpc('create_onboarding_invoices', {
         _patient_id: (result as any).id,
-        _is_new_registration: patientType === 'new',
-        _consultation_already_paid: isConsultationPaid,
+        _charge_reg: patientType === 'new',
+        _charge_con: !isConsultationPaid,
         _opening_debt: parseFloat(openingDebt) || 0,
       });
 

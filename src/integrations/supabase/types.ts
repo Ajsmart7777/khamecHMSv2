@@ -2657,6 +2657,10 @@ export type Database = {
         Args: { _patient_id: string; _user_id: string }
         Returns: boolean
       }
+      check_monthly_consultation_paid: {
+        Args: { _patient_id: string }
+        Returns: boolean
+      }
       claim_task: {
         Args: { _notes?: string; _source: string; _source_id: string }
         Returns: string
@@ -2701,6 +2705,15 @@ export type Database = {
           _visit_id: string
         }
         Returns: string
+      }
+      create_onboarding_invoices: {
+        Args: {
+          _charge_con: boolean
+          _charge_reg: boolean
+          _opening_debt?: number
+          _patient_id: string
+        }
+        Returns: Json
       }
       create_prescription_from_snap: {
         Args: {
@@ -2795,10 +2808,6 @@ export type Database = {
       }
       has_wallet: { Args: { _account_type: string }; Returns: boolean }
       is_authenticated_staff: { Args: never; Returns: boolean }
-      is_consultation_fee_required: {
-        Args: { _patient_id: string }
-        Returns: boolean
-      }
       mark_claim_rejected: {
         Args: { _notes?: string; _reason_code: string; _visit_id: string }
         Returns: undefined
@@ -2834,15 +2843,6 @@ export type Database = {
         Returns: string
       }
       next_visit_number: { Args: never; Returns: string }
-      onboard_patient_v2: {
-        Args: {
-          _consultation_already_paid: boolean
-          _is_new_registration: boolean
-          _opening_debt?: number
-          _patient_id: string
-        }
-        Returns: Json
-      }
       open_visit_for_patient: {
         Args: {
           _force_new?: boolean

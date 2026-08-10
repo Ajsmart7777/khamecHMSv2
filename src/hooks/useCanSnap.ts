@@ -14,27 +14,69 @@ export function useCanSnap(patientId: string | null | undefined) {
 
   useEffect(() => {
     let cancelled = false;
-    if (!patientId || !user?.id) { setAllowed(false); setReason('Not signed in'); return; }
-    setLoading(true);
-    (async () => {
+    if (!patientId || !user?.id) { 
+      setAllowed(false); 
+      setReason('Not signed in'); 
+      return; 
+    }
+
+    const check = async () => {
+      setLoading(true);
+      
       const { data: rpcRes, error: rpcErr } = await supabase.rpc('can_add_snap_for_patient', {
         _patient_id: patientId,
         _user_id: user.id,
       });
-      if (cancelled) return;
-      if (rpcErr) { setAllowed(false); setReason(rpcErr.message); setLoading(false); return; }
 
-      // For the tooltip: fetch status so we can explain who owns the patient now.
-      const { data: p } = await supabase
-        .from('patients').select('status').eq('id', patientId).single();
       if (cancelled) return;
-      setAllowed(!!rpcRes);
-      setReason(rpcRes
-        ? ''
-        : `Only the current owner (${labelForStatus((p as any)?.status)}) can add to this card. You are ${role ?? 'unauthenticated'}.`);
+      
+      if (rpcErr) { 
+        setAllowed(false); 
+        setReason(rpcErr.message); 
+        setLoading(false); 
+        return; 
+      }
+
+      const { data: p } = await supabase
+        .from('patients')
+        .select('status')
+        .eq('id', patientId)
+        .single();
+
+      if (cancelled) return;
+
+      const isAllowed = !!rpcRes;
+      setAllowed(isAllowed);
+      
+      if (!isAllowed) {
+        setReason(`Only the current owner (${labelForStatus((p as any)?.status)}) can add to this card. You are ${role ?? 'unauthenticated'}.`);
+      } else {
+        setReason('');
+      }
+      
       setLoading(false);
-    })();
-    return () => { cancelled = true; };
+    };
+
+    check();
+
+    const channel = supabase
+      .channel(`snap-perms-${patientId}`)
+      .on(
+        'postgres_changes',
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'patients', 
+          filter: `id=eq.${patientId}` 
+        },
+        () => check()
+      )
+      .subscribe();
+
+    return () => { 
+      cancelled = true; 
+      supabase.removeChannel(channel);
+    };
   }, [patientId, user?.id, role]);
 
   return { allowed, reason, loading };

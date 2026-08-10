@@ -28,6 +28,16 @@ export function useCanSnap(patientId: string | null | undefined) {
         _user_id: user.id,
       });
 
+      // Special check: if a lab result is ready for this user, they are allowed to act
+      const { data: hasLabResult } = await supabase
+        .from('snap_orders')
+        .select('id')
+        .eq('patient_id', patientId)
+        .eq('order_type', 'lab_result')
+        .eq('status', 'returned')
+        .eq('returned_to', user.id)
+        .maybeSingle();
+
       if (cancelled) return;
       
       if (rpcErr) { 
@@ -37,18 +47,15 @@ export function useCanSnap(patientId: string | null | undefined) {
         return; 
       }
 
-      const { data: p } = await supabase
-        .from('patients')
-        .select('status')
-        .eq('id', patientId)
-        .single();
-
-      if (cancelled) return;
-
-      const isAllowed = !!rpcRes;
+      const isAllowed = !!rpcRes || !!hasLabResult;
       setAllowed(isAllowed);
       
       if (!isAllowed) {
+        const { data: p } = await supabase
+          .from('patients')
+          .select('status')
+          .eq('id', patientId)
+          .single();
         setReason(`Only the current owner (${labelForStatus((p as any)?.status)}) can add to this card. You are ${role ?? 'unauthenticated'}.`);
       } else {
         setReason('');

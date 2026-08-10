@@ -1,5 +1,5 @@
 import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';

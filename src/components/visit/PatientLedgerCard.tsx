@@ -933,19 +933,27 @@ function SnapRow({ snap, thumb, onOpen }: { snap: any; thumb?: string; onOpen: (
         </div>
         {snap.note && <p className="text-xs text-foreground italic">"{snap.note}"</p>}
         
-        {/* Linked items for typed orders */}
+        {/* Linked items or notes for typed orders */}
         {linkedData?.items && (
-          <ul className="text-[11px] text-foreground font-medium list-none space-y-1 mt-1">
-            {linkedData.items.map((it: any, i: number) => (
-              <li key={i} className="flex items-start gap-1.5">
-                <span className="text-primary mt-0.5">•</span>
-                <span>
-                  {it.medication_name || it.test_name}
-                  {it.dosage && <span className="text-muted-foreground ml-1">({it.dosage} {it.frequency} × {it.duration})</span>}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-1">
+            {linkedData.items.length === 1 && (linkedData.items[0].medication_name === 'Typed Prescription (See Notes)' || linkedData.items[0].test_name === snap.note?.replace('Typed Lab Order: ', '')) ? (
+              <div className="text-[11px] text-foreground font-medium whitespace-pre-wrap font-mono bg-muted/30 p-2 rounded border border-border/50">
+                {snap.note}
+              </div>
+            ) : (
+              <ul className="text-[11px] text-foreground font-medium list-none space-y-1">
+                {linkedData.items.map((it: any, i: number) => (
+                  <li key={i} className="flex items-start gap-1.5">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>
+                      {it.medication_name || it.test_name}
+                      {it.dosage && it.dosage !== '-' && <span className="text-muted-foreground ml-1">({it.dosage} {it.frequency} × {it.duration})</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
 
         {/* Matched items from pricelist (when billed/dispensed) */}

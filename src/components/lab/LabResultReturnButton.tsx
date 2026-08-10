@@ -76,9 +76,6 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
       const path = `${parentSnap.visit_id ?? parentSnap.patient_id}/lab-result-${crypto.randomUUID()}.jpg`;
       await uploadFile('visit-cards', path, file, file.type || 'image/jpeg');
 
-      const senderRole = parentSnap.source_role || 'doctor';
-      const targetStation = senderRole.startsWith('doctor') ? 'doctor' : (senderRole === 'nurse' ? 'nurse' : 'doctor');
-
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id;
 

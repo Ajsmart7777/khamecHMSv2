@@ -599,24 +599,20 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
             <p className="text-2xl font-bold text-foreground">₦{patient.balance.toLocaleString()}</p>
           </div>
         </div>
+ 
+        <PatientAlertsStrip patientId={patient.id} />
 
         <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border/50 pt-4">
           <div className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Registration Status</span>
-            {patient.registration_fee_paid ? (
+            {patient.registration_fee_paid || patient.account_type !== 'normal' ? (
               <Badge variant="success" className="w-fit gap-1 text-[10px]">
-                <CheckCircle2 className="h-3 w-3" /> Registration Paid
+                <CheckCircle2 className="h-3 w-3" /> Registration {patient.account_type !== 'normal' ? 'Exempt' : 'Paid'}
               </Badge>
             ) : (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="h-7 text-[10px] text-destructive border-destructive/20 hover:bg-destructive/5"
-                onClick={() => handleManualCharge('reg')}
-                disabled={isChargingFees}
-              >
-                Charge Registration Fee (₦1,000)
-              </Button>
+              <Badge variant="outline" className="w-fit gap-1 text-[10px] text-destructive border-destructive/20">
+                Registration Fee Unpaid
+              </Badge>
             )}
           </div>
           
@@ -631,15 +627,9 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
                 <CheckCircle2 className="h-3 w-3" /> Consultation Paid
               </Badge>
             ) : (
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="h-7 text-[10px] text-warning border-warning/20 hover:bg-warning/5"
-                onClick={() => handleManualCharge('con')}
-                disabled={isChargingFees}
-              >
-                Charge Consultation Fee (₦3,000)
-              </Button>
+              <Badge variant="outline" className="w-fit gap-1 text-[10px] text-warning border-warning/20">
+                Consultation Due
+              </Badge>
             )}
           </div>
 
@@ -1654,6 +1644,98 @@ function CorporateSelector({ value, onChange, accountType = 'corporate' }: { val
           </SelectContent>
         </Select>
       )}
+    </div>
+  );
+}
+ 
+function PatientAlertsStrip({ patientId }: { patientId: string }) {
+  const [notes, setNotes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newNote, setNewNote] = useState('');
+  const [isAlert, setIsAlert] = useState(false);
+  const { authUser } = useAuth() as any;
+
+  const fetchNotes = useCallback(async () => {
+    const { data } = await supabase
+      .from('patient_notes')
+      .select('*')
+      .eq('patient_id', patientId)
+      .is('resolved_at', null)
+      .order('created_at', { ascending: false });
+    setNotes(data || []);
+    setLoading(false);
+  }, [patientId]);
+
+  useEffect(() => {
+    fetchNotes();
+    const ch = supabase.channel(`alerts-${patientId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'patient_notes', filter: `patient_id=eq.${patientId}` }, fetchNotes)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [patientId, fetchNotes]);
+
+  const addNote = async () => {
+    if (!newNote.trim()) return;
+    const { error } = await supabase.from('patient_notes').insert({
+      patient_id: patientId,
+      content: newNote.trim(),
+      is_alert: isAlert,
+      author_id: authUser?.id,
+    });
+    if (!error) {
+      setNewNote('');
+      setIsAlert(false);
+      toast.success('Note added');
+      fetchNotes();
+    }
+  };
+
+  const resolveNote = async (id: string) => {
+    const { error } = await supabase.from('patient_notes').update({
+      resolved_at: new Date().toISOString(),
+      resolved_by: authUser?.id,
+    }).eq('id', id);
+    if (!error) {
+      toast.success('Note resolved');
+      fetchNotes();
+    }
+  };
+
+  if (loading) return null;
+
+  return (
+    <div className="space-y-2 mt-4">
+      {notes.map(n => (
+        <div key={n.id} className={cn(
+          "p-3 rounded-lg border flex items-start justify-between gap-3 animate-in fade-in slide-in-from-top-1",
+          n.is_alert ? "bg-destructive/10 border-destructive/30 text-destructive" : "bg-muted/50 border-border"
+        )}>
+          <div className="flex gap-2 min-w-0">
+            {n.is_alert && <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />}
+            <p className="text-sm font-medium">{n.content}</p>
+          </div>
+          <Button variant="ghost" size="sm" className="h-7 px-2 hover:bg-destructive/10" onClick={() => resolveNote(n.id)}>
+            Resolve
+          </Button>
+        </div>
+      ))}
+      
+      <div className="flex items-center gap-2 mt-2">
+        <Input 
+          placeholder="Add operational note or alert..." 
+          className="h-8 text-xs" 
+          value={newNote} 
+          onChange={(e) => setNewNote(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && addNote()}
+        />
+        <div className="flex items-center gap-1.5 whitespace-nowrap">
+          <Checkbox id="is-alert" checked={isAlert} onCheckedChange={(c) => setIsAlert(!!checked)} />
+          <label htmlFor="is-alert" className="text-[10px] font-medium cursor-pointer">High Alert</label>
+        </div>
+        <Button size="sm" variant="outline" className="h-8 px-2" onClick={addNote}>
+          <PlusCircle className="h-3.5 w-3.5" />
+        </Button>
+      </div>
     </div>
   );
 }

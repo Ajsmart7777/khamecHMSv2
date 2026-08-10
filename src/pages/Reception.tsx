@@ -1,3 +1,4 @@
+ import { useAuth } from '@/contexts/AuthContext';
  import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
 import { useState, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
@@ -1656,7 +1657,7 @@ function PatientAlertsStrip({ patientId }: { patientId: string }) {
   const { authUser } = useAuth() as any;
 
   const fetchNotes = useCallback(async () => {
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from('patient_notes')
       .select('*')
       .eq('patient_id', patientId)
@@ -1676,7 +1677,7 @@ function PatientAlertsStrip({ patientId }: { patientId: string }) {
 
   const addNote = async () => {
     if (!newNote.trim()) return;
-    const { error } = await supabase.from('patient_notes').insert({
+    const { error } = await (supabase as any).from('patient_notes').insert({
       patient_id: patientId,
       content: newNote.trim(),
       is_alert: isAlert,
@@ -1691,7 +1692,7 @@ function PatientAlertsStrip({ patientId }: { patientId: string }) {
   };
 
   const resolveNote = async (id: string) => {
-    const { error } = await supabase.from('patient_notes').update({
+    const { error } = await (supabase as any).from('patient_notes').update({
       resolved_at: new Date().toISOString(),
       resolved_by: authUser?.id,
     }).eq('id', id);
@@ -1729,11 +1730,11 @@ function PatientAlertsStrip({ patientId }: { patientId: string }) {
           onKeyDown={(e) => e.key === 'Enter' && addNote()}
         />
         <div className="flex items-center gap-1.5 whitespace-nowrap">
-          <Checkbox id="is-alert" checked={isAlert} onCheckedChange={(c) => setIsAlert(!!checked)} />
+          <Checkbox id="is-alert" checked={isAlert} onCheckedChange={(c) => setIsAlert(!!c)} />
           <label htmlFor="is-alert" className="text-[10px] font-medium cursor-pointer">High Alert</label>
         </div>
         <Button size="sm" variant="outline" className="h-8 px-2" onClick={addNote}>
-          <PlusCircle className="h-3.5 w-3.5" />
+          <Plus className="h-3.5 w-3.5" />
         </Button>
       </div>
     </div>

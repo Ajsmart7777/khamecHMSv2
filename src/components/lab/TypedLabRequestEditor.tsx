@@ -22,47 +22,13 @@ export function TypedLabRequestEditor({
   onSuccess,
   onCancel
 }: TypedLabRequestEditorProps) {
-  const [tests, setTests] = useState<string[]>(['']);
+  const [text, setText] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [loading, setLoading] = useState(false);
-  const [searching, setSearching] = useState<number | null>(null);
-  const [searchResults, setSearchResults] = useState<PricelistItem[]>([]);
-
-  const addTest = () => {
-    setTests([...tests, '']);
-  };
-
-  const removeTest = (index: number) => {
-    if (tests.length > 1) {
-      setTests(tests.filter((_, i) => i !== index));
-    }
-  };
-
-  const updateTest = (index: number, value: string) => {
-    const newTests = [...tests];
-    newTests[index] = value;
-    setTests(newTests);
-  };
-
-  const handleSearch = async (index: number, query: string) => {
-    updateTest(index, query);
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    const matches = await fuzzyMatchPricelist(query);
-    setSearchResults(matches.filter(m => m.category === 'lab' || m.category === 'imaging'));
-  };
-
-  const selectTest = (index: number, item: PricelistItem) => {
-    updateTest(index, `${item.name}${item.size ? ' (' + item.size + ')' : ''}`);
-    setSearching(null);
-  };
 
   const handleSubmit = async () => {
-    const validTests = tests.filter(t => t.trim().length > 0);
-    if (validTests.length === 0) {
-      return toast.error('At least one test is required');
+    if (!text.trim()) {
+      return toast.error('Lab order details are required');
     }
 
     setLoading(true);
@@ -71,7 +37,7 @@ export function TypedLabRequestEditor({
         patientId,
         visitId,
         diagnosis: diagnosis.trim() || undefined,
-        tests: validTests
+        tests: [text.trim()] // Store the whole block as one "test" item
       });
       toast.success('Lab request created');
       onSuccess?.(id);
@@ -94,64 +60,20 @@ export function TypedLabRequestEditor({
           />
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-2">
           <Label className="text-base font-semibold">Requested Tests</Label>
-          <div className="space-y-2">
-            {tests.map((test, idx) => (
-              <div key={idx} className="flex gap-2 items-start group">
-                <div className="flex-1 relative">
-                  <Popover open={searching === idx} onOpenChange={(o) => setSearching(o ? idx : null)}>
-                    <PopoverTrigger asChild>
-                      <div className="relative">
-                        <Input 
-                          placeholder="Search or type test name..." 
-                          value={test}
-                          onChange={e => handleSearch(idx, e.target.value)}
-                        />
-                        <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                      </div>
-                    </PopoverTrigger>
-                    <PopoverContent className="p-0 w-[350px]" align="start">
-                      <Command>
-                        <CommandList>
-                          <CommandEmpty>No matching tests found in pricelist.</CommandEmpty>
-                          <CommandGroup heading="Tests from Pricelist">
-                            {searchResults.map(item => (
-                              <CommandItem 
-                                key={item.id} 
-                                onSelect={() => selectTest(idx, item)}
-                                className="cursor-pointer"
-                              >
-                                <div className="flex flex-col">
-                                  <span>{item.name}</span>
-                                  <span className="text-xs text-muted-foreground">{item.size} • {item.category}</span>
-                                </div>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                {tests.length > 1 && (
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="text-destructive opacity-50 group-hover:opacity-100 transition-opacity"
-                    onClick={() => removeTest(idx)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-          
-          <Button variant="outline" className="w-full" onClick={addTest}>
-            <Plus className="h-4 w-4 mr-2" /> Add Another Test
-          </Button>
+          <Textarea 
+            placeholder="Type all requested tests here..." 
+            value={text}
+            onChange={e => setText(e.target.value)}
+            rows={8}
+            className="min-h-[200px]"
+          />
+          <p className="text-xs text-muted-foreground">
+            List all tests in plain text.
+          </p>
         </div>
+      </div>
       </div>
 
       <div className="flex justify-end gap-3 border-t pt-4">

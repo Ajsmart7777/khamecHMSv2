@@ -601,45 +601,8 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
             <p className="text-2xl font-bold text-foreground">₦{patient.balance.toLocaleString()}</p>
           </div>
         </div>
- 
-        <PatientAlertsStrip patientId={patient.id} />
 
-        <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border/50 pt-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Registration Status</span>
-            {patient.registration_fee_paid || patient.account_type !== 'normal' ? (
-              <Badge variant="success" className="w-fit gap-1 text-[10px]">
-                <CheckCircle2 className="h-3 w-3" /> Registration {patient.account_type !== 'normal' ? 'Exempt' : 'Paid'}
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="w-fit gap-1 text-[10px] text-destructive border-destructive/20">
-                Registration Fee Unpaid
-              </Badge>
-            )}
-          </div>
-          
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wider">Monthly Consultation ({format(new Date(), 'MMM')})</span>
-            {consultationStatus.loading ? (
-              <Badge variant="outline" className="w-fit gap-1 text-[10px] animate-pulse">
-                Checking...
-              </Badge>
-            ) : consultationStatus.paid ? (
-              <Badge variant="success" className="w-fit gap-1 text-[10px]">
-                <CheckCircle2 className="h-3 w-3" /> Consultation Paid
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="w-fit gap-1 text-[10px] text-warning border-warning/20">
-                Consultation Due
-              </Badge>
-            )}
-          </div>
 
-          <div className="ml-auto text-right">
-            <p className="text-xs text-muted-foreground">Account Balance</p>
-            <p className="text-2xl font-bold text-foreground">₦{patient.balance.toLocaleString()}</p>
-          </div>
-        </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="flex items-center gap-2 text-sm p-2 rounded-lg bg-muted/50">

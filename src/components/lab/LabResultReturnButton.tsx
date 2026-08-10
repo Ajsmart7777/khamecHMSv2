@@ -80,6 +80,13 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
       const targetStation = senderRole.startsWith('doctor') ? 'doctor' : (senderRole === 'nurse' ? 'nurse' : 'doctor');
 
       const { data: userData } = await supabase.auth.getUser();
+      const uid = userData.user?.id;
+
+      // Identify the target user (the one who requested the lab)
+      // and their specific role to determine the routing station.
+      const requesterId = parentSnap.created_by || parentSnap.returned_to;
+      const senderRole = parentSnap.source_role || 'doctor';
+      const targetStation = senderRole.startsWith('doctor') ? 'doctor' : (senderRole === 'nurse' ? 'nurse' : 'doctor');
 
       const { error } = await supabase.from('snap_orders').insert({
         patient_id: parentSnap.patient_id,
@@ -92,9 +99,9 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
         photo_path: path,
         note: note.trim() || null,
         status: 'returned',
-        returned_to: parentSnap.created_by || parentSnap.returned_to,
+        returned_to: requesterId,
         returned_at: new Date().toISOString(),
-        created_by: userData.user?.id ?? null,
+        created_by: uid,
       } as any);
       if (error) throw error;
 

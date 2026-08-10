@@ -499,71 +499,8 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
     setIsSendDialogOpen(true);
   };
 
-  const checkConsultationStatus = useCallback(async () => {
-    if (!patient.id) return;
-    setConsultationStatus(prev => ({ ...prev, loading: true }));
-    const { data, error } = await supabase.rpc('check_monthly_consultation_paid', {
-      _patient_id: patient.id
-    });
-    if (!error) {
-      setConsultationStatus({ paid: !!data, loading: false });
-    } else {
-      setConsultationStatus(prev => ({ ...prev, loading: false }));
-    }
-  }, [patient.id]);
 
-  useEffect(() => {
-    checkConsultationStatus();
 
-    // Instant update when invoices are marked as paid
-    const channel = supabase
-      .channel(`reception-invoices-${patient.id}`)
-      .on(
-        'postgres_changes',
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'invoices',
-          filter: `patient_id=eq.${patient.id}`
-        },
-        async (payload) => {
-          const isPaid = (payload.new as any).status === 'paid';
-          if (isPaid) {
-            // Re-check both registration and consultation flags from the server
-            // to ensure UI stays perfectly in sync with the DB transaction
-            await refreshData();
-            await checkConsultationStatus();
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [checkConsultationStatus, patient.id]);
-
-  const handleManualCharge = async (type: 'reg' | 'con') => {
-    setIsChargingFees(true);
-    try {
-      const { error } = await supabase.rpc('create_onboarding_invoices', {
-        _patient_id: patient.id,
-        _charge_reg: type === 'reg',
-        _charge_con: type === 'con',
-        _opening_debt: 0,
-        _mark_con_paid: false
-      });
-      if (error) throw error;
-      toast.success(`${type === 'reg' ? 'Registration' : 'Consultation'} fee invoice generated`);
-      await refreshData();
-      await checkConsultationStatus();
-    } catch (err) {
-      logError('Manual charge failed', err);
-      toast.error('Failed to generate invoice');
-    } finally {
-      setIsChargingFees(false);
-    }
-  };
 
   return (
     <div className="space-y-6 animate-fade-in">

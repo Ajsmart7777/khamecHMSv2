@@ -46,6 +46,7 @@ import {
   User,
   X,
   CheckCircle2,
+  AlertTriangle,
   Building2,
   Shield,
   Heart,
@@ -165,33 +166,10 @@ const Reception = () => {
   const handleSendToNurse = async (preferredDoctor?: 'doctor1' | 'doctor2') => {
     if (!selectedPatient) return;
     
-    // Refresh patient data to get latest consultation status
-    const { data: isPaid, error: checkError } = await supabase.rpc('check_monthly_consultation_paid', {
-      _patient_id: selectedPatient.id
-    });
-    
-    if (checkError) {
-      toast.error("Error verifying consultation fee status");
-      return;
-    }
-
-    if (!isPaid) {
-      // Final attempt: check if there's a pending invoice that was JUST paid
-      await refreshPatients();
-      
-      const p = patients.find(p => p.id === selectedPatient.id);
-      if (p && !p.registration_fee_paid && p.account_type === 'normal') {
-         toast.error("Registration Fee Required", {
-           description: "Please record the registration fee payment before sending to Nurse."
-         });
-         return;
-      }
-      
-      toast.error("Monthly Consultation Fee Required", {
-        description: "Please generate and record the consultation fee payment before sending to Nurse."
-      });
-      return;
-    }
+    // Refresh patient data
+    await refreshPatients();
+ 
+    const isNewVisit = selectedPatient.status === 'discharged';
 
     const isNewVisit = selectedPatient.status === 'discharged';
     // Prevent sending if already mid-visit
@@ -1338,20 +1316,18 @@ function NewPatientForm({
       balance: 0,
     } as any);
 
-    if (result && (result as any).id) {
-      const { error: onboardErr } = await supabase.rpc('create_onboarding_invoices', {
+    if (result && (result as any).id && parseFloat(openingDebt) > 0) {
+      const { error: onboardErr } = await supabase.rpc('adjust_patient_balance', {
         _patient_id: (result as any).id,
-        _charge_reg: patientType === 'new',
-        _charge_con: patientType === 'new' ? !isConsultationPaid : !isConsultationPaid,
-        _opening_debt: parseFloat(openingDebt) || 0,
-        _mark_con_paid: isConsultationPaid,
+        _delta: -parseFloat(openingDebt),
+        _reason: 'debt_incurred',
+        _ref_type: 'opening_debt',
+        _notes: 'Opening debt from physical card',
       });
 
       if (onboardErr) {
-        logError('Error in patient onboarding fees', onboardErr);
-        toast.error('Patient created but fees initialization failed', {
-          description: onboardErr.message
-        });
+        logError('Error in patient opening debt initialization', onboardErr);
+        toast.error('Patient created but debt initialization failed');
       }
     }
 

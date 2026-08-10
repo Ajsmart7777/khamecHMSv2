@@ -93,6 +93,10 @@ function classifySnap(s: any): SnapSub {
   if (t === 'lab' || target === 'lab') return 'lab_request';
   if (t === 'treatment') return 'treatment';
   if (t === 'vitals') return 'vitals_photo';
+  if (s.intent === 'typed_order') {
+    if (target === 'pharmacy') return 'rx';
+    if (target === 'lab') return 'lab_request';
+  }
   return 'other_snap';
 }
 
@@ -905,19 +909,19 @@ function SnapRow({ snap, thumb, onOpen }: { snap: any; thumb?: string; onOpen: (
         if (data) setLinkedData({ type: 'rx', items: data.prescription_items });
       } else if (snap.ocr_text?.startsWith('LINKED_LAB_REQUEST:')) {
         const id = snap.ocr_text.split(':')[1];
-        const { data } = await supabase.from('lab_requests').select('*, lab_test_requests(*)').eq('id', id).single();
-        if (data) setLinkedData({ type: 'lab', items: data.lab_test_requests });
+        const { data } = await supabase.from('lab_requests').select('*').eq('id', id).single();
+        if (data) setLinkedData({ type: 'lab', items: data.tests.map((t: string) => ({ test_name: t })) });
       }
     };
     fetchLinked();
-  }, [snap.ocr_text]);
+  }, [snap.ocr_text, snap.note]);
 
-  const isTyped = snap.ocr_text?.startsWith('LINKED_');
+  const isTyped = snap.intent === 'typed_order' || snap.ocr_text?.startsWith('LINKED_');
 
   return (
     <div className="flex gap-3">
       {isTyped ? (
-        <div className="w-28 h-28 border-2 border-dashed border-primary/30 rounded flex flex-col items-center justify-center bg-primary/5 text-primary text-center p-2">
+        <div className="w-28 h-28 border-2 border-dashed border-primary/30 rounded flex flex-col items-center justify-center bg-primary/5 text-primary text-center p-2 shrink-0">
           <Sparkles className="h-6 w-6 mb-1 opacity-50" />
           <span className="text-[10px] font-bold uppercase leading-tight">Typed<br/>Order</span>
         </div>
@@ -931,21 +935,29 @@ function SnapRow({ snap, thumb, onOpen }: { snap: any; thumb?: string; onOpen: (
           </span>
           <span className="text-[10px] text-muted-foreground uppercase font-bold">→ {snap.target_station}</span>
         </div>
-        {snap.note && <p className="text-xs text-foreground italic">"{snap.note}"</p>}
+        {snap.note && !isTyped && <p className="text-xs text-foreground italic">"{snap.note}"</p>}
         
-        {/* Linked items for typed orders */}
+        {/* Linked items or notes for typed orders */}
         {linkedData?.items && (
-          <ul className="text-[11px] text-foreground font-medium list-none space-y-1 mt-1">
-            {linkedData.items.map((it: any, i: number) => (
-              <li key={i} className="flex items-start gap-1.5">
-                <span className="text-primary mt-0.5">•</span>
-                <span>
-                  {it.medication_name || it.test_name}
-                  {it.dosage && <span className="text-muted-foreground ml-1">({it.dosage} {it.frequency} × {it.duration})</span>}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-1">
+            {linkedData.items.length === 1 && (linkedData.items[0].medication_name === 'Typed Prescription (See Notes)' || linkedData.items[0].test_name === snap.note || linkedData.items[0].test_name === snap.note?.replace('Typed Lab Order: ', '')) ? (
+              <div className="text-[11px] text-foreground font-medium whitespace-pre-wrap font-mono bg-muted/30 p-2 rounded border border-border/50">
+                {snap.note}
+              </div>
+            ) : (
+              <ul className="text-[11px] text-foreground font-medium list-none space-y-1">
+                {linkedData.items.map((it: any, i: number) => (
+                  <li key={i} className="flex items-start gap-1.5">
+                    <span className="text-primary mt-0.5">•</span>
+                    <span>
+                      {it.medication_name || it.test_name}
+                      {it.dosage && it.dosage !== '-' && <span className="text-muted-foreground ml-1">({it.dosage} {it.frequency} × {it.duration})</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
 
         {/* Matched items from pricelist (when billed/dispensed) */}

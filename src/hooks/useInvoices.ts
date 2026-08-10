@@ -124,6 +124,8 @@ export function useInvoices() {
         })
         .select()
         .single();
+ 
+      if (invoiceError || !invoice) {
         logError('Error creating invoice', invoiceError);
         return null;
       }

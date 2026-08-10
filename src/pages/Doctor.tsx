@@ -1,5 +1,5 @@
 import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Stethoscope, FileText, ClipboardList, Wifi, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SnapClinicalOrder } from '@/components/visit/SnapClinicalOrder';
-import { usePatients } from '@/contexts/PatientContext';
+import { usePatients, Patient } from '@/contexts/PatientContext';
 import { toast } from 'sonner';
 import { BedDouble } from 'lucide-react';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
@@ -70,12 +70,21 @@ const Doctor = () => {
     : baseQueue;
 
   // Lab-returned patients live in the "Returned from Lab" inbox.
-  // We check ownership strictly so each doctor only sees their own returns.
   const labReturnedPatients = scopedQueue.filter(p => pendingLabReturnPatientIds.has(p.id));
   
   const labReturnIds = new Set(labReturnedPatients.map(p => p.id));
   const doctorQueue = scopedQueue.filter(p => !labReturnIds.has(p.id));
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
+
+  // Handler for global "Snap to Admit" triggers (e.g. from LabResultInbox)
+  useEffect(() => {
+    const handleOpenAdm = (e: any) => {
+      setSelectedPatientId(e.detail.patientId);
+      setAdmitOpen(true);
+    };
+    window.addEventListener('open-admission-dialog', handleOpenAdm);
+    return () => window.removeEventListener('open-admission-dialog', handleOpenAdm);
+  }, [setSelectedPatientId]);
 
   return (
     <MainLayout title="Doctor's Console" subtitle="Snap the paper card and route the patient">
@@ -268,13 +277,16 @@ const Doctor = () => {
         />
       )}
 
-      {selectedPatient && (
+      {selectedPatientId && (
         <AdmissionCaptureDialog
           open={admitOpen}
           onOpenChange={setAdmitOpen}
-          patientId={selectedPatient.id}
-          patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
-          onAdmitted={() => setSelectedPatientId(null)}
+          patientId={selectedPatientId}
+          patientName={selectedPatient ? `${selectedPatient.first_name} ${selectedPatient.last_name}` : 'Patient'}
+          onAdmitted={() => {
+            setAdmitOpen(false);
+            setSelectedPatientId(null);
+          }}
         />
       )}
     </MainLayout>

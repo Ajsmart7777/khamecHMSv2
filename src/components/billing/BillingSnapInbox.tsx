@@ -344,19 +344,22 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
                 {linkedPrescription.diagnosis && (
                   <p className="text-xs"><strong>Diagnosis:</strong> {linkedPrescription.diagnosis}</p>
                 )}
-                <div className="space-y-1">
-                  {linkedPrescription.prescription_items?.map((it: any, i: number) => (
-                    <div key={i} className="text-xs p-1.5 bg-background rounded border border-module-pharmacy/20">
-                      <p className="font-medium">{it.medication}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {it.dosage} · {it.frequency} · {it.duration} (Qty: {it.quantity})
-                      </p>
+                <div className="space-y-2">
+                  {linkedPrescription.notes && (
+                    <div className="text-xs p-2 bg-background rounded border border-module-pharmacy/20 whitespace-pre-wrap font-mono">
+                      {linkedPrescription.notes}
                     </div>
-                  ))}
+                  )}
+                  {linkedPrescription.prescription_items?.some((it: any) => it.medication !== 'Typed Prescription (See Notes)') && (
+                    <div className="space-y-1">
+                      {linkedPrescription.prescription_items?.map((it: any, i: number) => (
+                        <div key={i} className="text-[10px] p-1 bg-background/50 rounded border border-dashed">
+                          {it.medication} · {it.dosage}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {linkedPrescription.notes && (
-                  <p className="text-[10px] text-muted-foreground italic">Note: {linkedPrescription.notes}</p>
-                )}
               </div>
             )}
 
@@ -366,12 +369,8 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
                 {linkedLabRequest.diagnosis && (
                   <p className="text-xs"><strong>Diagnosis:</strong> {linkedLabRequest.diagnosis}</p>
                 )}
-                <div className="flex flex-wrap gap-1">
-                  {linkedLabRequest.tests?.map((test: string, i: number) => (
-                    <Badge key={i} variant="outline" className="text-[10px] border-module-laboratory/30 bg-background">
-                      {test}
-                    </Badge>
-                  ))}
+                <div className="bg-background rounded border border-module-laboratory/20 p-2 text-xs whitespace-pre-wrap font-mono">
+                  {linkedLabRequest.tests?.join('\n')}
                 </div>
               </div>
             )}

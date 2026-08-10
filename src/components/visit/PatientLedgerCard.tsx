@@ -940,7 +940,7 @@ function SnapRow({ snap, thumb, onOpen }: { snap: any; thumb?: string; onOpen: (
         {/* Linked items or notes for typed orders */}
         {linkedData?.items && (
           <div className="mt-1">
-            {linkedData.items.length === 1 && (linkedData.items[0].medication_name === 'Typed Prescription (See Notes)' || linkedData.items[0].test_name === snap.note?.replace('Typed Lab Order: ', '')) ? (
+            {linkedData.items.length === 1 && (linkedData.items[0].medication_name === 'Typed Prescription (See Notes)' || linkedData.items[0].test_name === snap.note || linkedData.items[0].test_name === snap.note?.replace('Typed Lab Order: ', '')) ? (
               <div className="text-[11px] text-foreground font-medium whitespace-pre-wrap font-mono bg-muted/30 p-2 rounded border border-border/50">
                 {snap.note}
               </div>

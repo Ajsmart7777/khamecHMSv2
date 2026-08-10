@@ -2706,26 +2706,16 @@ export type Database = {
         }
         Returns: string
       }
-      create_onboarding_invoices:
-        | {
-            Args: {
-              _charge_con: boolean
-              _charge_reg: boolean
-              _opening_debt?: number
-              _patient_id: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _charge_con: boolean
-              _charge_reg: boolean
-              _mark_con_paid?: boolean
-              _opening_debt?: number
-              _patient_id: string
-            }
-            Returns: Json
-          }
+      create_onboarding_invoices: {
+        Args: {
+          _charge_con: boolean
+          _charge_reg: boolean
+          _mark_con_paid?: boolean
+          _opening_debt?: number
+          _patient_id: string
+        }
+        Returns: Json
+      }
       create_prescription_from_snap: {
         Args: {
           _diagnosis?: string

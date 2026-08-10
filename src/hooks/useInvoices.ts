@@ -110,7 +110,7 @@ export function useInvoices() {
       } else if (acct && acct !== 'cash' && acct !== 'normal') {
         sponsorType = acct;
       }
-
+      
       const { data: invoice, error: invoiceError } = await supabase
         .from('invoices')
         .insert({
@@ -124,7 +124,7 @@ export function useInvoices() {
         })
         .select()
         .single();
-
+ 
       if (invoiceError || !invoice) {
         logError('Error creating invoice', invoiceError);
         return null;

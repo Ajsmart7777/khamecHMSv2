@@ -914,14 +914,14 @@ function SnapRow({ snap, thumb, onOpen }: { snap: any; thumb?: string; onOpen: (
       }
     };
     fetchLinked();
-  }, [snap.ocr_text]);
+  }, [snap.ocr_text, snap.note]);
 
-  const isTyped = snap.ocr_text?.startsWith('LINKED_');
+  const isTyped = snap.intent === 'typed_order' || snap.ocr_text?.startsWith('LINKED_');
 
   return (
     <div className="flex gap-3">
       {isTyped ? (
-        <div className="w-28 h-28 border-2 border-dashed border-primary/30 rounded flex flex-col items-center justify-center bg-primary/5 text-primary text-center p-2">
+        <div className="w-28 h-28 border-2 border-dashed border-primary/30 rounded flex flex-col items-center justify-center bg-primary/5 text-primary text-center p-2 shrink-0">
           <Sparkles className="h-6 w-6 mb-1 opacity-50" />
           <span className="text-[10px] font-bold uppercase leading-tight">Typed<br/>Order</span>
         </div>

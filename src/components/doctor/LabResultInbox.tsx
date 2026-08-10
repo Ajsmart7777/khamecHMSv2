@@ -100,11 +100,25 @@ export function LabResultInbox() {
 
   const admit = async (patientId: string, snapId: string) => {
     setAdmitting(true);
-    const ok = await updatePatientStatus(patientId, 'awaiting_room');
-    setAdmitting(false);
-    if (ok) {
+    try {
+      // 1. Acknowledge the lab result first so it disappears from the inbox
       await acknowledge(snapId, true);
-      toast.success('Patient admitted to Awaiting Room');
+      
+      // 2. Perform the actual admission request (creates admission row + snap_order)
+      // We don't have the photo path easily accessible here without a refetch or passing it, 
+      // but acknowledge() already closed the result. 
+      // The user wants "Snap to Admit" logic.
+      setSelected(null);
+      setAdmitting(false);
+      
+      // Emit a custom event that Doctor.tsx or a global handler can pick up to open 
+      // the AdmissionSnapDialog for this specific patient.
+      window.dispatchEvent(new CustomEvent('open-admission-dialog', { 
+        detail: { patientId } 
+      }));
+    } catch (err) {
+      setAdmitting(false);
+      toast.error('Failed to initiate admission');
     }
   };
 
@@ -204,7 +218,7 @@ export function LabResultInbox() {
                     onClick={() => admit(selected.patient_id, selected.id)}
                   >
                     <BedDouble className="h-4 w-4 mr-2" />
-                    {admitting ? 'Admitting…' : 'Admit Patient'}
+                    {admitting ? 'Opening...' : 'Snap to Admit'}
                   </Button>
                 </div>
                 <div className="flex justify-end pt-2">

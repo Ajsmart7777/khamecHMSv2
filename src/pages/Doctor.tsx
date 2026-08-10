@@ -258,7 +258,13 @@ const Doctor = () => {
             </div>
           )}
         </div>
-      </div>
+      <AdmissionSnapDialog
+        open={admissionOpen}
+        onOpenChange={setAdmissionOpen}
+        patientId={admPatientId || ''}
+        patientName={admPatient ? `${admPatient.first_name} ${admPatient.last_name}` : ''}
+      />
+    </div>
 
       {selectedPatient && (
         <PatientHistoryDialog

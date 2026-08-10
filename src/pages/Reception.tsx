@@ -387,8 +387,8 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isCheckingFee, setIsCheckingFee] = useState(false);
-  const [isChargingFees, setIsChargingFees] = useState(false);
-  const [consultationStatus, setConsultationStatus] = useState<{ paid: boolean; loading: boolean }>({ paid: false, loading: true });
+  const [preferredDoctor2, _unusedRemoved] = [null, null] as any;
+
   const [preferredDoctor, setPreferredDoctor] = useState<'doctor1' | 'doctor2' | 'none'>('none');
   const [isJourneyOpen, setIsJourneyOpen] = useState(false);
   const [isCheckInOpen, setIsCheckInOpen] = useState(false);

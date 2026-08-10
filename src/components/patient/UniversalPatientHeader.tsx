@@ -270,6 +270,65 @@ function LatestVitalsStrip({ v }: { v: any }) {
           </span>
         ))}
       </div>
+      
+      <PatientAlertsStrip patientId={patient.id} />
+    </div>
+  );
+}
+
+function PatientAlertsStrip({ patientId }: { patientId: string }) {
+  const [notes, setNotes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { authUser } = useAuth() as any;
+
+  const fetchNotes = useCallback(async () => {
+    const { data } = await (supabase as any)
+      .from('patient_notes')
+      .select('*')
+      .eq('patient_id', patientId)
+      .is('resolved_at', null)
+      .order('created_at', { ascending: false });
+    setNotes(data || []);
+    setLoading(false);
+  }, [patientId]);
+
+  useEffect(() => {
+    fetchNotes();
+    const ch = supabase.channel(`header-alerts-${patientId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'patient_notes', filter: `patient_id=eq.${patientId}` }, fetchNotes)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [patientId, fetchNotes]);
+
+  const resolveNote = async (id: string) => {
+    const { error } = await (supabase as any).from('patient_notes').update({
+      resolved_at: new Date().toISOString(),
+      resolved_by: authUser?.id,
+    }).eq('id', id);
+    if (!error) {
+      toast.success('Note resolved');
+      fetchNotes();
+    }
+  };
+
+  if (loading || notes.length === 0) return null;
+
+  return (
+    <div className="space-y-2 mt-2 px-1 pb-1">
+      {notes.map(n => (
+        <div key={n.id} className={cn(
+          "p-2 rounded-md border flex items-start justify-between gap-3 animate-in fade-in slide-in-from-top-1",
+          n.is_alert ? "bg-destructive/10 border-destructive/30 text-destructive" : "bg-muted/50 border-border"
+        )}>
+          <div className="flex gap-2 min-w-0">
+            {n.is_alert && <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />}
+            <p className="text-xs font-medium">{n.content}</p>
+          </div>
+          <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[10px] hover:bg-destructive/10" onClick={() => resolveNote(n.id)}>
+            Resolve
+          </Button>
+        </div>
+      ))}
     </div>
   );
 }

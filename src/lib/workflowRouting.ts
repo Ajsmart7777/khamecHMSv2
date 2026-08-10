@@ -43,27 +43,30 @@ export async function nextStationForInvoice(
   invoiceId: string,
   patientId: string,
   fallback: WorkflowRouteStatus = 'at_pharmacy',
-): Promise<WorkflowRouteStatus> {
-  // Source of truth = the DB view of any *unfinished* work for this patient.
-  // Fulfilled/rejected snaps are excluded there, so a paid-and-dispensed
-  // pharmacy snap does not falsely route the patient back to pharmacy.
+): Promise<WorkflowRouteStatus | null> {
+  // 1. Check if this is a clinical invoice (linked to a snap)
+  const { data: snaps, error: snapError } = await supabase
+    .from('snap_orders')
+    .select('target_station, status')
+    .eq('invoice_id', invoiceId);
+
+  if (snapError) throw new Error(snapError.message);
+
+  // If no snaps are linked to this invoice, it is a custom bill.
+  // Custom bills MUST NOT affect the patient's workflow status.
+  if (!snaps || snaps.length === 0) {
+    return null;
+  }
+
+  // 2. It's a clinical invoice. Check for ANY other outstanding station-level work for this patient.
   const pendingStation = await getPendingWorkflowStation(patientId);
   if (pendingStation) return pendingStation;
 
-  // No outstanding station-level work — check what this specific invoice
-  // originated from in case the snap has not yet been marked paid.
-  const { data, error } = await supabase
-    .from('snap_orders')
-    .select('target_station, status')
-    .eq('invoice_id', invoiceId)
-    .in('status', ['pending_billing', 'awaiting_payment', 'paid']);
-
-  if (error) throw new Error(error.message);
-
-  const stations = (data || []).map((row: any) => row.target_station);
+  // 3. No other pending work found via RPC, but let's check the targets for THIS invoice's snaps.
+  const stations = snaps.map((row: any) => row.target_station);
   if (stations.includes('lab')) return 'in_lab';
   if (stations.includes('pharmacy')) return 'at_pharmacy';
 
-  // Nothing pending anywhere → patient is done.
+  // Nothing pending anywhere → patient is done with the clinical visit.
   return 'discharged';
 }

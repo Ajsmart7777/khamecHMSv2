@@ -909,8 +909,8 @@ function SnapRow({ snap, thumb, onOpen }: { snap: any; thumb?: string; onOpen: (
         if (data) setLinkedData({ type: 'rx', items: data.prescription_items });
       } else if (snap.ocr_text?.startsWith('LINKED_LAB_REQUEST:')) {
         const id = snap.ocr_text.split(':')[1];
-        const { data } = await supabase.from('lab_requests').select('*, lab_test_requests(*)').eq('id', id).single();
-        if (data) setLinkedData({ type: 'lab', items: data.lab_test_requests });
+        const { data } = await supabase.from('lab_requests').select('*').eq('id', id).single();
+        if (data) setLinkedData({ type: 'lab', items: data.tests.map((t: string) => ({ test_name: t })) });
       }
     };
     fetchLinked();

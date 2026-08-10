@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Search, Loader2, Beaker } from 'lucide-react';
+import { Loader2, Beaker } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { fuzzyMatchPricelist, PricelistItem } from '@/hooks/usePricelist';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { createLabRequestFromTyped } from '@/integrations/supabase/rpcs';
 
 interface TypedLabRequestEditorProps {
@@ -73,7 +71,6 @@ export function TypedLabRequestEditor({
             List all tests in plain text.
           </p>
         </div>
-      </div>
       </div>
 
       <div className="flex justify-end gap-3 border-t pt-4">

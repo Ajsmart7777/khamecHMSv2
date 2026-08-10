@@ -1,23 +1,11 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Search, Loader2, Pill } from 'lucide-react';
+import { Loader2, Pill } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { fuzzyMatchPricelist, PricelistItem } from '@/hooks/usePricelist';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { createPrescriptionFromTyped } from '@/integrations/supabase/rpcs';
-
-interface MedicationLine {
-  id: string;
-  medication: string;
-  dosage: string;
-  frequency: string;
-  duration: string;
-  quantity: string;
-}
 
 interface TypedPrescriptionEditorProps {
   patientId: string;
@@ -92,16 +80,6 @@ export function TypedPrescriptionEditor({
           <p className="text-xs text-muted-foreground">
             Enter the full prescription details in plain text.
           </p>
-        </div>
-      </div>
-
-        <div className="space-y-2">
-          <Label>General Notes (Optional)</Label>
-          <Textarea 
-            placeholder="Additional instructions..." 
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-          />
         </div>
       </div>
 

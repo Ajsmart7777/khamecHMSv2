@@ -141,8 +141,10 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
     : owner;
 
   return (
-    <Card className="p-4 md:p-5 border-l-4 border-l-primary">
-      <div className="flex flex-col md:flex-row md:items-center gap-4">
+    <div className="space-y-3">
+      <Card className="p-4 md:p-5 border-l-4 border-l-primary relative overflow-visible">
+        <PatientAlertsStrip patientId={patient.id} />
+        <div className="flex flex-col md:flex-row md:items-center gap-4">
         <PatientPhotoAvatar patient={patient} size={56} className="rounded-2xl" />
 
         <div className="flex-1 min-w-0">
@@ -270,9 +272,7 @@ function LatestVitalsStrip({ v }: { v: any }) {
           </span>
         ))}
       </div>
-      
-      <PatientAlertsStrip patientId={patient.id} />
-    </div>
+    </Card>
   );
 }
 

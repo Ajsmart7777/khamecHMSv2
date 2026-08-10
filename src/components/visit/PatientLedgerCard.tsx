@@ -935,7 +935,7 @@ function SnapRow({ snap, thumb, onOpen }: { snap: any; thumb?: string; onOpen: (
           </span>
           <span className="text-[10px] text-muted-foreground uppercase font-bold">→ {snap.target_station}</span>
         </div>
-        {snap.note && <p className="text-xs text-foreground italic">"{snap.note}"</p>}
+        {snap.note && !isTyped && <p className="text-xs text-foreground italic">"{snap.note}"</p>}
         
         {/* Linked items or notes for typed orders */}
         {linkedData?.items && (

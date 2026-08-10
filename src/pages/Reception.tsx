@@ -57,7 +57,8 @@ import {
   History,
   RefreshCw,
   Wifi,
-  WifiOff
+  WifiOff,
+  Plus
 } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';

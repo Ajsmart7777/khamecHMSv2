@@ -336,9 +336,136 @@ const Billing = () => {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Invoices */}
-        <div className="lg:col-span-1 space-y-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Panel: Invoice Generator & Inbox */}
+        <div className="lg:col-span-8 space-y-6">
+          {/* Custom Billing Generator */}
+          <div className="bg-card rounded-xl border border-border p-5 shadow-sm">
+            <h3 className="font-semibold mb-4 flex items-center gap-2">
+              <Receipt className="h-5 w-5 text-primary" />
+              Create Custom Bill
+            </h3>
+
+            <div className="space-y-6">
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 space-y-2">
+                  <label className="text-sm font-medium">Select Patient</label>
+                  <Select value={selectedPatientId || ''} onValueChange={setSelectedPatientId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Search patient..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {patients.slice(0, 100).map(p => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.first_name} {p.last_name} ({p.card_number})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1 space-y-2">
+                  <label className="text-sm font-medium">Account Info</label>
+                  <div className="h-10 px-3 flex items-center rounded-md border bg-muted/30 text-sm">
+                    {selectedPatient ? (
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{selectedPatient.account_type.replace('_', ' ')}</Badge>
+                        <span className="font-mono text-xs">₦{selectedPatient.balance.toLocaleString()}</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground italic">Select patient to view balance</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {selectedPatient && <VisitCardBar patientId={selectedPatient.id} />}
+
+              <div className="space-y-4 border-t pt-6">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Invoice Items</h4>
+                  <Button variant="outline" size="sm" onClick={addItem} className="h-8">
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Item
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  {invoiceItems.map((item, idx) => (
+                    <div key={item.id} className="flex flex-col md:flex-row gap-3 items-start animate-in fade-in slide-in-from-left-2">
+                      <div className="flex-1 w-full space-y-1">
+                        <Input
+                          placeholder="Item description..."
+                          value={item.description}
+                          onChange={(e) => updateItem(item.id, 'description', e.target.value)}
+                        />
+                      </div>
+                      <div className="w-full md:w-24 space-y-1">
+                        <Input
+                          type="number"
+                          placeholder="Qty"
+                          min="1"
+                          value={item.qty}
+                          onChange={(e) => updateItem(item.id, 'qty', parseInt(e.target.value) || 1)}
+                        />
+                      </div>
+                      <div className="w-full md:w-32 space-y-1">
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">₦</span>
+                          <Input
+                            type="number"
+                            placeholder="Price"
+                            className="pl-7"
+                            value={item.price}
+                            onChange={(e) => updateItem(item.id, 'price', parseInt(e.target.value) || 0)}
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:bg-destructive/10"
+                        onClick={() => removeItem(item.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-muted/30 rounded-lg p-4 border border-border flex flex-col md:flex-row justify-between items-center gap-4">
+                  <div className="text-center md:text-left">
+                    <p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Grand Total</p>
+                    <p className="text-3xl font-black tracking-tight text-primary">₦{total.toLocaleString()}</p>
+                    {discountAmount > 0 && (
+                      <p className="text-xs text-success font-medium">
+                        (Discount ₦{discountAmount.toLocaleString()} applied from corporate account)
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-2 w-full md:w-auto">
+                    <Button variant="outline" className="flex-1 md:flex-initial" onClick={handlePrintPreview}>
+                      <Printer className="h-4 w-4 mr-2" /> Preview
+                    </Button>
+                    {corporateAccount ? (
+                      <Button variant="hero" className="flex-1 md:flex-initial" onClick={() => handleGenerateInvoice(true)}>
+                        <Building2 className="h-4 w-4 mr-2" /> Pay via Corporate
+                      </Button>
+                    ) : (
+                      <Button variant="hero" className="flex-1 md:flex-initial" onClick={() => handleGenerateInvoice(false)}>
+                        <Send className="h-4 w-4 mr-2" /> Generate Invoice
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <BillingSnapInbox />
+        </div>
+
+        {/* Right Panel: Recent Invoices & Stats */}
+        <div className="lg:col-span-4 space-y-6">
+          <div className="bg-card rounded-xl border border-border p-4 shadow-sm">
           {/* Recent Invoices */}
           <div className="bg-card rounded-xl border border-border p-4">
             <h3 className="font-semibold mb-3 flex items-center gap-2">

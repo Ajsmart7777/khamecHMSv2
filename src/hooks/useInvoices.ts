@@ -111,7 +111,6 @@ export function useInvoices() {
         sponsorType = acct;
       }
 
-      const { data: invoice, error: invoiceError } = await supabase
         .from('invoices')
         .insert({
           patient_id: patientId,

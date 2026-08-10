@@ -391,8 +391,11 @@ export function CashierPanel() {
 
       // Route the patient to the correct next station based on what was billed
       // (lab tests → back to Lab; meds/other → Pharmacy).
+      // If it's a custom bill (no linked snaps), nextStation will be null, and we do NOT update status.
       const nextStation = await nextStationForInvoice(selected.id, selected.patient_id);
-      await updatePatientStatus(selected.patient_id, nextStation);
+      if (nextStation) {
+        await updatePatientStatus(selected.patient_id, nextStation);
+      }
 
       const parts: string[] = [];
       if (cash > 0) parts.push(`₦${cash.toLocaleString()} ${method}`);

@@ -171,10 +171,20 @@ const Billing = () => {
         }
       }
 
+      // For custom bills generated here, we only update status if it was 'awaiting_payment'
+      // and we want to check if they have other clinical work.
+      // But based on the requirement, custom bills should not move patients at all.
+      // We will only call updatePatientStatus if there's clinical work pending.
       const nextStatus = payViaCorporate
         ? await nextStationForInvoice(invoice.id, selectedPatientId)
-        : 'awaiting_payment';
-      await updatePatientStatus(selectedPatientId, nextStatus);
+        : null;
+      
+      if (nextStatus) {
+        await updatePatientStatus(selectedPatientId, nextStatus);
+      } else if (!payViaCorporate) {
+        // If not paid yet, we might want to flag 'awaiting_payment' ONLY if they aren't already in a visit.
+        // However, the rule is: don't touch status for custom bills.
+      }
 
       await paymentAuditLogger(
         'payment_received',

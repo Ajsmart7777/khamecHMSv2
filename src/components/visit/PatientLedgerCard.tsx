@@ -93,6 +93,10 @@ function classifySnap(s: any): SnapSub {
   if (t === 'lab' || target === 'lab') return 'lab_request';
   if (t === 'treatment') return 'treatment';
   if (t === 'vitals') return 'vitals_photo';
+  if (s.intent === 'typed_order') {
+    if (target === 'pharmacy') return 'rx';
+    if (target === 'lab') return 'lab_request';
+  }
   return 'other_snap';
 }
 

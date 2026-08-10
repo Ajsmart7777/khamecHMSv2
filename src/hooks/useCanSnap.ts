@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
  */
 export function useCanSnap(patientId: string | null | undefined) {
   const { user, role } = useAuth();
-  const [allowed, setAllowed] = useState(false);
+  const [allowed, setAllowed] = useState(true); // Default to true to avoid UI flickering/deadlock
   const [reason, setReason] = useState<string>('');
   const [loading, setLoading] = useState(false);
 

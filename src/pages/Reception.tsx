@@ -170,8 +170,6 @@ const Reception = () => {
     await refreshPatients();
  
     const isNewVisit = selectedPatient.status === 'discharged';
-
-    const isNewVisit = selectedPatient.status === 'discharged';
     // Prevent sending if already mid-visit
     if (selectedPatient.status !== 'registered' && !isNewVisit && selectedPatient.status !== 'awaiting_payment') {
       toast.error('Patient already in an active visit', {
@@ -1320,8 +1318,7 @@ function NewPatientForm({
       const { error: onboardErr } = await supabase.rpc('adjust_patient_balance', {
         _patient_id: (result as any).id,
         _delta: -parseFloat(openingDebt),
-        _reason: 'debt_incurred',
-        _ref_type: 'opening_debt',
+        _transaction_type: 'debt_incurred',
         _notes: 'Opening debt from physical card',
       });
 

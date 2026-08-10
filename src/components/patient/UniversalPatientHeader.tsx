@@ -2,7 +2,18 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, Droplet, MapPin, User, Wallet, ClipboardList, UserCheck } from 'lucide-react';
+import { 
+  Activity, 
+  AlertTriangle, 
+  ArrowDownRight, 
+  ArrowUpRight, 
+  Droplet, 
+  MapPin, 
+  User, 
+  Wallet, 
+  ClipboardList, 
+  UserCheck 
+} from 'lucide-react';
 import { differenceInYears, format } from 'date-fns';
 import { Patient } from '@/contexts/PatientContext';
 import { ViewCardButton } from '@/components/visit/PatientCardDialog';
@@ -10,6 +21,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { hasWallet, sponsorLabel } from '@/lib/copay';
 import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';
 import { toast } from 'sonner';
+import { cn } from "@/lib/utils";
+import { useAuth } from '@/contexts/AuthContext';
 
 const STATUS_OWNER: Record<string, string> = {
   registered: 'Reception',
@@ -110,8 +123,6 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
   const balance = Number(patient.balance || 0);
   const showWallet = hasWallet(patient);
 
-  // Live balance-change indicator: flashes the balance chip + shows a delta
-  // whenever the patient's wallet moves (top-up, refund, deduction).
   useEffect(() => {
     const prev = prevBalanceRef.current;
     prevBalanceRef.current = balance;
@@ -145,100 +156,101 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
       <Card className="p-4 md:p-5 border-l-4 border-l-primary relative overflow-visible">
         <PatientAlertsStrip patientId={patient.id} />
         <div className="flex flex-col md:flex-row md:items-center gap-4">
-        <PatientPhotoAvatar patient={patient} size={56} className="rounded-2xl" />
+          <PatientPhotoAvatar patient={patient} size={56} className="rounded-2xl" />
 
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-lg font-semibold truncate">
-              {patient.first_name} {patient.last_name}
-            </h2>
-            <Badge variant="outline">{patient.card_number}</Badge>
-            <Badge variant="secondary" className="capitalize">
-              {patient.account_type?.replace('_', ' ')}
-            </Badge>
-            <Badge variant="outline" className="capitalize">
-              {patient.status?.replace('_', ' ')}
-            </Badge>
-          </div>
-          <p className="text-xs text-muted-foreground mt-1">
-            {age !== null ? `${age} yrs` : '—'} • {patient.gender || '—'} •{' '}
-            {patient.phone || 'no phone'}
-            {patient.date_of_birth && (
-              <> • DOB {format(new Date(patient.date_of_birth), 'MMM dd, yyyy')}</>
-            )}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 md:gap-4">
-          {patient.blood_group && (
-            <div className="flex items-center gap-1.5 text-sm">
-              <Droplet className="h-4 w-4 text-destructive" />
-              <span className="font-medium">{patient.blood_group}</span>
-            </div>
-          )}
-          <ViewCardButton patient={patient} label="Open Card" variant="default" />
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-        {showWallet ? (
-          <Stat
-            icon={<Wallet className="h-3.5 w-3.5" />}
-            label="Balance"
-            value={`₦${balance.toLocaleString()}`}
-            tone={balance < 0 ? 'danger' : balance > 0 ? 'ok' : 'muted'}
-            flash={balanceFlash ?? undefined}
-          />
-        ) : (
-          <Stat
-            icon={<Wallet className="h-3.5 w-3.5" />}
-            label="Sponsor"
-            value={sponsorLabel(patient)}
-            tone="ok"
-          />
-        )}
-        <Stat
-          icon={<Wallet className="h-3.5 w-3.5" />}
-          label="Sponsor credit"
-          value={patient.corporate_id ? `₦${creditLimit.toLocaleString()}` : '—'}
-        />
-        <Stat
-          icon={<UserCheck className="h-3.5 w-3.5" />}
-          label="Current owner"
-          value={owner}
-        />
-        <Stat
-          icon={<MapPin className="h-3.5 w-3.5" />}
-          label="Location"
-          value={location}
-        />
-        <Stat
-          icon={<ClipboardList className="h-3.5 w-3.5" />}
-          label="Open visit"
-          value={
-            visit
-              ? `${visit.visit_number} · ${format(new Date(visit.opened_at), 'MMM dd HH:mm')}`
-              : 'None'
-          }
-        />
-      </div>
-
-      {patient.allergies && patient.allergies.length > 0 && (
-        <div className="mt-3 flex items-start gap-2 p-2.5 rounded-lg bg-destructive/10 border border-destructive/30">
-          <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
-          <div className="flex flex-wrap gap-1.5">
-            <span className="text-xs font-medium text-destructive mr-1">Allergies:</span>
-            {patient.allergies.map((a) => (
-              <Badge key={a} variant="destructive" className="text-xs">
-                {a}
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-semibold truncate">
+                {patient.first_name} {patient.last_name}
+              </h2>
+              <Badge variant="outline">{patient.card_number}</Badge>
+              <Badge variant="secondary" className="capitalize">
+                {patient.account_type?.replace('_', ' ')}
               </Badge>
-            ))}
+              <Badge variant="outline" className="capitalize">
+                {patient.status?.replace('_', ' ')}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {age !== null ? `${age} yrs` : '—'} • {patient.gender || '—'} •{' '}
+              {patient.phone || 'no phone'}
+              {patient.date_of_birth && (
+                <> • DOB {format(new Date(patient.date_of_birth), 'MMM dd, yyyy')}</>
+              )}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 md:gap-4">
+            {patient.blood_group && (
+              <div className="flex items-center gap-1.5 text-sm">
+                <Droplet className="h-4 w-4 text-destructive" />
+                <span className="font-medium">{patient.blood_group}</span>
+              </div>
+            )}
+            <ViewCardButton patient={patient} label="Open Card" variant="default" />
           </div>
         </div>
-      )}
 
-      {latestVitals && <LatestVitalsStrip v={latestVitals} />}
-    </Card>
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+          {showWallet ? (
+            <Stat
+              icon={<Wallet className="h-3.5 w-3.5" />}
+              label="Balance"
+              value={`₦${balance.toLocaleString()}`}
+              tone={balance < 0 ? 'danger' : balance > 0 ? 'ok' : 'muted'}
+              flash={balanceFlash ?? undefined}
+            />
+          ) : (
+            <Stat
+              icon={<Wallet className="h-3.5 w-3.5" />}
+              label="Sponsor"
+              value={sponsorLabel(patient)}
+              tone="ok"
+            />
+          )}
+          <Stat
+            icon={<Wallet className="h-3.5 w-3.5" />}
+            label="Sponsor credit"
+            value={patient.corporate_id ? `₦${creditLimit.toLocaleString()}` : '—'}
+          />
+          <Stat
+            icon={<UserCheck className="h-3.5 w-3.5" />}
+            label="Current owner"
+            value={owner}
+          />
+          <Stat
+            icon={<MapPin className="h-3.5 w-3.5" />}
+            label="Location"
+            value={location}
+          />
+          <Stat
+            icon={<ClipboardList className="h-3.5 w-3.5" />}
+            label="Open visit"
+            value={
+              visit
+                ? `${visit.visit_number} · ${format(new Date(visit.opened_at), 'MMM dd HH:mm')}`
+                : 'None'
+            }
+          />
+        </div>
+
+        {patient.allergies && patient.allergies.length > 0 && (
+          <div className="mt-3 flex items-start gap-2 p-2.5 rounded-lg bg-destructive/10 border border-destructive/30">
+            <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-xs font-medium text-destructive mr-1">Allergies:</span>
+              {patient.allergies.map((a) => (
+                <Badge key={a} variant="destructive" className="text-xs">
+                  {a}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {latestVitals && <LatestVitalsStrip v={latestVitals} />}
+      </Card>
+    </div>
   );
 }
 
@@ -272,7 +284,7 @@ function LatestVitalsStrip({ v }: { v: any }) {
           </span>
         ))}
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -314,7 +326,7 @@ function PatientAlertsStrip({ patientId }: { patientId: string }) {
   if (loading || notes.length === 0) return null;
 
   return (
-    <div className="space-y-2 mt-2 px-1 pb-1">
+    <div className="space-y-2 mb-3">
       {notes.map(n => (
         <div key={n.id} className={cn(
           "p-2 rounded-md border flex items-start justify-between gap-3 animate-in fade-in slide-in-from-top-1",

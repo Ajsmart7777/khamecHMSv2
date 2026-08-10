@@ -315,6 +315,8 @@ export function CashierPanel() {
       return;
     }
     if (overpay > 0 && sponsored) {
+      // Overpayment is credited to wallet for cash patients, 
+      // but for sponsored patients we only ever collect up to the copay.
       toast.error('Total exceeds patient copay');
       return;
     }

@@ -68,12 +68,11 @@ const Doctor = () => {
   const scopedQueue = myDoctorKey
     ? baseQueue.filter(p => p.assigned_doctor === myDoctorKey)
     : baseQueue;
-  const labReturnedPatients = scopedQueue.filter(p =>
-    pendingLabReturnPatientIds.has(p.id) ||
-    labRequests.some(lr => lr.patient_id === p.id && lr.status === 'completed'),
-  );
-  // Lab-returned patients live only in the "Returned from Lab" inbox,
-  // not in the consultation queue.
+
+  // Lab-returned patients live in the "Returned from Lab" inbox.
+  // We check ownership strictly so each doctor only sees their own returns.
+  const labReturnedPatients = scopedQueue.filter(p => pendingLabReturnPatientIds.has(p.id));
+  
   const labReturnIds = new Set(labReturnedPatients.map(p => p.id));
   const doctorQueue = scopedQueue.filter(p => !labReturnIds.has(p.id));
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;

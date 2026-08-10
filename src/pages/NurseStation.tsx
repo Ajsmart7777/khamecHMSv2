@@ -1,5 +1,5 @@
 import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
@@ -43,11 +43,14 @@ const NurseStation = () => {
   // Deduplicate by patient id so concurrent lab returns / status flips
   // (which can briefly emit multiple realtime events for the same patient)
   // never render the same card twice in the queue.
-  const nurseQueue = Array.from(
-    new Map(
-      getPatientsByStatus(['waiting', 'with_nurse']).map((p) => [p.id, p])
-    ).values()
-  );
+  const nurseQueue = useMemo(() => {
+    const allNursePatients = getPatientsByStatus(['waiting', 'with_nurse']);
+    return Array.from(
+      new Map(
+        allNursePatients.map((p) => [p.id, p])
+      ).values()
+    );
+  }, [patients, getPatientsByStatus]);
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
   const handlePatientComplete = async (patientId: string, assignedDoctor: 'doctor1' | 'doctor2') => {

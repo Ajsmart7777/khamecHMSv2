@@ -271,12 +271,12 @@ export function PatientLedgerCard({
       const total = Number(i.total_amount ?? 0);
       const invSub = paid <= 0 ? 'invoice_new' : paid < total ? 'invoice_partial' : 'invoice_paid';
       
-      // Filter out items that were marked unavailable or refunded to keep the ledger accurate
+      // Automatically exclude unavailable medication items from the ledger/claim totals
+      // ensuring only eligible amounts are reclaimed or credited
       const activeItems = (i.invoice_items ?? []).filter((it: any) => 
         it.dispensing_status !== 'unavailable' && it.dispensing_status !== 'refunded'
       );
       
-      // If the invoice is empty after filtering (all items unavailable), we still show it but marked as voided/refunded
       const displayTotal = activeItems.reduce((s: number, it: any) => s + Number(it.total || 0), 0);
 
       push(i.visit_id, {

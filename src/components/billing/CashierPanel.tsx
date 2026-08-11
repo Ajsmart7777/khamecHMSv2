@@ -418,7 +418,7 @@ export function CashierPanel() {
         : overpay > 0 
         ? 'Payment recorded with change to wallet' 
         : shortfall > 0 
-        ? 'Partial payment recorded' 
+        ? (applied === 0 ? 'Recorded as debt (Credit)' : 'Partial payment recorded')
         : 'Payment recorded';
 
       toast.success(successMessage,

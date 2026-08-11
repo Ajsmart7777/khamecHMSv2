@@ -28,6 +28,8 @@ import NotFound from "./pages/NotFound";
 import Claims from "./pages/Claims";
 import EMR from "./pages/EMR";
 import DailySalesReportPage from "./pages/DailySalesReport";
+import AdmittedPatients from "./pages/AdmittedPatients";
+
 
 const queryClient = new QueryClient();
 
@@ -105,6 +107,11 @@ const App = () => (
                 <Route path="/emr" element={
                   <ProtectedRoute allowedRoles={['doctor1', 'doctor2', 'nurse', 'lab_tech', 'pharmacist', 'admin']}>
                     <EMR />
+                  </ProtectedRoute>
+                } />
+                <Route path="/admitted-patients" element={
+                  <ProtectedRoute allowedRoles={['doctor1', 'doctor2', 'nurse', 'admin']}>
+                    <AdmittedPatients />
                   </ProtectedRoute>
                 } />
                 <Route path="/admin" element={

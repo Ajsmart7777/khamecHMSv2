@@ -152,13 +152,9 @@ const Doctor = () => {
           </div>
 
           <LabResultInbox />
-          <AdmittedPatientsPanel
-            sourceStation="doctor"
-            title="My Admitted Patients"
-            assignedDoctor={myDoctorKey ?? undefined}
-          />
           <LabRequestPrintQueue assignedDoctor={myDoctorKey ?? undefined} />
           <LabResultsViewer assignedDoctor={myDoctorKey ?? undefined} />
+
         </div>
 
         {/* Consultation area */}

@@ -891,7 +891,9 @@ export function CashierPanel() {
                 : sponsored
                 ? 'Collect Copay & Send to Claims'
                 : shortfall > 0
-                ? `Confirm ₦${applied.toLocaleString()} Partial Payment`
+                ? applied === 0 
+                  ? 'Confirm ₦0 (Buy on Credit)'
+                  : `Confirm ₦${applied.toLocaleString()} Partial Payment`
                 : 'Confirm Payment'}
             </Button>
           </DialogFooter>

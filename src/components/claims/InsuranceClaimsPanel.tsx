@@ -35,7 +35,9 @@ interface Invoice {
   status: string;
   created_at: string;
   claim_submitted_at?: string | null;
+  invoice_items?: any[];
 }
+
 
 function money(v: number) {
   return Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });

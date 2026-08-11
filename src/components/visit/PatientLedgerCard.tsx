@@ -270,10 +270,20 @@ export function PatientLedgerCard({
       const paid = Number(i.paid_amount ?? 0);
       const total = Number(i.total_amount ?? 0);
       const invSub = paid <= 0 ? 'invoice_new' : paid < total ? 'invoice_partial' : 'invoice_paid';
+      
+      // Filter out items that were marked unavailable or refunded to keep the ledger accurate
+      const activeItems = (i.invoice_items ?? []).filter((it: any) => 
+        it.dispensing_status !== 'unavailable' && it.dispensing_status !== 'refunded'
+      );
+      
+      // If the invoice is empty after filtering (all items unavailable), we still show it but marked as voided/refunded
+      const displayTotal = activeItems.reduce((s: number, it: any) => s + Number(it.total || 0), 0);
+
       push(i.visit_id, {
         id: `inv-${i.id}`, visitId: i.visit_id, at: i.created_at, kind: 'invoice',
-        station: 'billing', title: `Invoice ${i.invoice_number}`, data: i, subkind: invSub,
+        station: 'billing', title: `Invoice ${i.invoice_number}`, data: { ...i, items: activeItems, displayTotal }, subkind: invSub,
       });
+
       if (paid > 0) push(i.visit_id, {
         id: `pay-${i.id}`, visitId: i.visit_id, at: i.updated_at ?? i.created_at,
         kind: 'payment', station: 'cashier',
@@ -281,7 +291,19 @@ export function PatientLedgerCard({
         data: { amount: paid, method: i.payment_method, ref: i.invoice_number, total },
         subkind: paid >= total ? 'receipt_full' : 'receipt_partial',
       });
+      
+      // Add refund events for items that were marked unavailable then refunded
+      (i.invoice_items ?? []).filter((it: any) => it.dispensing_status === 'refunded').forEach((it: any) => {
+        push(i.visit_id, {
+          id: `ref-${it.id}`, visitId: i.visit_id, at: it.dispensing_updated_at ?? i.updated_at,
+          kind: 'payment', station: 'cashier',
+          title: `Refund · ${it.description}`,
+          data: { amount: Number(it.total), method: 'refund', ref: i.invoice_number, total: Number(it.total) },
+          subkind: 'receipt_partial',
+        });
+      });
     });
+
 
     (adms.data ?? []).forEach((a: any) => {
       const vid = a.visit_id ?? vs.find(v => v.status === 'open')?.id ?? vs[0]?.id ?? null;
@@ -334,7 +356,7 @@ export function PatientLedgerCard({
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices', filter: patientFilter }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vitals', filter: patientFilter }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'visit_attachments', filter: patientFilter }, bump)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_items' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_items' }, () => bump())
       .subscribe();
     return () => {
       if (debounce) clearTimeout(debounce);

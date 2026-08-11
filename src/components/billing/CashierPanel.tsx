@@ -117,6 +117,8 @@ export function CashierPanel() {
   const [refundItem, setRefundItem] = useState<{ item: any; invoice: Invoice } | null>(null);
 
   const unavailableItems = useMemo(() => {
+    // Automatically identify unavailable medication items for exclusion from sponsor totals
+    // ensuring only eligible amounts are reclaimed or credited
     const allItems = invoices.flatMap(inv => (inv.items || []).map(it => ({ ...it, invoice: inv })));
     return allItems.filter(it => it.dispensing_status === 'unavailable');
   }, [invoices]);

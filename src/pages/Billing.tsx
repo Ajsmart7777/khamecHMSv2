@@ -133,91 +133,94 @@ const Billing = () => {
   const handleGenerateInvoice = async (payViaCorporate = false) => {
     if (isGenerating) return;
     setIsGenerating(true);
+    
     try {
       const validItems = invoiceItems.filter(item => item.description.trim());
-    if (validItems.length === 0) {
-      toast.error('Empty Invoice', { description: 'Please add items to the invoice before generating.' });
-      return;
-    }
-
-    if (!selectedPatientId) {
-      toast.error('No Patient', { description: 'Please select a patient first.' });
-      return;
-    }
-
-    const invoiceItemsMapped = validItems.map(item => ({
-      description: item.description,
-      quantity: item.qty,
-      unitPrice: discountPercent > 0 ? Math.round(item.price * (1 - discountPercent / 100)) : item.price,
-      category: item.category,
-    }));
-    
-    const invoice = await createInvoice(
-      selectedPatientId,
-      invoiceItemsMapped,
-      corporateAccount && discountPercent > 0 ? `Corporate discount: ${discountPercent}% (${corporateAccount.company_name})` : undefined
-    );
-
-    if (invoice) {
-      if (payViaCorporate && corporateAccount) {
-        const deducted = await deductBalance(corporateAccount.id, total);
-        if (deducted) {
-          await supabase
-            .from('invoices')
-            .update({
-              paid_amount: total,
-              status: 'paid',
-              payment_method: 'corporate',
-              paid_at: new Date().toISOString(),
-              notes: `Paid via corporate account: ${corporateAccount.company_name}`,
-            })
-            .eq('id', invoice.id);
-        }
+      if (validItems.length === 0) {
+        toast.error('Empty Invoice', { description: 'Please add items to the invoice before generating.' });
+        return;
       }
 
-      // For custom bills generated here, we only update status if it was 'awaiting_payment'
-      // and we want to check if they have other clinical work.
-      // But based on the requirement, custom bills should not move patients at all.
-      // We will only call updatePatientStatus if there's clinical work pending.
-      const nextStatus = payViaCorporate
-        ? await nextStationForInvoice(invoice.id, selectedPatientId)
-        : null;
+      if (!selectedPatientId) {
+        toast.error('No Patient', { description: 'Please select a patient first.' });
+        return;
+      }
+
+      const invoiceItemsMapped = validItems.map(item => ({
+        description: item.description,
+        quantity: item.qty,
+        unitPrice: discountPercent > 0 ? Math.round(item.price * (1 - discountPercent / 100)) : item.price,
+        category: item.category,
+      }));
       
-      if (nextStatus) {
-        await updatePatientStatus(selectedPatientId, nextStatus);
-      } else if (!payViaCorporate) {
-        // If not paid yet, we might want to flag 'awaiting_payment' ONLY if they aren't already in a visit.
-        // However, the rule is: don't touch status for custom bills.
-      }
-
-      await paymentAuditLogger(
-        'payment_received',
-        invoice.invoice_number,
-        { 
-          patient_id: selectedPatientId,
-          patient_name: selectedPatient ? `${selectedPatient.first_name} ${selectedPatient.last_name}` : 'Unknown',
-          action: payViaCorporate ? 'corporate_payment' : 'invoice_generated',
-          total_amount: total,
-        }
+      const invoice = await createInvoice(
+        selectedPatientId,
+        invoiceItemsMapped,
+        corporateAccount && discountPercent > 0 ? `Corporate discount: ${discountPercent}% (${corporateAccount.company_name})` : undefined
       );
 
-      setInvoiceData({
-        open: true,
-        invoiceNumber: invoice.invoice_number,
-        date: new Date(),
-        items: validItems.map(item => ({
-          description: item.description,
-          quantity: item.qty,
-          unitPrice: item.price,
-          total: item.qty * item.price,
-        })),
-      });
+      if (invoice) {
+        if (payViaCorporate && corporateAccount) {
+          const deducted = await deductBalance(corporateAccount.id, total);
+          if (deducted) {
+            await supabase
+              .from('invoices')
+              .update({
+                paid_amount: total,
+                status: 'paid',
+                payment_method: 'corporate',
+                paid_at: new Date().toISOString(),
+                notes: `Paid via corporate account: ${corporateAccount.company_name}`,
+              })
+              .eq('id', invoice.id);
+          }
+        }
 
-      toast.success('Invoice Generated');
-      setInvoiceItems([{ id: Date.now(), description: '', qty: 1, price: 0, category: 'general' }]);
-      setSelectedPatientId(null);
+        // For custom bills generated here, we only update status if it was 'awaiting_payment'
+        // and we want to check if they have other clinical work.
+        // But based on the requirement, custom bills should not move patients at all.
+        // We will only call updatePatientStatus if there's clinical work pending.
+        const nextStatus = payViaCorporate
+          ? await nextStationForInvoice(invoice.id, selectedPatientId)
+          : null;
+        
+        if (nextStatus) {
+          await updatePatientStatus(selectedPatientId, nextStatus);
+        }
+
+        await paymentAuditLogger(
+          'payment_received',
+          invoice.invoice_number,
+          { 
+            patient_id: selectedPatientId,
+            patient_name: selectedPatient ? `${selectedPatient.first_name} ${selectedPatient.last_name}` : 'Unknown',
+            action: payViaCorporate ? 'corporate_payment' : 'invoice_generated',
+            total_amount: total,
+          }
+        );
+
+        setInvoiceData({
+          open: true,
+          invoiceNumber: invoice.invoice_number,
+          date: new Date(),
+          items: validItems.map(item => ({
+            description: item.description,
+            quantity: item.qty,
+            unitPrice: item.price,
+            total: item.qty * item.price,
+          })),
+        });
+
+        toast.success('Invoice Generated');
+        setInvoiceItems([{ id: Date.now(), description: '', qty: 1, price: 0, category: 'general' }]);
+        setSelectedPatientId(null);
+      }
+    } catch (error) {
+      console.error('Error generating invoice:', error);
+      toast.error('Failed to generate invoice');
+    } finally {
+      setIsGenerating(false);
     }
-    setIsGenerating(false);
   };
 
   return (

@@ -131,7 +131,10 @@ const Billing = () => {
   };
 
   const handleGenerateInvoice = async (payViaCorporate = false) => {
-    const validItems = invoiceItems.filter(item => item.description.trim());
+    if (isGenerating) return;
+    setIsGenerating(true);
+    try {
+      const validItems = invoiceItems.filter(item => item.description.trim());
     if (validItems.length === 0) {
       toast.error('Empty Invoice', { description: 'Please add items to the invoice before generating.' });
       return;

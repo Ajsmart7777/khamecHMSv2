@@ -81,8 +81,9 @@ async function settleInvoiceAtomic(params: {
 }
 
 export function CashierPanel() {
-  const { getPendingInvoices, refreshInvoices } = useInvoices();
+  const { getPendingInvoices, refreshInvoices, invoices } = useInvoices();
   const { patients, updatePatientStatus, refreshPatients, updatePatient } = usePatients() as any;
+
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'copay' | 'covered'>('all');
   const [bulkBusy, setBulkBusy] = useState(false);
@@ -113,6 +114,13 @@ export function CashierPanel() {
   } | null>(null);
 
   const pending = getPendingInvoices();
+  const [refundItem, setRefundItem] = useState<{ item: any; invoice: Invoice } | null>(null);
+
+  const unavailableItems = useMemo(() => {
+    const allItems = invoices.flatMap(inv => (inv.items || []).map(it => ({ ...it, invoice: inv })));
+    return allItems.filter(it => it.dispensing_status === 'unavailable');
+  }, [invoices]);
+
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -918,6 +926,47 @@ export function CashierPanel() {
           breakdown={receipt.breakdown}
         />
       )}
+      {refundItem && (
+        <Dialog open onOpenChange={(o) => !o && setRefundItem(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Process Refund</DialogTitle>
+              <DialogDescription>
+                Refund ₦{(Number(refundItem.item.total) || 0).toLocaleString()} for "{refundItem.item.description}" 
+                to {patients.find((p: any) => p.id === refundItem.invoice.patient_id)?.first_name}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="p-4 bg-muted rounded-lg text-sm space-y-2">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Original Invoice:</span>
+                <span className="font-mono font-medium">{refundItem.invoice.invoice_number}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Unavailable Reason:</span>
+                <span className="italic text-red-600">{refundItem.item.dispensing_notes || 'Not specified'}</span>
+              </div>
+            </div>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="ghost" className="w-full sm:w-auto" onClick={() => setRefundItem(null)} disabled={busy}>Cancel</Button>
+              {isSponsored(patients.find((p: any) => p.id === refundItem.invoice.patient_id) || {}) ? (
+                <Button variant="destructive" className="w-full sm:flex-1" onClick={() => handleRefund('cash')} disabled={busy}>
+                  {busy ? 'Processing...' : 'Void from Claim'}
+                </Button>
+              ) : (
+                <>
+                  <Button variant="outline" className="w-full sm:w-auto" onClick={() => handleRefund('cash')} disabled={busy}>
+                    Refund as Cash
+                  </Button>
+                  <Button className="w-full sm:flex-1" onClick={() => handleRefund('balance')} disabled={busy}>
+                    {busy ? 'Processing...' : 'Refund to Wallet'}
+                  </Button>
+                </>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
+

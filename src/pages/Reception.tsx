@@ -1267,7 +1267,7 @@ function NewPatientForm({
           <p className="text-[10px] text-muted-foreground mt-2">
             {patientType === 'new' 
               ? "Charge Registration Fee (₦1,000) and Monthly Consultation (₦3,000)."
-              : "No Registration Fee. Option to mark Consultation as already paid."}
+              : "No Registration Fee. Record any opening debt or credit from the physical card."}
           </p>
         </div>
 
@@ -1284,18 +1284,16 @@ function NewPatientForm({
               />
               <p className="text-[10px] text-muted-foreground">Owed from physical card.</p>
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-medium block">Consultation Status</label>
-              <div className="flex items-center gap-2 pt-1">
-                <Checkbox
-                  id="con-paid"
-                  checked={isConsultationPaid}
-                  onCheckedChange={(checked) => setIsConsultationPaid(!!checked)}
-                />
-                <label htmlFor="con-paid" className="text-xs cursor-pointer">
-                  Already paid this month
-                </label>
-              </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Opening Credit (₦)</label>
+              <Input
+                type="number"
+                placeholder="0.00"
+                value={openingCredit}
+                onChange={(e) => setOpeningCredit(e.target.value)}
+                className="h-8 text-sm"
+              />
+              <p className="text-[10px] text-muted-foreground">Balance in patient's favour.</p>
             </div>
           </div>
         )}

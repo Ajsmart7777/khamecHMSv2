@@ -310,8 +310,8 @@ export function CashierPanel() {
       return;
     }
 
-    if (applied <= 0) {
-      toast.error('Enter an amount to record');
+    if (applied < 0) {
+      toast.error('Invalid amount entered');
       return;
     }
     if (overpay > 0 && sponsored) {

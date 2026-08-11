@@ -310,8 +310,8 @@ export function CashierPanel() {
       return;
     }
 
-    if (applied <= 0) {
-      toast.error('Enter an amount to record');
+    if (applied < 0) {
+      toast.error('Invalid amount entered');
       return;
     }
     if (overpay > 0 && sponsored) {
@@ -337,7 +337,9 @@ export function CashierPanel() {
     try {
       // Wallet deduction, debt recording, and invoice close all run in a single
       // server-side transaction — no partial states if any step fails.
-      const paymentMethod = salDed > 0 && cash === 0 && bal === 0
+      const paymentMethod = applied === 0
+        ? 'credit'
+        : salDed > 0 && cash === 0 && bal === 0
         ? 'salary_deduction'
         : sponsored
         ? 'sponsor_claim'
@@ -349,8 +351,10 @@ export function CashierPanel() {
         : sponsored
         ? `Copay collected; sponsor claim routed to Claims · ${sponsorLabel(selectedPatient)}`
         : shortfall > 0
-        ? `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`
-        : undefined;
+          ? (applied === 0 
+              ? `Patient bought on credit (₦${shortfall.toLocaleString()} added to debt)`
+              : `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`)
+          : undefined;
       const debt = !sponsored && shortfall > 0 ? shortfall : 0;
       const result = await settleInvoiceAtomic({
         invoiceId: selected.id,
@@ -414,7 +418,7 @@ export function CashierPanel() {
         : overpay > 0 
         ? 'Payment recorded with change to wallet' 
         : shortfall > 0 
-        ? 'Partial payment recorded' 
+        ? (applied === 0 ? 'Recorded as debt (Credit)' : 'Partial payment recorded')
         : 'Payment recorded';
 
       toast.success(successMessage,
@@ -425,7 +429,7 @@ export function CashierPanel() {
       setReceipt({
         patient: selectedPatient,
         amount: cash + bal,
-        paymentMethod: salDed > 0 && cash === 0 && bal === 0 ? 'salary_deduction' : (bal > 0 && cash === 0 ? 'balance' : method),
+        paymentMethod: applied === 0 ? 'credit' : (salDed > 0 && cash === 0 && bal === 0 ? 'salary_deduction' : (bal > 0 && cash === 0 ? 'balance' : method)),
         receiptNumber: selected.invoice_number,
         date: new Date(),
         newBalance: Number(patientBalance) - bal - (!sponsored && shortfall > 0 ? shortfall : 0),
@@ -873,7 +877,7 @@ export function CashierPanel() {
               onClick={submit}
               disabled={
                 busy ||
-                (!fullCover && applied <= 0) ||
+                (!fullCover && applied < 0) ||
                 (sponsored && overpay > 0) ||
                 balExceedsAvail ||
                 (sponsored && !fullCover && shortfall > 0) ||
@@ -891,7 +895,9 @@ export function CashierPanel() {
                 : sponsored
                 ? 'Collect Copay & Send to Claims'
                 : shortfall > 0
-                ? `Confirm ₦${applied.toLocaleString()} Partial Payment`
+                ? applied === 0 
+                  ? 'Confirm ₦0 (Buy on Credit)'
+                  : `Confirm ₦${applied.toLocaleString()} Partial Payment`
                 : 'Confirm Payment'}
             </Button>
           </DialogFooter>

@@ -217,6 +217,7 @@ const Billing = () => {
       setInvoiceItems([{ id: Date.now(), description: '', qty: 1, price: 0, category: 'general' }]);
       setSelectedPatientId(null);
     }
+    setIsGenerating(false);
   };
 
   return (

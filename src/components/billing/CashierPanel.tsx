@@ -429,7 +429,7 @@ export function CashierPanel() {
       setReceipt({
         patient: selectedPatient,
         amount: cash + bal,
-        paymentMethod: salDed > 0 && cash === 0 && bal === 0 ? 'salary_deduction' : (bal > 0 && cash === 0 ? 'balance' : method),
+        paymentMethod: applied === 0 ? 'credit' : (salDed > 0 && cash === 0 && bal === 0 ? 'salary_deduction' : (bal > 0 && cash === 0 ? 'balance' : method)),
         receiptNumber: selected.invoice_number,
         date: new Date(),
         newBalance: Number(patientBalance) - bal - (!sponsored && shortfall > 0 ? shortfall : 0),

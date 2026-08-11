@@ -158,6 +158,8 @@ export function useInvoices() {
     } catch (error) {
       logError('Error in createInvoice', error);
       return null;
+    } finally {
+      setIsCreating(false);
     }
   };
 

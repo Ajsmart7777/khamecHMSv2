@@ -873,7 +873,7 @@ export function CashierPanel() {
               onClick={submit}
               disabled={
                 busy ||
-                (!fullCover && applied <= 0) ||
+                (!fullCover && applied < 0) ||
                 (sponsored && overpay > 0) ||
                 balExceedsAvail ||
                 (sponsored && !fullCover && shortfall > 0) ||

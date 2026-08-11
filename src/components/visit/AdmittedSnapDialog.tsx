@@ -143,6 +143,7 @@ export function AdmittedSnapDialog({
   const removeLine = (idx: number) => setLines((prev) => prev.filter((_, i) => i !== idx));
 
   const submit = async () => {
+    if (busy) return;
     if (photoRequired && !file) { toast.error('Take a photo of the order first'); return; }
     if (lines.length === 0) {
       toast.error(orderType === 'lab' ? 'Add at least one lab test' : 'Add at least one item from the pricelist');

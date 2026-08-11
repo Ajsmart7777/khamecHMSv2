@@ -28,6 +28,8 @@ import NotFound from "./pages/NotFound";
 import Claims from "./pages/Claims";
 import EMR from "./pages/EMR";
 import DailySalesReportPage from "./pages/DailySalesReport";
+import AdmittedPatients from "./pages/AdmittedPatients";
+
 
 const queryClient = new QueryClient();
 

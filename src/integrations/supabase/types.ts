@@ -831,6 +831,10 @@ export type Database = {
           category: string | null
           created_at: string
           description: string
+          dispensing_notes: string | null
+          dispensing_status: string | null
+          dispensing_updated_at: string | null
+          dispensing_updated_by: string | null
           id: string
           invoice_id: string
           quantity: number
@@ -841,6 +845,10 @@ export type Database = {
           category?: string | null
           created_at?: string
           description: string
+          dispensing_notes?: string | null
+          dispensing_status?: string | null
+          dispensing_updated_at?: string | null
+          dispensing_updated_by?: string | null
           id?: string
           invoice_id: string
           quantity?: number
@@ -851,6 +859,10 @@ export type Database = {
           category?: string | null
           created_at?: string
           description?: string
+          dispensing_notes?: string | null
+          dispensing_status?: string | null
+          dispensing_updated_at?: string | null
+          dispensing_updated_by?: string | null
           id?: string
           invoice_id?: string
           quantity?: number
@@ -2825,6 +2837,10 @@ export type Database = {
         Args: { _invoice_id: string; _notes?: string }
         Returns: undefined
       }
+      mark_item_unavailable: {
+        Args: { _item_id: string; _reason: string }
+        Returns: undefined
+      }
       mark_ready_for_discharge: {
         Args: { _admission_id: string; _note?: string; _snap_id?: string }
         Returns: undefined
@@ -2861,6 +2877,10 @@ export type Database = {
       purge_clinical_data: { Args: { _modules: string[] }; Returns: Json }
       recalc_visit_totals: { Args: { _visit_id: string }; Returns: undefined }
       reconcile_paid_snap_orders: { Args: never; Returns: Json }
+      refund_invoice_item: {
+        Args: { _item_id: string; _payment_method?: string }
+        Returns: Json
+      }
       release_task: {
         Args: { _notes?: string; _source: string; _source_id: string }
         Returns: boolean

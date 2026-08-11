@@ -31,11 +31,11 @@ function calculateBalanceAfterVoid(
     ? Math.round((invoiceTotalAmount * copayPct) / 100 * 100) / 100 
     : invoiceTotalAmount;
   
-  const overpayment = Math.max(0, invoicePaidAmount - patientShare);
+  const overpayment = Math.max(0, Math.round((invoicePaidAmount - patientShare) * 100) / 100);
   
   // If we void the invoice, we must take back the overpayment credit 
   // that was previously added to the balance.
-  return currentBalance - overpayment;
+  return Math.round((currentBalance - overpayment) * 100) / 100;
 }
 
 describe('Wallet Credit Reversal Logic', () => {

@@ -1223,7 +1223,7 @@ function NewPatientForm({
       const { error: creditErr } = await supabase.rpc('adjust_patient_balance', {
         _patient_id: (result as any).id,
         _delta: parseFloat(openingCredit),
-        _transaction_type: 'correction',
+        _transaction_type: 'topup',
         _notes: 'Opening credit from physical card',
       });
 

@@ -2779,6 +2779,13 @@ export type Database = {
         Args: { _month: number; _sponsor_id: string; _year: number }
         Returns: string
       }
+      get_database_size: {
+        Args: never
+        Returns: {
+          database_name: string
+          database_size_bytes: number
+        }[]
+      }
       get_staff_directory: {
         Args: never
         Returns: {

@@ -228,7 +228,7 @@ export function SnapFulfillDialog({
                           {status === 'pending' ? (
                             <Button
                               variant="outline"
-                              size="xs"
+                              size="sm"
                               className="h-7 text-[10px] text-red-600 border-red-200 hover:bg-red-50"
                               onClick={() => markUnavailable(it.id, it.description)}
                               disabled={busy}

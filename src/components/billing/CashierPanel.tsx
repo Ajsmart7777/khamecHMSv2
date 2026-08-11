@@ -121,6 +121,33 @@ export function CashierPanel() {
     return allItems.filter(it => it.dispensing_status === 'unavailable');
   }, [invoices]);
 
+  const handleRefund = async (method: 'balance' | 'cash') => {
+    if (!refundItem) return;
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.rpc('refund_invoice_item', {
+        _item_id: refundItem.item.id,
+        _payment_method: method
+      });
+
+      if (error) throw error;
+      
+      const res = data as any;
+      if (res.new_balance !== undefined && typeof updatePatient === 'function') {
+        updatePatient(refundItem.invoice.patient_id, { balance: res.new_balance });
+      }
+
+      await refreshInvoices();
+      toast.success(res.is_sponsored ? 'Item voided from claim' : `Refunded ₦${res.amount.toLocaleString()} to ${method}`);
+      setRefundItem(null);
+    } catch (err: any) {
+      toast.error('Refund failed: ' + err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();

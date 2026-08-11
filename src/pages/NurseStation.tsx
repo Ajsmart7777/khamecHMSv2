@@ -91,8 +91,8 @@ const NurseStation = () => {
         <AwaitingRoomPanel />
         <LabResultInbox />
         <NurseTreatmentInbox />
-        <AdmittedPatientsPanel sourceStation="nurse" title="Admitted Patients (In-Ward Snap)" />
       </div>
+
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Patient Queue */}

@@ -109,6 +109,11 @@ const App = () => (
                     <EMR />
                   </ProtectedRoute>
                 } />
+                <Route path="/admitted-patients" element={
+                  <ProtectedRoute allowedRoles={['doctor1', 'doctor2', 'nurse', 'admin']}>
+                    <AdmittedPatients />
+                  </ProtectedRoute>
+                } />
                 <Route path="/admin" element={
                   <ProtectedRoute allowedRoles={['admin']}>
                     <Admin />

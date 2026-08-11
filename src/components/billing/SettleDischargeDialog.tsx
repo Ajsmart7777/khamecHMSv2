@@ -22,6 +22,7 @@ export function SettleDischargeDialog({ open, onOpenChange, visit, onSettled }: 
   const blockCash = !isSponsored && outstanding > 0;
 
   const settle = async () => {
+    if (busy) return;
     setBusy(true);
     try {
       await closeVisit(visit.id);
@@ -33,6 +34,7 @@ export function SettleDischargeDialog({ open, onOpenChange, visit, onSettled }: 
       onSettled?.();
       onOpenChange(false);
     } catch (e: any) {
+      console.error('Settle error:', e);
       toast.error(e.message ?? 'Failed to settle visit');
     } finally {
       setBusy(false);

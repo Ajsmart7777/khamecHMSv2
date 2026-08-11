@@ -333,6 +333,7 @@ export function CashierPanel() {
       return;
     }
 
+    if (busy) return;
     setBusy(true);
     try {
       // Wallet deduction, debt recording, and invoice close all run in a single

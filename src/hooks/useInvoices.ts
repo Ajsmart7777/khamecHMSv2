@@ -80,11 +80,15 @@ export function useInvoices() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchInvoices]);
 
+  const [isCreating, setIsCreating] = useState(false);
+
   const createInvoice = async (
     patientId: string,
     items: { description: string; quantity: number; unitPrice: number; category?: string }[],
     notes?: string
   ): Promise<Invoice | null> => {
+    if (isCreating) return null;
+    setIsCreating(true);
     try {
       const totalAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
@@ -154,6 +158,8 @@ export function useInvoices() {
     } catch (error) {
       logError('Error in createInvoice', error);
       return null;
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -207,6 +213,7 @@ export function useInvoices() {
     invoices,
     loading,
     createInvoice,
+    isCreating,
     recordPayment,
     getInvoicesForPatient,
     getPendingInvoices,

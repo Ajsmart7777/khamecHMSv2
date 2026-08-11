@@ -1144,6 +1144,7 @@ function NewPatientForm({
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     if (!validate()) {
       toast.error('Please fix the validation errors');
       return;

@@ -115,6 +115,17 @@ export function SnapFulfillDialog({
 
     setBusy(true);
     try {
+      // Safeguard: verify the item is not already processed or refunded
+      const { data: item } = await supabase.from('invoice_items').select('dispensing_status').eq('id', itemId).single();
+      if (item?.dispensing_status === 'unavailable') {
+        toast.error('Item is already marked as unavailable');
+        return;
+      }
+      if (item?.dispensing_status === 'refunded') {
+        toast.error('Item has already been refunded');
+        return;
+      }
+
       const { error } = await supabase.rpc('mark_item_unavailable', {
         _item_id: itemId,
         _reason: reason

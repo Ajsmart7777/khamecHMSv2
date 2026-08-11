@@ -8,9 +8,18 @@ Deno.serve(async (req) => {
     const uid = await requireUser(req);
     if (!uid) return json({ error: 'Unauthorized' }, 401);
 
-    // We don't check for admin role here because requireUser only verifies session.
-    // However, the client calling this should be an admin.
-    // For tighter security, we could use adminClient() to check user_roles table.
+    const admin = adminClient();
+    const { data: roleData, error: roleError } = await admin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', uid)
+      .eq('role', 'admin')
+      .maybeSingle();
+
+    if (roleError || !roleData) {
+      return json({ error: 'Unauthorized: Admin role required' }, 403);
+    }
+
     
     const cfg = r2Config();
     if (!cfg) return json({ error: 'R2 is not configured' }, 500);

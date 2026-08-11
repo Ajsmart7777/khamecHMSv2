@@ -345,14 +345,14 @@ const Billing = () => {
                       <Printer className="h-4 w-4 mr-2" /> Preview
                     </Button>
                     {corporateAccount ? (
-                      <Button variant="hero" onClick={() => handleGenerateInvoice(true)} disabled={isGenerating}>
+                      <Button variant="hero" onClick={() => handleGenerateInvoice(true)} disabled={isGenerating || isCreating}>
                         <Building2 className="h-4 w-4 mr-2" /> 
-                        {isGenerating ? 'Processing...' : 'Pay via Corporate'}
+                        {isGenerating || isCreating ? 'Processing...' : 'Pay via Corporate'}
                       </Button>
                     ) : (
-                      <Button variant="hero" onClick={() => handleGenerateInvoice(false)} disabled={isGenerating}>
+                      <Button variant="hero" onClick={() => handleGenerateInvoice(false)} disabled={isGenerating || isCreating}>
                         <Send className="h-4 w-4 mr-2" /> 
-                        {isGenerating ? 'Generating...' : 'Generate Invoice'}
+                        {isGenerating || isCreating ? 'Generating...' : 'Generate Invoice'}
                       </Button>
                     )}
                   </div>

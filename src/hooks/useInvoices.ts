@@ -11,7 +11,12 @@ export interface InvoiceItem {
   total: number;
   category: string;
   created_at: string;
+  dispensing_status?: string;
+  dispensing_notes?: string;
+  dispensing_updated_at?: string;
+  dispensing_updated_by?: string;
 }
+
 
 export interface Invoice {
   id: string;

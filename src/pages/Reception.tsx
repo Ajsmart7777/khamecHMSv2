@@ -1219,6 +1219,20 @@ function NewPatientForm({
       }
     }
 
+    if (result && (result as any).id && parseFloat(openingCredit) > 0) {
+      const { error: creditErr } = await supabase.rpc('adjust_patient_balance', {
+        _patient_id: (result as any).id,
+        _delta: parseFloat(openingCredit),
+        _transaction_type: 'correction',
+        _notes: 'Opening credit from physical card',
+      });
+
+      if (creditErr) {
+        logError('Error in patient opening credit initialization', creditErr);
+        toast.error('Patient created but credit initialization failed');
+      }
+    }
+
     setIsSubmitting(false);
 
     if (result) {

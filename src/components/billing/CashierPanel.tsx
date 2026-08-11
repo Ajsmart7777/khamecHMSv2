@@ -127,6 +127,14 @@ export function CashierPanel() {
     if (!refundItem) return;
     setBusy(true);
     try {
+      // Safeguard: verify the item is not already refunded
+      const { data: item } = await supabase.from('invoice_items').select('dispensing_status').eq('id', refundItem.item.id).single();
+      if (item?.dispensing_status === 'refunded') {
+        toast.error('Item has already been refunded');
+        setRefundItem(null);
+        return;
+      }
+
       const { data, error } = await supabase.rpc('refund_invoice_item', {
         _item_id: refundItem.item.id,
         _payment_method: method

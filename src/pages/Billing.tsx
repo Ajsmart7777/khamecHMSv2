@@ -40,7 +40,7 @@ import { CheckCircle2 } from 'lucide-react';
 
 const Billing = () => {
   const { patients, loading, updatePatientStatus, refreshPatients } = usePatients();
-  const { createInvoice, invoices, getInvoicesForPatient, getPendingInvoices, refreshInvoices } = useInvoices();
+  const { createInvoice, invoices, getInvoicesForPatient, getPendingInvoices, refreshInvoices, isCreating } = useInvoices();
   const { deductBalance } = useCorporateAccounts();
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [invoiceItems, setInvoiceItems] = useState<{ id: number; description: string; qty: number; price: number; category: string }[]>([

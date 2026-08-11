@@ -213,6 +213,7 @@ export function useInvoices() {
     invoices,
     loading,
     createInvoice,
+    isCreating,
     recordPayment,
     getInvoicesForPatient,
     getPendingInvoices,

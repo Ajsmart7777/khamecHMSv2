@@ -1059,7 +1059,7 @@ function NewPatientForm({
     : '';
   const [patientType, setPatientType] = useState<'new' | 'existing'>('new');
   const [openingDebt, setOpeningDebt] = useState('0');
-  const [isConsultationPaid, setIsConsultationPaid] = useState(false);
+  const [openingCredit, setOpeningCredit] = useState('0');
   const [formData, setFormData] = useState({
     full_name: seededName,
     phone: seededPhone,

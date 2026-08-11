@@ -73,14 +73,33 @@ export function InsuranceClaimsPanel() {
 
       const { data: invs } = await supabase
         .from('invoices')
-        .select('id, invoice_number, patient_id, visit_id, total_amount, paid_amount, status, created_at, claim_submitted_at')
+        .select(`
+          id, invoice_number, patient_id, visit_id, total_amount, paid_amount, status, created_at, claim_submitted_at,
+          invoice_items (
+            id, total, dispensing_status
+          )
+        `)
         .in('patient_id', ids)
         .gte('created_at', periodStart.toISOString())
         .lt('created_at', periodEnd.toISOString())
         .order('created_at', { ascending: false });
+
       const invRows = (invs || []) as Invoice[];
       const byPatient: Record<string, Invoice[]> = {};
-      invRows.forEach(i => { (byPatient[i.patient_id] ||= []).push({ ...i, total_amount: Number(i.total_amount)||0, paid_amount: Number(i.paid_amount)||0 }); });
+      invRows.forEach(i => {
+        // Exclude unavailable items from the claim total
+        const activeItems = (i.invoice_items || []).filter((it: any) => 
+          it.dispensing_status !== 'unavailable' && it.dispensing_status !== 'refunded'
+        );
+        const activeTotal = activeItems.reduce((s: number, it: any) => s + (Number(it.total) || 0), 0);
+        
+        (byPatient[i.patient_id] ||= []).push({ 
+          ...i, 
+          total_amount: activeTotal, 
+          paid_amount: Number(i.paid_amount)||0 
+        }); 
+      });
+
       setInvoicesByPatient(byPatient);
     } finally {
       setLoading(false);

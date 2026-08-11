@@ -179,8 +179,10 @@ export function AdmittedSnapDialog({
       // Admissions are 'active', but station-level queues often filter by patient.status
       if (target === 'lab') {
         await supabase.from('patients').update({ status: 'in_lab' }).eq('id', patientId);
+        window.dispatchEvent(new Event('patient-status-updated'));
       } else if (target === 'pharmacy') {
         await supabase.from('patients').update({ status: 'at_pharmacy' }).eq('id', patientId);
+        window.dispatchEvent(new Event('patient-status-updated'));
       }
 
       toast.success('Sent to ' + target);

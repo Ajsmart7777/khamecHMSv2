@@ -351,8 +351,10 @@ export function CashierPanel() {
         : sponsored
         ? `Copay collected; sponsor claim routed to Claims · ${sponsorLabel(selectedPatient)}`
         : shortfall > 0
-        ? `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`
-        : undefined;
+          ? (applied === 0 
+              ? `Patient bought on credit (₦${shortfall.toLocaleString()} added to debt)`
+              : `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`)
+          : undefined;
       const debt = !sponsored && shortfall > 0 ? shortfall : 0;
       const result = await settleInvoiceAtomic({
         invoiceId: selected.id,

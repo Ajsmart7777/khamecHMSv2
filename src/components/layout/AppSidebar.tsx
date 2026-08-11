@@ -8,7 +8,6 @@ import {
   Activity, 
   BedDouble,
   FlaskConical, 
-
   Receipt, 
   Pill, 
   Package, 
@@ -45,12 +44,6 @@ const allMenuItems = [
   { id: 'doctor2', label: 'Doctor 2', icon: Stethoscope, path: '/doctor?as=doctor2', color: 'text-module-doctor', roles: ['doctor2', 'admin'] },
   { id: 'emr', label: 'EMR', icon: FileText, path: '/emr', color: 'text-primary', roles: ['doctor1', 'doctor2', 'nurse', 'lab_tech', 'pharmacist', 'admin'] },
   { id: 'admitted', label: 'Admitted Patients', icon: BedDouble, path: '/admitted-patients', color: 'text-module-nurse', roles: ['doctor1', 'doctor2', 'nurse', 'admin'] },
-
-
-
-
-
-
   { id: 'lab', label: 'Laboratory', icon: FlaskConical, path: '/lab', color: 'text-module-lab', roles: ['lab_tech', 'admin'] },
   { id: 'billing', label: 'Billing', icon: Receipt, path: '/billing', color: 'text-module-billing', roles: ['billing', 'admin'] },
   { id: 'cashier', label: 'Cashier', icon: Receipt, path: '/cashier', color: 'text-module-billing', roles: ['cashier', 'admin'] },

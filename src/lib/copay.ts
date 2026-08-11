@@ -53,9 +53,9 @@ export function isSponsored({ account_type }: SponsorInfo): boolean {
  */
 export function hasWallet({ account_type }: SponsorInfo): boolean {
   const a = norm(account_type);
-  // Staff family pays 50% out-of-pocket like a normal patient — they can
-  // top up, get refunds, and run partial payments against their own wallet.
-  return a === '' || a === 'normal' || a === 'cash' || a === 'staff_family';
+  // Any account that requires out-of-pocket payment (Cash, Staff Family, or 
+  // Copay schemes like NHIA/KATCHMA) can hold a wallet balance.
+  return a === '' || a === 'normal' || a === 'cash' || copayPercent({ account_type: a }) > 0;
 }
 
 /** Human-friendly sponsor label. */

@@ -52,6 +52,7 @@ const Billing = () => {
     date: Date;
     items: { description: string; quantity: number; unitPrice: number; total: number }[];
   } | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const [corporateAccount, setCorporateAccount] = useState<CorporateAccount | null>(null);
   

@@ -254,10 +254,10 @@ export function StaffFamilyDeductions() {
                       </TableRow>
                     ) : (
                       currentGroups.map(g => (
-                        <>
+                        <Fragment key={g.staffId}>
                           <TableRow
-                            key={g.staffId}
                             className="cursor-pointer hover:bg-muted/40"
+
                             onClick={() => setExpanded(p => ({ ...p, [g.staffId]: !p[g.staffId] }))}
                           >
                             <TableCell className="print:hidden">

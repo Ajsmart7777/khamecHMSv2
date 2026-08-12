@@ -929,27 +929,23 @@ export function CashierPanel() {
                 <span className="font-semibold">₦{outstanding.toLocaleString()}</span>
               </div>
               {salDed > 0 ? (
-                <div className="flex justify-between text-warning">
+                <div className="flex justify-between text-warning font-medium">
                   <span>Salary Deduction</span>
                   <span>− ₦{salDed.toLocaleString()}</span>
                 </div>
               ) : null}
-              {!isSalaryDeduction || (salDed < outstanding) ? (
-                <>
-                  {bal > 0 && (
-                    <div className="flex justify-between text-success">
-                      <span>From balance</span>
-                      <span>− ₦{bal.toLocaleString()}</span>
-                    </div>
-                  )}
-                  {cash > 0 && (
-                    <div className="flex justify-between">
-                      <span className="capitalize text-muted-foreground">{method}</span>
-                      <span>− ₦{cash.toLocaleString()}</span>
-                    </div>
-                  )}
-                </>
-              ) : null}
+              {bal > 0 && (
+                <div className="flex justify-between text-success">
+                  <span>From balance</span>
+                  <span>− ₦{bal.toLocaleString()}</span>
+                </div>
+              )}
+              {cash > 0 && (
+                <div className="flex justify-between">
+                  <span className="capitalize text-muted-foreground">{method}</span>
+                  <span>− ₦{cash.toLocaleString()}</span>
+                </div>
+              )}
               <div className="flex justify-between pt-1 border-t border-border">
                 <span className="font-semibold">
                   {shortfall > 0

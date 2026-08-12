@@ -72,9 +72,6 @@ import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndic
 import { PatientJourneyDialog } from '@/components/patient/PatientJourneyDialog';
 import { patientSchema } from '@/lib/validations';
 import { z } from 'zod';
-import { paymentAuditLogger } from '@/lib/auditLogger';
-import { useInvoices } from '@/hooks/useInvoices';
-import { nextStationForInvoice, workflowStationLabel } from '@/lib/workflowRouting';
 import { PatientBalanceHistory } from '@/components/reception/PatientBalanceHistory';
 import { EditPatientDialog } from '@/components/reception/EditPatientDialog';
 import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';

@@ -74,7 +74,11 @@ export function StorageMonitoring() {
             // Unexpected error (e.g. 403 Unauthorized, 500 internal)
             console.error('R2 unexpected error:', r2Error);
             const msg = r2Error.error || r2Error.message || 'Failed to fetch R2 usage';
-            toast.error(`R2 Error: ${msg}`);
+            // Don't show toast for 403 (unauthorized) as we handle it in the UI, 
+            // but keep logging it for developers
+            if (r2Error.status !== 403) {
+              toast.error(`R2 Error: ${msg}`);
+            }
             // Fallback to "Not Integrated" but with the error message visible
             setError(`Cloudflare R2: ${msg}`);
             r2Stats = {

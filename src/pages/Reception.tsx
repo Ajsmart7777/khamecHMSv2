@@ -400,26 +400,6 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
   // run partial payments on their own balance. Sponsored / insured / staff
   // settle via the sponsor.
   const canUseBalance = hasWallet(patient);
-  const [receiptData, setReceiptData] = useState<{
-    open: boolean;
-    amount: number;
-    method: string;
-    receiptNumber: string;
-    date: Date;
-    newBalance: number;
-  } | null>(null);
-
-  // Get all invoices for this patient
-  const patientInvoices = getInvoicesForPatient(patient.id);
-  const pendingInvoices = patientInvoices.filter(i => i.status === 'pending' || i.status === 'partial');
-  const paidInvoices = patientInvoices.filter(i => i.status === 'completed');
-  const pendingInvoice = pendingInvoices[0]; // First pending invoice for payment
-
-  const generateReceiptNumber = () => {
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-    return `RCP-${timestamp}-${random}`;
-  };
 
 
   const handleConfirmSend = () => {

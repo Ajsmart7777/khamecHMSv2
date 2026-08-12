@@ -384,7 +384,7 @@ function EmptyState({ onNewPatient }: { onNewPatient: () => void }) {
 function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { patient: Patient; onClose: () => void; onSendToNurse: (preferredDoctor?: 'doctor1' | 'doctor2') => void; refreshData: () => void }) {
   const { updatePatient, updatePatientStatus, deletePatient } = usePatients();
   const { getInvoicesForPatient, recordPayment } = useInvoices();
-  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isCheckingFee, setIsCheckingFee] = useState(false);
 

@@ -91,14 +91,15 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
     return m;
   }, [patients]);
 
-  // Every admitted patient in the hospital is visible in every doctor console,
-  // regardless of who admitted them or who they are assigned to.
   // For Nurse station, we show ALL admitted patients (In-Ward snaps).
-  // For Doctor station, we only show patients assigned to THIS doctor to keep it independent.
+  // For Doctor station, we show patients assigned to THIS doctor to keep it independent.
   const scoped = useMemo(() => {
     if (sourceStation === 'nurse') return admissions;
     if (sourceStation === 'doctor' && assignedDoctor) {
-      return admissions.filter(a => patientOf.get(a.patient_id)?.assigned_doctor === assignedDoctor);
+      return admissions.filter(a => {
+        const p = patientOf.get(a.patient_id);
+        return p?.assigned_doctor === assignedDoctor;
+      });
     }
     return admissions;
   }, [admissions, sourceStation, assignedDoctor, patientOf]);

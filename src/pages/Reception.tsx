@@ -70,7 +70,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
 
 import { PatientJourneyDialog } from '@/components/patient/PatientJourneyDialog';
-import { patientSchema, paymentSchema } from '@/lib/validations';
+import { patientSchema } from '@/lib/validations';
 import { z } from 'zod';
 import { paymentAuditLogger } from '@/lib/auditLogger';
 import { useInvoices } from '@/hooks/useInvoices';

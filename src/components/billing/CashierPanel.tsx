@@ -995,7 +995,7 @@ export function CashierPanel() {
                     Refund as Cash
                   </Button>
                   <Button className="w-full sm:flex-1" onClick={() => handleRefund('balance')} disabled={busy}>
-                    {busy ? 'Processing...' : 'Refund to Wallet'}
+                    {busy ? 'Processing...' : 'Add to Wallet Balance'}
                   </Button>
                 </>
               )}

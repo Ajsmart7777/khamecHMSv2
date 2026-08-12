@@ -181,16 +181,33 @@ export function DischargeDialog({
                 <span className="text-muted-foreground">Discharge date</span>
                 <span>{new Date().toLocaleDateString()}</span>
               </div>
-              <div className="flex justify-between font-medium">
-                <span>Bed nights</span>
-                <span>{preview.nights} night{preview.nights === 1 ? '' : 's'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">
-                  {fmt(preview.daily_rate)}/night × {preview.nights}
-                </span>
-                <span>{fmt(preview.bed_total)}</span>
-              </div>
+              {preview.nights === 0 ? (
+                <>
+                  <div className="flex justify-between font-medium">
+                    <span>Stay duration</span>
+                    <span>Same-day admission (0 nights)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      Observation fee (flat)
+                    </span>
+                    <span>{fmt(preview.bed_total)}</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between font-medium">
+                    <span>Bed nights</span>
+                    <span>{preview.nights} night{preview.nights === 1 ? '' : 's'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      {fmt(preview.daily_rate)}/night × {preview.nights}
+                    </span>
+                    <span>{fmt(preview.bed_total)}</span>
+                  </div>
+                </>
+              )}
               {preview.sponsor_covered > 0 && (
                 <div className="flex justify-between text-muted-foreground">
                   <span>Sponsor covers ({100 - preview.copay_pct}%)</span>

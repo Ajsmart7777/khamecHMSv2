@@ -22,7 +22,7 @@ export default function AdmittedPatients() {
       <div className="max-w-5xl mx-auto">
         <AdmittedPatientsPanel
           sourceStation={sourceStation}
-          title={sourceStation === 'nurse' ? "Admitted Patients (In-Ward Snap)" : "My Admitted Patients"}
+          title="Admitted Patients (Hospital-wide)"
           assignedDoctor={myDoctorKey ?? undefined}
         />
       </div>

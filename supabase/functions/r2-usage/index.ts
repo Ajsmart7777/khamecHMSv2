@@ -9,11 +9,12 @@ Deno.serve(async (req) => {
     const uid = await requireUser(req);
     if (!uid) return json({ error: 'Unauthorized' }, 401);
 
-    const admin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-    );
-    const { data: roleData, error: roleError } = await admin
+    // Create a local client directly to bypass any stale module imports
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const client = createClient(supabaseUrl, supabaseServiceKey);
+    
+    const { data: roleData, error: roleError } = await client
       .from('user_roles')
       .select('role')
       .eq('user_id', uid)
@@ -21,7 +22,6 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (roleError || !roleData) {
-      console.error(`Access denied for user ${uid}: ${roleError?.message || 'No admin role'}`);
       return json({ error: 'Unauthorized: Admin role required' }, 403);
     }
 

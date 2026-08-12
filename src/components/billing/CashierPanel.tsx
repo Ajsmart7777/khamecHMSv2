@@ -120,7 +120,7 @@ export function CashierPanel() {
     // Automatically identify unavailable medication items for exclusion from sponsor totals
     // ensuring only eligible amounts are reclaimed or credited
     const allItems = invoices.flatMap(inv => (inv.items || []).map(it => ({ ...it, invoice: inv })));
-    return allItems.filter(it => it.dispensing_status === 'unavailable');
+    return allItems.filter(it => it.dispensing_status === 'unavailable' || it.dispensing_status === 'refund_requested');
   }, [invoices]);
 
   const handleRefund = async (method: 'balance' | 'cash') => {

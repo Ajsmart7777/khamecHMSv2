@@ -237,11 +237,14 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
     const rows = await Promise.all(newStaff.map(async s => {
       let familyDeductions = 0;
       if (startDate && endDate) {
-        const { data: deductData } = await supabase.rpc('calculate_payroll_deductions' as any, {
+        const { data: deductData, error: deductErr } = await supabase.rpc('calculate_payroll_deductions', {
           _staff_id: s.id,
           _period_start: startDate,
           _period_end: endDate
         });
+        if (deductErr) {
+          console.warn('Deduction calculation failed for staff', s.id, deductErr);
+        }
         familyDeductions = Number(deductData) || 0;
       }
 
@@ -252,6 +255,7 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
 
       const basicSalary = Number(s.salary);
       const totalDeductions = Object.values(deductions).reduce((a, b) => a + b, 0);
+
 
       return {
         payroll_period_id: periodId,

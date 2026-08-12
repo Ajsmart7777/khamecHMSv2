@@ -580,50 +580,6 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
 
       {/* Actions */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {pendingInvoice && canUseBalance ? (
-          <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
-            <DialogTrigger asChild>
-              <Button 
-                variant="module" 
-                className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
-              >
-                <CreditCard className="h-5 w-5" />
-                <span>Record Payment</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-primary" />
-                  Record Payment
-                </DialogTitle>
-                <DialogDescription>
-                  Record a payment for {patient.first_name} {patient.last_name}
-                </DialogDescription>
-              </DialogHeader>
-              <PaymentForm onSubmit={handleRecordPayment} onCancel={() => setIsPaymentOpen(false)} defaultAmount={pendingInvoice.total_amount - pendingInvoice.paid_amount} invoiceNumber={pendingInvoice.invoice_number} />
-            </DialogContent>
-          </Dialog>
-        ) : pendingInvoice && !canUseBalance ? (
-          <Button
-            variant="module"
-            className="h-20 flex-col gap-2 opacity-60 cursor-not-allowed"
-            disabled
-            title="Sponsored patients pay copay at the Cashier"
-          >
-            <CreditCard className="h-5 w-5" />
-            <span>Pay at Cashier</span>
-          </Button>
-        ) : (
-          <Button 
-            variant="module" 
-            className="h-20 flex-col gap-2 opacity-50 cursor-not-allowed"
-            disabled
-          >
-            <CreditCard className="h-5 w-5" />
-            <span>No Pending Bill</span>
-          </Button>
-        )}
 
         {patient.status === 'registered' || patient.status === 'discharged' ? (
           <>

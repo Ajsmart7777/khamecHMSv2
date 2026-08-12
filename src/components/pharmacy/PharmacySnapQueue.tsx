@@ -163,7 +163,7 @@ export function SnapFulfillDialog({
       
       const { copayAmount, coveredAmount } = splitInvoice(totalAmount, sponsor);
       
-      setItems(prev => prev.map(it => it.id === itemId ? { ...it, dispensing_status: 'unavailable', dispensing_notes: reason } : it));
+      setItems(prev => prev.map(it => it.id === itemId ? { ...it, dispensing_status: 'refund_requested', dispensing_notes: reason } : it));
       
       // Detailed toast notification
       const invoiceRef = invoiceId ? ` (Inv: ${invoiceId.slice(0, 8)})` : '';

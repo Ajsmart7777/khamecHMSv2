@@ -120,7 +120,7 @@ export function CashierPanel() {
     // Automatically identify unavailable medication items for exclusion from sponsor totals
     // ensuring only eligible amounts are reclaimed or credited
     const allItems = invoices.flatMap(inv => (inv.items || []).map(it => ({ ...it, invoice: inv })));
-    return allItems.filter(it => it.dispensing_status === 'unavailable' || it.dispensing_status === 'refund_requested');
+    return allItems.filter(it => it.dispensing_status === 'refund_requested' || it.dispensing_status === 'unavailable');
   }, [invoices]);
 
   const handleRefund = async (method: 'balance' | 'cash') => {
@@ -148,7 +148,7 @@ export function CashierPanel() {
       }
 
       await refreshInvoices();
-      toast.success(res.is_sponsored ? 'Item voided from claim' : `Refunded ₦${res.amount.toLocaleString()} to ${method}`);
+      toast.success(res.is_sponsored ? 'Item removed from invoice & claim' : `Refunded ₦${res.amount.toLocaleString()} to ${method}`);
       setRefundItem(null);
     } catch (err: any) {
       toast.error('Refund failed: ' + err.message);
@@ -165,8 +165,18 @@ export function CashierPanel() {
       .map((inv) => {
         const patient = patients.find((p: any) => p.id === inv.patient_id);
         const spon = patient ? isSponsored(patient) : false;
-        const fullyCovered = spon && splitInvoice(Number(inv.total_amount), patient).copayAmount === 0;
-        return { inv, patient, fullyCovered };
+        const copayPct = patient ? copayPercent(patient) : 100;
+        
+        // Exclude unavailable items from visibility for 0% copay insurance patients
+        // so they don't even appear for "Record" if they were just removals.
+        const activeItems = (inv.items || []).filter(it => 
+          it.dispensing_status !== 'unavailable' && it.dispensing_status !== 'refund_requested'
+        );
+        const activeTotal = activeItems.reduce((s, it) => s + (Number(it.total) || 0), 0);
+        const { copayAmount } = patient ? splitInvoice(activeTotal, patient) : { copayAmount: activeTotal };
+
+        const fullyCovered = spon && copayAmount === 0;
+        return { inv: { ...inv, total_amount: activeTotal }, patient, fullyCovered, copayAmount };
       })
       .filter(({ fullyCovered }) => {
         if (filter === 'copay') return !fullyCovered;
@@ -985,7 +995,11 @@ export function CashierPanel() {
             </div>
             <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button variant="ghost" className="w-full sm:w-auto" onClick={() => setRefundItem(null)} disabled={busy}>Cancel</Button>
-              {isSponsored(patients.find((p: any) => p.id === refundItem.invoice.patient_id) || {}) ? (
+              {isSponsored(patients.find((p: any) => p.id === refundItem.invoice.patient_id) || {}) && copayPercent(patients.find((p: any) => p.id === refundItem.invoice.patient_id) || {}) === 0 ? (
+                <Button variant="destructive" className="w-full sm:flex-1" onClick={() => handleRefund('cash')} disabled={busy}>
+                  {busy ? 'Processing...' : 'Remove from Invoice & Claim'}
+                </Button>
+              ) : isSponsored(patients.find((p: any) => p.id === refundItem.invoice.patient_id) || {}) ? (
                 <Button variant="destructive" className="w-full sm:flex-1" onClick={() => handleRefund('cash')} disabled={busy}>
                   {busy ? 'Processing...' : 'Void from Claim'}
                 </Button>

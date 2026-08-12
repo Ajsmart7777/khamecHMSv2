@@ -1,5 +1,5 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { createClient, SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { createClient } from 'npm:@supabase/supabase-js@2';
 import { AwsClient } from 'npm:aws4fetch@1.0.20';
 
 const BUCKETS = ['visit-cards', 'emr-attachments', 'patient-photos'];
@@ -10,14 +10,6 @@ export function json(body: unknown, status = 200) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
-
-export function adminClient(): SupabaseClient {
-  return createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-  );
-}
-
 
 export function r2Config() {
   const accountId = Deno.env.get('R2_ACCOUNT_ID');
@@ -58,3 +50,9 @@ export async function requireUser(req: Request): Promise<string | null> {
   return data.user.id;
 }
 
+export function adminClient() {
+  return createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+  );
+}

@@ -428,8 +428,8 @@ export function StaffFamilyDeductions() {
               {closing ? 'Closing…' : 'Yes, close cycle'}
             </AlertDialogAction>
           </AlertDialogFooter>
-        </AlertDialogFooter>
         </AlertDialogContent>
+
       </AlertDialog>
     </div>
   );

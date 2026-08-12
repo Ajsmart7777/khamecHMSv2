@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, Database, HardDrive, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { ExternalLink, Settings } from 'lucide-react';
 
 interface StorageStats {
   database: {

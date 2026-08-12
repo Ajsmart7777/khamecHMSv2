@@ -164,14 +164,15 @@ export function SnapFulfillDialog({
       setItems(prev => prev.map(it => it.id === itemId ? { ...it, dispensing_status: 'unavailable', dispensing_notes: reason } : it));
       
       // Detailed toast notification
+      const invoiceRef = item.invoices?.id ? ` (Inv: ${item.invoices.id.slice(0, 8)})` : '';
       if (copayAmount > 0) {
         toast.success('Marked as unavailable', {
-          description: `Patient refund: ${fmt(copayAmount)}${coveredAmount > 0 ? ` · Claim reduced: ${fmt(coveredAmount)}` : ''}`,
+          description: `Patient refund: ${fmt(copayAmount)}${coveredAmount > 0 ? ` · Claim reduced: ${fmt(coveredAmount)}` : ''}${invoiceRef}`,
           duration: 6000,
         });
       } else {
         toast.success('Marked as unavailable', {
-          description: `Claim reduced by ${fmt(coveredAmount)}`,
+          description: `Claim reduced by ${fmt(coveredAmount)}${invoiceRef}`,
           duration: 5000,
         });
       }

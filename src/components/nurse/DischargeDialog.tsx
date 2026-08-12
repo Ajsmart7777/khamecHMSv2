@@ -12,7 +12,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
-type Method = 'cash' | 'pos' | 'transfer' | 'carry';
+type Method = 'cash' | 'pos' | 'transfer' | 'carry' | 'salary';
 
 interface Props {
   admissionId: string;
@@ -293,6 +293,11 @@ export function DischargeDialog({
                   <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
                     <RadioGroupItem value="carry" /><span className="text-sm">Carry as debt</span>
                   </label>
+                  {preview?.account_type === 'staff_family' && (
+                    <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted border-emerald-200 bg-emerald-50/30">
+                      <RadioGroupItem value="salary" /><span className="text-sm">Salary Deduction</span>
+                    </label>
+                  )}
                 </RadioGroup>
               </div>
 
@@ -319,6 +324,12 @@ export function DischargeDialog({
               {method === 'carry' && (
                 <p className="text-xs text-muted-foreground">
                   Debt of {fmt(due)} stays on the patient's balance. Cleared on next top-up.
+                </p>
+              )}
+
+              {method === 'salary' && (
+                <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium">
+                  The remaining {fmt(due)} will be deducted from the linked staff member's salary.
                 </p>
               )}
 

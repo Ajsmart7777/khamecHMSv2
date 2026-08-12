@@ -183,7 +183,9 @@ const Account = () => {
             onAddAllStaff={addAllStaff}
             onUpdateEntry={updateEntry}
             onRemoveEntry={removeEntry}
+            onRecalculate={recalculateDeductions}
           />
+
         </TabsContent>
 
         <TabsContent value="payments">

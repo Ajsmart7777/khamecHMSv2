@@ -322,6 +322,48 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
   return { entries, loading, addEntry, addAllStaff, updateEntry, removeEntry, refetch: fetch };
 }
 
+export function useMedicalDeductionDetails(staffId: string | null, month: number | null, year: number | null) {
+  const [details, setDetails] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetch = useCallback(async () => {
+    if (!staffId || !month || !year) return;
+    setLoading(true);
+
+    const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
+    const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('invoices')
+      .select(`
+        id,
+        invoice_number,
+        paid_amount,
+        paid_at,
+        patient:patient_id (first_name, last_name)
+      `)
+      .eq('staff_sponsor_id', staffId)
+      .eq('is_salary_deduction', true)
+      .eq('status', 'paid')
+      .gte('paid_at', `${startDate} 00:00:00`)
+      .lte('paid_at', `${endDate} 23:59:59`)
+      .order('paid_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching medical deduction details:', error);
+      toast({ title: 'Error', description: 'Could not fetch bill details.', variant: 'destructive' });
+    } else {
+      setDetails(data || []);
+    }
+    setLoading(false);
+  }, [staffId, month, year]);
+
+  useEffect(() => { fetch(); }, [fetch]);
+
+  return { details, loading, refetch: fetch };
+}
+
+
 export type PaymentProvider = 'flutterwave' | 'paystack';
 
 function createProviderActions(functionName: string) {

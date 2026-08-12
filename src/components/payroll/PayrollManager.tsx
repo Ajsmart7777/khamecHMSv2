@@ -5,9 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Lock, Unlock, Users, Loader2, Trash2, Columns } from 'lucide-react';
+import { Plus, Lock, Unlock, Users, Loader2, Trash2, Columns, Info } from 'lucide-react';
 import { PayrollPeriod, PayrollEntry } from '@/hooks/usePayroll';
 import { toast } from '@/hooks/use-toast';
+import { MedicalDeductionDetails } from './MedicalDeductionDetails';
+
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -71,6 +73,9 @@ export function PayrollManager({
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
   const [editingCell, setEditingCell] = useState<{ entryId: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [medicalDetailsOpen, setMedicalDetailsOpen] = useState(false);
+  const [selectedMedicalEntry, setSelectedMedicalEntry] = useState<{ staffId: string; staffName: string } | null>(null);
+
 
   const isDraft = selectedPeriod?.status === 'draft';
 
@@ -175,6 +180,31 @@ export function PayrollManager({
         />
       );
     }
+    if (field === 'family_medical') {
+      return (
+        <div className="flex items-center justify-center gap-1 group">
+          <span
+            className={isDraft ? 'cursor-pointer hover:bg-accent/50 px-1 py-0.5 rounded text-xs' : 'text-xs'}
+            onClick={() => startEdit(entry.id, field, value)}
+          >
+            {value.toLocaleString()}
+          </span>
+          {value > 0 && (
+            <button
+              onClick={() => {
+                setSelectedMedicalEntry({ staffId: entry.staff_id, staffName: entry.staff_name || 'Staff' });
+                setMedicalDetailsOpen(true);
+              }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-muted rounded"
+              title="View bill details"
+            >
+              <Info className="h-3 w-3 text-primary" />
+            </button>
+          )}
+        </div>
+      );
+    }
+
     return (
       <span
         className={isDraft ? 'cursor-pointer hover:bg-accent/50 px-1 py-0.5 rounded text-xs' : 'text-xs'}
@@ -183,6 +213,7 @@ export function PayrollManager({
         {value.toLocaleString()}
       </span>
     );
+
   };
 
   const getStatusVariant = (status: string) => {
@@ -376,7 +407,17 @@ export function PayrollManager({
         )
       )}
 
+      <MedicalDeductionDetails
+        open={medicalDetailsOpen}
+        onOpenChange={setMedicalDetailsOpen}
+        staffId={selectedMedicalEntry?.staffId || null}
+        staffName={selectedMedicalEntry?.staffName || ''}
+        month={selectedPeriod?.month || null}
+        year={selectedPeriod?.year || null}
+      />
+
       {!selectedPeriod && (
+
         <div className="text-center py-12 text-muted-foreground">
           Select or create a payroll period to get started.
         </div>

@@ -126,6 +126,7 @@ export function SnapFulfillDialog({
           unit_price,
           quantity,
           invoices!inner (
+            id,
             sponsor_type,
             patients!inner (
               account_type,

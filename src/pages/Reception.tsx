@@ -74,7 +74,7 @@ import { z } from 'zod';
 import { PatientBalanceHistory } from '@/components/reception/PatientBalanceHistory';
 import { EditPatientDialog } from '@/components/reception/EditPatientDialog';
 import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';
-import { ArrowUpCircle, ArrowDownCircle, LogIn } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { ShieldCheck } from 'lucide-react';
 import { BalanceRequestDialog } from '@/components/reception/BalanceRequestDialog';
 import { StaffSelector } from '@/components/reception/StaffSelector';

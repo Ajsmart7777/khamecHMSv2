@@ -38,7 +38,6 @@ import {
 import { 
   UserPlus, 
   Search, 
-  CreditCard, 
   Send, 
   FileText,
   Phone,
@@ -68,17 +67,14 @@ import { logError } from '@/lib/errorHandler';
 import { usePatients, Patient } from '@/contexts/PatientContext';
 import { supabase } from '@/integrations/supabase/client';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
-import { PrintableReceiptDialog } from '@/components/receipts/PrintableReceiptDialog';
+
 import { PatientJourneyDialog } from '@/components/patient/PatientJourneyDialog';
-import { patientSchema, paymentSchema } from '@/lib/validations';
+import { patientSchema } from '@/lib/validations';
 import { z } from 'zod';
-import { paymentAuditLogger } from '@/lib/auditLogger';
-import { useInvoices } from '@/hooks/useInvoices';
-import { nextStationForInvoice, workflowStationLabel } from '@/lib/workflowRouting';
 import { PatientBalanceHistory } from '@/components/reception/PatientBalanceHistory';
 import { EditPatientDialog } from '@/components/reception/EditPatientDialog';
 import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';
-import { ArrowUpCircle, ArrowDownCircle, LogIn } from 'lucide-react';
+import { ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
 import { ShieldCheck } from 'lucide-react';
 import { BalanceRequestDialog } from '@/components/reception/BalanceRequestDialog';
 import { StaffSelector } from '@/components/reception/StaffSelector';
@@ -383,8 +379,8 @@ function EmptyState({ onNewPatient }: { onNewPatient: () => void }) {
 
 function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { patient: Patient; onClose: () => void; onSendToNurse: (preferredDoctor?: 'doctor1' | 'doctor2') => void; refreshData: () => void }) {
   const { updatePatient, updatePatientStatus, deletePatient } = usePatients();
-  const { getInvoicesForPatient, recordPayment } = useInvoices();
-  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  
+  
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isCheckingFee, setIsCheckingFee] = useState(false);
 
@@ -400,93 +396,7 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
   // run partial payments on their own balance. Sponsored / insured / staff
   // settle via the sponsor.
   const canUseBalance = hasWallet(patient);
-  const [receiptData, setReceiptData] = useState<{
-    open: boolean;
-    amount: number;
-    method: string;
-    receiptNumber: string;
-    date: Date;
-    newBalance: number;
-  } | null>(null);
 
-  // Get all invoices for this patient
-  const patientInvoices = getInvoicesForPatient(patient.id);
-  const pendingInvoices = patientInvoices.filter(i => i.status === 'pending' || i.status === 'partial');
-  const paidInvoices = patientInvoices.filter(i => i.status === 'completed');
-  const pendingInvoice = pendingInvoices[0]; // First pending invoice for payment
-
-  const generateReceiptNumber = () => {
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-    return `RCP-${timestamp}-${random}`;
-  };
-
-  const handleRecordPayment = async (amount: number, method: string) => {
-    const receiptNumber = generateReceiptNumber();
-
-    // Sponsored / insured patients settle at the Cashier — never at Reception —
-    // and their wallet must never be touched.
-    if (!canUseBalance) {
-      toast.error('Sponsored patients settle at the Cashier, not Reception');
-      setIsPaymentOpen(false);
-      return;
-    }
-
-    // If there's a pending invoice, record payment against it
-    let isInvoiceFullyPaid = false;
-    if (pendingInvoice) {
-      await recordPayment(pendingInvoice.id, amount, method);
-      const newPaidAmount = pendingInvoice.paid_amount + amount;
-      isInvoiceFullyPaid = newPaidAmount >= pendingInvoice.total_amount;
-    }
-
-    // Recording an invoice payment must NOT credit the wallet — payments close
-    // invoices, they don't top up. Top-ups go through BalanceRequestDialog.
-    {
-      setIsPaymentOpen(false);
-      // Show receipt dialog
-      setReceiptData({
-        open: true,
-        amount,
-        method,
-        receiptNumber,
-        date: new Date(),
-        newBalance: Number(patient.balance || 0),
-      });
-      
-      // Auto-route patient after full payment
-      if (isInvoiceFullyPaid) {
-        const nextStation = await nextStationForInvoice(pendingInvoice.id, patient.id, 'discharged');
-        await updatePatientStatus(patient.id, nextStation);
-        refreshData();
-        toast.info(
-          nextStation === 'discharged'
-            ? 'Patient discharged — no pending station work'
-            : `Patient routed to ${workflowStationLabel(nextStation)}`,
-        );
-      }
-      
-      // Log audit event for payment received
-      await paymentAuditLogger(
-        'payment_received',
-        receiptNumber,
-        { 
-          patient_id: patient.id,
-          patient_name: `${patient.first_name} ${patient.last_name}`,
-          card_number: patient.card_number,
-          amount,
-          payment_method: method,
-          previous_balance: patient.balance,
-          new_balance: patient.balance,
-        }
-      );
-      
-      toast.success(`Payment of ₦${amount.toLocaleString()} recorded`, {
-        description: `Via ${method} for ${patient.first_name} ${patient.last_name}`,
-        icon: <CheckCircle2 className="h-4 w-4 text-success" />
-      });
-    }
-  };
 
   const handleConfirmSend = () => {
     onSendToNurse(preferredDoctor === 'none' ? undefined : preferredDoctor);
@@ -580,50 +490,6 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
 
       {/* Actions */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {pendingInvoice && canUseBalance ? (
-          <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
-            <DialogTrigger asChild>
-              <Button 
-                variant="module" 
-                className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
-              >
-                <CreditCard className="h-5 w-5" />
-                <span>Record Payment</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-primary" />
-                  Record Payment
-                </DialogTitle>
-                <DialogDescription>
-                  Record a payment for {patient.first_name} {patient.last_name}
-                </DialogDescription>
-              </DialogHeader>
-              <PaymentForm onSubmit={handleRecordPayment} onCancel={() => setIsPaymentOpen(false)} defaultAmount={pendingInvoice.total_amount - pendingInvoice.paid_amount} invoiceNumber={pendingInvoice.invoice_number} />
-            </DialogContent>
-          </Dialog>
-        ) : pendingInvoice && !canUseBalance ? (
-          <Button
-            variant="module"
-            className="h-20 flex-col gap-2 opacity-60 cursor-not-allowed"
-            disabled
-            title="Sponsored patients pay copay at the Cashier"
-          >
-            <CreditCard className="h-5 w-5" />
-            <span>Pay at Cashier</span>
-          </Button>
-        ) : (
-          <Button 
-            variant="module" 
-            className="h-20 flex-col gap-2 opacity-50 cursor-not-allowed"
-            disabled
-          >
-            <CreditCard className="h-5 w-5" />
-            <span>No Pending Bill</span>
-          </Button>
-        )}
 
         {patient.status === 'registered' || patient.status === 'discharged' ? (
           <>
@@ -836,80 +702,6 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
 
 
 
-      {/* Invoice Summary */}
-      {patientInvoices.length > 0 && (
-        <div className="space-y-3">
-          {/* Summary bar */}
-          <div className="flex items-center gap-2 px-1">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium">{patientInvoices.length} Invoice{patientInvoices.length > 1 ? 's' : ''}:</span>
-            {paidInvoices.length > 0 && (
-              <Badge variant="success" className="text-xs">{paidInvoices.length} Paid</Badge>
-            )}
-            {pendingInvoices.length > 0 && (
-              <Badge variant="warning" className="text-xs">{pendingInvoices.length} Pending</Badge>
-            )}
-          </div>
-
-          {/* Pending invoice expanded */}
-          {pendingInvoice && (
-            <div className="bg-module-billing/5 border border-module-billing/30 rounded-xl p-4 animate-fade-in">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-module-billing" />
-                  Invoice: {pendingInvoice.invoice_number}
-                </h3>
-                <Badge variant={pendingInvoice.status === 'partial' ? 'warning' : 'outline'}>
-                  {pendingInvoice.status}
-                </Badge>
-              </div>
-              {pendingInvoice.items && pendingInvoice.items.length > 0 && (
-                <div className="space-y-1 mb-3">
-                  {pendingInvoice.items.map((item, idx) => (
-                    <div key={idx} className="flex justify-between text-sm">
-                      <span>{item.description} x{item.quantity}</span>
-                      <span className="font-medium">₦{item.total.toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="border-t border-module-billing/20 pt-2 space-y-1">
-                <div className="flex justify-between text-sm font-semibold">
-                  <span>Total</span>
-                  <span>₦{pendingInvoice.total_amount.toLocaleString()}</span>
-                </div>
-                {pendingInvoice.paid_amount > 0 && (
-                  <div className="flex justify-between text-sm text-success">
-                    <span>Paid</span>
-                    <span>₦{pendingInvoice.paid_amount.toLocaleString()}</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm font-bold">
-                  <span>Balance Due</span>
-                  <span className="text-destructive">
-                    ₦{(pendingInvoice.total_amount - pendingInvoice.paid_amount).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Paid invoices collapsed */}
-          {paidInvoices.length > 0 && (
-            <div className="space-y-1">
-              {paidInvoices.map((inv) => (
-                <div key={inv.id} className="flex items-center justify-between p-2 rounded-lg bg-success/5 border border-success/20 text-sm">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                    <span className="font-mono text-xs">{inv.invoice_number}</span>
-                  </div>
-                  <span className="font-medium text-success">₦{inv.total_amount.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
       {patient.allergies && patient.allergies.length > 0 && (
         <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 animate-fade-in">
           <h3 className="font-semibold text-destructive mb-2">⚠️ Known Allergies</h3>
@@ -927,19 +719,6 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
         </div>
       )}
 
-      {/* Payment Receipt Dialog */}
-      {receiptData && (
-        <PrintableReceiptDialog
-          open={receiptData.open}
-          onOpenChange={(open) => setReceiptData(open ? receiptData : null)}
-          patient={patient}
-          amount={receiptData.amount}
-          paymentMethod={receiptData.method}
-          receiptNumber={receiptData.receiptNumber}
-          date={receiptData.date}
-          newBalance={receiptData.newBalance}
-        />
-      )}
 
       {/* Patient Journey Dialog */}
       <PatientJourneyDialog
@@ -951,88 +730,6 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
   );
 }
 
-function PaymentForm({ onSubmit, onCancel, defaultAmount, invoiceNumber }: { onSubmit: (amount: number, method: string) => void; onCancel: () => void; defaultAmount?: number; invoiceNumber?: string }) {
-  const [amount, setAmount] = useState(defaultAmount ? defaultAmount.toString() : '');
-  const [method, setMethod] = useState('');
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  const handleSubmit = () => {
-    try {
-      const validatedData = paymentSchema.parse({
-        amount: Number(amount),
-        method: method || undefined,
-      });
-      setErrors({});
-      onSubmit(validatedData.amount, validatedData.method);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        const newErrors: Record<string, string> = {};
-        error.errors.forEach((err) => {
-          if (err.path[0]) {
-            newErrors[err.path[0] as string] = err.message;
-          }
-        });
-        setErrors(newErrors);
-        toast.error('Please fix the validation errors');
-      }
-    }
-  };
-
-  return (
-    <div className="space-y-4 py-4">
-      {defaultAmount !== undefined && invoiceNumber && (
-        <div className="bg-muted/50 rounded-lg p-3 border border-border space-y-1">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Invoice</span>
-            <span className="font-mono font-medium">{invoiceNumber}</span>
-          </div>
-          <div className="flex justify-between text-sm font-semibold">
-            <span>Balance Due</span>
-            <span className="text-destructive">₦{defaultAmount.toLocaleString()}</span>
-          </div>
-        </div>
-      )}
-      <div>
-        <label className="text-sm font-medium text-foreground mb-1.5 block">Amount (₦)</label>
-        <Input 
-          type="number" 
-          placeholder="Enter amount" 
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          readOnly={!!defaultAmount}
-          className={cn(
-            "transition-all focus:ring-2 focus:ring-primary/20",
-            errors.amount && "border-destructive",
-            defaultAmount && "bg-muted/50 cursor-not-allowed"
-          )}
-        />
-        {errors.amount && <p className="text-xs text-destructive mt-1">{errors.amount}</p>}
-      </div>
-      <div>
-        <label className="text-sm font-medium text-foreground mb-1.5 block">Payment Method</label>
-        <Select value={method} onValueChange={setMethod}>
-          <SelectTrigger className={cn("w-full", errors.method && "border-destructive")}>
-            <SelectValue placeholder="Select payment method" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="cash">Cash</SelectItem>
-            <SelectItem value="pos">POS</SelectItem>
-            <SelectItem value="transfer">Bank Transfer</SelectItem>
-            <SelectItem value="insurance">Insurance</SelectItem>
-          </SelectContent>
-        </Select>
-        {errors.method && <p className="text-xs text-destructive mt-1">{errors.method}</p>}
-      </div>
-      <div className="flex justify-end gap-3 pt-4">
-        <Button variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button variant="hero" onClick={handleSubmit}>
-          <CheckCircle2 className="h-4 w-4 mr-2" />
-          Record Payment
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 const INSURANCE_PLANS: Record<string, string[]> = {
   katchma: ['Katchma Basic', 'Katchma Standard'],

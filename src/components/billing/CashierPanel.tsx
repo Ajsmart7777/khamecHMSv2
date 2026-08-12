@@ -123,7 +123,8 @@ export function CashierPanel() {
     return allItems.filter(it => 
       it.dispensing_status === 'refund_requested' || 
       it.dispensing_status === 'unavailable' ||
-      it.dispensing_status === 'refund_pending'
+      it.dispensing_status === 'refund_pending' ||
+      it.dispensing_status === 'not_given'
     );
   }, [invoices]);
 
@@ -176,7 +177,8 @@ export function CashierPanel() {
         const activeItems = (inv.items || []).filter(it => 
           it.dispensing_status !== 'unavailable' && 
           it.dispensing_status !== 'refund_requested' &&
-          it.dispensing_status !== 'refund_pending'
+          it.dispensing_status !== 'refund_pending' &&
+          it.dispensing_status !== 'not_given'
         );
         const activeTotal = activeItems.reduce((s, it) => s + (Number(it.total) || 0), 0);
         const { copayAmount } = patient ? splitInvoice(activeTotal, patient) : { copayAmount: activeTotal };

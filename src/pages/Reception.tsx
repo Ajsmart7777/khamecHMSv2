@@ -723,19 +723,6 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
         </div>
       )}
 
-      {/* Payment Receipt Dialog */}
-      {receiptData && (
-        <PrintableReceiptDialog
-          open={receiptData.open}
-          onOpenChange={(open) => setReceiptData(open ? receiptData : null)}
-          patient={patient}
-          amount={receiptData.amount}
-          paymentMethod={receiptData.method}
-          receiptNumber={receiptData.receiptNumber}
-          date={receiptData.date}
-          newBalance={receiptData.newBalance}
-        />
-      )}
 
       {/* Patient Journey Dialog */}
       <PatientJourneyDialog

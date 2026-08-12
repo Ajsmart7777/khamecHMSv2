@@ -50,7 +50,7 @@ export async function requireUser(req: Request): Promise<string | null> {
   return data.user.id;
 }
 
-export function adminClient() {
+export function getAdminClient() {
   return createClient(
     Deno.env.get('SUPABASE_URL')!,
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,

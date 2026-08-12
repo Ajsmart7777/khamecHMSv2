@@ -655,6 +655,52 @@ export function CashierPanel() {
           );
         })}
       </div>
+      
+      {unavailableItems.length > 0 && (
+        <div className="mt-6 pt-6 border-t border-border">
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              Pending Refunds / Adjustments
+            </h4>
+            <Badge variant="destructive" className="animate-pulse">{unavailableItems.length}</Badge>
+          </div>
+          <div className="space-y-2">
+            {unavailableItems.map((item: any) => {
+              const patient = patients.find((p: any) => p.id === item.invoice.patient_id);
+              const spon = patient ? isSponsored(patient) : false;
+              const fullCoverInsurance = spon && copayPercent(patient) === 0;
+              
+              return (
+                <div 
+                  key={item.id} 
+                  className="p-3 rounded-lg border border-destructive/20 bg-destructive/5 flex items-center justify-between gap-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">
+                      {patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown Patient'}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {item.description} · <span className="font-mono">{item.invoice.invoice_number}</span>
+                    </p>
+                    <p className="text-[10px] font-semibold text-destructive mt-0.5">
+                      {fullCoverInsurance ? 'REMOVAL FROM CLAIM' : `REFUND: ₦${(Number(item.total) || 0).toLocaleString()}`}
+                    </p>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="destructive" 
+                    className="h-7 text-xs shrink-0"
+                    onClick={() => setRefundItem({ item, invoice: item.invoice })}
+                  >
+                    Process
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent className="sm:max-w-md">

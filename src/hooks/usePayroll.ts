@@ -249,9 +249,10 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
       }
 
       const deductions: Record<string, number> = {};
-      if (familyDeductions > 0) {
-        deductions['family_medical'] = familyDeductions;
-      }
+      // Medical deductions are now provided via the manual report for accountant to fill manually
+      // if (familyDeductions > 0) {
+      //   deductions['family_medical'] = familyDeductions;
+      // }
 
       const basicSalary = Number(s.salary);
       const totalDeductions = Object.values(deductions).reduce((a, b) => a + b, 0);
@@ -348,13 +349,14 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
         if (newFamilyMed !== currentFamilyMed) {
           const newDeductions = { ...entry.deductions, family_medical: newFamilyMed };
           const totalDeductions = Object.values(newDeductions).reduce((a, b) => a + b, 0);
-          const netPay = entry.gross_pay - totalDeductions;
-
+          // Only updating the stored medical value for the report; net pay is not auto-deducted here
+          // as per the requirement for accountant to fill it manually in their system.
+          
           return {
             id: entry.id,
             deductions: newDeductions,
             total_deductions: totalDeductions,
-            net_pay: netPay
+            net_pay: entry.net_pay // Keep net pay unchanged to prevent auto-deduction
           };
         }
         return null;

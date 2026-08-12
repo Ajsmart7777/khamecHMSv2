@@ -22,6 +22,7 @@ interface StorageStats {
     quota_bytes: number | null;
     usage_percent: number | null;
     breakdown: Record<string, { objects: number, size: number }>;
+    isConfigured: boolean;
   } | null;
   lastUpdated: Date;
 }
@@ -53,19 +54,36 @@ export function StorageMonitoring() {
       let r2Stats = null;
       try {
         const { data: r2Data, error: r2Error } = await supabase.functions.invoke('r2-usage');
-        if (!r2Error && r2Data) {
+        
+        if (r2Error) {
+          console.warn('R2 usage fetch error:', r2Error);
+          // If the error specifically says R2 is not configured, we want to reflect that
+          if (r2Error.message?.includes('not configured')) {
+            r2Stats = {
+              bucket: '',
+              total_objects: 0,
+              total_size_bytes: 0,
+              total_size_formatted: '0 Bytes',
+              quota_bytes: null,
+              usage_percent: null,
+              breakdown: {},
+              isConfigured: false
+            };
+          }
+        } else if (r2Data) {
           r2Stats = {
-            bucket: r2Data.bucket,
-            total_objects: r2Data.total_objects,
-            total_size_bytes: r2Data.total_size_bytes,
-            total_size_formatted: formatBytes(r2Data.total_size_bytes),
-            quota_bytes: null, // R2 doesn't have a strict quota we can easily fetch here
+            bucket: r2Data.bucket || '',
+            total_objects: r2Data.total_objects ?? 0,
+            total_size_bytes: r2Data.total_size_bytes ?? 0,
+            total_size_formatted: formatBytes(r2Data.total_size_bytes ?? 0),
+            quota_bytes: null,
             usage_percent: null,
-            breakdown: r2Data.breakdown
+            breakdown: r2Data.breakdown || {},
+            isConfigured: true
           };
         }
       } catch (err) {
-        console.warn('Could not fetch R2 usage:', err);
+        console.warn('Could not invoke r2-usage:', err);
       }
 
       setStats({
@@ -207,7 +225,7 @@ export function StorageMonitoring() {
                 <HardDrive className="h-5 w-5 text-orange-500" />
                 <CardTitle className="text-lg">Cloudflare R2</CardTitle>
               </div>
-              {stats?.r2 ? (
+              {stats?.r2?.isConfigured ? (
                 <Badge variant="outline" className="text-success border-success/30">
                   Active
                 </Badge>
@@ -220,7 +238,7 @@ export function StorageMonitoring() {
             <CardDescription>Object storage for images and attachments</CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
-            {stats?.r2 ? (
+            {stats?.r2?.isConfigured ? (
               <>
                 <div className="flex justify-between items-end">
                   <div>

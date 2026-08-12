@@ -26,7 +26,15 @@ Deno.serve(async (req) => {
     }
 
     const cfg = r2Config();
-    if (!cfg) return json({ error: 'R2 is not configured' }, 500);
+    if (!cfg) {
+      console.log('R2 Configuration missing:', {
+        accountId: !!Deno.env.get('R2_ACCOUNT_ID'),
+        accessKeyId: !!Deno.env.get('R2_ACCESS_KEY_ID'),
+        secretAccessKey: !!Deno.env.get('R2_SECRET_ACCESS_KEY'),
+        bucket: !!Deno.env.get('R2_BUCKET')
+      });
+      return json({ error: 'R2 is not configured' }, 500);
+    }
 
     const url = `${cfg.endpoint}?list-type=2`;
     const res = await cfg.client.fetch(url, { method: 'GET' });

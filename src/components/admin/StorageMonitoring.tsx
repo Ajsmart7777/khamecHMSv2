@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, Database, HardDrive, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { ExternalLink, Settings } from 'lucide-react';
 
 interface StorageStats {
   database: {
@@ -271,6 +272,27 @@ export function StorageMonitoring() {
                 <p className="text-sm text-muted-foreground italic">
                   {error?.includes('R2') ? error : 'Cloudflare R2 storage usage could not be retrieved or is not configured.'}
                 </p>
+                <div className="mt-4 flex flex-col items-center gap-2">
+                  <p className="text-xs text-muted-foreground max-w-xs mx-auto mb-2">
+                    To enable R2 monitoring and storage, please ensure the following secrets are set in your project:
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Badge variant="secondary" className="font-mono text-[10px]">R2_ACCOUNT_ID</Badge>
+                    <Badge variant="secondary" className="font-mono text-[10px]">R2_ACCESS_KEY_ID</Badge>
+                    <Badge variant="secondary" className="font-mono text-[10px]">R2_SECRET_ACCESS_KEY</Badge>
+                    <Badge variant="secondary" className="font-mono text-[10px]">R2_BUCKET</Badge>
+                    <Badge variant="secondary" className="font-mono text-[10px]">VITE_R2_PUBLIC_URL</Badge>
+                  </div>
+                  <Button 
+                    variant="link" 
+                    size="sm" 
+                    className="mt-2"
+                    onClick={() => window.open('https://dash.cloudflare.com/', '_blank')}
+                  >
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    Cloudflare Dashboard
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>

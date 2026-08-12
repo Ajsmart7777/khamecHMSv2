@@ -8,7 +8,7 @@ import { toast } from '@/hooks/use-toast';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-type ReportType = 'master' | 'bank_schedule' | 'cash_schedule' | 'paye' | 'pension';
+type ReportType = 'master' | 'bank_schedule' | 'cash_schedule' | 'paye' | 'pension' | 'family_deductions';
 
 interface Props {
   periods: PayrollPeriod[];

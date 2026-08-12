@@ -8,7 +8,7 @@ import { toast } from '@/hooks/use-toast';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-type ReportType = 'master' | 'bank_schedule' | 'cash_schedule' | 'paye' | 'pension';
+type ReportType = 'master' | 'bank_schedule' | 'cash_schedule' | 'paye' | 'pension' | 'family_deductions';
 
 interface Props {
   periods: PayrollPeriod[];
@@ -61,7 +61,14 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
         String(i + 1), e.staff_employee_id || '', e.staff_name || '',
         String(e.basic_salary), String(e.deductions?.pension || 0),
       ]);
+    } else if (reportType === 'family_deductions') {
+      csv = 'S/N,Staff ID,Name,Family Med Deduction,Status\n';
+      rows = entries.filter(e => (e.deductions?.family_medical || 0) > 0).map((e, i) => [
+        String(i + 1), e.staff_employee_id || '', e.staff_name || '',
+        String(e.deductions?.family_medical || 0), e.status || 'pending',
+      ]);
     }
+
 
     csv += rows.map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -106,7 +113,9 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
             <SelectItem value="cash_schedule">Cash Schedule</SelectItem>
             <SelectItem value="paye">PAYE Schedule</SelectItem>
             <SelectItem value="pension">Pension Schedule</SelectItem>
+            <SelectItem value="family_deductions">Family Medical Deductions</SelectItem>
           </SelectContent>
+
         </Select>
 
         <Button variant="outline" onClick={exportCSV} className="ml-auto" disabled={entries.length === 0}>
@@ -251,7 +260,47 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
                 </TableBody>
               </Table>
             )}
+            {reportType === 'family_deductions' && (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>S/N</TableHead>
+                    <TableHead>Staff ID</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Family Med</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {entries.filter(e => (e.deductions?.family_medical || 0) > 0).map((e, i) => (
+                    <TableRow key={e.id}>
+                      <TableCell>{i + 1}</TableCell>
+                      <TableCell className="font-mono text-xs">{e.staff_employee_id}</TableCell>
+                      <TableCell>{e.staff_name}</TableCell>
+                      <TableCell className="font-bold text-destructive">
+                        ₦{(e.deductions?.family_medical || 0).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                          e.status === 'paid' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
+                        }`}>
+                          {e.status?.toUpperCase() || 'PENDING'}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {entries.filter(e => (e.deductions?.family_medical || 0) > 0).length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        No family medical deductions recorded for this period.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </div>
+
         </div>
       )}
 

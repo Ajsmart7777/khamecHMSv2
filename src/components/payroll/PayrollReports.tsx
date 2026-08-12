@@ -113,7 +113,9 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
             <SelectItem value="cash_schedule">Cash Schedule</SelectItem>
             <SelectItem value="paye">PAYE Schedule</SelectItem>
             <SelectItem value="pension">Pension Schedule</SelectItem>
+            <SelectItem value="family_deductions">Family Medical Deductions</SelectItem>
           </SelectContent>
+
         </Select>
 
         <Button variant="outline" onClick={exportCSV} className="ml-auto" disabled={entries.length === 0}>

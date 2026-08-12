@@ -166,7 +166,7 @@ export function SnapFulfillDialog({
       setItems(prev => prev.map(it => it.id === itemId ? { ...it, dispensing_status: 'unavailable', dispensing_notes: reason } : it));
       
       // Detailed toast notification
-      const invoiceRef = item.invoices?.id ? ` (Inv: ${item.invoices.id.slice(0, 8)})` : '';
+      const invoiceRef = invoiceId ? ` (Inv: ${invoiceId.slice(0, 8)})` : '';
       if (copayAmount > 0) {
         toast.success('Marked as unavailable', {
           description: `Patient refund: ${fmt(copayAmount)}${coveredAmount > 0 ? ` · Claim reduced: ${fmt(coveredAmount)}` : ''}${invoiceRef}`,

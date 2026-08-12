@@ -71,9 +71,22 @@ export function StorageMonitoring() {
               isConfigured: false
             };
           } else {
-            // Unexpected error (e.g. 403 Unauthorized)
+            // Unexpected error (e.g. 403 Unauthorized, 500 internal)
             console.error('R2 unexpected error:', r2Error);
-            throw new Error(r2Error.error || r2Error.message || 'Failed to fetch R2 usage');
+            const msg = r2Error.error || r2Error.message || 'Failed to fetch R2 usage';
+            toast.error(`R2 Error: ${msg}`);
+            // Fallback to "Not Integrated" but with the error message visible
+            setError(`Cloudflare R2: ${msg}`);
+            r2Stats = {
+              bucket: '',
+              total_objects: 0,
+              total_size_bytes: 0,
+              total_size_formatted: '0 Bytes',
+              quota_bytes: null,
+              usage_percent: null,
+              breakdown: {},
+              isConfigured: false
+            };
           }
         } else if (r2Data) {
           r2Stats = {

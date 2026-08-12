@@ -9,7 +9,6 @@ Deno.serve(async (req) => {
     const uid = await requireUser(req);
     if (!uid) return json({ error: 'Unauthorized', debug: 'requireUser returned null' }, 401);
 
-    // Create a local client directly to bypass any stale module imports
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const client = createClient(supabaseUrl, supabaseServiceKey);
@@ -41,8 +40,9 @@ Deno.serve(async (req) => {
       }, 500);
     }
 
-    const url = `${cfg.endpoint}?list-type=2`;
-    const res = await cfg.client.fetch(url, { method: 'GET' });
+    // LIST objects to get usage
+    const listUrl = `${cfg.endpoint}?list-type=2`;
+    const res = await cfg.client.fetch(listUrl, { method: 'GET' });
     if (!res.ok) {
       const body = await res.text();
       return json({ error: 'Failed to list R2 objects', details: body }, res.status);

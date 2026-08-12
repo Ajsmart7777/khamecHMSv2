@@ -272,7 +272,8 @@ export function PatientLedgerCard({
       const invSub = paid <= 0 ? 'invoice_new' : paid < total ? 'invoice_partial' : 'invoice_paid';
       
       // Automatically exclude unavailable medication items from the ledger/claim totals
-      // ensuring only eligible amounts are reclaimed or credited
+      // ensuring only eligible amounts are reclaimed or credited.
+      // Sponsored patients (Insurance/Corporate/Retainer) see these items removed from claim.
       const activeItems = (i.invoice_items ?? []).filter((it: any) => 
         it.dispensing_status !== 'unavailable' && it.dispensing_status !== 'refunded'
       );

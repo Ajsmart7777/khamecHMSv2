@@ -283,7 +283,7 @@ export function StaffFamilyDeductions() {
                               <TableCell className="hidden print:table-cell" />
                             </TableRow>
                           ))}
-                        </>
+                        </Fragment>
                       ))
                     )}
                     {currentGroups.length > 0 && (

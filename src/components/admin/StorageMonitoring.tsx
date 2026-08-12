@@ -59,7 +59,24 @@ export function StorageMonitoring() {
         if (r2Error) {
           console.warn('R2 usage fetch error:', r2Error);
           // If the error specifically says R2 is not configured, we want to reflect that
-          if (r2Error.message?.includes('not configured')) {
+          if (r2Error.message?.includes('not configured') || r2Error.debug?.accountId === false) {
+            r2Stats = {
+              bucket: '',
+              total_objects: 0,
+              total_size_bytes: 0,
+              total_size_formatted: '0 Bytes',
+              quota_bytes: null,
+              usage_percent: null,
+              breakdown: {},
+              isConfigured: false
+            };
+          } else {
+            // Unexpected error (e.g. 403 Unauthorized, 500 internal)
+            console.error('R2 unexpected error:', r2Error);
+            const msg = r2Error.error || r2Error.message || 'Failed to fetch R2 usage';
+            toast.error(`R2 Error: ${msg}`);
+            // Fallback to "Not Integrated" but with the error message visible
+            setError(`Cloudflare R2: ${msg}`);
             r2Stats = {
               bucket: '',
               total_objects: 0,

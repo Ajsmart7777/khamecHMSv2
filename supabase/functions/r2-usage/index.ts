@@ -7,9 +7,8 @@ Deno.serve(async (req) => {
   
   try {
     const uid = await requireUser(req);
-    if (!uid) return json({ error: 'Unauthorized' }, 401);
+    if (!uid) return json({ error: 'Unauthorized', debug: 'requireUser returned null' }, 401);
 
-    // Create a local client directly to bypass any stale module imports
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const client = createClient(supabaseUrl, supabaseServiceKey);
@@ -22,22 +21,28 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (roleError || !roleData) {
-      return json({ error: 'Unauthorized: Admin role required' }, 403);
+      return json({ 
+        error: 'Unauthorized: Admin role required', 
+        debug: { uid, roleError, hasRole: !!roleData } 
+      }, 403);
     }
 
     const cfg = r2Config();
     if (!cfg) {
-      console.log('R2 Configuration missing:', {
-        accountId: !!Deno.env.get('R2_ACCOUNT_ID'),
-        accessKeyId: !!Deno.env.get('R2_ACCESS_KEY_ID'),
-        secretAccessKey: !!Deno.env.get('R2_SECRET_ACCESS_KEY'),
-        bucket: !!Deno.env.get('R2_BUCKET')
-      });
-      return json({ error: 'R2 is not configured' }, 500);
+      return json({ 
+        error: 'R2 is not configured',
+        debug: {
+          accountId: !!Deno.env.get('R2_ACCOUNT_ID'),
+          accessKeyId: !!Deno.env.get('R2_ACCESS_KEY_ID'),
+          secretAccessKey: !!Deno.env.get('R2_SECRET_ACCESS_KEY'),
+          bucket: !!Deno.env.get('R2_BUCKET')
+        }
+      }, 500);
     }
 
-    const url = `${cfg.endpoint}?list-type=2`;
-    const res = await cfg.client.fetch(url, { method: 'GET' });
+    // LIST objects to get usage
+    const listUrl = `${cfg.endpoint}?list-type=2`;
+    const res = await cfg.client.fetch(listUrl, { method: 'GET' });
     if (!res.ok) {
       const body = await res.text();
       return json({ error: 'Failed to list R2 objects', details: body }, res.status);

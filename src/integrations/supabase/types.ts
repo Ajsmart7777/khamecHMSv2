@@ -897,6 +897,7 @@ export type Database = {
           paid_at: string | null
           patient_id: string
           payment_method: string | null
+          salary_deduction_batch_id: string | null
           sponsor_type: string | null
           staff_sponsor_id: string | null
           status: string
@@ -921,6 +922,7 @@ export type Database = {
           paid_at?: string | null
           patient_id: string
           payment_method?: string | null
+          salary_deduction_batch_id?: string | null
           sponsor_type?: string | null
           staff_sponsor_id?: string | null
           status?: string
@@ -945,6 +947,7 @@ export type Database = {
           paid_at?: string | null
           patient_id?: string
           payment_method?: string | null
+          salary_deduction_batch_id?: string | null
           sponsor_type?: string | null
           staff_sponsor_id?: string | null
           status?: string
@@ -965,6 +968,13 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_salary_deduction_batch_id_fkey"
+            columns: ["salary_deduction_batch_id"]
+            isOneToOne: false
+            referencedRelation: "staff_deduction_batches"
             referencedColumns: ["id"]
           },
           {
@@ -2109,6 +2119,51 @@ export type Database = {
           },
         ]
       }
+      staff_deduction_batches: {
+        Row: {
+          batch_number: string
+          closed_at: string
+          closed_by: string | null
+          created_at: string
+          id: string
+          invoice_count: number
+          notes: string | null
+          period_month: number | null
+          period_year: number | null
+          staff_count: number
+          total_amount: number
+          updated_at: string
+        }
+        Insert: {
+          batch_number: string
+          closed_at?: string
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          invoice_count?: number
+          notes?: string | null
+          period_month?: number | null
+          period_year?: number | null
+          staff_count?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Update: {
+          batch_number?: string
+          closed_at?: string
+          closed_by?: string | null
+          created_at?: string
+          id?: string
+          invoice_count?: number
+          notes?: string | null
+          period_month?: number | null
+          period_year?: number | null
+          staff_count?: number
+          total_amount?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       staff_family_members: {
         Row: {
           created_at: string
@@ -2679,6 +2734,15 @@ export type Database = {
       }
       claim_task: {
         Args: { _notes?: string; _source: string; _source_id: string }
+        Returns: string
+      }
+      close_family_deduction_batch: {
+        Args: {
+          _invoice_ids: string[]
+          _notes?: string
+          _period_month?: number
+          _period_year?: number
+        }
         Returns: string
       }
       close_retainer_month: {

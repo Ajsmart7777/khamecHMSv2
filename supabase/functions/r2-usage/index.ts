@@ -6,24 +6,30 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   
   try {
-    const uid = await requireUser(req);
-    if (!uid) return json({ error: 'Unauthorized', debug: 'requireUser returned null' }, 401);
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) return json({ error: 'Unauthorized', debug: 'No Authorization header' }, 401);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const client = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get user from the token passed in Authorization header
+    const { data: { user }, error: userError } = await client.auth.getUser(authHeader.replace('Bearer ', ''));
+    if (userError || !user) {
+      return json({ error: 'Unauthorized', debug: 'Invalid token', details: userError }, 401);
+    }
     
     const { data: roleData, error: roleError } = await client
       .from('user_roles')
       .select('role')
-      .eq('user_id', uid)
+      .eq('user_id', user.id)
       .eq('role', 'admin')
       .maybeSingle();
 
     if (roleError || !roleData) {
       return json({ 
         error: 'Unauthorized: Admin role required', 
-        debug: { uid, roleError, hasRole: !!roleData } 
+        debug: { uid: user.id, roleError, hasRole: !!roleData } 
       }, 403);
     }
 

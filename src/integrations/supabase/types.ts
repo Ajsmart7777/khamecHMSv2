@@ -2952,16 +2952,27 @@ export type Database = {
         Args: { _invoice_id: string }
         Returns: undefined
       }
-      write_audit_log: {
-        Args: {
-          _action: string
-          _details: Json
-          _resource_id: string
-          _resource_type: string
-          _status?: string
-        }
-        Returns: undefined
-      }
+      write_audit_log:
+        | {
+            Args: {
+              _action: string
+              _details: Json
+              _resource_id: string
+              _resource_type: string
+              _status?: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              _action: string
+              _details: Json
+              _resource_id: string
+              _resource_type: string
+              _status?: string
+            }
+            Returns: undefined
+          }
     }
     Enums: {
       app_role:

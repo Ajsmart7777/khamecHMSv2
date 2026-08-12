@@ -159,6 +159,7 @@ export function SnapFulfillDialog({
         account_type: (item.invoices as any).patients.account_type,
         insurance_plan: (item.invoices as any).patients.insurance_plan
       };
+      const invoiceId = (item.invoices as any).id;
       
       const { copayAmount, coveredAmount } = splitInvoice(totalAmount, sponsor);
       

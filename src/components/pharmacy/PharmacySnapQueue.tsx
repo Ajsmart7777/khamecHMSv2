@@ -126,6 +126,7 @@ export function SnapFulfillDialog({
           unit_price,
           quantity,
           invoices!inner (
+            id,
             sponsor_type,
             patients!inner (
               account_type,
@@ -158,20 +159,22 @@ export function SnapFulfillDialog({
         account_type: (item.invoices as any).patients.account_type,
         insurance_plan: (item.invoices as any).patients.insurance_plan
       };
+      const invoiceId = (item.invoices as any).id;
       
       const { copayAmount, coveredAmount } = splitInvoice(totalAmount, sponsor);
       
       setItems(prev => prev.map(it => it.id === itemId ? { ...it, dispensing_status: 'unavailable', dispensing_notes: reason } : it));
       
       // Detailed toast notification
+      const invoiceRef = invoiceId ? ` (Inv: ${invoiceId.slice(0, 8)})` : '';
       if (copayAmount > 0) {
         toast.success('Marked as unavailable', {
-          description: `Patient refund: ${fmt(copayAmount)}${coveredAmount > 0 ? ` · Claim reduced: ${fmt(coveredAmount)}` : ''}`,
+          description: `Patient refund: ${fmt(copayAmount)}${coveredAmount > 0 ? ` · Claim reduced: ${fmt(coveredAmount)}` : ''}${invoiceRef}`,
           duration: 6000,
         });
       } else {
         toast.success('Marked as unavailable', {
-          description: `Claim reduced by ${fmt(coveredAmount)}`,
+          description: `Claim reduced by ${fmt(coveredAmount)}${invoiceRef}`,
           duration: 5000,
         });
       }

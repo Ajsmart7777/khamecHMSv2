@@ -275,7 +275,7 @@ export function PatientLedgerCard({
       // ensuring only eligible amounts are reclaimed or credited.
       // Sponsored patients (Insurance/Corporate/Retainer) see these items removed from claim.
       const activeItems = (i.invoice_items ?? []).filter((it: any) => 
-        it.dispensing_status !== 'unavailable' && it.dispensing_status !== 'refund_requested' && it.dispensing_status !== 'refunded'
+        it.dispensing_status !== 'unavailable' && it.dispensing_status !== 'refund_requested' && it.dispensing_status !== 'refund_pending' && it.dispensing_status !== 'not_given' && it.dispensing_status !== 'refunded'
       );
       
       const displayTotal = activeItems.reduce((s: number, it: any) => s + Number(it.total || 0), 0);
@@ -294,9 +294,9 @@ export function PatientLedgerCard({
       });
       
       // Add refund/unavailable events
-      (i.invoice_items ?? []).filter((it: any) => it.dispensing_status === 'refunded' || it.dispensing_status === 'unavailable' || it.dispensing_status === 'refund_requested').forEach((it: any) => {
+      (i.invoice_items ?? []).filter((it: any) => ['refunded', 'unavailable', 'refund_requested', 'refund_pending', 'not_given'].includes(it.dispensing_status)).forEach((it: any) => {
         const isRefunded = it.dispensing_status === 'refunded';
-        const isPending = it.dispensing_status === 'unavailable' || it.dispensing_status === 'refund_requested';
+        const isPending = ['unavailable', 'refund_requested', 'refund_pending', 'not_given'].includes(it.dispensing_status);
         
         push(i.visit_id, {
           id: `ref-${it.id}`, visitId: i.visit_id, at: it.dispensing_updated_at ?? i.updated_at,

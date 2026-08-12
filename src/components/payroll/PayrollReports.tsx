@@ -8,7 +8,7 @@ import { toast } from '@/hooks/use-toast';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-type ReportType = 'master' | 'bank_schedule' | 'cash_schedule' | 'paye' | 'pension' | 'family_deductions';
+type ReportType = 'master' | 'bank_schedule' | 'cash_schedule' | 'paye' | 'pension' | 'family_deductions' | 'family_med_manual';
 
 interface Props {
   periods: PayrollPeriod[];
@@ -67,6 +67,12 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
         String(i + 1), e.staff_employee_id || '', e.staff_name || '',
         String(e.deductions?.family_medical || 0), e.status || 'pending',
       ]);
+    } else if (reportType === 'family_med_manual') {
+      csv = 'S/N,Staff ID,Staff Name,Designation,Family Med Amount,Notes/Signature\n';
+      rows = entries.filter(e => (e.deductions?.family_medical || 0) > 0).map((e, i) => [
+        String(i + 1), e.staff_employee_id || '', e.staff_name || '', e.staff_designation || '',
+        String(e.deductions?.family_medical || 0), '',
+      ]);
     }
 
 
@@ -114,6 +120,7 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
             <SelectItem value="paye">PAYE Schedule</SelectItem>
             <SelectItem value="pension">Pension Schedule</SelectItem>
             <SelectItem value="family_deductions">Family Medical Deductions</SelectItem>
+            <SelectItem value="family_med_manual">Family Med (Manual Entry Report)</SelectItem>
           </SelectContent>
 
         </Select>
@@ -298,6 +305,62 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
                   )}
                 </TableBody>
               </Table>
+            )}
+            {reportType === 'family_med_manual' && (
+              <div className="p-8 space-y-8 bg-white text-black print:p-0">
+                <div className="text-center border-b pb-4">
+                  <h2 className="text-2xl font-bold uppercase">Khadija Medical Center</h2>
+                  <p className="text-sm">Family Medical Deductions - Manual Entry Schedule</p>
+                  <p className="font-semibold">{selectedPeriod ? `${MONTHS[selectedPeriod.month - 1]} ${selectedPeriod.year}` : ''}</p>
+                </div>
+                
+                <Table className="border-collapse border border-black">
+                  <TableHeader>
+                    <TableRow className="border-black bg-muted/50">
+                      <TableHead className="border-black text-black font-bold h-12">S/N</TableHead>
+                      <TableHead className="border-black text-black font-bold">Staff ID</TableHead>
+                      <TableHead className="border-black text-black font-bold">Staff Name</TableHead>
+                      <TableHead className="border-black text-black font-bold">Designation</TableHead>
+                      <TableHead className="border-black text-black font-bold text-right">Amount (₦)</TableHead>
+                      <TableHead className="border-black text-black font-bold w-48 text-center">Accountant Notes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {entries.filter(e => (e.deductions?.family_medical || 0) > 0).map((e, i) => (
+                      <TableRow key={e.id} className="border-black h-12">
+                        <TableCell className="border-black">{i + 1}</TableCell>
+                        <TableCell className="border-black font-mono">{e.staff_employee_id}</TableCell>
+                        <TableCell className="border-black font-medium">{e.staff_name}</TableCell>
+                        <TableCell className="border-black text-xs uppercase">{e.staff_designation}</TableCell>
+                        <TableCell className="border-black text-right font-bold text-lg">
+                          {(e.deductions?.family_medical || 0).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="border-black text-center italic text-[10px] text-muted-foreground">
+                          ________________
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {entries.filter(e => (e.deductions?.family_medical || 0) > 0).length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-12 border-black">
+                          No staff with medical deductions for this period.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+
+                <div className="flex justify-between pt-12 text-sm italic">
+                  <div className="text-center">
+                    <p>__________________________</p>
+                    <p>Prepared By (Medical)</p>
+                  </div>
+                  <div className="text-center">
+                    <p>__________________________</p>
+                    <p>Accountant / Internal Audit</p>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 

@@ -120,7 +120,11 @@ export function CashierPanel() {
     // Automatically identify unavailable medication items for exclusion from sponsor totals
     // ensuring only eligible amounts are reclaimed or credited
     const allItems = invoices.flatMap(inv => (inv.items || []).map(it => ({ ...it, invoice: inv })));
-    return allItems.filter(it => it.dispensing_status === 'refund_requested' || it.dispensing_status === 'unavailable');
+    return allItems.filter(it => 
+      it.dispensing_status === 'refund_requested' || 
+      it.dispensing_status === 'unavailable' ||
+      it.dispensing_status === 'refund_pending'
+    );
   }, [invoices]);
 
   const handleRefund = async (method: 'balance' | 'cash') => {
@@ -170,7 +174,9 @@ export function CashierPanel() {
         // Exclude unavailable items from visibility for 0% copay insurance patients
         // so they don't even appear for "Record" if they were just removals.
         const activeItems = (inv.items || []).filter(it => 
-          it.dispensing_status !== 'unavailable' && it.dispensing_status !== 'refund_requested'
+          it.dispensing_status !== 'unavailable' && 
+          it.dispensing_status !== 'refund_requested' &&
+          it.dispensing_status !== 'refund_pending'
         );
         const activeTotal = activeItems.reduce((s, it) => s + (Number(it.total) || 0), 0);
         const { copayAmount } = patient ? splitInvoice(activeTotal, patient) : { copayAmount: activeTotal };

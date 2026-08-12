@@ -17,6 +17,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (roleError || !roleData) {
+      console.error(`Access denied for user ${uid}: ${roleError?.message || 'No admin role'}`);
       return json({ error: 'Unauthorized: Admin role required' }, 403);
     }
 

@@ -12,7 +12,7 @@ export default function AdmittedPatients() {
   const myDoctorKey: 'doctor1' | 'doctor2' | null =
     role === 'doctor1' ? 'doctor1'
     : role === 'doctor2' ? 'doctor2'
-    : role === 'admin' && (asParam === 'doctor1' || asParam === 'doctor2') ? asParam as 'doctor1' | 'doctor2'
+    : role === 'admin' ? (asParam === 'doctor1' || asParam === 'doctor2' ? asParam as 'doctor1' | 'doctor2' : null)
     : null;
 
   const sourceStation = (role === 'nurse' || (role === 'admin' && asParam === 'nurse')) ? 'nurse' : 'doctor';

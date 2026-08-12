@@ -68,7 +68,7 @@ import { logError } from '@/lib/errorHandler';
 import { usePatients, Patient } from '@/contexts/PatientContext';
 import { supabase } from '@/integrations/supabase/client';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
-import { PrintableReceiptDialog } from '@/components/receipts/PrintableReceiptDialog';
+
 import { PatientJourneyDialog } from '@/components/patient/PatientJourneyDialog';
 import { patientSchema, paymentSchema } from '@/lib/validations';
 import { z } from 'zod';

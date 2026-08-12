@@ -8,8 +8,9 @@ import { useAuth } from '@/contexts/AuthContext';
  */
 export function useCanSnap(patientId: string | null | undefined) {
   const { user, role } = useAuth();
-  const [allowed, setAllowed] = useState(true); // Default to true to avoid UI flickering/deadlock
+  const [allowed, setAllowed] = useState(true);
   const [reason, setReason] = useState<string>('');
+  const [debugLog, setDebugLog] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -22,11 +23,15 @@ export function useCanSnap(patientId: string | null | undefined) {
 
     const check = async () => {
       setLoading(true);
+      const logs: string[] = [`[${new Date().toISOString()}] Checking perms for patient ${patientId}`];
       
       const { data: rpcRes, error: rpcErr } = await supabase.rpc('can_add_snap_for_patient', {
         _patient_id: patientId,
         _user_id: user.id,
       });
+
+      logs.push(`RPC Result: ${JSON.stringify(rpcRes)}`);
+      if (rpcErr) logs.push(`RPC Error: ${rpcErr.message}`);
 
       // Special check: if a lab result is ready for this user, they are allowed to act
       const { data: hasLabResult } = await supabase
@@ -38,6 +43,7 @@ export function useCanSnap(patientId: string | null | undefined) {
         .eq('returned_to', user.id)
         .maybeSingle();
 
+      logs.push(`Has Lab Result check: ${!!hasLabResult}`);
       if (cancelled) return;
       
       if (rpcErr) { 
@@ -49,14 +55,26 @@ export function useCanSnap(patientId: string | null | undefined) {
 
       const isAllowed = !!rpcRes || !!hasLabResult;
       setAllowed(isAllowed);
+      setDebugLog(logs);
       
       if (!isAllowed) {
         const { data: p } = await supabase
           .from('patients')
-          .select('status')
+          .select('status, assigned_doctor')
           .eq('id', patientId)
           .single();
-        setReason(`Only the current owner (${labelForStatus((p as any)?.status)}) can add to this card. You are ${role ?? 'unauthenticated'}.`);
+        
+        const status = (p as any)?.status;
+        const assigned = (p as any)?.assigned_doctor;
+        const roleLabel = role ?? 'unauthenticated';
+        
+        let msg = `Only the current owner (${labelForStatus(status)}) can add to this card. You are ${roleLabel}.`;
+        if (status === 'with_doctor' && assigned && assigned !== role) {
+          msg = `This patient is assigned to ${assigned === 'doctor1' ? 'Doctor 1' : 'Doctor 2'}. You are logged in as ${roleLabel}.`;
+        }
+        
+        setReason(msg);
+        logs.push(`Reason: ${msg}`);
       } else {
         setReason('');
       }
@@ -86,7 +104,7 @@ export function useCanSnap(patientId: string | null | undefined) {
     };
   }, [patientId, user?.id, role]);
 
-  return { allowed, reason, loading };
+  return { allowed, reason, loading, debugLog };
 }
 
 function labelForStatus(s?: string) {

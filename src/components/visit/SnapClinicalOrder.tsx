@@ -55,7 +55,7 @@ export function SnapClinicalOrder({
 }: Props) {
   const { role } = useAuth();
   const { visit, refresh } = useActiveVisit(patientId);
-  const { allowed, reason, loading: checking } = useCanSnap(patientId);
+  const { allowed, reason, loading: checking, debugLog } = useCanSnap(patientId);
   const { updatePatientStatus, getPatientById } = usePatients();
   const patient = getPatientById(patientId);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -219,7 +219,19 @@ export function SnapClinicalOrder({
                 </div>
               </TooltipTrigger>
               {!allowed && reason && (
-                <TooltipContent side="top" className="max-w-xs">{reason}</TooltipContent>
+                <TooltipContent side="top" className="max-w-xs p-3">
+                  <div className="space-y-2">
+                    <p className="font-medium text-destructive">{reason}</p>
+                    {debugLog.length > 0 && (
+                      <div className="pt-2 border-t border-border/50">
+                        <p className="text-[9px] text-muted-foreground uppercase font-bold mb-1">Debug Info</p>
+                        <div className="space-y-0.5 max-h-32 overflow-y-auto font-mono text-[9px] opacity-70">
+                          {debugLog.map((log, i) => <div key={i}>{log}</div>)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </TooltipContent>
               )}
             </Tooltip>
           </TooltipProvider>

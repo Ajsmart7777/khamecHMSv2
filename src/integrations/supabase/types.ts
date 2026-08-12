@@ -2968,15 +2968,6 @@ export type Database = {
               _details: Json
               _resource_id: string
               _resource_type: string
-            }
-            Returns: undefined
-          }
-        | {
-            Args: {
-              _action: string
-              _details: Json
-              _resource_id: string
-              _resource_type: string
               _status?: string
             }
             Returns: undefined
@@ -2987,7 +2978,25 @@ export type Database = {
               _details: Json
               _resource_id: string
               _resource_type: string
-              _status?: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              _action: string
+              _details: Json
+              _resource_id: string
+              _resource_type: string
+            }
+            Returns: undefined
+          }
+        | {
+            Args: {
+              _action: string
+              _details: Json
+              _resource_id: string
+              _resource_type: string
+              _status: string
             }
             Returns: undefined
           }

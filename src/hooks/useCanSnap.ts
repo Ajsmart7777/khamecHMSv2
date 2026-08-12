@@ -109,6 +109,7 @@ export function useCanSnap(patientId: string | null | undefined) {
 
 function labelForStatus(s?: string) {
   switch (s) {
+    case 'waiting':     return 'nurse (waiting)';
     case 'with_nurse':  return 'nurse';
     case 'with_doctor': return 'doctor';
     case 'in_lab':      return 'lab';

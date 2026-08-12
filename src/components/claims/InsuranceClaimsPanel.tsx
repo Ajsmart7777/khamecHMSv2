@@ -90,7 +90,8 @@ export function InsuranceClaimsPanel() {
       const byPatient: Record<string, Invoice[]> = {};
       invRows.forEach(i => {
         // Automatically exclude unavailable or refunded items from the sponsor claim total
-        // only eligible amounts are reclaimed or credited
+        // only eligible amounts are reclaimed or credited.
+        // For insurance/corporate/retainer, this ensures un-dispensed items aren't billed to sponsor.
         const activeItems = (i.invoice_items || []).filter((it: any) => 
           it.dispensing_status !== 'unavailable' && it.dispensing_status !== 'refunded'
         );

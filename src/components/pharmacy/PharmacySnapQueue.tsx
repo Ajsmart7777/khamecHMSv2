@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { CheckCircle, Pill } from 'lucide-react';
 import { PatientStatus } from '@/types/hms';
 import { getPendingWorkflowStation, workflowStationLabel } from '@/lib/workflowRouting';
+import { splitInvoice } from '@/lib/copay';
 
 const fmt = (n: number) => `₦${n.toLocaleString()}`;
 
@@ -116,7 +117,26 @@ export function SnapFulfillDialog({
     setBusy(true);
     try {
       // Safeguard: verify the item is not already processed or refunded
-      const { data: item } = await supabase.from('invoice_items').select('dispensing_status').eq('id', itemId).single();
+      const { data: item, error: fetchErr } = await supabase
+        .from('invoice_items')
+        .select(`
+          id,
+          dispensing_status,
+          total,
+          unit_price,
+          quantity,
+          invoices!inner (
+            sponsor_type,
+            patients!inner (
+              account_type,
+              insurance_plan
+            )
+          )
+        `)
+        .eq('id', itemId)
+        .single();
+      
+      if (fetchErr) throw fetchErr;
       if (item?.dispensing_status === 'unavailable') {
         toast.error('Item is already marked as unavailable');
         return;
@@ -132,8 +152,29 @@ export function SnapFulfillDialog({
       });
       if (error) throw error;
       
+      // Calculate refund info for the toast
+      const totalAmount = Number(item.total) || 0;
+      const sponsor = {
+        account_type: (item.invoices as any).patients.account_type,
+        insurance_plan: (item.invoices as any).patients.insurance_plan
+      };
+      
+      const { copayAmount, coveredAmount } = splitInvoice(totalAmount, sponsor);
+      
       setItems(prev => prev.map(it => it.id === itemId ? { ...it, dispensing_status: 'unavailable', dispensing_notes: reason } : it));
-      toast.success('Marked as unavailable');
+      
+      // Detailed toast notification
+      if (copayAmount > 0) {
+        toast.success('Marked as unavailable', {
+          description: `Patient refund: ${fmt(copayAmount)}${coveredAmount > 0 ? ` · Claim reduced: ${fmt(coveredAmount)}` : ''}`,
+          duration: 6000,
+        });
+      } else {
+        toast.success('Marked as unavailable', {
+          description: `Claim reduced by ${fmt(coveredAmount)}`,
+          duration: 5000,
+        });
+      }
     } catch (err: any) {
       toast.error('Failed to update: ' + err.message);
     } finally {

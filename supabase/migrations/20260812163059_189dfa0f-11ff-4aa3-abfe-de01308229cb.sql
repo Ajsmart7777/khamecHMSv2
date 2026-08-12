@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.close_family_deduction_batch(uuid[], integer, integer, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.close_family_deduction_batch(uuid[], integer, integer, text) TO authenticated;

@@ -59,7 +59,7 @@ export function StorageMonitoring() {
         if (r2Error) {
           console.warn('R2 usage fetch error:', r2Error);
           // If the error specifically says R2 is not configured, we want to reflect that
-          if (r2Error.message?.includes('not configured')) {
+          if (r2Error.message?.includes('not configured') || r2Error.debug?.accountId === false) {
             r2Stats = {
               bucket: '',
               total_objects: 0,
@@ -70,6 +70,10 @@ export function StorageMonitoring() {
               breakdown: {},
               isConfigured: false
             };
+          } else {
+            // Unexpected error (e.g. 403 Unauthorized)
+            console.error('R2 unexpected error:', r2Error);
+            throw new Error(r2Error.error || r2Error.message || 'Failed to fetch R2 usage');
           }
         } else if (r2Data) {
           r2Stats = {

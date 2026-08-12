@@ -61,7 +61,14 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
         String(i + 1), e.staff_employee_id || '', e.staff_name || '',
         String(e.basic_salary), String(e.deductions?.pension || 0),
       ]);
+    } else if (reportType === 'family_deductions') {
+      csv = 'S/N,Staff ID,Name,Family Med Deduction,Status\n';
+      rows = entries.filter(e => (e.deductions?.family_medical || 0) > 0).map((e, i) => [
+        String(i + 1), e.staff_employee_id || '', e.staff_name || '',
+        String(e.deductions?.family_medical || 0), e.status || 'pending',
+      ]);
     }
+
 
     csv += rows.map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });

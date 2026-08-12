@@ -38,7 +38,6 @@ import {
 import { 
   UserPlus, 
   Search, 
-  CreditCard, 
   Send, 
   FileText,
   Phone,

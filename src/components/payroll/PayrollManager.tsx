@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Lock, Unlock, Users, Loader2, Trash2, Columns, Info } from 'lucide-react';
+import { Plus, Lock, Unlock, Users, Loader2, Trash2, Columns, Info, RefreshCw } from 'lucide-react';
 import { PayrollPeriod, PayrollEntry } from '@/hooks/usePayroll';
 import { toast } from '@/hooks/use-toast';
 import { MedicalDeductionDetails } from './MedicalDeductionDetails';
@@ -49,7 +49,9 @@ interface Props {
   onAddAllStaff: () => Promise<void>;
   onUpdateEntry: (id: string, updates: Partial<PayrollEntry>) => Promise<boolean>;
   onRemoveEntry: (id: string) => Promise<boolean>;
+  onRecalculate?: () => Promise<void>;
 }
+
 
 interface CustomColumn {
   key: string;
@@ -59,8 +61,9 @@ interface CustomColumn {
 
 export function PayrollManager({
   periods, selectedPeriod, onSelectPeriod, entries, entriesLoading,
-  onCreatePeriod, onLockPeriod, onUnlockPeriod, onAddAllStaff, onUpdateEntry, onRemoveEntry
+  onCreatePeriod, onLockPeriod, onUnlockPeriod, onAddAllStaff, onUpdateEntry, onRemoveEntry, onRecalculate
 }: Props) {
+
   const [newPeriodDialog, setNewPeriodDialog] = useState(false);
   const [newMonth, setNewMonth] = useState(new Date().getMonth() + 1);
   const [newYear, setNewYear] = useState(new Date().getFullYear());
@@ -70,7 +73,9 @@ export function PayrollManager({
   const [addColumnDialog, setAddColumnDialog] = useState(false);
   const [newColLabel, setNewColLabel] = useState('');
   const [newColType, setNewColType] = useState<'allowance' | 'deduction'>('allowance');
+  const [recalculating, setRecalculating] = useState(false);
   const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
+
   const [editingCell, setEditingCell] = useState<{ entryId: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
   const [medicalDetailsOpen, setMedicalDetailsOpen] = useState(false);
@@ -122,7 +127,15 @@ export function PayrollManager({
     setAddingAll(false);
   };
 
+  const handleRecalculate = async () => {
+    if (!onRecalculate) return;
+    setRecalculating(true);
+    await onRecalculate();
+    setRecalculating(false);
+  };
+
   const handleAddColumn = () => {
+
     if (!newColLabel.trim()) return;
     const key = newColLabel.trim().toLowerCase().replace(/\s+/g, '_');
     if ([...allAllowanceKeys, ...allDeductionKeys].some(c => c.key === key)) {
@@ -263,7 +276,12 @@ export function PayrollManager({
                 {addingAll ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Users className="h-4 w-4 mr-1" />}
                 Add All Staff
               </Button>
+              <Button variant="outline" size="sm" onClick={handleRecalculate} disabled={recalculating || !onRecalculate}>
+                {recalculating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+                Recalculate
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setAddColumnDialog(true)}>
+
                 <Columns className="h-4 w-4 mr-1" /> Add Column
               </Button>
               <Button variant="destructive" size="sm" onClick={handleLock} disabled={locking}>

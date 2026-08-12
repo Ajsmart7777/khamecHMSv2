@@ -319,8 +319,78 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
     return true;
   };
 
-  return { entries, loading, addEntry, addAllStaff, updateEntry, removeEntry, refetch: fetch };
+  const recalculateDeductions = async () => {
+    if (!periodId || entries.length === 0) return;
+    setLoading(true);
+
+    const period = periods.find(p => p.id === periodId);
+    const startDate = period ? new Date(period.year, period.month - 1, 1).toISOString().split('T')[0] : null;
+    const endDate = period ? new Date(period.year, period.month, 0).toISOString().split('T')[0] : null;
+
+    if (!startDate || !endDate) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const updates = await Promise.all(entries.map(async (entry) => {
+        const { data: deductData, error: deductErr } = await supabase.rpc('calculate_payroll_deductions', {
+          _staff_id: entry.staff_id,
+          _period_start: startDate,
+          _period_end: endDate
+        });
+
+        if (deductErr) throw deductErr;
+
+        const newFamilyMed = Number(deductData) || 0;
+        const currentFamilyMed = Number(entry.deductions['family_medical']) || 0;
+
+        if (newFamilyMed !== currentFamilyMed) {
+          const newDeductions = { ...entry.deductions, family_medical: newFamilyMed };
+          const totalDeductions = Object.values(newDeductions).reduce((a, b) => a + b, 0);
+          const netPay = entry.gross_pay - totalDeductions;
+
+          return {
+            id: entry.id,
+            deductions: newDeductions,
+            total_deductions: totalDeductions,
+            net_pay: netPay
+          };
+        }
+        return null;
+      }));
+
+      const filteredUpdates = updates.filter(u => u !== null) as any[];
+
+      if (filteredUpdates.length > 0) {
+        for (const update of filteredUpdates) {
+          const { error } = await supabase
+            .from('payroll_entries')
+            .update({
+              deductions: update.deductions,
+              total_deductions: update.total_deductions,
+              net_pay: update.net_pay
+            })
+            .eq('id', update.id);
+          
+          if (error) throw error;
+        }
+        toast({ title: 'Success', description: `Recalculated medical deductions for ${filteredUpdates.length} entries.` });
+        await fetch();
+      } else {
+        toast({ title: 'Info', description: 'All deductions are already up to date.' });
+      }
+    } catch (error: any) {
+      console.error('Recalculation error:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to recalculate deductions.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { entries, loading, addEntry, addAllStaff, updateEntry, removeEntry, recalculateDeductions, refetch: fetch };
 }
+
 
 export function useMedicalDeductionDetails(staffId: string | null, month: number | null, year: number | null) {
   const [details, setDetails] = useState<any[]>([]);

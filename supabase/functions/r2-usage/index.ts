@@ -39,9 +39,20 @@ Deno.serve(async (req) => {
     const xml = await res.text();
     
     // Simple XML parsing for S3 ListBucketResult
-    // <Key>...</Key><Size>...</Size>
-    const keys = [...xml.matchAll(/<Key>(.*?)<\/Key>/g)].map(m => m[1]);
-    const sizes = [...xml.matchAll(/<Size>(\d+)<\/Size>/g)].map(m => parseInt(m[1]));
+    // <Contents><Key>...</Key><Size>...</Size></Contents>
+    const contentMatches = [...xml.matchAll(/<Contents>(.*?)<\/Contents>/gs)];
+    const keys: string[] = [];
+    const sizes: number[] = [];
+
+    contentMatches.forEach(match => {
+      const content = match[1];
+      const keyMatch = content.match(/<Key>(.*?)<\/Key>/);
+      const sizeMatch = content.match(/<Size>(\d+)<\/Size>/);
+      if (keyMatch && sizeMatch) {
+        keys.push(keyMatch[1]);
+        sizes.push(parseInt(sizeMatch[1]));
+      }
+    });
     
     const totalObjects = keys.length;
     const totalSize = sizes.reduce((acc, s) => acc + s, 0);

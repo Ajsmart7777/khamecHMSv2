@@ -32,6 +32,7 @@ const DEFAULT_DEDUCTION_KEYS = [
   { key: 'pension', label: 'Pension' },
   { key: 'loan', label: 'Loan' },
   { key: 'contribution', label: 'Contri.' },
+  { key: 'family_medical', label: 'Family Med' },
 ];
 
 interface Props {

@@ -2665,6 +2665,10 @@ export type Database = {
         Args: { _admission_id: string }
         Returns: string
       }
+      calculate_payroll_deductions: {
+        Args: { _period_end: string; _period_start: string; _staff_id: string }
+        Returns: number
+      }
       can_add_snap_for_patient: {
         Args: { _patient_id: string; _user_id: string }
         Returns: boolean

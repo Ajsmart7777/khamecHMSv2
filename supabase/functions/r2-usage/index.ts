@@ -21,15 +21,10 @@ Deno.serve(async (req) => {
       return json({ error: 'Unauthorized: Admin role required' }, 403);
     }
 
-    
     const cfg = r2Config();
     if (!cfg) return json({ error: 'R2 is not configured' }, 500);
 
-    // List objects in the bucket
-    // R2 is S3-compatible. We use the endpoint to list.
-    // We'll use a simple fetch to the endpoint with list-type-2 params.
     const url = `${cfg.endpoint}?list-type=2`;
-    
     const res = await cfg.client.fetch(url, { method: 'GET' });
     if (!res.ok) {
       const body = await res.text();
@@ -37,9 +32,6 @@ Deno.serve(async (req) => {
     }
 
     const xml = await res.text();
-    
-    // Simple XML parsing for S3 ListBucketResult
-    // <Contents><Key>...</Key><Size>...</Size></Contents>
     const contentMatches = [...xml.matchAll(/<Contents>(.*?)<\/Contents>/gs)];
     const keys: string[] = [];
     const sizes: number[] = [];
@@ -57,7 +49,6 @@ Deno.serve(async (req) => {
     const totalObjects = keys.length;
     const totalSize = sizes.reduce((acc, s) => acc + s, 0);
 
-    // Breakdown by "logical bucket" (first part of path)
     const breakdown: Record<string, { objects: number, size: number }> = {};
     keys.forEach((key, i) => {
       const parts = key.split('/');

@@ -54,10 +54,24 @@ export function useCanSnap(patientId: string | null | undefined) {
       }
 
       const isAllowed = !!rpcRes || !!hasLabResult;
-      setAllowed(isAllowed);
+      
+      // If patient status is 'awaiting_billing' or 'admitted', we generally want to allow clinical roles
+      const { data: p } = await supabase
+        .from('patients')
+        .select('status, assigned_doctor')
+        .eq('id', patientId)
+        .single();
+      
+      const status = (p as any)?.status;
+      const roleLabel = role ?? 'unauthenticated';
+      const isClinicalRole = ['nurse', 'doctor1', 'doctor2', 'doctor'].includes(roleLabel);
+      
+      const finalAllowed = isAllowed || (isClinicalRole && (status === 'awaiting_billing' || status === 'admitted'));
+      
+      setAllowed(finalAllowed);
       setDebugLog(logs);
       
-      if (!isAllowed) {
+      if (!finalAllowed) {
         const { data: p } = await supabase
           .from('patients')
           .select('status, assigned_doctor')

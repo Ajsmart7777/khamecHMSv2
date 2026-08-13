@@ -805,39 +805,7 @@ export function CashierPanel() {
             )}
 
             {/* Use patient balance — cash patients only */}
-            {!fullCover && walletEligible && availableBalance > 0 && (
-              <div className="rounded-lg border border-success/40 bg-success/5 p-3 space-y-2">
-                <label className="flex items-center gap-2 cursor-pointer text-sm">
-                  <Checkbox
-                    checked={useBalance}
-                    onCheckedChange={(v) => setUseBalance(!!v)}
-                  />
-                  <PiggyBank className="h-4 w-4 text-success" />
-                  <span>
-                    Deduct from patient balance{' '}
-                    <span className="text-muted-foreground">
-                      (available ₦{availableBalance.toLocaleString()})
-                    </span>
-                  </span>
-                </label>
-                {useBalance && (
-                  <div>
-                    <Label className="text-xs">Amount from balance (₦)</Label>
-                    <Input
-                      type="number"
-                      value={balanceAmount}
-                      onChange={(e) => setBalanceAmount(e.target.value)}
-                      max={Math.min(availableBalance, outstanding)}
-                    />
-                    {balExceedsAvail && (
-                      <p className="text-[11px] text-destructive mt-1">
-                        Exceeds available balance
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Use patient balance section removed in favor of integrated grid below */}
 
             {!fullCover && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">

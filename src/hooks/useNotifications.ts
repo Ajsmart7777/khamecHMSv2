@@ -110,7 +110,10 @@ export function useNotifications() {
         }
       );
     
-    channel.subscribe();
+    // channel.subscribe();
+    setTimeout(() => {
+      channel.subscribe();
+    }, 100);
 
     return () => {
       supabase.removeChannel(channel);

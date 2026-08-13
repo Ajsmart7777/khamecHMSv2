@@ -63,7 +63,10 @@ export function useBalanceRequests() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'balance_requests' }, () => fetchRequests());
     
     // Subscribe in a separate step and handle cleanup
-    channel.subscribe();
+    // channel.subscribe();
+    setTimeout(() => {
+      channel.subscribe();
+    }, 100);
 
     return () => { 
       supabase.removeChannel(channel); 

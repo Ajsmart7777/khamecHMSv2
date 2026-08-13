@@ -81,7 +81,10 @@ export function useInvoices() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => fetchInvoices())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_items' }, () => fetchInvoices());
     
-    channel.subscribe();
+    // channel.subscribe();
+    setTimeout(() => {
+      channel.subscribe();
+    }, 100);
 
     return () => { supabase.removeChannel(channel); };
   }, [fetchInvoices]);

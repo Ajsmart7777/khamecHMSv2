@@ -77,7 +77,10 @@ export function useAdmissions(filter: { statuses?: AdmissionStatus[]; patientId?
       .channel(`admissions-realtime-${channelId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'admissions' }, () => refresh());
     
-    ch.subscribe();
+    // ch.subscribe();
+    setTimeout(() => {
+      ch.subscribe();
+    }, 100);
     return () => { supabase.removeChannel(ch); };
   }, [refresh, channelId]);
 

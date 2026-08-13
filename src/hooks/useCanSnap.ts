@@ -83,7 +83,7 @@ export function useCanSnap(patientId: string | null | undefined) {
         const assigned = (p as any)?.assigned_doctor;
         const roleLabel = role ?? 'unauthenticated';
         
-        let msg = `Only the current owner (${labelForStatus(status)}) can add to this card. You are ${roleLabel}.`;
+        let msg = `Only the current owner can add to this card. You are ${roleLabel}.`;
         if (status === 'with_doctor' && assigned && assigned !== role) {
           msg = `This patient is assigned to ${assigned === 'doctor1' ? 'Doctor 1' : 'Doctor 2'}. You are logged in as ${roleLabel}.`;
         }

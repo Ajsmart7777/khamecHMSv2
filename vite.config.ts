@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
   return {
     define: {
       'import.meta.env.VITE_APP_COMMIT_HASH': JSON.stringify(commitHash),
-      'import.meta.env.VITE_APP_VERSION': JSON.stringify('1.4.3'),
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify('1.4.4'),
     },
     server: {
       host: "::",

@@ -86,7 +86,10 @@ export function useLabRequests(): UseLabRequestsReturn {
         }
       );
     
-    channel.subscribe();
+    // ch.subscribe();
+    setTimeout(() => {
+      channel.subscribe();
+    }, 100);
 
     return () => {
       supabase.removeChannel(channel);

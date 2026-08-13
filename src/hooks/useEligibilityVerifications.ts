@@ -77,7 +77,10 @@ export function useEligibilityVerifications() {
       .channel('eligibility-verifications')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'eligibility_verifications' }, () => fetchAll());
     
-    ch.subscribe();
+    // ch.subscribe();
+    setTimeout(() => {
+      ch.subscribe();
+    }, 100);
 
     return () => { 
       mounted = false; 

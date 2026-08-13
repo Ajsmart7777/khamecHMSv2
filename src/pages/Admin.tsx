@@ -15,12 +15,14 @@ import {
   BedDouble,
   BedSingle,
   HardDrive,
+  Archive,
 } from 'lucide-react';
 import { AuditLogsViewer } from '@/components/admin/AuditLogsViewer';
 import { StaffAccountManager } from '@/components/admin/StaffAccountManager';
 import { ErrorLogsViewer } from '@/components/admin/ErrorLogsViewer';
 import { WardsRoomsManager } from '@/components/admin/WardsRoomsManager';
 import { StorageMonitoring } from '@/components/admin/StorageMonitoring';
+import { PatientArchiveManager } from '@/components/admin/PatientArchiveManager';
 import { ResetDemoDataDialog } from '@/components/admin/ResetDemoDataDialog';
 import { useStaff } from '@/hooks/useStaff';
 import { StatsCard } from '@/components/dashboard/StatsCard';
@@ -95,7 +97,7 @@ const Admin = () => {
     <MainLayout title="Admin Panel" subtitle="System administration and user management">
       <Tabs defaultValue="overview" className="space-y-6">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:max-w-4xl sm:grid-cols-6">
+          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:w-full sm:max-w-6xl sm:grid-cols-7">
             <TabsTrigger value="overview" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
               <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Overview</span>
@@ -111,6 +113,10 @@ const Admin = () => {
             <TabsTrigger value="storage" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
               <HardDrive className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
               <span>Storage</span>
+            </TabsTrigger>
+            <TabsTrigger value="archive" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
+              <Archive className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <span>Archive</span>
             </TabsTrigger>
             <TabsTrigger value="audit" className="flex items-center gap-1.5 text-xs sm:text-sm whitespace-nowrap">
               <ClipboardList className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
@@ -269,6 +275,10 @@ const Admin = () => {
           <div className="bg-card rounded-xl border border-border p-4 sm:p-6">
             <StorageMonitoring />
           </div>
+        </TabsContent>
+
+        <TabsContent value="archive" className="space-y-6">
+          <PatientArchiveManager />
         </TabsContent>
 
 

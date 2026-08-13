@@ -3,3 +3,5 @@ allowBuilds:
   core-js: set this to true or false
   esbuild: set this to true or false
   tesseract.js: set this to true or false
+minimumReleaseAgeExclude:
+  - '@lovable.dev/vite-plugin-hmr-gate@1.6.1'

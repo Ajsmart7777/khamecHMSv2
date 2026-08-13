@@ -55,7 +55,6 @@ export function useCanSnap(patientId: string | null | undefined) {
 
       const isAllowed = !!rpcRes || !!hasLabResult;
       
-      // If patient status is 'awaiting_billing' or 'admitted', we generally want to allow clinical roles
       const { data: p } = await supabase
         .from('patients')
         .select('status, assigned_doctor')
@@ -66,7 +65,9 @@ export function useCanSnap(patientId: string | null | undefined) {
       const roleLabel = role ?? 'unauthenticated';
       const isClinicalRole = ['nurse', 'doctor1', 'doctor2', 'doctor'].includes(roleLabel);
       
-      const finalAllowed = isAllowed || (isClinicalRole && (status === 'awaiting_billing' || status === 'admitted'));
+      // Clinical roles can always add snaps if status is awaiting_billing or admitted
+      // This allows adding additional items after the first one is sent to billing.
+      const finalAllowed = isAllowed || (isClinicalRole && (status === 'awaiting_billing' || status === 'admitted' || status === 'with_nurse' || status === 'with_doctor' || status === 'waiting'));
       
       setAllowed(finalAllowed);
       setDebugLog(logs);

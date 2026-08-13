@@ -54,12 +54,12 @@ export function TopBar({ title, subtitle, onMenuClick, showMenuButton }: TopBarP
             <TooltipTrigger asChild>
               <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded bg-muted/30 border border-border text-[10px] text-muted-foreground font-mono cursor-help">
                 <Info className="h-3 w-3" />
-                <span>v{(process.env as any).VITE_APP_VERSION}.{(process.env as any).VITE_APP_COMMIT_HASH}</span>
+                <span>v{import.meta.env.VITE_APP_VERSION}.{import.meta.env.VITE_APP_COMMIT_HASH}</span>
               </div>
             </TooltipTrigger>
             <TooltipContent>
               <p>Khadija Medical Center HMS</p>
-              <p className="text-[10px] text-muted-foreground">Build: {(process.env as any).VITE_APP_COMMIT_HASH}</p>
+              <p className="text-[10px] text-muted-foreground">Build: {import.meta.env.VITE_APP_COMMIT_HASH}</p>
             </TooltipContent>
           </Tooltip>
 

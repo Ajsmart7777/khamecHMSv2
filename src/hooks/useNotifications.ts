@@ -108,8 +108,9 @@ export function useNotifications() {
             return [newNotif, ...prev];
           });
         }
-      )
-      .subscribe();
+      );
+    
+    channel.subscribe();
 
     return () => {
       supabase.removeChannel(channel);

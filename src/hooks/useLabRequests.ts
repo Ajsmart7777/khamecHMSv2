@@ -84,8 +84,9 @@ export function useLabRequests(): UseLabRequestsReturn {
             );
           }
         }
-      )
-      .subscribe();
+      );
+    
+    channel.subscribe();
 
     return () => {
       supabase.removeChannel(channel);

@@ -4,11 +4,23 @@
 
 ## The "Infinite Loop" fix (Current issue)
 
-If you have already run `reverted` and the error persists with the same versions, it means the CLI is detecting a state conflict. Try the **Full Reset** approach:
+The error "failed to provision the shadow database: exit 1" usually happens on Windows when **Docker Desktop is not running** or the terminal doesn't have permission to talk to Docker.
 
-### 1. Hard Repair (Apply instead of Revert)
-Sometimes marking them as `applied` works better to "silence" the ghost entries if the database structure is already correct:
+### 1. Fix Docker (Most likely cause)
+The CLI needs Docker to run a temporary "shadow database" to verify your migrations.
+- Ensure **Docker Desktop** is open and running.
+- If it's already running, try running your terminal (CMD/PowerShell) as **Administrator**.
+- If you don't have Docker, you must install it to use `supabase db pull` or `supabase migration squash`.
 
+### 2. Skip the Shadow Database (Workaround)
+If you cannot use Docker, you can pull the schema directly to a file without the history verification:
+```bash
+supabase db pull --local > schema_backup.sql
+```
+*Note: This won't fix the migration history mismatch but lets you see the remote state.*
+
+### 3. Hard Repair (Ghost Migrations)
+If Docker is working but you still get "Remote migration versions not found", use the `applied` status for the specific IDs shown in your error:
 ```bash
 supabase migration repair --status applied 20260813150000
 supabase migration repair --status applied 20260813150100

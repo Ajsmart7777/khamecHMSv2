@@ -72,11 +72,17 @@ export function useEligibilityVerifications() {
       await fetchAll();
       if (mounted) setLoading(false);
     })();
+
     const ch = supabase
       .channel('eligibility-verifications')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'eligibility_verifications' }, () => fetchAll())
-      .subscribe();
-    return () => { mounted = false; supabase.removeChannel(ch); };
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'eligibility_verifications' }, () => fetchAll());
+    
+    ch.subscribe();
+
+    return () => { 
+      mounted = false; 
+      supabase.removeChannel(ch); 
+    };
   }, [fetchAll]);
 
   const requestVerification = async (input: {

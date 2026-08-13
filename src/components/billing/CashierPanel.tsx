@@ -808,62 +808,63 @@ export function CashierPanel() {
             {/* Use patient balance section removed in favor of integrated grid below */}
 
             {!fullCover && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-xs font-semibold flex items-center gap-1.5">
-                      <Banknote className="h-4 w-4 text-success" />
-                      Cash Amount (₦)
+              <div className="space-y-4 border-t border-border pt-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Banknote className="h-3.5 w-3.5 text-success" />
+                      Cash (₦)
                     </Label>
                     <Input
                       type="number"
                       value={cashAmount}
                       onChange={(e) => setCashAmount(e.target.value)}
                       placeholder="0"
-                      className="mt-1"
+                      className="h-10 border-success/30 focus-visible:ring-success"
                     />
                   </div>
-                  <div>
-                    <Label className="text-xs font-semibold flex items-center gap-1.5">
-                      <Shield className="h-4 w-4 text-blue-500" />
-                      POS / Card Amount (₦)
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Shield className="h-3.5 w-3.5 text-blue-500" />
+                      POS/Card (₦)
                     </Label>
                     <Input
                       type="number"
                       value={posAmount}
                       onChange={(e) => setPosAmount(e.target.value)}
                       placeholder="0"
-                      className="mt-1"
+                      className="h-10 border-blue-500/30 focus-visible:ring-blue-500"
                     />
                   </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-xs font-semibold flex items-center gap-1.5">
-                      <Send className="h-4 w-4 text-purple-500" />
-                      Transfer Amount (₦)
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Send className="h-3.5 w-3.5 text-purple-500" />
+                      Transfer (₦)
                     </Label>
                     <Input
                       type="number"
                       value={transferAmount}
                       onChange={(e) => setTransferAmount(e.target.value)}
                       placeholder="0"
-                      className="mt-1"
+                      className="h-10 border-purple-500/30 focus-visible:ring-purple-500"
                     />
                   </div>
-                  {walletEligible && (
-                    <div className={`p-3 rounded-lg border ${useBalance ? 'bg-success/5 border-success/30' : 'bg-muted/30 border-border'}`}>
-                      <label className="flex items-center gap-2 cursor-pointer mb-2">
-                        <Checkbox
-                          checked={useBalance}
-                          onCheckedChange={(v) => setUseBalance(!!v)}
-                        />
-                        <PiggyBank className="h-4 w-4 text-success" />
-                        <span className="text-xs font-semibold">Use Wallet Balance</span>
-                      </label>
-                      {useBalance && (
-                        <div>
-                          <p className="text-[10px] text-muted-foreground mb-1">
+                </div>
+
+                {walletEligible && (
+                  <div className={`p-3 rounded-lg border transition-all ${useBalance ? 'bg-success/5 border-success/40' : 'bg-muted/30 border-border'}`}>
+                    <label className="flex items-center gap-2 cursor-pointer mb-2">
+                      <Checkbox
+                        checked={useBalance}
+                        onCheckedChange={(v) => setUseBalance(!!v)}
+                      />
+                      <PiggyBank className="h-4 w-4 text-success" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Use Wallet Balance</span>
+                    </label>
+                    {useBalance && (
+                      <div className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="flex-1">
+                          <p className="text-[10px] text-muted-foreground mb-1 uppercase font-semibold">
                             Available: ₦{availableBalance.toLocaleString()}
                           </p>
                           <Input
@@ -871,18 +872,18 @@ export function CashierPanel() {
                             value={balanceAmount}
                             onChange={(e) => setBalanceAmount(e.target.value)}
                             max={Math.min(availableBalance, outstanding)}
-                            className="h-8"
+                            className="h-9 border-success/30"
                           />
                           {balExceedsAvail && (
-                            <p className="text-[10px] text-destructive mt-1">
+                            <p className="text-[10px] text-destructive mt-1 font-medium">
                               Exceeds balance
                             </p>
                           )}
                         </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

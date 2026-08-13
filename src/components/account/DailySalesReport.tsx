@@ -101,15 +101,33 @@ export function DailySalesReport() {
   const totals = useMemo(() => {
     const byMethod: Record<string, number> = {};
     const byType: Record<string, number> = {};
-    let cashCollected = 0;
     let total = 0;
+    
+    // Explicitly track cash-equivalent totals for the accountant
+    let cashOnly = 0;
+    let posOnly = 0;
+    let transferOnly = 0;
+    let walletDeductions = 0;
+
     for (const r of rows) {
+      const method = (r.paymentMethod || 'cash').toLowerCase();
       byMethod[r.paymentMethod] = (byMethod[r.paymentMethod] || 0) + r.amount;
       byType[r.patientType] = (byType[r.patientType] || 0) + r.amount;
       total += r.amount;
-      if (['cash', 'pos', 'transfer', 'card'].includes(r.paymentMethod)) cashCollected += r.amount;
+
+      if (method === 'cash') cashOnly += r.amount;
+      else if (method === 'pos' || method === 'card') posOnly += r.amount;
+      else if (method === 'transfer') transferOnly += r.amount;
+      else if (method === 'balance') walletDeductions += r.amount;
+      else if (method === 'split') {
+        // For split payments, we'd ideally need the actual breakdown from audit logs or invoice notes,
+        // but as a fallback we attribute it to the 'split' bucket.
+        // If we want high precision, we could parse notes for "Cash: X, POS: Y, Transfer: Z"
+      }
     }
-    return { byMethod, byType, total, cashCollected };
+    
+    const physicalCollected = cashOnly + posOnly + transferOnly;
+    return { byMethod, byType, total, cashOnly, posOnly, transferOnly, walletDeductions, physicalCollected };
   }, [rows]);
 
   const handlePrint = () => {
@@ -253,10 +271,29 @@ export function DailySalesReport() {
                 </tbody>
               </table>
             </div>
-            <div className="grand sm:col-span-2 flex flex-wrap gap-4">
-              <Badge variant="secondary">Cash / POS / Transfer: {naira(totals.cashCollected)}</Badge>
-              <Badge variant="secondary">Transactions: {rows.length}</Badge>
-              <span>Grand Total: {naira(totals.total)}</span>
+            <div className="grand sm:col-span-2 flex flex-wrap gap-2 text-[11px]">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 w-full">
+                <div className="p-2 border rounded bg-muted/30">
+                  <p className="text-muted-foreground">Cash Total</p>
+                  <p className="font-bold text-sm">{naira(totals.cashOnly)}</p>
+                </div>
+                <div className="p-2 border rounded bg-muted/30">
+                  <p className="text-muted-foreground">POS Total</p>
+                  <p className="font-bold text-sm">{naira(totals.posOnly)}</p>
+                </div>
+                <div className="p-2 border rounded bg-muted/30">
+                  <p className="text-muted-foreground">Transfer Total</p>
+                  <p className="font-bold text-sm">{naira(totals.transferOnly)}</p>
+                </div>
+                <div className="p-2 border rounded bg-success/5 border-success/20">
+                  <p className="text-success-foreground">Bank/Cash Total</p>
+                  <p className="font-bold text-sm">{naira(totals.physicalCollected)}</p>
+                </div>
+              </div>
+              <div className="flex justify-between w-full mt-2 pt-2 border-t font-bold text-sm">
+                <span>Transactions: {rows.length}</span>
+                <span>Grand Total: {naira(totals.total)}</span>
+              </div>
             </div>
           </div>
         )}

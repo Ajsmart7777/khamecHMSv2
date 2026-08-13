@@ -112,6 +112,11 @@ export const PaymentReceipt = forwardRef<HTMLDivElement, PaymentReceiptProps>(
             <span className="text-gray-600">New Balance:</span>
             <span className="font-semibold">₦{newBalance.toLocaleString()}</span>
           </div>
+          {paymentMethod === 'split' && (
+            <p className="text-[9px] text-gray-500 mt-1 italic text-right">
+              * Multiple payment modes used.
+            </p>
+          )}
         </div>
 
         {/* Footer */}

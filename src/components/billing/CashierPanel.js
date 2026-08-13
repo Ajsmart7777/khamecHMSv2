@@ -1,3 +1,4 @@
+import { Fragment as _Fragment, jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState, useMemo, useEffect } from 'react';
 import { Wallet, Search, Banknote, AlertTriangle, PiggyBank, Shield, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -458,434 +459,202 @@ export function CashierPanel() {
             setBusy(false);
         }
     };
-    return (<div className="bg-card rounded-xl border border-border p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold flex items-center gap-2">
-          <Wallet className="h-4 w-4 text-module-billing"/>
-          Cashier · Record Payment
-        </h3>
-        <Badge variant="warning">{pending.length}</Badge>
-      </div>
-
-      <div className="relative mb-3">
-        <Search className="h-3.5 w-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search invoice # or patient…" className="h-8 pl-7 text-sm"/>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-1.5 mb-3">
-        {[
-            { k: 'all', label: `All (${pending.length})` },
-            { k: 'copay', label: `Copay due (${pending.length - coveredRows.length})` },
-            { k: 'covered', label: `Fully covered (${coveredRows.length})` },
-        ].map(({ k, label }) => (<Button key={k} size="sm" variant={filter === k ? 'default' : 'outline'} className="h-7 text-xs" onClick={() => setFilter(k)}>
-            {label}
-          </Button>))}
-        {coveredRows.length > 0 && (<Button size="sm" variant="secondary" className="h-7 text-xs ml-auto" disabled={bulkBusy} onClick={clearFullyCovered}>
-            <Send className="h-3.5 w-3.5 mr-1"/>
-            {bulkBusy ? 'Clearing…' : 'Clear fully covered'}
-          </Button>)}
-      </div>
-
-      <div className="space-y-2 max-h-[360px] overflow-y-auto">
-        {rows.length === 0 && (<p className="text-sm text-muted-foreground text-center py-6">
-            No unpaid invoices
-          </p>)}
-        {rows.map(({ inv, patient }) => {
-            const spon = patient ? isSponsored(patient) : false;
-            const s = patient
-                ? splitInvoice(Number(inv.total_amount), patient)
-                : { copayPct: 100, copayAmount: Number(inv.total_amount), coveredAmount: 0 };
-            const rowOut = spon
-                ? Math.max(s.copayAmount - Number(inv.paid_amount), 0)
-                : Number(inv.total_amount) - Number(inv.paid_amount);
-            const bal = Number(patient?.balance ?? 0);
-            const rowFull = spon && s.copayAmount === 0;
-            return (<div key={inv.id} className="p-3 rounded-lg border border-border hover:border-module-billing/50 transition-all">
-              <div className="flex items-center justify-between mb-1">
-                <span className="font-mono text-[11px] text-muted-foreground">
-                  {inv.invoice_number}
-                </span>
-                <div className="flex items-center gap-1">
-                  {spon && (<Badge variant="info" className="text-[10px]">
-                      <Shield className="h-2.5 w-2.5 mr-0.5"/>
-                      {sponsorLabel(patient)} · {s.copayPct}%
-                    </Badge>)}
-                  <Badge variant={inv.status === 'partial' ? 'warning' : 'outline'} className="text-[10px]">
-                    {inv.status}
-                  </Badge>
-                </div>
-              </div>
-              <p className="font-medium text-sm truncate">
-                {patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown patient'}
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {patient?.card_number}
-                {patient && hasWallet(patient) && (<>
-                    {' · Balance '}
-                    <span className={bal < 0 ? 'text-destructive font-semibold' : bal > 0 ? 'text-success font-semibold' : ''}>
-                      ₦{bal.toLocaleString()}
-                    </span>
-                  </>)}
-              </p>
-              {spon ? (<div className="mt-1.5 grid grid-cols-3 gap-1 text-[10px] rounded-md border border-border/60 bg-muted/40 p-1.5">
-                  <div>
-                    <div className="text-muted-foreground">Total</div>
-                    <div className="font-semibold">₦{Number(inv.total_amount).toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Sponsor</div>
-                    <div className="font-semibold text-primary">₦{s.coveredAmount.toLocaleString()}</div>
-                  </div>
-                  <div>
-                    <div className="text-muted-foreground">Copay ({s.copayPct}%)</div>
-                    <div className="font-semibold">₦{s.copayAmount.toLocaleString()}</div>
-                  </div>
-                </div>) : (<p className="text-[11px] text-muted-foreground mt-0.5">
-                  Total ₦{Number(inv.total_amount).toLocaleString()}
-                </p>)}
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <div className="text-xs">
-                  <span className="text-muted-foreground">
-                    {spon ? (rowFull ? 'Copay' : 'Copay due') : 'Owing'}{' '}
-                  </span>
-                  <span className={`font-bold ${rowFull ? 'text-success' : 'text-destructive'}`}>
-                    {rowFull ? '₦0 (full cover)' : `₦${rowOut.toLocaleString()}`}
-                  </span>
-                </div>
-                <Button size="sm" onClick={() => openPayment(inv)} className="h-7">
-                  {rowFull ? <Send className="h-3.5 w-3.5 mr-1"/> : <Banknote className="h-3.5 w-3.5 mr-1"/>}
-                  {rowFull ? 'Acknowledge' : 'Record'}
-                </Button>
-              </div>
-            </div>);
-        })}
-      </div>
-      
-      {unavailableItems.length > 0 && (<div className="mt-6 pt-6 border-t border-border">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-semibold flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-4 w-4"/>
-              Pending Refunds / Adjustments
-            </h4>
-            <Badge variant="destructive" className="animate-pulse">{unavailableItems.length}</Badge>
-          </div>
-          <div className="space-y-2">
-            {unavailableItems.map((item) => {
-                const patient = patients.find((p) => p.id === item.invoice.patient_id);
-                const spon = patient ? isSponsored(patient) : false;
-                const fullCoverInsurance = spon && copayPercent(patient) === 0;
-                return (<div key={item.id} className="p-3 rounded-lg border border-destructive/20 bg-destructive/5 flex items-center justify-between gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">
-                      {patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown Patient'}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground truncate">
-                      {item.description} · <span className="font-mono">{item.invoice.invoice_number}</span>
-                    </p>
-                    <p className="text-[10px] font-semibold text-destructive mt-0.5">
-                      {fullCoverInsurance ? 'REMOVAL FROM CLAIM' : `REFUND: ₦${(Number(item.total) || 0).toLocaleString()}`}
-                    </p>
-                  </div>
-                  <Button size="sm" variant="destructive" className="h-7 text-xs shrink-0" onClick={() => setRefundItem({ item, invoice: item.invoice })}>
-                    Process
-                  </Button>
-                </div>);
-            })}
-          </div>
-        </div>)}
-
-      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {fullCover ? 'Acknowledge Sponsored Invoice' : 'Record Payment'}
-            </DialogTitle>
-            <DialogDescription>
-              {selected?.invoice_number} ·{' '}
-              {sponsored ? (<>
-                  Copay due{' '}
-                  <span className="font-semibold text-destructive">
-                    ₦{outstanding.toLocaleString()}
-                  </span>{' '}
-                  <span className="text-muted-foreground">
-                    (of ₦{invoiceTotal.toLocaleString()} total)
-                  </span>
-                </>) : (<>
-                  Outstanding{' '}
-                  <span className="font-semibold text-destructive">
-                    ₦{outstanding.toLocaleString()}
-                  </span>
-                </>)}
-              {selectedPatient && walletEligible && (<span className="block text-xs mt-1">
-                  {selectedPatient.first_name} {selectedPatient.last_name} ·{' '}
-                  <span className="capitalize">{selectedPatient.account_type}</span> ·
-                  Balance{' '}
-                  <span className={patientBalance < 0
-                ? 'text-destructive font-semibold'
-                : patientBalance > 0
-                    ? 'text-success font-semibold'
-                    : ''}>
-                    ₦{patientBalance.toLocaleString()}
-                  </span>
-                </span>)}
-              {selectedPatient && !walletEligible && (<span className="block text-xs mt-1">
-                  {selectedPatient.first_name} {selectedPatient.last_name} ·{' '}
-                  <span className="capitalize">{selectedPatient.account_type?.replace('_', ' ')}</span>
-                </span>)}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-3">
-            {sponsored && (<div className="rounded-lg border border-primary/40 bg-primary/5 p-3 text-xs space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold text-primary">
-                  <Shield className="h-3.5 w-3.5"/>
-                  {sponsorLabel(selectedPatient)} · Copay {split.copayPct}%
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Invoice total</span>
-                  <span className="font-semibold">₦{invoiceTotal.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Sponsor covers ({100 - split.copayPct}%)</span>
-                  <span className="font-semibold text-primary">₦{split.coveredAmount.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between border-t border-primary/20 pt-1">
-                  <span className="text-muted-foreground">Patient copay ({split.copayPct}%)</span>
-                  <span className="font-bold">₦{split.copayAmount.toLocaleString()}</span>
-                </div>
-                <p className="pt-1 text-[11px] text-muted-foreground">
-                  {fullCover
-                ? 'No cash to collect. Acknowledge to send the invoice to the Claims queue.'
-                : 'Collect only the copay. The sponsor portion is auto-routed to Claims after settle.'}
-                </p>
-              </div>)}
-
-            {/* Use patient balance — cash patients only */}
-            {/* Use patient balance section removed in favor of integrated grid below */}
-
-            {!fullCover && (<div className="space-y-4 border-t border-border pt-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <Banknote className="h-3.5 w-3.5 text-success"/>
-                      Cash (₦)
-                    </Label>
-                    <Input type="number" value={cashAmount} onChange={(e) => setCashAmount(e.target.value)} placeholder="0" className="h-10 border-success/30 focus-visible:ring-success"/>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <Shield className="h-3.5 w-3.5 text-blue-500"/>
-                      POS/Card (₦)
-                    </Label>
-                    <Input type="number" value={posAmount} onChange={(e) => setPosAmount(e.target.value)} placeholder="0" className="h-10 border-blue-500/30 focus-visible:ring-blue-500"/>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                      <Send className="h-3.5 w-3.5 text-purple-500"/>
-                      Transfer (₦)
-                    </Label>
-                    <Input type="number" value={transferAmount} onChange={(e) => setTransferAmount(e.target.value)} placeholder="0" className="h-10 border-purple-500/30 focus-visible:ring-purple-500"/>
-                  </div>
-                </div>
-
-                {walletEligible && (<div className={`p-3 rounded-lg border transition-all ${useBalance ? 'bg-success/5 border-success/40' : 'bg-muted/30 border-border'}`}>
-                    <label className="flex items-center gap-2 cursor-pointer mb-2">
-                      <Checkbox checked={useBalance} onCheckedChange={(v) => setUseBalance(!!v)}/>
-                      <PiggyBank className="h-4 w-4 text-success"/>
-                      <span className="text-xs font-bold uppercase tracking-wider">Use Wallet Balance</span>
-                    </label>
-                    {useBalance && (<div className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
-                        <div className="flex-1">
-                          <p className="text-[10px] text-muted-foreground mb-1 uppercase font-semibold">
-                            Available: ₦{availableBalance.toLocaleString()}
-                          </p>
-                          <Input type="number" value={balanceAmount} onChange={(e) => setBalanceAmount(e.target.value)} max={Math.min(availableBalance, outstanding)} className="h-9 border-success/30"/>
-                          {balExceedsAvail && (<p className="text-[10px] text-destructive mt-1 font-medium">
-                              Exceeds balance
-                            </p>)}
-                        </div>
-                      </div>)}
-                  </div>)}
-              </div>)}
-
-            {selectedPatient?.account_type === 'staff_family' && (<div className={`p-3 rounded-lg border transition-all ${isSalaryDeduction ? 'bg-warning/5 border-warning/40' : 'bg-muted/30 border-border'}`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <label className="flex items-center gap-2 cursor-pointer mb-1">
-                      <Checkbox checked={isSalaryDeduction} onCheckedChange={(v) => {
-                setIsSalaryDeduction(!!v);
-                if (v) {
-                    setSalaryDeductionAmount(String(outstanding));
-                    setCashAmount('0');
-                    setPosAmount('0');
-                    setTransferAmount('0');
-                    setUseBalance(false);
-                    setBalanceAmount('0');
-                }
-                else {
-                    setSalaryDeductionAmount('');
-                    setCashAmount(String(outstanding));
-                }
-            }} className="border-warning/50 data-[state=checked]:bg-warning data-[state=checked]:text-warning-foreground"/>
-                      <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
-                        <Banknote className="h-4 w-4 text-warning"/>
-                        Sponsor Salary Deduction
-                      </span>
-                    </label>
-                    <p className="text-[10px] text-muted-foreground ml-6 leading-tight">
-                      Staff Family members get a 50% discount. Deduct the remaining 50% from the sponsor's salary.
-                    </p>
-                  </div>
-                  {isSalaryDeduction && (<div className="w-32 animate-in fade-in slide-in-from-right-1 duration-200">
-                      <p className="text-[10px] text-muted-foreground mb-1 uppercase font-semibold text-right">
-                        Max: ₦{outstanding.toLocaleString()}
-                      </p>
-                      <Input type="number" value={salaryDeductionAmount} onChange={(e) => {
-                    const val = Number(e.target.value);
-                    setSalaryDeductionAmount(e.target.value);
-                    if (val <= outstanding) {
-                        setCashAmount(String(outstanding - val));
-                    }
-                }} className="h-9 border-warning/30 focus-visible:ring-warning"/>
-                    </div>)}
-                </div>
-              </div>)}
-
-            {/* Summary */}
-            {!fullCover && (<div className="rounded-lg bg-muted/40 p-3 text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">{sponsored ? 'Copay due' : 'Outstanding'}</span>
-                <span className="font-semibold">₦{outstanding.toLocaleString()}</span>
-              </div>
-              {salDed > 0 && (<div className="flex justify-between text-warning font-medium">
-                  <span>Salary Deduction</span>
-                  <span>− ₦{salDed.toLocaleString()}</span>
-                </div>)}
-              {bal > 0 && (<div className="flex justify-between text-success font-medium">
-                  <span>From balance</span>
-                  <span>− ₦{bal.toLocaleString()}</span>
-                </div>)}
-              {cash > 0 && (<div className="flex justify-between text-[11px] text-muted-foreground">
-                  <span>Cash</span>
-                  <span>− ₦{cash.toLocaleString()}</span>
-                </div>)}
-              {pos > 0 && (<div className="flex justify-between text-[11px] text-muted-foreground">
-                  <span>POS / Card</span>
-                  <span>− ₦{pos.toLocaleString()}</span>
-                </div>)}
-              {transfer > 0 && (<div className="flex justify-between text-[11px] text-muted-foreground">
-                  <span>Bank Transfer</span>
-                  <span>− ₦{transfer.toLocaleString()}</span>
-                </div>)}
-              <div className="flex justify-between pt-1 border-t border-border">
-                <span className="font-semibold">
-                  {shortfall > 0
-                ? sponsored
-                    ? 'Copay short by'
-                    : 'Owed after this payment'
-                : overpay > 0
-                    ? 'Overpayment'
-                    : 'Settled'}
-                </span>
-                <span className={`font-bold ${shortfall > 0
-                ? 'text-destructive'
-                : overpay > 0
-                    ? 'text-warning'
-                    : 'text-success'}`}>
-                  ₦{(shortfall || overpay).toLocaleString()}
-                </span>
-              </div>
-            </div>)}
-
-            {!sponsored && shortfall > 0 && (<div className="rounded-lg border border-warning/40 bg-warning/10 p-3 space-y-2">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle className="h-4 w-4 text-warning mt-0.5"/>
-                  <div className="text-xs">
-                    <p className="font-semibold text-warning-foreground">
-                      Partial payment · ₦{applied.toLocaleString()} of ₦{outstanding.toLocaleString()}
-                    </p>
-                    {debtEligible ? (<p className="text-muted-foreground mt-0.5">
-                        The remaining <span className="font-semibold">₦{shortfall.toLocaleString()}</span> will sit
-                        on the patient's balance as amount owed. New balance after this: ₦
-                        {(patientBalance - bal - shortfall).toLocaleString()}. Any future top-up clears it automatically.
-                      </p>) : (<p className="text-destructive mt-0.5">
-                        This account type cannot carry a balance owed — collect the full amount.
-                      </p>)}
-                  </div>
-                </div>
-                {debtEligible && (<p className="text-[11px] text-muted-foreground italic">
-                    Confirm to accept ₦{applied.toLocaleString()} now and record ₦
-                    {shortfall.toLocaleString()} as owed on the patient's balance.
-                  </p>)}
-              </div>)}
-          </div>
-
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setSelected(null)} disabled={busy}>
-              Cancel
-            </Button>
-            <Button onClick={submit} disabled={busy ||
-            (!fullCover && applied < 0) ||
-            (sponsored && overpay > 0) ||
-            balExceedsAvail ||
-            (sponsored && !fullCover && shortfall > 0) ||
-            (!sponsored && shortfall > 0 && !debtEligible)}>
-              {busy
-            ? 'Recording…'
-            : fullCover
-                ? 'Acknowledge & Send to Claims'
-                : salDed > 0 && salDed === outstanding
-                    ? 'Confirm Salary Deduction'
-                    : salDed > 0
-                        ? 'Confirm Mixed Payment'
-                        : sponsored
-                            ? 'Collect Copay & Send to Claims'
-                            : shortfall > 0
-                                ? applied === 0
-                                    ? 'Confirm ₦0 (Buy on Credit)'
-                                    : `Confirm ₦${applied.toLocaleString()} Partial Payment`
-                                : 'Confirm Payment'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {receipt && (<PrintableReceiptDialog open={!!receipt} onOpenChange={(o) => !o && setReceipt(null)} patient={receipt.patient} amount={receipt.amount} paymentMethod={receipt.paymentMethod} receiptNumber={receipt.receiptNumber} date={receipt.date} newBalance={receipt.newBalance} breakdown={receipt.breakdown}/>)}
-      {refundItem && (<Dialog open onOpenChange={(o) => !o && setRefundItem(null)}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Process Refund</DialogTitle>
-              <DialogDescription>
-                Refund ₦{(Number(refundItem.item.total) || 0).toLocaleString()} for "{refundItem.item.description}" 
-                to {patients.find((p) => p.id === refundItem.invoice.patient_id)?.first_name}.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="p-4 bg-muted rounded-lg text-sm space-y-2">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Original Invoice:</span>
-                <span className="font-mono font-medium">{refundItem.invoice.invoice_number}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Unavailable Reason:</span>
-                <span className="italic text-red-600">{refundItem.item.dispensing_notes || 'Not specified'}</span>
-              </div>
-            </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
-              <Button variant="ghost" className="w-full sm:w-auto" onClick={() => setRefundItem(null)} disabled={busy}>Cancel</Button>
-              {isSponsored(patients.find((p) => p.id === refundItem.invoice.patient_id) || {}) && copayPercent(patients.find((p) => p.id === refundItem.invoice.patient_id) || {}) === 0 ? (<Button variant="destructive" className="w-full sm:flex-1" onClick={() => handleRefund('cash')} disabled={busy}>
-                  {busy ? 'Processing...' : 'Remove from Invoice & Claim'}
-                </Button>) : isSponsored(patients.find((p) => p.id === refundItem.invoice.patient_id) || {}) ? (<Button variant="destructive" className="w-full sm:flex-1" onClick={() => handleRefund('cash')} disabled={busy}>
-                  {busy ? 'Processing...' : 'Void from Claim'}
-                </Button>) : (<>
-                  <Button variant="outline" className="w-full sm:w-auto" onClick={() => handleRefund('cash')} disabled={busy}>
-                    Refund as Cash
-                  </Button>
-                  <Button className="w-full sm:flex-1" onClick={() => handleRefund('balance')} disabled={busy}>
-                    {busy ? 'Processing...' : 'Add to Wallet Balance'}
-                  </Button>
-                </>)}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>)}
-    </div>);
+    return (_jsxs("div", { className: "bg-card rounded-xl border border-border p-4", children: [
+            _jsxs("div", { className: "flex items-center justify-between mb-3", children: [
+                    _jsxs("h3", { className: "font-semibold flex items-center gap-2", children: [
+                            _jsx(Wallet, { className: "h-4 w-4 text-module-billing" }),
+                            "Cashier \u00B7 Record Payment"] }), _jsx(Badge, { variant: "warning", children: pending.length })
+                ] }), _jsxs("div", { className: "relative mb-3", children: [
+                    _jsx(Search, { className: "h-3.5 w-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" }), _jsx(Input, { value: query, onChange: (e) => setQuery(e.target.value), placeholder: "Search invoice # or patient\u2026", className: "h-8 pl-7 text-sm" })
+                ] }), _jsxs("div", { className: "flex flex-wrap items-center gap-1.5 mb-3", children: [[
+                        { k: 'all', label: `All (${pending.length})` },
+                        { k: 'copay', label: `Copay due (${pending.length - coveredRows.length})` },
+                        { k: 'covered', label: `Fully covered (${coveredRows.length})` },
+                    ].map(({ k, label }) => (_jsx(Button, { size: "sm", variant: filter === k ? 'default' : 'outline', className: "h-7 text-xs", onClick: () => setFilter(k), children: label }, k))), coveredRows.length > 0 && (_jsxs(Button, { size: "sm", variant: "secondary", className: "h-7 text-xs ml-auto", disabled: bulkBusy, onClick: clearFullyCovered, children: [
+                            _jsx(Send, { className: "h-3.5 w-3.5 mr-1" }), bulkBusy ? 'Clearing…' : 'Clear fully covered'] }))] }), _jsxs("div", { className: "space-y-2 max-h-[360px] overflow-y-auto", children: [rows.length === 0 && (_jsx("p", { className: "text-sm text-muted-foreground text-center py-6", children: "No unpaid invoices" })), rows.map(({ inv, patient }) => {
+                        const spon = patient ? isSponsored(patient) : false;
+                        const s = patient
+                            ? splitInvoice(Number(inv.total_amount), patient)
+                            : { copayPct: 100, copayAmount: Number(inv.total_amount), coveredAmount: 0 };
+                        const rowOut = spon
+                            ? Math.max(s.copayAmount - Number(inv.paid_amount), 0)
+                            : Number(inv.total_amount) - Number(inv.paid_amount);
+                        const bal = Number(patient?.balance ?? 0);
+                        const rowFull = spon && s.copayAmount === 0;
+                        return (_jsxs("div", { className: "p-3 rounded-lg border border-border hover:border-module-billing/50 transition-all", children: [
+                                _jsxs("div", { className: "flex items-center justify-between mb-1", children: [
+                                        _jsx("span", { className: "font-mono text-[11px] text-muted-foreground", children: inv.invoice_number }), _jsxs("div", { className: "flex items-center gap-1", children: [spon && (_jsxs(Badge, { variant: "info", className: "text-[10px]", children: [
+                                                        _jsx(Shield, { className: "h-2.5 w-2.5 mr-0.5" }), sponsorLabel(patient), " \u00B7 ", s.copayPct, "%"] })), _jsx(Badge, { variant: inv.status === 'partial' ? 'warning' : 'outline', className: "text-[10px]", children: inv.status })
+                                            ] })
+                                    ] }), _jsx("p", { className: "font-medium text-sm truncate", children: patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown patient' }), _jsxs("p", { className: "text-[11px] text-muted-foreground", children: [patient?.card_number, patient && hasWallet(patient) && (_jsxs(_Fragment, { children: [' · Balance ', _jsxs("span", { className: bal < 0 ? 'text-destructive font-semibold' : bal > 0 ? 'text-success font-semibold' : '', children: ["\u20A6", bal.toLocaleString()] })
+                                            ] }))] }), spon ? (_jsxs("div", { className: "mt-1.5 grid grid-cols-3 gap-1 text-[10px] rounded-md border border-border/60 bg-muted/40 p-1.5", children: [
+                                        _jsxs("div", { children: [
+                                                _jsx("div", { className: "text-muted-foreground", children: "Total" }), _jsxs("div", { className: "font-semibold", children: ["\u20A6", Number(inv.total_amount).toLocaleString()] })
+                                            ] }), _jsxs("div", { children: [
+                                                _jsx("div", { className: "text-muted-foreground", children: "Sponsor" }), _jsxs("div", { className: "font-semibold text-primary", children: ["\u20A6", s.coveredAmount.toLocaleString()] })
+                                            ] }), _jsxs("div", { children: [
+                                                _jsxs("div", { className: "text-muted-foreground", children: ["Copay (", s.copayPct, "%)"] }), _jsxs("div", { className: "font-semibold", children: ["\u20A6", s.copayAmount.toLocaleString()] })
+                                            ] })
+                                    ] })) : (_jsxs("p", { className: "text-[11px] text-muted-foreground mt-0.5", children: ["Total \u20A6", Number(inv.total_amount).toLocaleString()] })), _jsxs("div", { className: "mt-2 flex items-center justify-between gap-2", children: [
+                                        _jsxs("div", { className: "text-xs", children: [
+                                                _jsxs("span", { className: "text-muted-foreground", children: [spon ? (rowFull ? 'Copay' : 'Copay due') : 'Owing', ' '] }), _jsx("span", { className: `font-bold ${rowFull ? 'text-success' : 'text-destructive'}`, children: rowFull ? '₦0 (full cover)' : `₦${rowOut.toLocaleString()}` })
+                                            ] }), _jsxs(Button, { size: "sm", onClick: () => openPayment(inv), className: "h-7", children: [rowFull ? _jsx(Send, { className: "h-3.5 w-3.5 mr-1" }) : _jsx(Banknote, { className: "h-3.5 w-3.5 mr-1" }), rowFull ? 'Acknowledge' : 'Record'] })
+                                    ] })
+                            ] }, inv.id));
+                    })] }), unavailableItems.length > 0 && (_jsxs("div", { className: "mt-6 pt-6 border-t border-border", children: [
+                    _jsxs("div", { className: "flex items-center justify-between mb-3", children: [
+                            _jsxs("h4", { className: "text-sm font-semibold flex items-center gap-2 text-destructive", children: [
+                                    _jsx(AlertTriangle, { className: "h-4 w-4" }),
+                                    "Pending Refunds / Adjustments"] }), _jsx(Badge, { variant: "destructive", className: "animate-pulse", children: unavailableItems.length })
+                        ] }), _jsx("div", { className: "space-y-2", children: unavailableItems.map((item) => {
+                            const patient = patients.find((p) => p.id === item.invoice.patient_id);
+                            const spon = patient ? isSponsored(patient) : false;
+                            const fullCoverInsurance = spon && copayPercent(patient) === 0;
+                            return (_jsxs("div", { className: "p-3 rounded-lg border border-destructive/20 bg-destructive/5 flex items-center justify-between gap-3", children: [
+                                    _jsxs("div", { className: "min-w-0 flex-1", children: [
+                                            _jsx("p", { className: "text-sm font-medium truncate", children: patient ? `${patient.first_name} ${patient.last_name}` : 'Unknown Patient' }), _jsxs("p", { className: "text-[11px] text-muted-foreground truncate", children: [item.description, " \u00B7 ",
+                                                    _jsx("span", { className: "font-mono", children: item.invoice.invoice_number })
+                                                ] }), _jsx("p", { className: "text-[10px] font-semibold text-destructive mt-0.5", children: fullCoverInsurance ? 'REMOVAL FROM CLAIM' : `REFUND: ₦${(Number(item.total) || 0).toLocaleString()}` })
+                                        ] }), _jsx(Button, { size: "sm", variant: "destructive", className: "h-7 text-xs shrink-0", onClick: () => setRefundItem({ item, invoice: item.invoice }), children: "Process" })
+                                ] }, item.id));
+                        }) })
+                ] })), _jsx(Dialog, { open: !!selected, onOpenChange: (o) => !o && setSelected(null), children: _jsxs(DialogContent, { className: "sm:max-w-md", children: [
+                        _jsxs(DialogHeader, { children: [
+                                _jsx(DialogTitle, { children: fullCover ? 'Acknowledge Sponsored Invoice' : 'Record Payment' }), _jsxs(DialogDescription, { children: [selected?.invoice_number, " \u00B7", ' ', sponsored ? (_jsxs(_Fragment, { children: ["Copay due", ' ', _jsxs("span", { className: "font-semibold text-destructive", children: ["\u20A6", outstanding.toLocaleString()] }), ' ', _jsxs("span", { className: "text-muted-foreground", children: ["(of \u20A6", invoiceTotal.toLocaleString(), " total)"] })
+                                            ] })) : (_jsxs(_Fragment, { children: ["Outstanding", ' ', _jsxs("span", { className: "font-semibold text-destructive", children: ["\u20A6", outstanding.toLocaleString()] })
+                                            ] })), selectedPatient && walletEligible && (_jsxs("span", { className: "block text-xs mt-1", children: [selectedPatient.first_name, " ", selectedPatient.last_name, " \u00B7", ' ', _jsx("span", { className: "capitalize", children: selectedPatient.account_type }),
+                                                " \u00B7 Balance", ' ', _jsxs("span", { className: patientBalance < 0
+                                                        ? 'text-destructive font-semibold'
+                                                        : patientBalance > 0
+                                                            ? 'text-success font-semibold'
+                                                            : '', children: ["\u20A6", patientBalance.toLocaleString()] })
+                                            ] })), selectedPatient && !walletEligible && (_jsxs("span", { className: "block text-xs mt-1", children: [selectedPatient.first_name, " ", selectedPatient.last_name, " \u00B7", ' ', _jsx("span", { className: "capitalize", children: selectedPatient.account_type?.replace('_', ' ') })
+                                            ] }))] })
+                            ] }), _jsxs("div", { className: "space-y-3", children: [sponsored && (_jsxs("div", { className: "rounded-lg border border-primary/40 bg-primary/5 p-3 text-xs space-y-1", children: [
+                                        _jsxs("div", { className: "flex items-center gap-1.5 font-semibold text-primary", children: [
+                                                _jsx(Shield, { className: "h-3.5 w-3.5" }), sponsorLabel(selectedPatient), " \u00B7 Copay ", split.copayPct, "%"] }), _jsxs("div", { className: "flex justify-between", children: [
+                                                _jsx("span", { className: "text-muted-foreground", children: "Invoice total" }), _jsxs("span", { className: "font-semibold", children: ["\u20A6", invoiceTotal.toLocaleString()] })
+                                            ] }), _jsxs("div", { className: "flex justify-between", children: [
+                                                _jsxs("span", { className: "text-muted-foreground", children: ["Sponsor covers (", 100 - split.copayPct, "%)"] }), _jsxs("span", { className: "font-semibold text-primary", children: ["\u20A6", split.coveredAmount.toLocaleString()] })
+                                            ] }), _jsxs("div", { className: "flex justify-between border-t border-primary/20 pt-1", children: [
+                                                _jsxs("span", { className: "text-muted-foreground", children: ["Patient copay (", split.copayPct, "%)"] }), _jsxs("span", { className: "font-bold", children: ["\u20A6", split.copayAmount.toLocaleString()] })
+                                            ] }), _jsx("p", { className: "pt-1 text-[11px] text-muted-foreground", children: fullCover
+                                                ? 'No cash to collect. Acknowledge to send the invoice to the Claims queue.'
+                                                : 'Collect only the copay. The sponsor portion is auto-routed to Claims after settle.' })
+                                    ] })), !fullCover && (_jsxs("div", { className: "space-y-4 border-t border-border pt-4", children: [
+                                        _jsxs("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-3", children: [
+                                                _jsxs("div", { className: "space-y-1.5", children: [
+                                                        _jsxs(Label, { className: "text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5", children: [
+                                                                _jsx(Banknote, { className: "h-3.5 w-3.5 text-success" }),
+                                                                "Cash (\u20A6)"] }), _jsx(Input, { type: "number", value: cashAmount, onChange: (e) => setCashAmount(e.target.value), placeholder: "0", className: "h-10 border-success/30 focus-visible:ring-success" })
+                                                    ] }), _jsxs("div", { className: "space-y-1.5", children: [
+                                                        _jsxs(Label, { className: "text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5", children: [
+                                                                _jsx(Shield, { className: "h-3.5 w-3.5 text-blue-500" }),
+                                                                "POS/Card (\u20A6)"] }), _jsx(Input, { type: "number", value: posAmount, onChange: (e) => setPosAmount(e.target.value), placeholder: "0", className: "h-10 border-blue-500/30 focus-visible:ring-blue-500" })
+                                                    ] }), _jsxs("div", { className: "space-y-1.5", children: [
+                                                        _jsxs(Label, { className: "text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5", children: [
+                                                                _jsx(Send, { className: "h-3.5 w-3.5 text-purple-500" }),
+                                                                "Transfer (\u20A6)"] }), _jsx(Input, { type: "number", value: transferAmount, onChange: (e) => setTransferAmount(e.target.value), placeholder: "0", className: "h-10 border-purple-500/30 focus-visible:ring-purple-500" })
+                                                    ] })
+                                            ] }), walletEligible && (_jsxs("div", { className: `p-3 rounded-lg border transition-all ${useBalance ? 'bg-success/5 border-success/40' : 'bg-muted/30 border-border'}`, children: [
+                                                _jsxs("label", { className: "flex items-center gap-2 cursor-pointer mb-2", children: [
+                                                        _jsx(Checkbox, { checked: useBalance, onCheckedChange: (v) => setUseBalance(!!v) }), _jsx(PiggyBank, { className: "h-4 w-4 text-success" }), _jsx("span", { className: "text-xs font-bold uppercase tracking-wider", children: "Use Wallet Balance" })
+                                                    ] }), useBalance && (_jsx("div", { className: "flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200", children: _jsxs("div", { className: "flex-1", children: [
+                                                            _jsxs("p", { className: "text-[10px] text-muted-foreground mb-1 uppercase font-semibold", children: ["Available: \u20A6", availableBalance.toLocaleString()] }), _jsx(Input, { type: "number", value: balanceAmount, onChange: (e) => setBalanceAmount(e.target.value), max: Math.min(availableBalance, outstanding), className: "h-9 border-success/30" }), balExceedsAvail && (_jsx("p", { className: "text-[10px] text-destructive mt-1 font-medium", children: "Exceeds balance" }))] }) }))] }))] })), selectedPatient?.account_type === 'staff_family' && (_jsx("div", { className: `p-3 rounded-lg border transition-all ${isSalaryDeduction ? 'bg-warning/5 border-warning/40' : 'bg-muted/30 border-border'}`, children: _jsxs("div", { className: "flex items-start justify-between gap-4", children: [
+                                            _jsxs("div", { className: "flex-1", children: [
+                                                    _jsxs("label", { className: "flex items-center gap-2 cursor-pointer mb-1", children: [
+                                                            _jsx(Checkbox, { checked: isSalaryDeduction, onCheckedChange: (v) => {
+                                                                    setIsSalaryDeduction(!!v);
+                                                                    if (v) {
+                                                                        setSalaryDeductionAmount(String(outstanding));
+                                                                        setCashAmount('0');
+                                                                        setPosAmount('0');
+                                                                        setTransferAmount('0');
+                                                                        setUseBalance(false);
+                                                                        setBalanceAmount('0');
+                                                                    }
+                                                                    else {
+                                                                        setSalaryDeductionAmount('');
+                                                                        setCashAmount(String(outstanding));
+                                                                    }
+                                                                }, className: "border-warning/50 data-[state=checked]:bg-warning data-[state=checked]:text-warning-foreground" }), _jsxs("span", { className: "text-xs font-bold uppercase tracking-wider flex items-center gap-1.5", children: [
+                                                                    _jsx(Banknote, { className: "h-4 w-4 text-warning" }),
+                                                                    "Sponsor Salary Deduction"] })
+                                                        ] }), _jsx("p", { className: "text-[10px] text-muted-foreground ml-6 leading-tight", children: "Staff Family members get a 50% discount. Deduct the remaining 50% from the sponsor's salary." })
+                                                ] }), isSalaryDeduction && (_jsxs("div", { className: "w-32 animate-in fade-in slide-in-from-right-1 duration-200", children: [
+                                                    _jsxs("p", { className: "text-[10px] text-muted-foreground mb-1 uppercase font-semibold text-right", children: ["Max: \u20A6", outstanding.toLocaleString()] }), _jsx(Input, { type: "number", value: salaryDeductionAmount, onChange: (e) => {
+                                                            const val = Number(e.target.value);
+                                                            setSalaryDeductionAmount(e.target.value);
+                                                            if (val <= outstanding) {
+                                                                setCashAmount(String(outstanding - val));
+                                                            }
+                                                        }, className: "h-9 border-warning/30 focus-visible:ring-warning" })
+                                                ] }))] }) })), !fullCover && (_jsxs("div", { className: "rounded-lg bg-muted/40 p-3 text-xs space-y-1", children: [
+                                        _jsxs("div", { className: "flex justify-between", children: [
+                                                _jsx("span", { className: "text-muted-foreground", children: sponsored ? 'Copay due' : 'Outstanding' }), _jsxs("span", { className: "font-semibold", children: ["\u20A6", outstanding.toLocaleString()] })
+                                            ] }), salDed > 0 && (_jsxs("div", { className: "flex justify-between text-warning font-medium", children: [
+                                                _jsx("span", { children: "Salary Deduction" }), _jsxs("span", { children: ["\u2212 \u20A6", salDed.toLocaleString()] })
+                                            ] })), bal > 0 && (_jsxs("div", { className: "flex justify-between text-success font-medium", children: [
+                                                _jsx("span", { children: "From balance" }), _jsxs("span", { children: ["\u2212 \u20A6", bal.toLocaleString()] })
+                                            ] })), cash > 0 && (_jsxs("div", { className: "flex justify-between text-[11px] text-muted-foreground", children: [
+                                                _jsx("span", { children: "Cash" }), _jsxs("span", { children: ["\u2212 \u20A6", cash.toLocaleString()] })
+                                            ] })), pos > 0 && (_jsxs("div", { className: "flex justify-between text-[11px] text-muted-foreground", children: [
+                                                _jsx("span", { children: "POS / Card" }), _jsxs("span", { children: ["\u2212 \u20A6", pos.toLocaleString()] })
+                                            ] })), transfer > 0 && (_jsxs("div", { className: "flex justify-between text-[11px] text-muted-foreground", children: [
+                                                _jsx("span", { children: "Bank Transfer" }), _jsxs("span", { children: ["\u2212 \u20A6", transfer.toLocaleString()] })
+                                            ] })), _jsxs("div", { className: "flex justify-between pt-1 border-t border-border", children: [
+                                                _jsx("span", { className: "font-semibold", children: shortfall > 0
+                                                        ? sponsored
+                                                            ? 'Copay short by'
+                                                            : 'Owed after this payment'
+                                                        : overpay > 0
+                                                            ? 'Overpayment'
+                                                            : 'Settled' }), _jsxs("span", { className: `font-bold ${shortfall > 0
+                                                        ? 'text-destructive'
+                                                        : overpay > 0
+                                                            ? 'text-warning'
+                                                            : 'text-success'}`, children: ["\u20A6", (shortfall || overpay).toLocaleString()] })
+                                            ] })
+                                    ] })), !sponsored && shortfall > 0 && (_jsxs("div", { className: "rounded-lg border border-warning/40 bg-warning/10 p-3 space-y-2", children: [
+                                        _jsxs("div", { className: "flex items-start gap-2", children: [
+                                                _jsx(AlertTriangle, { className: "h-4 w-4 text-warning mt-0.5" }), _jsxs("div", { className: "text-xs", children: [
+                                                        _jsxs("p", { className: "font-semibold text-warning-foreground", children: ["Partial payment \u00B7 \u20A6", applied.toLocaleString(), " of \u20A6", outstanding.toLocaleString()] }), debtEligible ? (_jsxs("p", { className: "text-muted-foreground mt-0.5", children: ["The remaining ",
+                                                                _jsxs("span", { className: "font-semibold", children: ["\u20A6", shortfall.toLocaleString()] }),
+                                                                " will sit on the patient's balance as amount owed. New balance after this: \u20A6", (patientBalance - bal - shortfall).toLocaleString(), ". Any future top-up clears it automatically."] })) : (_jsx("p", { className: "text-destructive mt-0.5", children: "This account type cannot carry a balance owed \u2014 collect the full amount." }))] })
+                                            ] }), debtEligible && (_jsxs("p", { className: "text-[11px] text-muted-foreground italic", children: ["Confirm to accept \u20A6", applied.toLocaleString(), " now and record \u20A6", shortfall.toLocaleString(), " as owed on the patient's balance."] }))] }))] }), _jsxs(DialogFooter, { children: [
+                                _jsx(Button, { variant: "ghost", onClick: () => setSelected(null), disabled: busy, children: "Cancel" }), _jsx(Button, { onClick: submit, disabled: busy ||
+                                        (!fullCover && applied < 0) ||
+                                        (sponsored && overpay > 0) ||
+                                        balExceedsAvail ||
+                                        (sponsored && !fullCover && shortfall > 0) ||
+                                        (!sponsored && shortfall > 0 && !debtEligible), children: busy
+                                        ? 'Recording…'
+                                        : fullCover
+                                            ? 'Acknowledge & Send to Claims'
+                                            : salDed > 0 && salDed === outstanding
+                                                ? 'Confirm Salary Deduction'
+                                                : salDed > 0
+                                                    ? 'Confirm Mixed Payment'
+                                                    : sponsored
+                                                        ? 'Collect Copay & Send to Claims'
+                                                        : shortfall > 0
+                                                            ? applied === 0
+                                                                ? 'Confirm ₦0 (Buy on Credit)'
+                                                                : `Confirm ₦${applied.toLocaleString()} Partial Payment`
+                                                            : 'Confirm Payment' })
+                            ] })
+                    ] }) }), receipt && (_jsx(PrintableReceiptDialog, { open: !!receipt, onOpenChange: (o) => !o && setReceipt(null), patient: receipt.patient, amount: receipt.amount, paymentMethod: receipt.paymentMethod, receiptNumber: receipt.receiptNumber, date: receipt.date, newBalance: receipt.newBalance, breakdown: receipt.breakdown })), refundItem && (_jsx(Dialog, { open: true, onOpenChange: (o) => !o && setRefundItem(null), children: _jsxs(DialogContent, { className: "sm:max-w-md", children: [
+                        _jsxs(DialogHeader, { children: [
+                                _jsx(DialogTitle, { children: "Process Refund" }), _jsxs(DialogDescription, { children: ["Refund \u20A6", (Number(refundItem.item.total) || 0).toLocaleString(), " for \"", refundItem.item.description, "\" to ", patients.find((p) => p.id === refundItem.invoice.patient_id)?.first_name, "."] })
+                            ] }), _jsxs("div", { className: "p-4 bg-muted rounded-lg text-sm space-y-2", children: [
+                                _jsxs("div", { className: "flex justify-between", children: [
+                                        _jsx("span", { className: "text-muted-foreground", children: "Original Invoice:" }), _jsx("span", { className: "font-mono font-medium", children: refundItem.invoice.invoice_number })
+                                    ] }), _jsxs("div", { className: "flex justify-between", children: [
+                                        _jsx("span", { className: "text-muted-foreground", children: "Unavailable Reason:" }), _jsx("span", { className: "italic text-red-600", children: refundItem.item.dispensing_notes || 'Not specified' })
+                                    ] })
+                            ] }), _jsxs(DialogFooter, { className: "flex-col sm:flex-row gap-2", children: [
+                                _jsx(Button, { variant: "ghost", className: "w-full sm:w-auto", onClick: () => setRefundItem(null), disabled: busy, children: "Cancel" }), isSponsored(patients.find((p) => p.id === refundItem.invoice.patient_id) || {}) && copayPercent(patients.find((p) => p.id === refundItem.invoice.patient_id) || {}) === 0 ? (_jsx(Button, { variant: "destructive", className: "w-full sm:flex-1", onClick: () => handleRefund('cash'), disabled: busy, children: busy ? 'Processing...' : 'Remove from Invoice & Claim' })) : isSponsored(patients.find((p) => p.id === refundItem.invoice.patient_id) || {}) ? (_jsx(Button, { variant: "destructive", className: "w-full sm:flex-1", onClick: () => handleRefund('cash'), disabled: busy, children: busy ? 'Processing...' : 'Void from Claim' })) : (_jsxs(_Fragment, { children: [
+                                        _jsx(Button, { variant: "outline", className: "w-full sm:w-auto", onClick: () => handleRefund('cash'), disabled: busy, children: "Refund as Cash" }), _jsx(Button, { className: "w-full sm:flex-1", onClick: () => handleRefund('balance'), disabled: busy, children: busy ? 'Processing...' : 'Add to Wallet Balance' })
+                                    ] }))] })
+                    ] }) }))] }));
 }

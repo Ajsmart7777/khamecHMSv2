@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AdmissionCaptureDialog } from '@/components/nurse/AdmissionCaptureDialog';
 import { useAdmissionPerms } from '@/lib/admissionPermissions';
-import { LabResultInbox } from '@/components/doctor/LabResultInbox';
+// import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { NurseTreatmentInbox } from '@/components/nurse/NurseTreatmentInbox';
 import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
 import { AwaitingRoomPanel } from '@/components/nurse/AwaitingRoomPanel';
@@ -89,7 +89,7 @@ const NurseStation = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <AwaitingRoomPanel />
-        <LabResultInbox />
+        {/* <LabResultInbox /> */}
         <NurseTreatmentInbox />
       </div>
 

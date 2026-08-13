@@ -949,33 +949,33 @@ export function CashierPanel() {
                 <span className="text-muted-foreground">{sponsored ? 'Copay due' : 'Outstanding'}</span>
                 <span className="font-semibold">₦{outstanding.toLocaleString()}</span>
               </div>
-              {salDed > 0 ? (
+              {salDed > 0 && (
                 <div className="flex justify-between text-warning font-medium">
                   <span>Salary Deduction</span>
                   <span>− ₦{salDed.toLocaleString()}</span>
                 </div>
-              ) : null}
+              )}
               {bal > 0 && (
-                <div className="flex justify-between text-success">
+                <div className="flex justify-between text-success font-medium">
                   <span>From balance</span>
                   <span>− ₦{bal.toLocaleString()}</span>
                 </div>
               )}
               {cash > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Cash</span>
+                <div className="flex justify-between text-[11px] text-muted-foreground">
+                  <span>Cash</span>
                   <span>− ₦{cash.toLocaleString()}</span>
                 </div>
               )}
               {pos > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">POS / Card</span>
+                <div className="flex justify-between text-[11px] text-muted-foreground">
+                  <span>POS / Card</span>
                   <span>− ₦{pos.toLocaleString()}</span>
                 </div>
               )}
               {transfer > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Bank Transfer</span>
+                <div className="flex justify-between text-[11px] text-muted-foreground">
+                  <span>Bank Transfer</span>
                   <span>− ₦{transfer.toLocaleString()}</span>
                 </div>
               )}

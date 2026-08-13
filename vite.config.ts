@@ -5,8 +5,18 @@ import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  server: {
+export default defineConfig(({ mode }) => {
+  const commitHash = require('child_process')
+    .execSync('git rev-parse --short HEAD || echo "dev"')
+    .toString()
+    .trim();
+
+  return {
+    define: {
+      'import.meta.env.VITE_APP_COMMIT_HASH': JSON.stringify(commitHash),
+      'import.meta.env.VITE_APP_VERSION': JSON.stringify('1.4.2'),
+    },
+    server: {
     host: "::",
     port: 8080,
   },

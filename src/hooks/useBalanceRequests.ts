@@ -60,9 +60,14 @@ export function useBalanceRequests() {
     fetchRequests();
     const channel = supabase
       .channel('balance-requests-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'balance_requests' }, () => fetchRequests())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'balance_requests' }, () => fetchRequests());
+    
+    // Subscribe in a separate step and handle cleanup
+    channel.subscribe();
+
+    return () => { 
+      supabase.removeChannel(channel); 
+    };
   }, [fetchRequests]);
 
   // Auto-mark expired on client (visual only; server timestamps drive truth)

@@ -73,8 +73,7 @@ async function settleInvoiceAtomic(params: {
     _debt_amount: params.debtAmount,
     _payment_method: params.paymentMethod,
     _notes: params.notes ?? null,
-    _sponsored: params.sponsored,
-    _is_salary_deduction: params.isSalaryDeduction ?? false,
+    _sponsored: params.sponsored
   });
   if (error) throw new Error(`Failed to settle invoice: ${error.message}`);
   return data as any;

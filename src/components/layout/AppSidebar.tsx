@@ -201,7 +201,7 @@ export function AppSidebar({ isMobile = false, onNavigate }: AppSidebarProps) {
           "px-3 py-2 text-[10px] text-sidebar-foreground/30 font-mono",
           isCollapsed && "text-center px-0"
         )}>
-          {isCollapsed ? `v${(process.env as any).VITE_APP_COMMIT_HASH}` : `Build: v${(process.env as any).VITE_APP_VERSION}.${(process.env as any).VITE_APP_COMMIT_HASH}`}
+          {isCollapsed ? `v${import.meta.env.VITE_APP_COMMIT_HASH}` : `Build: v${import.meta.env.VITE_APP_VERSION}.${import.meta.env.VITE_APP_COMMIT_HASH}`}
         </div>
       </div>
 

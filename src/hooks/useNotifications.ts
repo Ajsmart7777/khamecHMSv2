@@ -110,10 +110,20 @@ export function useNotifications() {
         }
       );
     
-    // channel.subscribe();
-    setTimeout(() => {
-      channel.subscribe();
-    }, 100);
+    const subscribe = async () => {
+      try {
+        await channel.subscribe();
+      } catch (err) {
+        logError('Notifications subscribe error', err);
+      }
+    };
+    
+    const timeout = setTimeout(subscribe, 100);
+
+    return () => {
+      clearTimeout(timeout);
+      supabase.removeChannel(channel);
+    };
 
     return () => {
       supabase.removeChannel(channel);

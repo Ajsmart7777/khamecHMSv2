@@ -81,10 +81,20 @@ export function useInvoices() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => fetchInvoices())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_items' }, () => fetchInvoices());
     
-    // channel.subscribe();
-    setTimeout(() => {
-      channel.subscribe();
-    }, 100);
+    const subscribe = async () => {
+      try {
+        await channel.subscribe();
+      } catch (err) {
+        logError('Invoices subscribe error', err);
+      }
+    };
+    
+    const timeout = setTimeout(subscribe, 100);
+
+    return () => {
+      clearTimeout(timeout);
+      supabase.removeChannel(channel);
+    };
 
     return () => { supabase.removeChannel(channel); };
   }, [fetchInvoices]);

@@ -77,10 +77,20 @@ export function useAdmissions(filter: { statuses?: AdmissionStatus[]; patientId?
       .channel(`admissions-realtime-${channelId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'admissions' }, () => refresh());
     
-    // ch.subscribe();
-    setTimeout(() => {
-      ch.subscribe();
-    }, 100);
+    const subscribe = async () => {
+      try {
+        await ch.subscribe();
+      } catch (err) {
+        logError('Admissions subscribe error', err);
+      }
+    };
+    
+    const timeout = setTimeout(subscribe, 100);
+
+    return () => {
+      clearTimeout(timeout);
+      supabase.removeChannel(ch);
+    };
     return () => { supabase.removeChannel(ch); };
   }, [refresh, channelId]);
 

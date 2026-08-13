@@ -1,0 +1,5 @@
+-- Compatibility marker for the migration applied directly to production during
+-- the 2026-08-13 reconciliation. The canonical source SQL remains in
+-- 20260812163043_50700de6-7a1a-4cea-87b9-296186073bfa.sql for clean-database
+-- builds. This marker keeps local filenames aligned with the remote migration
+-- ledger.

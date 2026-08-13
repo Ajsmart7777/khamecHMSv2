@@ -1,0 +1,4 @@
+-- Compatibility marker for the migration applied directly to production during
+-- the 2026-08-13 reconciliation. The functional SQL is retained in
+-- 20260812213400_finalize_inpatient_workflow_sync.sql for clean-database builds.
+-- This marker keeps local filenames aligned with the remote migration ledger.

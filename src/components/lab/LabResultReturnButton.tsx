@@ -131,9 +131,11 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
           .in('status', ['active', 'ready_for_discharge', 'waiting_assignment'])
           .maybeSingle();
         if (!activeAdmission) {
+          // IMPORTANT: Re-set status to original sender's station status so they return to the main queue
+          const senderStationStatus = targetStation === 'nurse' ? 'with_nurse' : 'with_doctor';
           await supabase
             .from('patients')
-            .update({ status: newStatus, last_visit: new Date().toISOString() })
+            .update({ status: senderStationStatus, last_visit: new Date().toISOString() })
             .eq('id', parentSnap.patient_id);
         }
       } catch (statusErr) {

@@ -12,7 +12,8 @@ import {
   User, 
   Wallet, 
   ClipboardList, 
-  UserCheck 
+  UserCheck,
+  FlaskConical
 } from 'lucide-react';
 import { differenceInYears, format } from 'date-fns';
 import { Patient } from '@/contexts/PatientContext';
@@ -22,7 +23,7 @@ import { hasWallet, sponsorLabel } from '@/lib/copay';
 import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';
 import { toast } from 'sonner';
 import { cn } from "@/lib/utils";
-import { useAuth } from '@/contexts/AuthContext';
+import { PatientLabResultsDialog } from './PatientLabResultsDialog';
 
 const STATUS_OWNER: Record<string, string> = {
   registered: 'Reception',
@@ -50,6 +51,8 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
   const [latestVitals, setLatestVitals] = useState<any | null>(null);
   const [balanceFlash, setBalanceFlash] = useState<{ delta: number; key: number } | null>(null);
   const prevBalanceRef = useRef<number | null>(null);
+  const [labResultsOpen, setLabResultsOpen] = useState(false);
+  const [newLabResultsCount, setNewLabResultsCount] = useState(0);
 
   const loadLatestVitals = useCallback(async () => {
     const { data } = await supabase
@@ -76,6 +79,25 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
       supabase.removeChannel(ch);
     };
   }, [patient.id, loadLatestVitals]);
+
+  useEffect(() => {
+    let active = true;
+    const checkResults = async () => {
+      const { data } = await supabase
+        .from('snap_orders')
+        .select('id')
+        .eq('patient_id', patient.id)
+        .eq('order_type', 'lab_result')
+        .eq('status', 'returned');
+      if (active) setNewLabResultsCount(data?.length || 0);
+    };
+    checkResults();
+    const ch = supabase
+      .channel(`header-results-${patient.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders', filter: `patient_id=eq.${patient.id}` }, checkResults)
+      .subscribe();
+    return () => { active = false; supabase.removeChannel(ch); };
+  }, [patient.id]);
 
   useEffect(() => {
     let alive = true;
@@ -186,9 +208,35 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
                 <span className="font-medium">{patient.blood_group}</span>
               </div>
             )}
-            <ViewCardButton patient={patient} label="Open Card" variant="default" />
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant={newLabResultsCount > 0 ? "default" : "outline"}
+                className={cn(
+                  "gap-2 h-9",
+                  newLabResultsCount > 0 && "bg-module-laboratory hover:bg-module-laboratory/90"
+                )}
+                onClick={() => setLabResultsOpen(true)}
+              >
+                <FlaskConical className="h-4 w-4" />
+                Lab Results
+                {newLabResultsCount > 0 && (
+                  <Badge variant="success" className="ml-1 px-1.5 h-4 min-w-[1.25rem] flex items-center justify-center text-[10px]">
+                    {newLabResultsCount}
+                  </Badge>
+                )}
+              </Button>
+              <ViewCardButton patient={patient} label="Open Card" variant="default" />
+            </div>
           </div>
         </div>
+
+        <PatientLabResultsDialog
+          open={labResultsOpen}
+          onOpenChange={setLabResultsOpen}
+          patientId={patient.id}
+          patientName={`${patient.first_name} ${patient.last_name}`}
+        />
 
         <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
           {showWallet ? (

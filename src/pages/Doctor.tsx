@@ -14,7 +14,7 @@ import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndic
 import { useLabRequests } from '@/hooks/useLabRequests';
 import { LabRequestPrintQueue } from '@/components/doctor/LabRequestPrintQueue';
 import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
-import { LabResultInbox } from '@/components/doctor/LabResultInbox';
+// import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
 import { AdmissionCaptureDialog } from '@/components/nurse/AdmissionCaptureDialog';
 import { useAdmissionPerms } from '@/lib/admissionPermissions';
@@ -35,28 +35,8 @@ const Doctor = () => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);
   const canAct = useAdmissionPerms();
-  const [pendingLabReturnPatientIds, setPendingLabReturnPatientIds] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    if (!user?.id) return;
-    let cancelled = false;
-    const load = async () => {
-      const { data } = await supabase
-        .from('snap_orders')
-        .select('patient_id')
-        .eq('order_type', 'lab_result')
-        .eq('returned_to', user.id)
-        .eq('status', 'returned');
-      if (cancelled) return;
-      setPendingLabReturnPatientIds(new Set((data ?? []).map((r: any) => r.patient_id)));
-    };
-    load();
-    const ch = supabase
-      .channel(`doctor-lab-return-${user.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders' }, load)
-      .subscribe();
-    return () => { cancelled = true; supabase.removeChannel(ch); };
-  }, [user?.id]);
+  // REMOVED: labReturnedPatients set logic is no longer used for queue filtering
+  // We want all patients with 'with_doctor' status to show in one list.
 
   const myDoctorKey: 'doctor1' | 'doctor2' | null =
     role === 'doctor1' ? 'doctor1'
@@ -69,11 +49,8 @@ const Doctor = () => {
     ? baseQueue.filter(p => p.assigned_doctor === myDoctorKey)
     : baseQueue;
 
-  // Lab-returned patients live in the "Returned from Lab" inbox.
-  const labReturnedPatients = scopedQueue.filter(p => pendingLabReturnPatientIds.has(p.id));
-  
-  const labReturnIds = new Set(labReturnedPatients.map(p => p.id));
-  const doctorQueue = scopedQueue.filter(p => !labReturnIds.has(p.id));
+  // Patients returned from lab are already status='with_doctor' so they appear in scopedQueue naturally.
+  const doctorQueue = scopedQueue;
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
   // Handler for global "Snap to Admit" triggers (e.g. from LabResultInbox)
@@ -120,7 +97,7 @@ const Doctor = () => {
                 </div>
               ) : (
                 doctorQueue.map((patient) => {
-                  const isLabReturn = labReturnedPatients.some(p => p.id === patient.id);
+                  // const isLabReturn = labReturnedPatients.some(p => p.id === patient.id);
                   return (
                     <div
                       key={patient.id}
@@ -137,9 +114,7 @@ const Doctor = () => {
                           {patient.first_name} {patient.last_name}
                         </p>
                         <div className="flex items-center gap-1">
-                          {isLabReturn && (
-                            <Badge variant="info" className="text-[10px]">Lab Results</Badge>
-                          )}
+                          {/* Indicator is now in UniversalPatientHeader or we could add a small dot here if needed */}
                           <PatientStatusIndicator status={patient.status} size="sm" showIcon={false} />
                         </div>
                       </div>
@@ -151,7 +126,7 @@ const Doctor = () => {
             </div>
           </div>
 
-          <LabResultInbox />
+          {/* <LabResultInbox /> */}
           <LabRequestPrintQueue assignedDoctor={myDoctorKey ?? undefined} />
           <LabResultsViewer assignedDoctor={myDoctorKey ?? undefined} />
 

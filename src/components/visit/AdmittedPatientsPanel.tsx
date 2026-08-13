@@ -13,8 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 import { useWardsRoomsBeds } from '@/hooks/useWardsRooms';
-import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
-import { SnapLabResults } from '@/components/doctor/SnapLabResults';
+import { PatientLabResultsDialog } from '@/components/patient/PatientLabResultsDialog';
 import { useAdmissionPerms } from '@/lib/admissionPermissions';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -283,20 +282,12 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
       )}
 
       {resultsFor && (
-        <Dialog open onOpenChange={(o) => !o && setResultsFor(null)}>
-          <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Lab Results · {resultsFor.name}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <SnapLabResults patientId={resultsFor.patientId} />
-              <LabResultsViewer patientId={resultsFor.patientId} />
-            </div>
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setResultsFor(null)}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <PatientLabResultsDialog
+          open
+          onOpenChange={(o) => !o && setResultsFor(null)}
+          patientId={resultsFor.patientId}
+          patientName={resultsFor.name}
+        />
       )}
     </div>
   );

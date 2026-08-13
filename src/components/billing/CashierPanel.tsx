@@ -405,8 +405,12 @@ export function CashierPanel() {
     if (busy) return;
     setBusy(true);
     try {
-      // Wallet deduction, debt recording, and invoice close all run in a single
-      // server-side transaction — no partial states if any step fails.
+      const breakdown = [];
+      if (cash > 0) breakdown.push(`Cash: ${cash}`);
+      if (pos > 0) breakdown.push(`POS: ${pos}`);
+      if (transfer > 0) breakdown.push(`Transfer: ${transfer}`);
+      const breakdownStr = breakdown.length > 0 ? ` (Breakdown: ${breakdown.join(', ')})` : '';
+
       const paymentMethod = applied === 0
         ? 'credit'
         : salDed > 0 && cash === 0 && pos === 0 && transfer === 0 && bal === 0
@@ -416,6 +420,7 @@ export function CashierPanel() {
         : bal > 0 && cash === 0 && pos === 0 && transfer === 0
         ? 'balance'
         : 'split'; // Multi-mode payment
+
       const notes = salDed > 0
         ? `Salary deduction of ₦${salDed.toLocaleString()} recorded · ${sponsorLabel(selectedPatient)}`
         : sponsored
@@ -425,6 +430,7 @@ export function CashierPanel() {
               ? `Patient bought on credit (₦${shortfall.toLocaleString()} added to debt)`
               : `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`)
           : undefined;
+
       const debt = !sponsored && shortfall > 0 ? shortfall : 0;
       const combinedCash = cash + pos + transfer;
       
@@ -434,7 +440,7 @@ export function CashierPanel() {
         balanceAmount: bal,
         debtAmount: debt,
         paymentMethod,
-        notes: (notes || '') + (applied > 0 ? ` (Breakdown: Cash: ${cash}, POS: ${pos}, Transfer: ${transfer})` : ''),
+        notes: (notes || '') + (applied > 0 ? breakdownStr : ''),
         sponsored,
         isSalaryDeduction: salDed > 0,
       });
@@ -808,62 +814,63 @@ export function CashierPanel() {
             {/* Use patient balance section removed in favor of integrated grid below */}
 
             {!fullCover && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-xs font-semibold flex items-center gap-1.5">
-                      <Banknote className="h-4 w-4 text-success" />
-                      Cash Amount (₦)
+              <div className="space-y-4 border-t border-border pt-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Banknote className="h-3.5 w-3.5 text-success" />
+                      Cash (₦)
                     </Label>
                     <Input
                       type="number"
                       value={cashAmount}
                       onChange={(e) => setCashAmount(e.target.value)}
                       placeholder="0"
-                      className="mt-1"
+                      className="h-10 border-success/30 focus-visible:ring-success"
                     />
                   </div>
-                  <div>
-                    <Label className="text-xs font-semibold flex items-center gap-1.5">
-                      <Shield className="h-4 w-4 text-blue-500" />
-                      POS / Card Amount (₦)
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Shield className="h-3.5 w-3.5 text-blue-500" />
+                      POS/Card (₦)
                     </Label>
                     <Input
                       type="number"
                       value={posAmount}
                       onChange={(e) => setPosAmount(e.target.value)}
                       placeholder="0"
-                      className="mt-1"
+                      className="h-10 border-blue-500/30 focus-visible:ring-blue-500"
                     />
                   </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <Label className="text-xs font-semibold flex items-center gap-1.5">
-                      <Send className="h-4 w-4 text-purple-500" />
-                      Transfer Amount (₦)
+                  <div className="space-y-1.5">
+                    <Label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Send className="h-3.5 w-3.5 text-purple-500" />
+                      Transfer (₦)
                     </Label>
                     <Input
                       type="number"
                       value={transferAmount}
                       onChange={(e) => setTransferAmount(e.target.value)}
                       placeholder="0"
-                      className="mt-1"
+                      className="h-10 border-purple-500/30 focus-visible:ring-purple-500"
                     />
                   </div>
-                  {walletEligible && (
-                    <div className={`p-3 rounded-lg border ${useBalance ? 'bg-success/5 border-success/30' : 'bg-muted/30 border-border'}`}>
-                      <label className="flex items-center gap-2 cursor-pointer mb-2">
-                        <Checkbox
-                          checked={useBalance}
-                          onCheckedChange={(v) => setUseBalance(!!v)}
-                        />
-                        <PiggyBank className="h-4 w-4 text-success" />
-                        <span className="text-xs font-semibold">Use Wallet Balance</span>
-                      </label>
-                      {useBalance && (
-                        <div>
-                          <p className="text-[10px] text-muted-foreground mb-1">
+                </div>
+
+                {walletEligible && (
+                  <div className={`p-3 rounded-lg border transition-all ${useBalance ? 'bg-success/5 border-success/40' : 'bg-muted/30 border-border'}`}>
+                    <label className="flex items-center gap-2 cursor-pointer mb-2">
+                      <Checkbox
+                        checked={useBalance}
+                        onCheckedChange={(v) => setUseBalance(!!v)}
+                      />
+                      <PiggyBank className="h-4 w-4 text-success" />
+                      <span className="text-xs font-bold uppercase tracking-wider">Use Wallet Balance</span>
+                    </label>
+                    {useBalance && (
+                      <div className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                        <div className="flex-1">
+                          <p className="text-[10px] text-muted-foreground mb-1 uppercase font-semibold">
                             Available: ₦{availableBalance.toLocaleString()}
                           </p>
                           <Input
@@ -871,86 +878,73 @@ export function CashierPanel() {
                             value={balanceAmount}
                             onChange={(e) => setBalanceAmount(e.target.value)}
                             max={Math.min(availableBalance, outstanding)}
-                            className="h-8"
+                            className="h-9 border-success/30"
                           />
                           {balExceedsAvail && (
-                            <p className="text-[10px] text-destructive mt-1">
+                            <p className="text-[10px] text-destructive mt-1 font-medium">
                               Exceeds balance
                             </p>
                           )}
                         </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
             {selectedPatient?.account_type === 'staff_family' && (
-              <div className="flex flex-col gap-2 p-3 rounded-lg border border-warning/30 bg-warning/5">
-                <div className="flex items-start justify-between">
-                  <div className="pr-3">
-                    <Label className="text-sm font-bold flex items-center gap-1.5">
-                      <Banknote className="h-4 w-4 text-warning" />
-                      Sponsor Salary Deduction
-                    </Label>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      Staff Family members get a 50% hospital discount. The remaining 50% (₦{outstanding.toLocaleString()}) can be deducted from the sponsor's salary.
+              <div className={`p-3 rounded-lg border transition-all ${isSalaryDeduction ? 'bg-warning/5 border-warning/40' : 'bg-muted/30 border-border'}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <label className="flex items-center gap-2 cursor-pointer mb-1">
+                      <Checkbox
+                        checked={isSalaryDeduction}
+                        onCheckedChange={(v) => {
+                          setIsSalaryDeduction(!!v);
+                          if (v) {
+                            setSalaryDeductionAmount(String(outstanding));
+                            setCashAmount('0');
+                            setPosAmount('0');
+                            setTransferAmount('0');
+                            setUseBalance(false);
+                            setBalanceAmount('0');
+                          } else {
+                            setSalaryDeductionAmount('');
+                            setCashAmount(String(outstanding));
+                          }
+                        }}
+                        className="border-warning/50 data-[state=checked]:bg-warning data-[state=checked]:text-warning-foreground"
+                      />
+                      <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                        <Banknote className="h-4 w-4 text-warning" />
+                        Sponsor Salary Deduction
+                      </span>
+                    </label>
+                    <p className="text-[10px] text-muted-foreground ml-6 leading-tight">
+                      Staff Family members get a 50% discount. Deduct the remaining 50% from the sponsor's salary.
                     </p>
                   </div>
-                  <Checkbox
-                    checked={isSalaryDeduction}
-                    onCheckedChange={(v) => {
-                      setIsSalaryDeduction(!!v);
-                      if (v) {
-                        setSalaryDeductionAmount(String(outstanding));
-                        setCashAmount('0');
-                        setUseBalance(false);
-                        setBalanceAmount('0');
-                      } else {
-                        setSalaryDeductionAmount('');
-                        setCashAmount(String(outstanding));
-                      }
-                    }}
-                  />
-                </div>
-                {isSalaryDeduction && (
-                  <div className="pt-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <div className="flex justify-between items-center mb-1">
-                      <Label className="text-xs font-semibold">Amount to deduct (₦)</Label>
-                      <span className="text-[10px] text-muted-foreground">
+                  {isSalaryDeduction && (
+                    <div className="w-32 animate-in fade-in slide-in-from-right-1 duration-200">
+                      <p className="text-[10px] text-muted-foreground mb-1 uppercase font-semibold text-right">
                         Max: ₦{outstanding.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
+                      </p>
                       <Input
                         type="number"
-                        className="h-9"
                         value={salaryDeductionAmount}
                         onChange={(e) => {
                           const val = Number(e.target.value);
                           setSalaryDeductionAmount(e.target.value);
-                          // Auto-adjust cash if deduction changes to cover the full copay
                           if (val <= outstanding) {
                             setCashAmount(String(outstanding - val));
                           }
                         }}
-                        max={outstanding}
+                        className="h-9 border-warning/30 focus-visible:ring-warning"
                       />
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="h-9 text-[10px]"
-                        onClick={() => {
-                          setSalaryDeductionAmount(String(outstanding));
-                          setCashAmount('0');
-                        }}
-                      >
-                        Full
-                      </Button>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
 
@@ -961,33 +955,33 @@ export function CashierPanel() {
                 <span className="text-muted-foreground">{sponsored ? 'Copay due' : 'Outstanding'}</span>
                 <span className="font-semibold">₦{outstanding.toLocaleString()}</span>
               </div>
-              {salDed > 0 ? (
+              {salDed > 0 && (
                 <div className="flex justify-between text-warning font-medium">
                   <span>Salary Deduction</span>
                   <span>− ₦{salDed.toLocaleString()}</span>
                 </div>
-              ) : null}
+              )}
               {bal > 0 && (
-                <div className="flex justify-between text-success">
+                <div className="flex justify-between text-success font-medium">
                   <span>From balance</span>
                   <span>− ₦{bal.toLocaleString()}</span>
                 </div>
               )}
               {cash > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Cash</span>
+                <div className="flex justify-between text-[11px] text-muted-foreground">
+                  <span>Cash</span>
                   <span>− ₦{cash.toLocaleString()}</span>
                 </div>
               )}
               {pos > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">POS / Card</span>
+                <div className="flex justify-between text-[11px] text-muted-foreground">
+                  <span>POS / Card</span>
                   <span>− ₦{pos.toLocaleString()}</span>
                 </div>
               )}
               {transfer > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Bank Transfer</span>
+                <div className="flex justify-between text-[11px] text-muted-foreground">
+                  <span>Bank Transfer</span>
                   <span>− ₦{transfer.toLocaleString()}</span>
                 </div>
               )}

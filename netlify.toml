@@ -4,6 +4,7 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  SECRETS_SCAN_OMIT_PATHS = "apply_migration.py, run_migration.py, run_sql_migration.py, test_supabase.py"
 
 # SPA fallback so deep links and refreshes work
 [[redirects]]

@@ -197,6 +197,12 @@ export function AppSidebar({ isMobile = false, onNavigate }: AppSidebarProps) {
           <LogOut className="h-4 w-4" />
           {!isCollapsed && <span>Logout</span>}
         </Button>
+        <div className={cn(
+          "px-3 py-2 text-[10px] text-sidebar-foreground/30 font-mono",
+          isCollapsed && "text-center px-0"
+        )}>
+          {isCollapsed ? `v${import.meta.env.VITE_APP_COMMIT_HASH}` : `Build: v${import.meta.env.VITE_APP_VERSION}.${import.meta.env.VITE_APP_COMMIT_HASH}`}
+        </div>
       </div>
 
       {/* Collapse Toggle - Only on desktop */}

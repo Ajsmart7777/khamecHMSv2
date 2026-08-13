@@ -169,6 +169,85 @@ const SUB_TONE: Record<string, string> = {
   discharge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 };
 
+type StoryStageKey = 'checkin' | 'admission' | 'orders' | 'ward' | 'discharge';
+
+const STORY_STAGES: { key: StoryStageKey; number: string; title: string; description: string }[] = [
+  { key: 'checkin', number: '01', title: 'Check-in & consultation', description: 'Registration, initial assessment, and consultation charges' },
+  { key: 'admission', number: '02', title: 'Clinical decision & admission', description: 'Treatment decision and movement to the ward' },
+  { key: 'orders', number: '03', title: 'Orders, pharmacy & laboratory', description: 'Clinical orders, fulfilment, and linked billing' },
+  { key: 'ward', number: '04', title: 'Ward stay & clinical notes', description: 'Observations, notes, and supporting evidence' },
+  { key: 'discharge', number: '05', title: 'Discharge & final settlement', description: 'Final ward charges, payment, and discharge outcome' },
+];
+
+function invoiceStoryStage(row: LedgerRow): StoryStageKey {
+  const invoiceText = [
+    row.title,
+    ...(Array.isArray(row.data?.items) ? row.data.items.map((item: any) => item.description ?? item.item_name ?? '') : []),
+  ].join(' ').toLowerCase();
+
+  if (/(registration|consultation)/.test(invoiceText)) return 'checkin';
+  if (/(bed charge|bed day|ward|admission fee|room charge)/.test(invoiceText)) return 'discharge';
+  return 'orders';
+}
+
+function storyStageForRow(row: LedgerRow, invoiceStages: Map<string, StoryStageKey>): StoryStageKey {
+  if (row.kind === 'invoice') return invoiceStoryStage(row);
+  if (row.kind === 'payment') return invoiceStages.get(String(row.data?.ref ?? '')) ?? 'orders';
+  if (row.kind === 'discharge' || row.subkind === 'discharge') return 'discharge';
+  if (row.kind === 'admission' || row.subkind === 'admission' || row.subkind === 'treatment') return 'admission';
+  if (['rx', 'lab_request', 'lab_result', 'dispense'].includes(String(row.subkind))) return 'orders';
+  if (row.subkind === 'vitals_first') return 'checkin';
+  return 'ward';
+}
+
+function narrativeSections(rows: LedgerRow[]) {
+  const invoiceStages = new Map<string, StoryStageKey>();
+  rows.forEach(row => {
+    if (row.kind === 'invoice') invoiceStages.set(String(row.data?.invoice_number ?? ''), invoiceStoryStage(row));
+  });
+
+  return STORY_STAGES.map(stage => ({
+    stage,
+    rows: rows
+      .filter(row => storyStageForRow(row, invoiceStages) === stage.key)
+      .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()),
+  })).filter(section => section.rows.length > 0);
+}
+
+function NarrativeLedgerRows({
+  rows, thumbs, onOpenImage, patient,
+}: {
+  rows: LedgerRow[];
+  thumbs: Record<string, string>;
+  onOpenImage: (url: string) => void;
+  patient: Patient;
+}) {
+  return (
+    <>
+      {narrativeSections(rows).map(({ stage, rows: stageRows }) => (
+        <div key={stage.key}>
+          <div className="px-4 py-2 border-b border-border bg-muted/30 flex items-center gap-2">
+            <span className="h-6 w-6 shrink-0 border border-border bg-background text-[10px] font-mono font-bold text-foreground flex items-center justify-center">
+              {stage.number}
+            </span>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-foreground">{stage.title}</div>
+              <div className="text-[10px] text-muted-foreground">{stage.description}</div>
+            </div>
+          </div>
+          {stageRows.map(row => (
+            <LedgerRowView
+              key={row.id} row={row} thumbs={thumbs}
+              onOpenImage={onOpenImage}
+              patient={patient}
+            />
+          ))}
+        </div>
+      ))}
+    </>
+  );
+}
+
 // ---------- component ----------
 export function PatientLedgerCard({
   patient,
@@ -600,13 +679,14 @@ export function PatientLedgerCard({
                           {stationFilter.size > 0 ? 'No matching events for the selected stations.' : 'No events recorded for this visit yet.'}
                         </div>
                       )}
-                      {filteredRows.map(row => (
-                        <LedgerRowView
-                          key={row.id} row={row} thumbs={thumbs}
+                      {filteredRows.length > 0 && (
+                        <NarrativeLedgerRows
+                          rows={filteredRows}
+                          thumbs={thumbs}
                           onOpenImage={setLightbox}
                           patient={patient}
                         />
-                      ))}
+                      )}
                     </div>
                   )}
                 </div>

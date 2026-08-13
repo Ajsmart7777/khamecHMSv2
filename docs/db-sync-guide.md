@@ -1,31 +1,50 @@
 # Database Synchronization Guide
 
-Your local migration history is out of sync with your remote Supabase project. The error in your terminal shows that your remote database has a version (`20260810000000`) that is missing locally.
+`supabase db pull` fails when the remote migration history table lists versions
+that don't exist as files in `supabase/migrations/`.
 
-Follow these steps in your terminal to fix it:
+## Current fix (versions reported by the CLI)
 
-### 1. Revert the "Ghost" Migration
-Run this command to tell your remote database to forget that specific version:
+Run these in your project folder (note: the command is `supabase`, not `supabase` misspelled):
 
 ```bash
-supabase migration repair --status reverted 20260810000000
+supabase migration repair --status reverted 20260813150000
+supabase migration repair --status reverted 20260813150100
+supabase db pull
 ```
 
-### 2. Push Your Changes
-Now, push your current local state to the remote database:
+Use `--status reverted` (not `applied`) because you do **not** have those files
+locally — that clears the ghost entries from the remote history table.
+
+If you *do* want to keep them recorded as already applied (because the SQL truly
+ran on the remote database and you don't need the files), use the CLI's own
+suggestion instead:
+
+```bash
+supabase migration repair --status applied 20260813150000
+supabase migration repair --status applied 20260813150100
+supabase db pull
+```
+
+## Then push your local changes
 
 ```bash
 supabase db push
 ```
 
-### 3. Pull to Confirm
-Ensure your local folder matches the remote state:
+## If new ghost versions appear later
+
+Repeat the same steps with whatever versions the error prints:
 
 ```bash
+supabase migration list                       # compare local vs remote
+supabase migration repair --status reverted <version>
 supabase db pull
 ```
 
 ---
 
-**Why this happened:** 
-Your terminal error "glob supabase/migrations/20260810000000_*.sql: file does not exist" means the system was trying to verify a file you don't have. Using `--status reverted` instead of `applied` tells the database to clear that entry from its history since the file isn't there.
+**Why this happens:** migrations applied through the Lovable Cloud backend are
+recorded in the remote `supabase_migrations.schema_migrations` table, but the
+generated SQL files are not in your local git checkout. Repairing tells the
+remote history to forget (or accept) those entries so local and remote agree.

@@ -1,6 +1,11 @@
-import { Search, User, Calendar, Menu } from 'lucide-react';
+import { Search, User, Calendar, Menu, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger 
+} from '@/components/ui/tooltip';
 
 import { NotificationPanel } from '@/components/layout/NotificationPanel';
 import { useAuth } from '@/contexts/AuthContext';
@@ -44,6 +49,19 @@ export function TopBar({ title, subtitle, onMenuClick, showMenuButton }: TopBarP
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          {/* App Version */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded bg-muted/30 border border-border text-[10px] text-muted-foreground font-mono cursor-help">
+                <Info className="h-3 w-3" />
+                <span>v{import.meta.env.VITE_APP_VERSION}.{import.meta.env.VITE_APP_COMMIT_HASH}</span>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Khadija Medical Center HMS</p>
+              <p className="text-[10px] text-muted-foreground">Build: {import.meta.env.VITE_APP_COMMIT_HASH}</p>
+            </TooltipContent>
+          </Tooltip>
 
 
           {/* Date */}

@@ -261,7 +261,11 @@ function buildRows(input: ArchiveLedgerPdfInput): Map<string, ArchiveRow[]> {
 
   (input.admissions ?? []).forEach((admission) => {
     const visitId = admission.visit_id ?? input.visits[0]?.id;
-    const place = [admission.wards?.name ?? admission.ward_name ?? 'Ward', admission.beds?.bed_number ? `Bed ${admission.beds.bed_number}` : admission.bed_number].filter(Boolean).join(' · ');
+    const room = admission.beds?.rooms;
+    const wardName = room?.wards?.name ?? admission.ward_name ?? 'Ward';
+    const roomNumber = room?.room_number ? `Room ${room.room_number}` : null;
+    const bedLabel = admission.beds?.bed_label ?? admission.beds?.bed_number ?? admission.bed_number;
+    const place = [wardName, roomNumber, bedLabel ? `Bed ${bedLabel}` : null].filter(Boolean).join(' · ');
     push(visitId, {
       id: `admission-${admission.id}`,
       visitId: visitId ?? '',

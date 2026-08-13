@@ -168,7 +168,7 @@ async function fetchArchivePatientData(patientId: string) {
     supabase.from('visit_attachments').select('*').eq('patient_id', patientId).order('created_at', { ascending: true }),
     supabase.from('snap_orders').select('*').eq('patient_id', patientId).order('created_at', { ascending: true }),
     supabase.from('invoices').select('*, invoice_items(*)').eq('patient_id', patientId).order('created_at', { ascending: true }),
-    supabase.from('admissions').select('*, wards(name), beds(bed_number), rooms(room_number)').eq('patient_id', patientId).order('created_at', { ascending: true }),
+    supabase.from('admissions').select('*, beds(bed_label, rooms(room_number, wards(name)))').eq('patient_id', patientId).order('created_at', { ascending: true }),
   ]);
 
   const error = [patientResult.error, visitsResult.error, vitalsResult.error, attachmentsResult.error, snapsResult.error, invoicesResult.error, admissionsResult.error].find(Boolean);

@@ -888,70 +888,57 @@ export function CashierPanel() {
             )}
 
             {selectedPatient?.account_type === 'staff_family' && (
-              <div className="flex flex-col gap-2 p-3 rounded-lg border border-warning/30 bg-warning/5">
-                <div className="flex items-start justify-between">
-                  <div className="pr-3">
-                    <Label className="text-sm font-bold flex items-center gap-1.5">
-                      <Banknote className="h-4 w-4 text-warning" />
-                      Sponsor Salary Deduction
-                    </Label>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      Staff Family members get a 50% hospital discount. The remaining 50% (₦{outstanding.toLocaleString()}) can be deducted from the sponsor's salary.
+              <div className={`p-3 rounded-lg border transition-all ${isSalaryDeduction ? 'bg-warning/5 border-warning/40' : 'bg-muted/30 border-border'}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <label className="flex items-center gap-2 cursor-pointer mb-1">
+                      <Checkbox
+                        checked={isSalaryDeduction}
+                        onCheckedChange={(v) => {
+                          setIsSalaryDeduction(!!v);
+                          if (v) {
+                            setSalaryDeductionAmount(String(outstanding));
+                            setCashAmount('0');
+                            setPosAmount('0');
+                            setTransferAmount('0');
+                            setUseBalance(false);
+                            setBalanceAmount('0');
+                          } else {
+                            setSalaryDeductionAmount('');
+                            setCashAmount(String(outstanding));
+                          }
+                        }}
+                        className="border-warning/50 data-[state=checked]:bg-warning data-[state=checked]:text-warning-foreground"
+                      />
+                      <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                        <Banknote className="h-4 w-4 text-warning" />
+                        Sponsor Salary Deduction
+                      </span>
+                    </label>
+                    <p className="text-[10px] text-muted-foreground ml-6 leading-tight">
+                      Staff Family members get a 50% discount. Deduct the remaining 50% from the sponsor's salary.
                     </p>
                   </div>
-                  <Checkbox
-                    checked={isSalaryDeduction}
-                    onCheckedChange={(v) => {
-                      setIsSalaryDeduction(!!v);
-                      if (v) {
-                        setSalaryDeductionAmount(String(outstanding));
-                        setCashAmount('0');
-                        setUseBalance(false);
-                        setBalanceAmount('0');
-                      } else {
-                        setSalaryDeductionAmount('');
-                        setCashAmount(String(outstanding));
-                      }
-                    }}
-                  />
-                </div>
-                {isSalaryDeduction && (
-                  <div className="pt-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                    <div className="flex justify-between items-center mb-1">
-                      <Label className="text-xs font-semibold">Amount to deduct (₦)</Label>
-                      <span className="text-[10px] text-muted-foreground">
+                  {isSalaryDeduction && (
+                    <div className="w-32 animate-in fade-in slide-in-from-right-1 duration-200">
+                      <p className="text-[10px] text-muted-foreground mb-1 uppercase font-semibold text-right">
                         Max: ₦{outstanding.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
+                      </p>
                       <Input
                         type="number"
-                        className="h-9"
                         value={salaryDeductionAmount}
                         onChange={(e) => {
                           const val = Number(e.target.value);
                           setSalaryDeductionAmount(e.target.value);
-                          // Auto-adjust cash if deduction changes to cover the full copay
                           if (val <= outstanding) {
                             setCashAmount(String(outstanding - val));
                           }
                         }}
-                        max={outstanding}
+                        className="h-9 border-warning/30 focus-visible:ring-warning"
                       />
-                      <Button 
-                        size="sm" 
-                        variant="outline" 
-                        className="h-9 text-[10px]"
-                        onClick={() => {
-                          setSalaryDeductionAmount(String(outstanding));
-                          setCashAmount('0');
-                        }}
-                      >
-                        Full
-                      </Button>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
 

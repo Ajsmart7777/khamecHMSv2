@@ -89,10 +89,11 @@ type ProgressState = {
   total: number;
 } | null;
 
-const rpc = supabase.rpc as unknown as (
+const rpc = (
   fn: string,
   args: Record<string, unknown>,
-) => Promise<{ data: any; error: { message?: string } | null }>;
+): Promise<{ data: any; error: { message?: string } | null }> =>
+  supabase.rpc(fn as never, args as never) as unknown as Promise<{ data: any; error: { message?: string } | null }>;
 
 function normaliseAttachments(value: ArchiveAttachment[] | string | null | undefined): ArchiveAttachment[] {
   if (Array.isArray(value)) return value.filter((entry) => entry?.path && entry?.bucket) as ArchiveAttachment[];

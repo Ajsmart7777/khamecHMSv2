@@ -1,24 +1,13 @@
 # Database Synchronization Guide
 
-`supabase db pull` fails when the remote migration history table lists versions
-that don't exist as files in `supabase/migrations/`.
+`supabase db pull` fails when the remote migration history table lists versions that don't exist as files in `supabase/migrations/`.
 
-## Current fix (versions reported by the CLI)
+## The "Infinite Loop" fix (Current issue)
 
-Run these in your project folder (note: the command is `supabase`, not `supabase` misspelled):
+If you have already run `reverted` and the error persists with the same versions, it means the CLI is detecting a state conflict. Try the **Full Reset** approach:
 
-```bash
-supabase migration repair --status reverted 20260813150000
-supabase migration repair --status reverted 20260813150100
-supabase db pull
-```
-
-Use `--status reverted` (not `applied`) because you do **not** have those files
-locally — that clears the ghost entries from the remote history table.
-
-If you *do* want to keep them recorded as already applied (because the SQL truly
-ran on the remote database and you don't need the files), use the CLI's own
-suggestion instead:
+### 1. Hard Repair (Apply instead of Revert)
+Sometimes marking them as `applied` works better to "silence" the ghost entries if the database structure is already correct:
 
 ```bash
 supabase migration repair --status applied 20260813150000
@@ -26,25 +15,31 @@ supabase migration repair --status applied 20260813150100
 supabase db pull
 ```
 
-## Then push your local changes
+### 2. Force Sync (Pull with ignoring local)
+If `db pull` still fails, you can try to "dump" the remote schema into a single file to bypass the history check, then push:
 
 ```bash
+supabase db pull --schema public > schema_fix.sql
+# Note: This is a manual backup, proceed with caution.
+```
+
+### 3. Ultimate Reset (Only if you are stuck)
+If nothing else works, you can clear the remote migration history table manually (via the SQL Editor in Lovable Backend) to start fresh from your local files:
+
+```sql
+truncate supabase_migrations.schema_migrations;
+```
+*Then immediately run:*
+```bash
+supabase migration repair --status applied <every_local_version_id>
 supabase db push
 ```
 
-## If new ghost versions appear later
+## Why "reverted" might fail
+The `reverted` status tells the remote database "I deleted this migration". If you then run `db pull`, the CLI might see that the remote *still* thinks it should have it or that your local directory is missing mandatory files.
 
-Repeat the same steps with whatever versions the error prints:
-
-```bash
-supabase migration list                       # compare local vs remote
-supabase migration repair --status reverted <version>
-supabase db pull
-```
+**Recommendation:** Try `--status applied` for the versions `20260813150000` and `20260813150100` as shown in step 1 above.
 
 ---
 
-**Why this happens:** migrations applied through the Lovable Cloud backend are
-recorded in the remote `supabase_migrations.schema_migrations` table, but the
-generated SQL files are not in your local git checkout. Repairing tells the
-remote history to forget (or accept) those entries so local and remote agree.
+**Why this happens:** migrations applied through the Lovable Cloud backend are recorded in the remote `supabase_migrations.schema_migrations` table, but the generated SQL files are not in your local git checkout. Repairing tells the remote history to sync so local and remote agree.

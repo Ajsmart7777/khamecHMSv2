@@ -8,14 +8,14 @@ The **Archive** tab enables an administrator to retain a complete local copy of 
 
 | Workflow stage | What the system does | What the administrator must do |
 |---|---|---|
-| Eligibility | Evaluates every selected patient against clinical, workflow, financial, and age-of-closure safeguards. | Select only patients shown as **Eligible**. Review the stated reason for every blocked patient; do not work around it. |
+| Eligibility | Evaluates every selected patient against clinical, workflow, and financial safeguards. | Select only patients shown as **Eligible**. Review the stated reason for every blocked patient; do not work around it. |
 | Preparation | Generates the ledger PDFs, downloads the original attachment files, calculates checksums, creates the ZIP, and records a pending archive index. | Enter a meaningful archive reference and save the downloaded ZIP. |
 | Verification | Keeps every live clinical record unchanged. | Open the ZIP on the approved storage device and check its contents before confirming. |
 | Clearance | Rechecks the case fingerprint and eligibility, removes detailed Supabase history, then removes R2 objects. | Confirm the exact archive reference and approve the final clearance dialog only after verification. |
 
 ## Standard Monthly Procedure
 
-An administrator should archive only closed cases that no longer require active clinical or financial work. From **Admin Panel → Archive**, select **Refresh eligibility**. The list contains discharged patient journeys and separates **Eligible** cases from **Blocked** cases. A blocked record remains untouched; its displayed reason identifies the workflow item that must be resolved first.
+An administrator may archive a discharged case immediately once it no longer requires active clinical or financial work; there is no fixed post-discharge waiting period. From **Admin Panel → Archive**, select **Refresh eligibility**. The list contains discharged patient journeys and separates **Eligible** cases from **Blocked** cases. A blocked record remains untouched; its displayed reason identifies the workflow item that must be resolved first.
 
 Create a traceable reference, such as `KMC-ARCHIVE-20260813-MONTHLY-01`, and enter it in the Archive reference field. Select one or more eligible patients, then choose **Prepare ZIP**. During this step, the application creates one approved ledger-card PDF per patient, places originals beneath `attachments/`, and adds JSON manifests containing row counts and SHA-256 file checksums. No patient record, invoice, clinical record, or R2 file is deleted during preparation.
 
@@ -34,12 +34,11 @@ Return to the same Archive tab, select the pending archive reference, then choos
 | Laboratory request or prescription is pending | The patient is blocked. |
 | Snap order awaits payment | The patient is blocked. |
 | Balance request, referral, standing order, or insurance claim is unresolved | The patient is blocked. |
-| Case has been closed for fewer than 24 hours | The patient is blocked. |
 | Case information changed after ZIP preparation | The system stops clearance and requires a new ZIP. |
 
 ## What Is Retained and What Is Cleared
 
-After a successful clearance, the hospital retains the patient demographic identity, MRN/card number, account links, the archive reference, archive timestamp, administrator identity, row-count index, attachment-path index, and archive status. The patient record is returned to the reusable `registered` state with no active visit and zero current balance.
+After a successful clearance, the hospital retains the patient demographic identity, MRN/card number, account links, the archive reference, archive timestamp, administrator identity, row-count index, attachment-path index, archive status, and the patient’s existing wallet/account balance. The patient record is returned to the reusable `registered` state with no active visit, while its balance remains exactly as it was at the verified clearance.
 
 The application removes the detailed, verified case history, including visits, admissions, patient journey records, invoices and invoice items, prescriptions and items, laboratory requests, vitals, snap orders, standing orders, referral letters, visit attachments, EMR attachments, eligibility snaps, related balance records, and case-level billing/claim records in dependency-safe order. Original R2 objects listed in the archive index are then removed.
 

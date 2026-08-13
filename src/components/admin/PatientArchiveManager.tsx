@@ -531,7 +531,7 @@ export function PatientArchiveManager() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-amber-950/85">
           <p><strong>Confidential records:</strong> the ZIP is not password-protected. Save it only to an approved encrypted hospital computer or external drive.</p>
-          <p>Only discharged cases that have remained closed for at least 24 hours, with no outstanding workflow, finance, laboratory, pharmacy, referral, or claim blockers can be prepared.</p>
+          <p>Any discharged case with no outstanding workflow, finance, laboratory, pharmacy, referral, or claim blocker can be prepared immediately.</p>
         </CardContent>
       </Card>
 

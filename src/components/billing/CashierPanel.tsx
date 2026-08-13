@@ -89,6 +89,8 @@ export function CashierPanel() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [selected, setSelected] = useState<Invoice | null>(null);
   const [cashAmount, setCashAmount] = useState('');
+  const [posAmount, setPosAmount] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
   const [method, setMethod] = useState<string>('cash');
   const [useBalance, setUseBalance] = useState(false);
   const [balanceAmount, setBalanceAmount] = useState('');
@@ -281,9 +283,11 @@ export function CashierPanel() {
   const fullCover = sponsored && split.copayAmount === 0;
 
   const cash = Math.max(Number(cashAmount) || 0, 0);
+  const pos = Math.max(Number(posAmount) || 0, 0);
+  const transfer = Math.max(Number(transferAmount) || 0, 0);
   const bal = useBalance ? Math.max(Number(balanceAmount) || 0, 0) : 0;
   const salDed = isSalaryDeduction ? Math.max(Number(salaryDeductionAmount) || 0, 0) : 0;
-  const applied = cash + bal + salDed;
+  const applied = cash + pos + transfer + bal + salDed;
   const shortfall = Math.max(outstanding - applied, 0);
   const overpay = Math.max(applied - outstanding, 0);
   const balExceedsAvail = bal > availableBalance;
@@ -300,6 +304,8 @@ export function CashierPanel() {
       : Number(inv.total_amount) - Number(inv.paid_amount);
     setCashAmount(String(out));
     setMethod('cash');
+    setPosAmount('');
+    setTransferAmount('');
     setUseBalance(false);
     setBalanceAmount('');
     setIsSalaryDeduction(false);
@@ -403,13 +409,13 @@ export function CashierPanel() {
       // server-side transaction — no partial states if any step fails.
       const paymentMethod = applied === 0
         ? 'credit'
-        : salDed > 0 && cash === 0 && bal === 0
+        : salDed > 0 && cash === 0 && pos === 0 && transfer === 0 && bal === 0
         ? 'salary_deduction'
         : sponsored
         ? 'sponsor_claim'
-        : bal > 0 && cash === 0
+        : bal > 0 && cash === 0 && pos === 0 && transfer === 0
         ? 'balance'
-        : method;
+        : 'split'; // Multi-mode payment
       const notes = salDed > 0
         ? `Salary deduction of ₦${salDed.toLocaleString()} recorded · ${sponsorLabel(selectedPatient)}`
         : sponsored
@@ -420,13 +426,15 @@ export function CashierPanel() {
               : `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`)
           : undefined;
       const debt = !sponsored && shortfall > 0 ? shortfall : 0;
+      const combinedCash = cash + pos + transfer;
+      
       const result = await settleInvoiceAtomic({
         invoiceId: selected.id,
-        cashAmount: cash,
+        cashAmount: combinedCash,
         balanceAmount: bal,
         debtAmount: debt,
         paymentMethod,
-        notes,
+        notes: (notes || '') + (applied > 0 ? ` (Breakdown: Cash: ${cash}, POS: ${pos}, Transfer: ${transfer})` : ''),
         sponsored,
         isSalaryDeduction: salDed > 0,
       });
@@ -450,6 +458,8 @@ export function CashierPanel() {
           : 'payment_recorded',
         sponsor: (sponsored || isSalaryDeduction) ? sponsorLabel(selectedPatient) : null,
         cash_amount: cash,
+        pos_amount: pos,
+        transfer_amount: transfer,
         balance_amount: bal,
         is_salary_deduction: salDed > 0,
         salary_deduction_amount: salDed,
@@ -468,9 +478,11 @@ export function CashierPanel() {
       }
 
       const parts: string[] = [];
-      if (cash > 0) parts.push(`₦${cash.toLocaleString()} ${method}`);
-      if (bal > 0) parts.push(`₦${bal.toLocaleString()} balance`);
-      if (salDed > 0) parts.push(`₦${salDed.toLocaleString()} salary deduction`);
+      if (cash > 0) parts.push(`₦${cash.toLocaleString()} Cash`);
+      if (pos > 0) parts.push(`₦${pos.toLocaleString()} POS`);
+      if (transfer > 0) parts.push(`₦${transfer.toLocaleString()} Transfer`);
+      if (bal > 0) parts.push(`₦${bal.toLocaleString()} Balance`);
+      if (salDed > 0) parts.push(`₦${salDed.toLocaleString()} Salary Deduction`);
       if (!sponsored && shortfall > 0) parts.push(`₦${shortfall.toLocaleString()} owed on balance`);
       if (!sponsored && overpay > 0) parts.push(`₦${overpay.toLocaleString()} credited to wallet`);
       if (sponsored) parts.push(`sponsor ₦${(invoiceTotal - split.copayAmount).toLocaleString()} → Claims`);
@@ -492,8 +504,8 @@ export function CashierPanel() {
       // Open printable receipt with a clean breakdown.
       setReceipt({
         patient: selectedPatient,
-        amount: cash + bal,
-        paymentMethod: applied === 0 ? 'credit' : (salDed > 0 && cash === 0 && bal === 0 ? 'salary_deduction' : (bal > 0 && cash === 0 ? 'balance' : method)),
+        amount: cash + pos + transfer + bal,
+        paymentMethod: applied === 0 ? 'credit' : paymentMethod,
         receiptNumber: selected.invoice_number,
         date: new Date(),
         newBalance: Number(patientBalance) - bal - (!sponsored && shortfall > 0 ? shortfall : 0),
@@ -510,6 +522,8 @@ export function CashierPanel() {
 
       setSelected(null);
       setCashAmount('');
+      setPosAmount('');
+      setTransferAmount('');
       setBalanceAmount('');
       setUseBalance(false);
       setSalaryDeductionAmount('');
@@ -826,30 +840,81 @@ export function CashierPanel() {
             )}
 
             {!fullCover && (
-              <div>
-                <Label>Cash / POS / Transfer received (₦)</Label>
-                <Input
-                  type="number"
-                  value={cashAmount}
-                  onChange={(e) => setCashAmount(e.target.value)}
-                  autoFocus
-                />
-              </div>
-            )}
-
-            {!fullCover && cash > 0 && (
-              <div>
-                <Label>Payment Method</Label>
-                <Select value={method} onValueChange={setMethod}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cash">Cash</SelectItem>
-                    <SelectItem value="pos">POS / Card</SelectItem>
-                    <SelectItem value="transfer">Bank Transfer</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-xs font-semibold flex items-center gap-1.5">
+                      <Banknote className="h-4 w-4 text-success" />
+                      Cash Amount (₦)
+                    </Label>
+                    <Input
+                      type="number"
+                      value={cashAmount}
+                      onChange={(e) => setCashAmount(e.target.value)}
+                      placeholder="0"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs font-semibold flex items-center gap-1.5">
+                      <Shield className="h-4 w-4 text-blue-500" />
+                      POS / Card Amount (₦)
+                    </Label>
+                    <Input
+                      type="number"
+                      value={posAmount}
+                      onChange={(e) => setPosAmount(e.target.value)}
+                      placeholder="0"
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-xs font-semibold flex items-center gap-1.5">
+                      <Send className="h-4 w-4 text-purple-500" />
+                      Transfer Amount (₦)
+                    </Label>
+                    <Input
+                      type="number"
+                      value={transferAmount}
+                      onChange={(e) => setTransferAmount(e.target.value)}
+                      placeholder="0"
+                      className="mt-1"
+                    />
+                  </div>
+                  {walletEligible && (
+                    <div className={`p-3 rounded-lg border ${useBalance ? 'bg-success/5 border-success/30' : 'bg-muted/30 border-border'}`}>
+                      <label className="flex items-center gap-2 cursor-pointer mb-2">
+                        <Checkbox
+                          checked={useBalance}
+                          onCheckedChange={(v) => setUseBalance(!!v)}
+                        />
+                        <PiggyBank className="h-4 w-4 text-success" />
+                        <span className="text-xs font-semibold">Use Wallet Balance</span>
+                      </label>
+                      {useBalance && (
+                        <div>
+                          <p className="text-[10px] text-muted-foreground mb-1">
+                            Available: ₦{availableBalance.toLocaleString()}
+                          </p>
+                          <Input
+                            type="number"
+                            value={balanceAmount}
+                            onChange={(e) => setBalanceAmount(e.target.value)}
+                            max={Math.min(availableBalance, outstanding)}
+                            className="h-8"
+                          />
+                          {balExceedsAvail && (
+                            <p className="text-[10px] text-destructive mt-1">
+                              Exceeds balance
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -942,8 +1007,20 @@ export function CashierPanel() {
               )}
               {cash > 0 && (
                 <div className="flex justify-between">
-                  <span className="capitalize text-muted-foreground">{method}</span>
+                  <span className="text-muted-foreground">Cash</span>
                   <span>− ₦{cash.toLocaleString()}</span>
+                </div>
+              )}
+              {pos > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">POS / Card</span>
+                  <span>− ₦{pos.toLocaleString()}</span>
+                </div>
+              )}
+              {transfer > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Bank Transfer</span>
+                  <span>− ₦{transfer.toLocaleString()}</span>
                 </div>
               )}
               <div className="flex justify-between pt-1 border-t border-border">

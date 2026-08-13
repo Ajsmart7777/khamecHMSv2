@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Printer, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { useInvoices } from '@/hooks/useInvoices';
 import { HOSPITAL, HOSPITAL_LOGO_URL } from '@/lib/hospital';
 
 
@@ -32,6 +33,7 @@ const label = (s?: string | null) =>
 export function DailySalesReport() {
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(today);
+  const { invoices } = useInvoices();
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -120,9 +122,19 @@ export function DailySalesReport() {
       else if (method === 'transfer') transferOnly += r.amount;
       else if (method === 'balance') walletDeductions += r.amount;
       else if (method === 'split') {
-        // For split payments, we'd ideally need the actual breakdown from audit logs or invoice notes,
-        // but as a fallback we attribute it to the 'split' bucket.
-        // If we want high precision, we could parse notes for "Cash: X, POS: Y, Transfer: Z"
+        // Multi-mode breakdown extraction
+        // We look for "Breakdown: Cash: X, POS: Y, Transfer: Z" in notes
+        const invoice = invoices.find(inv => inv.invoice_number === r.reference);
+        const notes = invoice?.notes || '';
+        const match = notes.match(/Breakdown: Cash: (\d+\.?\d*), POS: (\d+\.?\d*), Transfer: (\d+\.?\d*)/);
+        if (match) {
+          cashOnly += Number(match[1]);
+          posOnly += Number(match[2]);
+          transferOnly += Number(match[3]);
+        } else {
+          // Fallback to cash if breakdown is missing for some reason
+          cashOnly += r.amount;
+        }
       }
     }
     

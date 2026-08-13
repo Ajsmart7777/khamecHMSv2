@@ -86,9 +86,18 @@ export function useLabRequests(): UseLabRequestsReturn {
         }
       );
     
-    channel.subscribe();
+    const subscribe = async () => {
+      try {
+        await channel.subscribe();
+      } catch (err) {
+        logError('Lab request subscribe error', err);
+      }
+    };
+    
+    const timeout = setTimeout(subscribe, 100);
 
     return () => {
+      clearTimeout(timeout);
       supabase.removeChannel(channel);
     };
   }, [fetchLabRequests]);

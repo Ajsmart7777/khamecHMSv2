@@ -77,10 +77,19 @@ export function useEligibilityVerifications() {
       .channel('eligibility-verifications')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'eligibility_verifications' }, () => fetchAll());
     
-    ch.subscribe();
+    const subscribe = async () => {
+      try {
+        await ch.subscribe();
+      } catch (err) {
+        logError('Eligibility subscribe error', err);
+      }
+    };
+    
+    const timeout = setTimeout(subscribe, 100);
 
     return () => { 
       mounted = false; 
+      clearTimeout(timeout);
       supabase.removeChannel(ch); 
     };
   }, [fetchAll]);

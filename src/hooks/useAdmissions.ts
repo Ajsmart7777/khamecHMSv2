@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { isPermissionError, permissionErrorMessage } from '@/lib/permissionError';
+import { logError } from '@/lib/errorHandler';
 import { getCurrentRole, type AdmissionAction } from '@/lib/admissionPermissions';
 
 /** Surface a server-side rejection with the missing role permission spelled out. */
@@ -77,7 +78,20 @@ export function useAdmissions(filter: { statuses?: AdmissionStatus[]; patientId?
       .channel(`admissions-realtime-${channelId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'admissions' }, () => refresh());
     
-    ch.subscribe();
+    const subscribe = async () => {
+      try {
+        await ch.subscribe();
+      } catch (err) {
+        logError('Admissions subscribe error', err);
+      }
+    };
+    
+    const timeout = setTimeout(subscribe, 100);
+
+    return () => {
+      clearTimeout(timeout);
+      supabase.removeChannel(ch);
+    };
     return () => { supabase.removeChannel(ch); };
   }, [refresh, channelId]);
 

@@ -405,8 +405,12 @@ export function CashierPanel() {
     if (busy) return;
     setBusy(true);
     try {
-      // Wallet deduction, debt recording, and invoice close all run in a single
-      // server-side transaction — no partial states if any step fails.
+      const breakdown = [];
+      if (cash > 0) breakdown.push(`Cash: ${cash}`);
+      if (pos > 0) breakdown.push(`POS: ${pos}`);
+      if (transfer > 0) breakdown.push(`Transfer: ${transfer}`);
+      const breakdownStr = breakdown.length > 0 ? ` (Breakdown: ${breakdown.join(', ')})` : '';
+
       const paymentMethod = applied === 0
         ? 'credit'
         : salDed > 0 && cash === 0 && pos === 0 && transfer === 0 && bal === 0
@@ -416,6 +420,7 @@ export function CashierPanel() {
         : bal > 0 && cash === 0 && pos === 0 && transfer === 0
         ? 'balance'
         : 'split'; // Multi-mode payment
+
       const notes = salDed > 0
         ? `Salary deduction of ₦${salDed.toLocaleString()} recorded · ${sponsorLabel(selectedPatient)}`
         : sponsored
@@ -425,6 +430,7 @@ export function CashierPanel() {
               ? `Patient bought on credit (₦${shortfall.toLocaleString()} added to debt)`
               : `Short payment — ₦${shortfall.toLocaleString()} moved to patient debt`)
           : undefined;
+
       const debt = !sponsored && shortfall > 0 ? shortfall : 0;
       const combinedCash = cash + pos + transfer;
       
@@ -434,7 +440,7 @@ export function CashierPanel() {
         balanceAmount: bal,
         debtAmount: debt,
         paymentMethod,
-        notes: (notes || '') + (applied > 0 ? ` (Breakdown: Cash: ${cash}, POS: ${pos}, Transfer: ${transfer})` : ''),
+        notes: (notes || '') + (applied > 0 ? breakdownStr : ''),
         sponsored,
         isSalaryDeduction: salDed > 0,
       });

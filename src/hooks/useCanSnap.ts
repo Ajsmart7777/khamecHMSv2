@@ -55,7 +55,6 @@ export function useCanSnap(patientId: string | null | undefined) {
 
       const isAllowed = !!rpcRes || !!hasLabResult;
       
-      // If patient status is 'awaiting_billing' or 'admitted', we generally want to allow clinical roles
       const { data: p } = await supabase
         .from('patients')
         .select('status, assigned_doctor')
@@ -66,7 +65,9 @@ export function useCanSnap(patientId: string | null | undefined) {
       const roleLabel = role ?? 'unauthenticated';
       const isClinicalRole = ['nurse', 'doctor1', 'doctor2', 'doctor'].includes(roleLabel);
       
-      const finalAllowed = isAllowed || (isClinicalRole && (status === 'awaiting_billing' || status === 'admitted'));
+      // Clinical roles can always add snaps if status is awaiting_billing or admitted
+      // This allows adding additional items after the first one is sent to billing.
+      const finalAllowed = isAllowed || (isClinicalRole && (status === 'awaiting_billing' || status === 'admitted' || status === 'with_nurse' || status === 'with_doctor' || status === 'waiting'));
       
       setAllowed(finalAllowed);
       setDebugLog(logs);
@@ -82,7 +83,7 @@ export function useCanSnap(patientId: string | null | undefined) {
         const assigned = (p as any)?.assigned_doctor;
         const roleLabel = role ?? 'unauthenticated';
         
-        let msg = `Only the current owner (${labelForStatus(status)}) can add to this card. You are ${roleLabel}.`;
+        let msg = `Only the current owner can add to this card. You are ${roleLabel}.`;
         if (status === 'with_doctor' && assigned && assigned !== role) {
           msg = `This patient is assigned to ${assigned === 'doctor1' ? 'Doctor 1' : 'Doctor 2'}. You are logged in as ${roleLabel}.`;
         }

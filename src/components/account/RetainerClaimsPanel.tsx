@@ -309,7 +309,7 @@ export function RetainerClaimsPanel() {
   const downloadMonthlyReport = async (statement: StatementRow) => {
     setBusy(statement.id);
     try {
-      await downloadStatementPdf(statement);
+      await downloadStatementPdf(statement as any);
       toast({ title: 'Monthly report downloaded', description: statement.statement_number });
     } catch (error) {
       toast({ title: 'Monthly report failed', description: (error as Error).message, variant: 'destructive' });

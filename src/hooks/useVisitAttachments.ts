@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { uploadFile, getFileUrl, deleteFile } from '@/lib/storage';
 import { toast } from 'sonner';
 
@@ -115,8 +115,7 @@ export function useVisitAttachments(visitId?: string | null) {
 
   useEffect(() => {
     if (!visitId) return;
-    const ch = supabase
-      .channel(`visit-attachments-${visitId}`)
+    const ch = createRealtimeChannel(`visit-attachments-${visitId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'visit_attachments', filter: `visit_id=eq.${visitId}` },

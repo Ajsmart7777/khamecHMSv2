@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 import { toast } from 'sonner';
 import { createNotification } from '@/hooks/useNotifications';
@@ -58,8 +58,7 @@ export function useBalanceRequests() {
 
   useEffect(() => {
     fetchRequests();
-    const channel = supabase
-      .channel('balance-requests-realtime')
+    const channel = createRealtimeChannel('balance-requests-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'balance_requests' }, () => fetchRequests());
     
     // Subscribe in a separate step and handle cleanup

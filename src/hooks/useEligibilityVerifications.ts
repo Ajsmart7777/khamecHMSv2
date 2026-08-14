@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 import { uploadFile, getFileUrl } from '@/lib/storage';
 
@@ -73,8 +73,7 @@ export function useEligibilityVerifications() {
       if (mounted) setLoading(false);
     })();
 
-    const ch = supabase
-      .channel('eligibility-verifications')
+    const ch = createRealtimeChannel('eligibility-verifications')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'eligibility_verifications' }, () => fetchAll());
     
     const subscribe = async () => {

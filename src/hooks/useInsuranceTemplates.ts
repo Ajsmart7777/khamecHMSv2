@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 import { normaliseFields, type ProviderField } from '@/lib/providerFields';
 
@@ -67,8 +67,7 @@ export function useInsuranceTemplates() {
 
   useEffect(() => {
     load();
-    const channel = supabase
-      .channel('insurance-templates')
+    const channel = createRealtimeChannel('insurance-templates')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings', filter: `key=eq.${SETTINGS_KEY}` }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };

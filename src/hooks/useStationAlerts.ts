@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { useAuth, AppRole } from '@/contexts/AuthContext';
 import type { PatientStatus } from '@/types/hms';
 
@@ -188,8 +188,7 @@ export function useStationAlerts() {
     const statuses = roleIncomingStatus[role] ?? [];
     const stations = roleStation[role] ?? [];
 
-    const channel = supabase
-      .channel(`station-alerts-${role}`)
+    const channel = createRealtimeChannel(`station-alerts-${role}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications' }, (payload) => {
         const n: any = payload.new;
         if (role !== 'admin' && n.target_role && n.target_role !== role) return;

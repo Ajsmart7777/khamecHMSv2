@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { logError, logInfo } from '@/lib/errorHandler';
 import { labRequestAuditLogger } from '@/lib/auditLogger';
@@ -59,8 +59,7 @@ export function useLabRequests(): UseLabRequestsReturn {
     fetchLabRequests();
 
     // Set up real-time subscription
-    const channel = supabase
-      .channel('lab_requests_changes')
+    const channel = createRealtimeChannel('lab_requests_changes')
       .on(
         'postgres_changes',
         {

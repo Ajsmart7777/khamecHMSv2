@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Sparkles, Plus, RefreshCw, ClipboardCheck } from 'lucide-react';
@@ -62,8 +62,7 @@ export function SnapOcrPanel({
 
   useEffect(() => {
     load();
-    const ch = supabase
-      .channel(`snap-ocr-${snapId}`)
+    const ch = createRealtimeChannel(`snap-ocr-${snapId}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'snap_orders', filter: `id=eq.${snapId}` },

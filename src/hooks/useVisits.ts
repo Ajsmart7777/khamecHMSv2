@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export type VisitStatus = 'open' | 'settled' | 'cancelled';
@@ -95,8 +95,7 @@ export function useActiveVisit(patientId?: string | null) {
 
   useEffect(() => {
     if (!patientId) return;
-    const ch = supabase
-      .channel(`visits-${patientId}`)
+    const ch = createRealtimeChannel(`visits-${patientId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'visits', filter: `patient_id=eq.${patientId}` },
@@ -141,8 +140,7 @@ export function usePatientVisits(patientId?: string | null) {
 
   useEffect(() => {
     if (!patientId) return;
-    const ch = supabase
-      .channel(`patient-visits-${patientId}`)
+    const ch = createRealtimeChannel(`patient-visits-${patientId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'visits', filter: `patient_id=eq.${patientId}` },

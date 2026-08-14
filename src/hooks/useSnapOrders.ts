@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { getFileUrl } from '@/lib/storage';
 import { toast } from 'sonner';
 
@@ -112,8 +112,7 @@ export function useSnapOrders(filter: {
   useEffect(() => { refresh(); }, [refresh]);
 
   useEffect(() => {
-    const ch = supabase
-      .channel(`snap-orders-${filter.station ?? 'all'}`)
+    const ch = createRealtimeChannel(`snap-orders-${filter.station ?? 'all'}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders' }, () => refresh())
       .subscribe();
     return () => { supabase.removeChannel(ch); };

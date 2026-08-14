@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 
 export interface InvoiceItem {
@@ -76,8 +76,7 @@ export function useInvoices() {
   useEffect(() => {
     fetchInvoices();
 
-    const channel = supabase
-      .channel('invoices-changes')
+    const channel = createRealtimeChannel('invoices-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => fetchInvoices())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_items' }, () => fetchInvoices());
     

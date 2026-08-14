@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { format, subDays, startOfDay, endOfDay } from 'date-fns';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,8 +76,7 @@ export function VitalsTrendPanel({ patientId }: { patientId: string }) {
       }
     })();
 
-    const channel = supabase
-      .channel(`vitals-${patientId}`)
+    const channel = createRealtimeChannel(`vitals-${patientId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'vitals', filter: `patient_id=eq.${patientId}` },

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PatientStatus, AccountType } from '@/types/hms';
 import { logError, logInfo } from '@/lib/errorHandler';
@@ -347,8 +347,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
   // Real-time subscription
   useEffect(() => {
     if (!realtimeUserId) return;
-    const channel = supabase
-      .channel(`patients-realtime-${realtimeUserId}`)
+    const channel = createRealtimeChannel(`patients-realtime-${realtimeUserId}`)
       .on(
         'postgres_changes',
         {

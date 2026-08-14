@@ -18,7 +18,7 @@ import {
 import { differenceInYears, format } from 'date-fns';
 import { Patient } from '@/contexts/PatientContext';
 import { ViewCardButton } from '@/components/visit/PatientCardDialog';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { hasWallet, sponsorLabel } from '@/lib/copay';
 import { PatientPhotoAvatar } from '@/components/patient/PatientPhotoAvatar';
 import { toast } from 'sonner';
@@ -41,7 +41,10 @@ type VisitRow = { id: string; visit_number: string; opened_at: string; status: s
 type AdmissionRow = {
   id: string;
   bed_id: string | null;
-  beds: { label: string | null; rooms: { name: string | null; wards: { name: string | null } | null } | null } | null;
+  beds: {
+    bed_label: string | null;
+    rooms: { room_number: string | null; wards: { name: string | null } | null } | null;
+  } | null;
 };
 
 export function UniversalPatientHeader({ patient }: { patient: Patient }) {
@@ -67,8 +70,7 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
 
   useEffect(() => {
     loadLatestVitals();
-    const ch = supabase
-      .channel(`uph-vitals-${patient.id}`)
+    const ch = createRealtimeChannel(`uph-vitals-${patient.id}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'vitals', filter: `patient_id=eq.${patient.id}` },
@@ -92,8 +94,7 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
       if (active) setNewLabResultsCount(data?.length || 0);
     };
     checkResults();
-    const ch = supabase
-      .channel(`header-results-${patient.id}`)
+    const ch = createRealtimeChannel(`header-results-${patient.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders', filter: `patient_id=eq.${patient.id}` }, checkResults)
       .subscribe();
     return () => { active = false; supabase.removeChannel(ch); };
@@ -102,7 +103,7 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const [{ data: v }, { data: a }] = await Promise.all([
+      const [{ data: v, error: visitError }, { data: a, error: admissionError }] = await Promise.all([
         supabase
           .from('visits')
           .select('id, visit_number, opened_at, status')
@@ -113,12 +114,14 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
           .maybeSingle(),
         supabase
           .from('admissions')
-          .select('id, bed_id, beds(label, rooms(name, wards(name)))')
+          .select('id, bed_id, beds(bed_label, rooms(room_number, wards(name)))')
           .eq('patient_id', patient.id)
           .eq('status', 'active')
           .maybeSingle(),
       ]);
       if (!alive) return;
+      if (visitError) console.error('Failed to load patient visit header data', visitError);
+      if (admissionError) console.error('Failed to load patient admission header data', admissionError);
       setVisit((v as any) ?? null);
       setAdmission((a as any) ?? null);
 
@@ -168,7 +171,7 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
   }, [balance]);
 
   const location = admission?.beds
-    ? [admission.beds.rooms?.wards?.name, admission.beds.rooms?.name, admission.beds.label]
+    ? [admission.beds.rooms?.wards?.name, admission.beds.rooms?.room_number, admission.beds.bed_label]
         .filter(Boolean)
         .join(' • ')
     : owner;

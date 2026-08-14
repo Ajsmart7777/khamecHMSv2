@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export type PricelistCategory =
@@ -41,8 +41,7 @@ export function usePricelist() {
   useEffect(() => { refresh(); }, [refresh]);
 
   useEffect(() => {
-    const ch = supabase
-      .channel('pricelist-changes')
+    const ch = createRealtimeChannel('pricelist-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'pricelist' }, () => refresh())
       .subscribe();
     return () => { supabase.removeChannel(ch); };

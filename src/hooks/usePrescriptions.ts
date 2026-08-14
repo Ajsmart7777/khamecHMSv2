@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 import { prescriptionAuditLogger } from '@/lib/auditLogger';
 
@@ -73,8 +73,7 @@ export function usePrescriptions() {
     fetchPrescriptions();
 
     // Set up real-time subscription
-    const channel = supabase
-      .channel('prescriptions-changes')
+    const channel = createRealtimeChannel('prescriptions-changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'prescriptions' },

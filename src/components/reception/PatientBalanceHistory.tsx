@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 import { Badge } from '@/components/ui/badge';
 import { ArrowDownCircle, ArrowUpCircle, History, Receipt } from 'lucide-react';
@@ -42,8 +42,7 @@ export function PatientBalanceHistory({ patientId }: Props) {
 
   useEffect(() => {
     fetchTxs();
-    const channel = supabase
-      .channel(`balance-tx-${patientId}`)
+    const channel = createRealtimeChannel(`balance-tx-${patientId}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'balance_transactions',
         filter: `patient_id=eq.${patientId}`,

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
 /**
@@ -99,8 +99,7 @@ export function useCanSnap(patientId: string | null | undefined) {
 
     check();
 
-    const channel = supabase
-      .channel(`snap-perms-${patientId}`)
+    const channel = createRealtimeChannel(`snap-perms-${patientId}`)
       .on(
         'postgres_changes',
         { 

@@ -43,3 +43,17 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
   }
 });
+
+let realtimeChannelSequence = 0;
+
+/**
+ * Create an isolated Realtime channel for one mounted screen instance.
+ *
+ * Supabase Realtime v2.112 reuses a channel when its topic matches an existing
+ * one. A second screen instance can then try to add its callback after the
+ * first instance has subscribed, which throws and can crash that screen.
+ */
+export function createRealtimeChannel(topic: string) {
+  realtimeChannelSequence += 1;
+  return supabase.channel(`${topic}-${realtimeChannelSequence}`);
+}

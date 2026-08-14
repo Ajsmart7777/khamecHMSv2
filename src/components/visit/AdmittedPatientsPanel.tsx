@@ -9,7 +9,7 @@ import { SnapToCard } from './SnapToCard';
 import { AdmissionSnapDialog } from './AdmissionSnapDialog';
 
 import { ConfirmDischargeDialog } from '@/components/nurse/ConfirmDischargeDialog';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 import { useWardsRoomsBeds } from '@/hooks/useWardsRooms';
@@ -66,8 +66,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
       setNewResults(counts);
     };
     load();
-    const ch = supabase
-      .channel(`admitted-lab-results-${Math.random().toString(36).slice(2)}`)
+    const ch = createRealtimeChannel(`admitted-lab-results-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders' }, () => load())
       .subscribe();
     return () => { active = false; supabase.removeChannel(ch); };

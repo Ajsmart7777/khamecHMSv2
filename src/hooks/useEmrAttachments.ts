@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { uploadFile, getFileUrl } from '@/lib/storage';
 import { toast } from 'sonner';
 
@@ -45,8 +45,7 @@ export function useEmrAttachments(patientId?: string) {
 
   useEffect(() => {
     if (!patientId) return;
-    const channel = supabase
-      .channel(`emr-attachments-${patientId}`)
+    const channel = createRealtimeChannel(`emr-attachments-${patientId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'emr_attachments', filter: `patient_id=eq.${patientId}` },

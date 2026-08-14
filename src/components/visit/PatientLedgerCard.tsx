@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { differenceInYears } from 'date-fns';
 import {
@@ -438,8 +438,7 @@ export function PatientLedgerCard({
     };
 
     const patientFilter = `patient_id=eq.${patient.id}`;
-    const ch = supabase
-      .channel(`ledger-${patient.id}`)
+    const ch = createRealtimeChannel(`ledger-${patient.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders', filter: patientFilter }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'visits', filter: patientFilter }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'admissions', filter: patientFilter }, bump)

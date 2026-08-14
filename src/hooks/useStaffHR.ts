@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 
 export interface StaffLeave {
@@ -65,8 +65,7 @@ export function useStaffHR() {
     };
     load();
 
-    const channel = supabase
-      .channel('staff-hr-changes')
+    const channel = createRealtimeChannel('staff-hr-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_leave' }, () => fetchLeaves())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'staff_attendance' }, () => fetchAttendance())
       .subscribe();

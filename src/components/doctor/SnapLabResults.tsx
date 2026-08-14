@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { FlaskConical, Image as ImageIcon, Archive, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { SnapOrder, snapPhotoUrl } from '@/hooks/useSnapOrders';
@@ -39,8 +39,7 @@ export function SnapLabResults({ patientId }: { patientId: string }) {
   useEffect(() => { setLoading(true); refresh(); }, [patientId]);
 
   useEffect(() => {
-    const ch = supabase
-      .channel(`snap-lab-results-${patientId}`)
+    const ch = createRealtimeChannel(`snap-lab-results-${patientId}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'snap_orders',
         filter: `patient_id=eq.${patientId}`,

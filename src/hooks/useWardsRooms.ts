@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export type WardGender = 'male' | 'female' | 'any';
@@ -63,8 +63,7 @@ export function useWardsRoomsBeds() {
   useEffect(() => { refresh(); }, [refresh]);
 
   useEffect(() => {
-    const ch = supabase
-      .channel('wards-rooms-beds')
+    const ch = createRealtimeChannel('wards-rooms-beds')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'wards' }, () => refresh())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => refresh())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'beds' }, () => refresh())

@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { PatientProvider } from "@/contexts/PatientContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
+import { AppErrorBoundary } from "@/components/system/AppErrorBoundary";
 
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { RoleHome } from "@/components/auth/RoleHome";
@@ -40,9 +41,10 @@ const App = () => (
         <SettingsProvider>
           <Toaster />
           <Sonner />
-          <BrowserRouter>
-            <PatientProvider>
-              <Routes>
+          <AppErrorBoundary>
+            <BrowserRouter>
+              <PatientProvider>
+                <Routes>
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/" element={
                   <ProtectedRoute>
@@ -129,10 +131,11 @@ const App = () => (
                     <Install />
                   </ProtectedRoute>
                 } />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </PatientProvider>
-          </BrowserRouter>
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </PatientProvider>
+            </BrowserRouter>
+          </AppErrorBoundary>
         </SettingsProvider>
       </AuthProvider>
     </TooltipProvider>

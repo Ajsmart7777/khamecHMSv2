@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { createLabRequestFromTyped } from '@/integrations/supabase/rpcs';
+import { openOrResumeVisit } from '@/hooks/useVisits';
 
 interface TypedLabRequestEditorProps {
   patientId: string;
@@ -35,9 +36,13 @@ export function TypedLabRequestEditor({
     submitLockRef.current = true;
     setLoading(true);
     try {
+      // The active-visit hook can still be loading when the nurse opens the
+      // typed editor. Resolve the visit here so both lab_requests and the
+      // linked snap_orders row land in the same Ledger Card visit section.
+      const effectiveVisitId = visitId ?? await openOrResumeVisit({ patientId });
       const id = await createLabRequestFromTyped({
         patientId,
-        visitId,
+        visitId: effectiveVisitId,
         diagnosis: diagnosis.trim() || undefined,
         tests: [text.trim()] // Store the whole block as one "test" item
       });

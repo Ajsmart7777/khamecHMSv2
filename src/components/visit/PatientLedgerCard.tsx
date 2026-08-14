@@ -259,6 +259,7 @@ export function PatientLedgerCard({
   compact?: boolean;
 }) {
   const [visits, setVisits] = useState<LedgerVisit[]>([]);
+  const [unassignedRows, setUnassignedRows] = useState<LedgerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -281,8 +282,14 @@ export function PatientLedgerCard({
 
     const vs = (visitList ?? []) as any[] as Visit[];
     const visitIds = vs.map(v => v.id);
+    // A typed order can be submitted while the active-visit hook is still loading.
+    // Keep patient-scoped clinical events visible by attaching an orphaned row to
+    // the current open visit (or the most recent visit) when one exists.
+    const fallbackVisitId = vs.find(v => v.status === 'open')?.id ?? vs[0]?.id ?? null;
+    const visitIdForLedger = (visitId: string | null | undefined) =>
+      visitId && visitIds.includes(visitId) ? visitId : fallbackVisitId;
 
-    const [vt, att, snaps, invs, adms] = await Promise.all([
+    const [vt, att, snaps, invs, adms, labReqs] = await Promise.all([
       visitIds.length
         ? supabase.from('vitals').select('*').in('visit_id', visitIds)
         : Promise.resolve({ data: [] as any[] }),
@@ -295,6 +302,9 @@ export function PatientLedgerCard({
         : Promise.resolve({ data: [] as any[] }),
       supabase.from('admissions').select('*, wards(name), beds(bed_number), rooms(room_number)')
         .eq('patient_id', patient.id),
+      // Keep the source lab request in the ledger as a fallback for typed orders
+      // and for legacy workflows that materialise lab_requests separately.
+      supabase.from('lab_requests').select('*').eq('patient_id', patient.id),
     ]);
 
     const byVisit = new Map<string, LedgerRow[]>();
@@ -326,10 +336,18 @@ export function PatientLedgerCard({
       subkind: 'card_photo',
     }));
 
+    const linkedLabRequestIds = new Set(
+      (snaps.data ?? [])
+        .map((s: any) => String(s.ocr_text ?? ''))
+        .filter((text: string) => text.startsWith('LINKED_LAB_REQUEST:'))
+        .map((text: string) => text.slice('LINKED_LAB_REQUEST:'.length)),
+    );
+
     (snaps.data ?? []).forEach((s: any) => {
       const sub = classifySnap(s);
-      push(s.visit_id, {
-        id: `snap-${s.id}`, visitId: s.visit_id, at: s.created_at, kind: 'snap',
+      const ledgerVisitId = visitIdForLedger(s.visit_id);
+      push(ledgerVisitId, {
+        id: `snap-${s.id}`, visitId: ledgerVisitId ?? '', at: s.created_at, kind: 'snap',
         station: s.source_role ?? 'doctor',
         title: SNAP_LABEL[sub] ?? (s.order_type ?? 'Snap'),
         data: s,
@@ -337,12 +355,48 @@ export function PatientLedgerCard({
       });
       // Emit a "dispense" event separately when the pharmacy has fulfilled it
       if (sub !== 'dispense' && s.status === 'fulfilled' && s.order_type === 'prescription') {
-        push(s.visit_id, {
-          id: `disp-${s.id}`, visitId: s.visit_id,
+        push(ledgerVisitId, {
+          id: `disp-${s.id}`, visitId: ledgerVisitId ?? '',
           at: s.updated_at ?? s.created_at, kind: 'snap',
           station: 'pharmacy', title: 'Dispensed', data: s, subkind: 'dispense',
         });
       }
+    });
+
+    // Typed lab requests are written to both lab_requests and snap_orders in one
+    // transaction. The snap row is the primary visual event, while this fallback
+    // keeps the order visible if the link is absent or a legacy row has no snap.
+    (labReqs.data ?? []).forEach((lab: any) => {
+      if (linkedLabRequestIds.has(String(lab.id))) return;
+      const ledgerVisitId = visitIdForLedger(lab.visit_id);
+      const tests = Array.isArray(lab.tests) ? lab.tests.filter(Boolean) : [];
+      const note = [
+        lab.diagnosis ? `Diagnosis: ${lab.diagnosis}` : '',
+        tests.length ? tests.join(', ') : '',
+      ].filter(Boolean).join(' · ');
+      push(ledgerVisitId, {
+        id: `lab-${lab.id}`,
+        visitId: ledgerVisitId ?? '',
+        at: lab.requested_at ?? lab.created_at,
+        kind: 'snap',
+        station: 'nurse',
+        title: 'Lab Request',
+        data: {
+          id: lab.id,
+          patient_id: lab.patient_id,
+          visit_id: ledgerVisitId,
+          order_type: 'lab',
+          target_station: 'lab',
+          source_role: 'nurse',
+          photo_path: null,
+          note,
+          ocr_text: `LINKED_LAB_REQUEST:${lab.id}`,
+          intent: 'typed_order',
+          status: lab.status === 'completed' ? 'fulfilled' : 'pending_billing',
+          matched_items: [],
+        },
+        subkind: 'lab_request',
+      });
     });
 
     (invs.data ?? []).forEach((i: any) => {
@@ -421,6 +475,10 @@ export function PatientLedgerCard({
       return { visit: v, rows };
     });
 
+    const orphaned = (byVisit.get('__none__') ?? []).sort(
+      (a, b) => new Date(a.at).getTime() - new Date(b.at).getTime(),
+    );
+    setUnassignedRows(orphaned);
     setVisits(built);
     setLoading(false);
   }, [patient.id]);
@@ -440,6 +498,7 @@ export function PatientLedgerCard({
     const patientFilter = `patient_id=eq.${patient.id}`;
     const ch = createRealtimeChannel(`ledger-${patient.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders', filter: patientFilter }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lab_requests', filter: patientFilter }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'visits', filter: patientFilter }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'admissions', filter: patientFilter }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices', filter: patientFilter }, bump)
@@ -589,13 +648,38 @@ export function PatientLedgerCard({
           <div className="flex items-center justify-center py-12 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading card…
           </div>
-        ) : visits.length === 0 ? (
+        ) : visits.length === 0 && unassignedRows.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground text-sm">
             No visits yet — the card will fill as the patient moves through the hospital.
           </div>
         ) : (
           <div>
             <LatestVitalsPanel visits={visits} />
+            {unassignedRows.length > 0 && (() => {
+              const filteredUnassigned = stationFilter.size === 0
+                ? unassignedRows
+                : unassignedRows.filter(row => stationFilter.has(row.station));
+              if (filteredUnassigned.length === 0) return null;
+              return (
+                <div className="border-b-2 border-border">
+                  <div className="bg-slate-900 text-white p-3 flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Clinical events</div>
+                      <div className="text-xs text-slate-100">Patient-level orders awaiting visit linkage</div>
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-300">{filteredUnassigned.length} event{filteredUnassigned.length === 1 ? '' : 's'}</span>
+                  </div>
+                  <div className="divide-y divide-border">
+                    <NarrativeLedgerRows
+                      rows={filteredUnassigned}
+                      thumbs={thumbs}
+                      onOpenImage={setLightbox}
+                      patient={patient}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
             <StationFilterBar
               visits={visits}
               selected={stationFilter}

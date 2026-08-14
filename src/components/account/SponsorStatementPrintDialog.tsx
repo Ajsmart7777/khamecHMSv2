@@ -58,11 +58,11 @@ export function SponsorStatementPrintDialog({ statement, open, onOpenChange, onP
       setLoading(true);
       void Promise.all([
         getItems(statement.id),
-        supabase
+        (supabase as any)
           .from('corporate_statement_manual_items')
           .select('manual:corporate_manual_service_rows(id,patient_name,service_description,service_date,amount,notes)')
           .eq('statement_id', statement.id),
-      ]).then(([statementItems, manualResponse]) => {
+      ]).then(([statementItems, manualResponse]: [any, any]) => {
         setItems(statementItems);
         const manual = (manualResponse.data || []).flatMap(row => {
           const item = row.manual as unknown as ManualStatementItem | null;

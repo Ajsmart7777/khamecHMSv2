@@ -41,7 +41,7 @@ export function useInvoices() {
   const fetchInvoices = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: invoiceData, error: invoiceError } = await supabase
+      const { data: invoiceData, error: invoiceError } = await (supabase as any)
         .from('invoices')
         .select('*')
         .order('created_at', { ascending: false });
@@ -51,7 +51,7 @@ export function useInvoices() {
         return;
       }
 
-      const { data: itemsData, error: itemsError } = await supabase
+      const { data: itemsData, error: itemsError } = await (supabase as any)
         .from('invoice_items')
         .select('*');
 
@@ -113,7 +113,7 @@ export function useInvoices() {
 
       // Auto-tag invoice with sponsor info from patient so corporate/retainer
       // claims surface immediately in the Accountant module.
-      const { data: patient } = await supabase
+      const { data: patient } = await (supabase as any)
         .from('patients')
         .select('account_type, corporate_id, insurance_provider, insurance_plan')
         .eq('id', patientId)
@@ -134,7 +134,7 @@ export function useInvoices() {
         sponsorType = acct;
       }
       
-      const { data: invoice, error: invoiceError } = await supabase
+      const { data: invoice, error: invoiceError } = await (supabase as any)
         .from('invoices')
         .insert({
           patient_id: patientId,
@@ -163,7 +163,7 @@ export function useInvoices() {
           category: item.category || 'general',
         }));
 
-        const { error: itemsError } = await supabase
+        const { error: itemsError } = await (supabase as any)
           .from('invoice_items')
           .insert(itemsToInsert);
 
@@ -194,7 +194,7 @@ export function useInvoices() {
       const newPaidAmount = invoice.paid_amount + amount;
       const newStatus = newPaidAmount >= invoice.total_amount ? 'paid' : 'partial';
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('invoices')
         .update({
           paid_amount: newPaidAmount,

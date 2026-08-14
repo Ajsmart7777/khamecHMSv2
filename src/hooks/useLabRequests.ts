@@ -109,7 +109,7 @@ export function useLabRequests(): UseLabRequestsReturn {
     updates: Record<string, unknown>
   ): Promise<boolean> => {
     try {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await (supabase as any)
         .from('lab_requests')
         .update(updates as never)
         .eq('id', id);

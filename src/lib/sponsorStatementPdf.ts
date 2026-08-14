@@ -47,7 +47,7 @@ async function fetchItems(statementId: string): Promise<SponsorStatementItem[]> 
 }
 
 async function fetchManualItems(statementId: string): Promise<CorporateManualStatementItem[]> {
-  const { data, error } = await supabase
+  const { data, error } = await (supabase as any)
     .from('corporate_statement_manual_items')
     .select('manual:corporate_manual_service_rows(id,patient_name,service_description,service_date,amount,notes)')
     .eq('statement_id', statementId);

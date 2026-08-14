@@ -127,7 +127,7 @@ export function AuditLogsViewer() {
       const headers = ['Timestamp', 'Action', 'Resource Type', 'Resource ID', 'Status', 'Error Message', 'User ID', 'IP Address'];
       const csvRows = [
         headers.join(','),
-        ...data.map(log => [
+        ...data.map((log: any) => [
           format(new Date(log.created_at), 'yyyy-MM-dd HH:mm:ss'),
           log.action,
           log.resource_type,

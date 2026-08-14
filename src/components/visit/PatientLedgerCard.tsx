@@ -279,7 +279,7 @@ export function PatientLedgerCard({
       .eq('patient_id', patient.id)
       .order('opened_at', { ascending: false });
 
-    const vs = (visitList ?? []) as Visit[];
+    const vs = (visitList ?? []) as any[] as Visit[];
     const visitIds = vs.map(v => v.id);
 
     const [vt, att, snaps, invs, adms] = await Promise.all([

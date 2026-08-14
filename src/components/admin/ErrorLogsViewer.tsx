@@ -125,7 +125,7 @@ export function ErrorLogsViewer() {
       const headers = ['Timestamp', 'Error Type', 'Message', 'URL', 'User ID', 'User Agent'];
       const csvRows = [
         headers.join(','),
-        ...data.map(log => [
+        ...data.map((log: any) => [
           format(new Date(log.created_at), 'yyyy-MM-dd HH:mm:ss'),
           log.error_type,
           (log.error_message || '').replace(/,/g, ';').replace(/"/g, "'"),

@@ -32,7 +32,7 @@ export function PatientBalanceHistory({ patientId }: Props) {
         .eq('patient_id', patientId)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      setTxs((data || []) as BalanceTx[]);
+      setTxs((data || []) as any[] as BalanceTx[]);
     } catch (err) {
       logError('fetchBalanceHistory', err);
     } finally {

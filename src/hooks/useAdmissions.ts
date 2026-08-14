@@ -57,7 +57,7 @@ export function useAdmissions(filter: { statuses?: AdmissionStatus[]; patientId?
     const { data, error } = await q;
     setLoading(false);
     if (error) { toast.error('Failed to load admissions'); return; }
-    setAdmissions((data ?? []) as Admission[]);
+    setAdmissions((data ?? []) as any[] as Admission[]);
   }, [filter.statuses?.join(','), filter.patientId]);
 
   useEffect(() => { refresh(); }, [refresh]);

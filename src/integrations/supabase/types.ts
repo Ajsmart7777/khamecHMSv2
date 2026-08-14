@@ -534,36 +534,45 @@ export type Database = {
           amount: number
           balance_after: number
           balance_before: number
+          bank_reference: string | null
           created_at: string
           id: string
           notes: string | null
+          payment_method: string | null
           performed_by: string | null
           related_statement_id: string | null
           sponsor_id: string
+          transaction_date: string
           transaction_type: string
         }
         Insert: {
           amount: number
           balance_after: number
           balance_before: number
+          bank_reference?: string | null
           created_at?: string
           id?: string
           notes?: string | null
+          payment_method?: string | null
           performed_by?: string | null
           related_statement_id?: string | null
           sponsor_id: string
+          transaction_date?: string
           transaction_type: string
         }
         Update: {
           amount?: number
           balance_after?: number
           balance_before?: number
+          bank_reference?: string | null
           created_at?: string
           id?: string
           notes?: string | null
+          payment_method?: string | null
           performed_by?: string | null
           related_statement_id?: string | null
           sponsor_id?: string
+          transaction_date?: string
           transaction_type?: string
         }
         Relationships: [
@@ -3406,6 +3415,17 @@ export type Database = {
             }
             Returns: Json
           }
+      settle_retainer_statement: {
+        Args: {
+          _amount_received: number
+          _bank_reference?: string
+          _notes?: string
+          _payment_date: string
+          _payment_method?: string
+          _statement_id: string
+        }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       simple_id: { Args: { _n: number; _prefix: string }; Returns: string }

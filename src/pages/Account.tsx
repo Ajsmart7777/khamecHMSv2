@@ -119,13 +119,13 @@ const Account = () => {
             <Building2 className="h-4 w-4" /> Retainer
           </TabsTrigger>
           <TabsTrigger value="sponsor-claims" className="flex items-center gap-1.5 text-xs sm:text-sm">
-            <ClipboardList className="h-4 w-4" /> Corporate Claims
+            <ClipboardList className="h-4 w-4" /> Corporate Month-End
           </TabsTrigger>
           <TabsTrigger value="retainer-claims" className="flex items-center gap-1.5 text-xs sm:text-sm">
-            <ClipboardList className="h-4 w-4" /> Retainer Claims
+            <ClipboardList className="h-4 w-4" /> Retainer Month-End
           </TabsTrigger>
           <TabsTrigger value="statements" className="flex items-center gap-1.5 text-xs sm:text-sm">
-            <FileText className="h-4 w-4" /> Monthly Statements
+            <FileText className="h-4 w-4" /> Issued Reports
           </TabsTrigger>
           <TabsTrigger value="pricelist" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <DollarSign className="h-4 w-4" /> Pricelist
@@ -210,23 +210,23 @@ const Account = () => {
         </TabsContent>
 
         <TabsContent value="sponsor-claims">
-          <TabHeader title="Corporate Claims" onRefresh={() => {}} />
+          <TabHeader title="Corporate Month-End Claims" onRefresh={() => {}} />
           <CorporateClaimsPanel />
         </TabsContent>
 
         <TabsContent value="retainer-claims">
-          <TabHeader title="Retainer Claims" onRefresh={() => {}} />
+          <TabHeader title="Retainer Month-End Claims" onRefresh={() => {}} />
           <RetainerClaimsPanel />
         </TabsContent>
 
         <TabsContent value="statements">
           <div className="space-y-8">
             <div>
-              <TabHeader title="Corporate Monthly Statements" onRefresh={() => {}} />
+              <TabHeader title="Corporate Issued Reports" onRefresh={() => {}} />
               <SponsorStatementsPanel accountType="corporate" />
             </div>
             <div>
-              <TabHeader title="Retainer Monthly Statements" onRefresh={() => {}} />
+              <TabHeader title="Retainer Issued Reports" onRefresh={() => {}} />
               <SponsorStatementsPanel accountType="retainer" />
             </div>
           </div>

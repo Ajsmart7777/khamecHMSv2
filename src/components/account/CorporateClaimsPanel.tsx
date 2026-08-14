@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useCorporateAccounts } from '@/hooks/useCorporateAccounts';
 import { useSponsorStatements } from '@/hooks/useSponsorStatements';
-import { downloadRetainerLetter, RetainerLetterPatientRow } from '@/lib/retainerLetterPdf';
+import { downloadStatementPdf } from '@/lib/sponsorStatementPdf';
 import {
   CorporateCoveringLetterData,
   CorporateCoveringLetterInvoiceLine,
@@ -393,45 +393,13 @@ export function CorporateClaimsPanel() {
     }
   };
 
-  const downloadLetter = async (sponsorId: string) => {
-    const corporate = accounts.find(account => account.id === sponsorId);
-    const statement = statementBySponsor[sponsorId];
-    if (!corporate) return;
-    setBusy(sponsorId);
+  const downloadMonthlyReport = async (statement: typeof statements[number]) => {
+    setBusy(statement.id);
     try {
-      const rows: RetainerLetterPatientRow[] = (patients[sponsorId] || []).map(patient => {
-        const patientInvoices = invoices[patient.id] || [];
-        return {
-          patient_id: patient.id,
-          patient_name: `${patient.first_name} ${patient.last_name || ''}`.trim(),
-          card_number: patient.card_number,
-          visits: (visitCounts[sponsorId] || {})[patient.id] || 0,
-          invoices: patientInvoices.map(invoice => ({ invoice_number: invoice.invoice_number, amount: invoice.total_amount, service_date: invoice.created_at })),
-          subtotal: patientInvoices.reduce((sum, invoice) => sum + invoice.total_amount, 0),
-        };
-      });
-      const previewTotal = rows.reduce((sum, row) => sum + row.subtotal, 0) + (manualRows[sponsorId] || []).reduce((sum, row) => sum + row.amount, 0);
-      const total = Number(statement?.total_amount ?? previewTotal);
-      const paid = statement ? paymentTotals[statement.id] || 0 : 0;
-      await downloadRetainerLetter({
-        statement_number: statement?.statement_number || `PREVIEW-${year}${String(month).padStart(2, '0')}`,
-        retainer: { company_name: corporate.company_name, phone: corporate.phone, address: corporate.address, contact_person: corporate.contact_person, email: corporate.email },
-        period_year: year,
-        period_month: month,
-        period_start: periodStart.toISOString(),
-        period_end: new Date(periodEnd.getTime() - 1).toISOString(),
-        total_amount: total,
-        deposit_applied: paid,
-        balance_outstanding: Math.max(total - paid, 0),
-        balance_after: 0,
-        patients: rows,
-        mode: Math.max(total - paid, 0) === 0 && total > 0 ? 'receipt' : 'demand',
-        sponsor_kind: 'corporate',
-        generated_at: new Date().toISOString(),
-      });
-      toast({ title: 'Single-month letter downloaded' });
+      await downloadStatementPdf(statement);
+      toast({ title: 'Monthly report downloaded', description: statement.statement_number });
     } catch (error) {
-      toast({ title: 'Letter failed', description: (error as Error).message, variant: 'destructive' });
+      toast({ title: 'Monthly report failed', description: (error as Error).message, variant: 'destructive' });
     } finally {
       setBusy(null);
     }
@@ -512,7 +480,7 @@ export function CorporateClaimsPanel() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Building2 className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Corporate Claims — monthly view</h3>
+          <h3 className="font-semibold">Corporate Month-End Claims</h3>
           <Badge variant="outline">{activeCorps.length} corporate(s)</Badge>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
@@ -531,7 +499,7 @@ export function CorporateClaimsPanel() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Add paper-based walk-in prescriptions and laboratory requests before generating the monthly statement. After the month is closed, record every payment received; the covering letter then reconciles current claims, arrears, partial payments, and any credit.
+        Follow one monthly sequence for every Corporate account: <b>1. Review registered services</b>, <b>2. Add walk-in paper slips</b>, <b>3. Prepare report</b>, <b>4. Close and issue report</b>, then <b>5. Record company payment</b>. Once issued, later services are counted in the next month. Use the covering letter only when unpaid months, partial payments, or credit need reconciliation.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -582,13 +550,13 @@ export function CorporateClaimsPanel() {
                 <AccordionContent className="px-4 pb-4 pt-0">
                   <div className="border-t pt-3 space-y-4">
                     <div className="flex flex-wrap gap-2">
-                      {!locked && <Button size="sm" variant="outline" onClick={() => void handleGenerate(corporate.id)} disabled={busy === corporate.id}><Wand2 className="h-3.5 w-3.5 mr-1" /> {statement ? 'Regenerate statement' : 'Generate statement'}</Button>}
-                      {!locked && <Button size="sm" variant="outline" onClick={() => openManualDialog(corporate.id)} disabled={busy === corporate.id}><Plus className="h-3.5 w-3.5 mr-1" /> Add walk-in service</Button>}
-                      <Button size="sm" variant="outline" onClick={() => void downloadLetter(corporate.id)} disabled={busy === corporate.id}><FileDown className="h-3.5 w-3.5 mr-1" /> Single-month letter</Button>
+                      {!locked && <Button size="sm" variant="outline" onClick={() => openManualDialog(corporate.id)} disabled={busy === corporate.id}><Plus className="h-3.5 w-3.5 mr-1" /> Add walk-in paper slip</Button>}
+                      {!locked && <Button size="sm" variant="outline" onClick={() => void handleGenerate(corporate.id)} disabled={busy === corporate.id}><Wand2 className="h-3.5 w-3.5 mr-1" /> {statement ? 'Refresh draft report' : 'Prepare monthly report'}</Button>}
+                      {statement && <Button size="sm" variant="outline" onClick={() => void downloadMonthlyReport(statement)} disabled={busy === statement.id}><FileDown className="h-3.5 w-3.5 mr-1" /> Download monthly report</Button>}
+                      {!locked && <Button size="sm" onClick={() => { setCloseDialog(corporate.id); setCloseNotes(''); }} disabled={busy === corporate.id}><Lock className="h-3.5 w-3.5 mr-1" /> Close & issue report</Button>}
+                      {statement && ['finalized', 'printed'].includes(statement.status) && <Button size="sm" variant="secondary" onClick={() => openPaymentDialog(statement.id)} disabled={busy === statement.id}><Landmark className="h-3.5 w-3.5 mr-1" /> Record payment</Button>}
                       {statement && <Button size="sm" variant="outline" onClick={() => void downloadCoveringLetter(corporate.id)} disabled={busy === corporate.id}><FileText className="h-3.5 w-3.5 mr-1" /> Covering letter</Button>}
-                      {!locked && <Button size="sm" onClick={() => { setCloseDialog(corporate.id); setCloseNotes(''); }} disabled={busy === corporate.id}><Lock className="h-3.5 w-3.5 mr-1" /> Close month & send invoice</Button>}
-                      {statement && ['finalized', 'printed', 'paid'].includes(statement.status) && <Button size="sm" variant="secondary" onClick={() => openPaymentDialog(statement.id)} disabled={busy === statement.id}><Landmark className="h-3.5 w-3.5 mr-1" /> Record payment</Button>}
-                      {statement && <span className={`text-xs flex items-center gap-1 ${balance > 0 ? 'text-warning' : 'text-success'}`}><CheckCircle2 className="h-3.5 w-3.5" /> {balance > 0 ? `Statement balance: ₦${money(balance)}` : isPaid ? 'Statement settled' : 'No balance due'}</span>}
+                      {statement && <span className={`text-xs flex items-center gap-1 ${balance > 0 ? 'text-warning' : 'text-success'}`}><CheckCircle2 className="h-3.5 w-3.5" /> {balance > 0 ? `Issued report balance: ₦${money(balance)}` : isPaid ? 'Report settled' : 'No balance due'}</span>}
                     </div>
 
                     <div className="border rounded overflow-x-auto">
@@ -621,7 +589,7 @@ export function CorporateClaimsPanel() {
       )}
 
       <Dialog open={!!closeDialog} onOpenChange={open => !open && setCloseDialog(null)}>
-        <DialogContent><DialogHeader><DialogTitle className="flex items-center gap-2"><Lock className="h-5 w-5 text-primary" /> Close {MONTHS[month - 1]} {year}</DialogTitle><DialogDescription>The system totals registered invoices and walk-in paper services, then locks the statement. Record payment evidence afterwards to settle the claim.</DialogDescription></DialogHeader><div className="space-y-2"><label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Notes (optional)</label><Textarea value={closeNotes} onChange={event => setCloseNotes(event.target.value)} placeholder="E.g. invoice sent by email on…" rows={2} /></div><DialogFooter><Button variant="outline" onClick={() => setCloseDialog(null)}>Cancel</Button><Button onClick={() => closeDialog && void doClose(closeDialog)} disabled={busy === closeDialog}>{busy === closeDialog && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}<ReceiptText className="h-4 w-4 mr-1.5" /> Confirm close</Button></DialogFooter></DialogContent>
+        <DialogContent><DialogHeader><DialogTitle className="flex items-center gap-2"><Lock className="h-5 w-5 text-primary" /> Close and issue {MONTHS[month - 1]} {year} report</DialogTitle><DialogDescription>The system totals registered services and walk-in paper slips, then locks and issues the monthly report. Record actual company payments afterwards; partial payments and overpayments remain visible for reconciliation.</DialogDescription></DialogHeader><div className="space-y-2"><label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Notes (optional)</label><Textarea value={closeNotes} onChange={event => setCloseNotes(event.target.value)} placeholder="E.g. monthly report sent by email on…" rows={2} /></div><DialogFooter><Button variant="outline" onClick={() => setCloseDialog(null)}>Cancel</Button><Button onClick={() => closeDialog && void doClose(closeDialog)} disabled={busy === closeDialog}>{busy === closeDialog && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}<ReceiptText className="h-4 w-4 mr-1.5" /> Close and issue report</Button></DialogFooter></DialogContent>
       </Dialog>
 
       <Dialog open={!!manualDialog} onOpenChange={open => !open && setManualDialog(null)}>

@@ -11,12 +11,12 @@ import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from '@/components/ui/accordion';
 import {
-  Building2, ChevronRight, FileDown, Loader2, Lock, RefreshCw, ReceiptText,
+  Building2, FileDown, Landmark, Loader2, Lock, RefreshCw, ReceiptText,
   Users, Wallet, Wand2, Phone, MapPin,
 } from 'lucide-react';
 import { useCorporateAccounts } from '@/hooks/useCorporateAccounts';
 import { useSponsorStatements } from '@/hooks/useSponsorStatements';
-import { downloadRetainerLetter, RetainerLetterPatientRow } from '@/lib/retainerLetterPdf';
+import { downloadStatementPdf } from '@/lib/sponsorStatementPdf';
 import {
   downloadCorporateCoveringLetter,
   CorporateCoveringLetterData,
@@ -62,7 +62,31 @@ interface RetainerCoveringTransaction {
   transaction_date: string;
   amount: number;
   transaction_type: string;
+  payment_method: string | null;
+  bank_reference: string | null;
   notes: string | null;
+}
+
+interface RetainerSettlementForm {
+  amount_received: string;
+  payment_date: string;
+  payment_method: string;
+  bank_reference: string;
+  notes: string;
+}
+
+function isoDateToday() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function emptySettlementForm(): RetainerSettlementForm {
+  return {
+    amount_received: '',
+    payment_date: isoDateToday(),
+    payment_method: 'bank_transfer',
+    bank_reference: '',
+    notes: '',
+  };
 }
 
 function money(v: number) {
@@ -90,6 +114,8 @@ export function RetainerClaimsPanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [closeDialog, setCloseDialog] = useState<string | null>(null);
   const [closeNotes, setCloseNotes] = useState('');
+  const [settlementDialog, setSettlementDialog] = useState<string | null>(null);
+  const [settlementForm, setSettlementForm] = useState<RetainerSettlementForm>(emptySettlementForm());
 
   const { accounts, refetch: refetchAccounts } = useCorporateAccounts('retainer');
   const { statements, fetchStatements } = useSponsorStatements('retainer');
@@ -236,6 +262,62 @@ export function RetainerClaimsPanel() {
     } finally { setBusy(null); }
   };
 
+  const openSettlementDialog = (statementId: string) => {
+    setSettlementDialog(statementId);
+    setSettlementForm(emptySettlementForm());
+  };
+
+  const settleStatement = async () => {
+    if (!settlementDialog) return;
+    const amountReceived = Number(settlementForm.amount_received || 0);
+    if (!settlementForm.payment_date || !Number.isFinite(amountReceived) || amountReceived < 0) {
+      toast({ title: 'Check the settlement details', description: 'Enter a payment date and a valid received amount. Use 0.00 when only applying an existing Retainer balance.', variant: 'destructive' });
+      return;
+    }
+
+    setBusy(settlementDialog);
+    try {
+      const { data, error } = await supabase.rpc('settle_retainer_statement', {
+        _statement_id: settlementDialog,
+        _amount_received: amountReceived,
+        _payment_date: settlementForm.payment_date,
+        _payment_method: settlementForm.payment_method,
+        _bank_reference: settlementForm.bank_reference.trim() || null,
+        _notes: settlementForm.notes.trim() || null,
+      });
+      if (error) throw error;
+      const result = data as { status?: string; applied?: number; outstanding?: number; credit?: number } | null;
+      const outstanding = Number(result?.outstanding || 0);
+      const credit = Number(result?.credit || 0);
+      toast({
+        title: result?.status === 'paid' ? 'Retainer claim settled' : 'Retainer funding recorded',
+        description: credit > 0
+          ? `₦${money(credit)} remains as available Retainer credit.`
+          : outstanding > 0
+            ? `₦${money(outstanding)} remains outstanding on this monthly claim.`
+            : `₦${money(Number(result?.applied || 0))} was applied to the claim.`,
+      });
+      setSettlementDialog(null);
+      await Promise.all([fetchStatements(), refetchAccounts(), load()]);
+    } catch (error) {
+      toast({ title: 'Could not settle Retainer claim', description: (error as Error).message, variant: 'destructive' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const downloadMonthlyReport = async (statement: StatementRow) => {
+    setBusy(statement.id);
+    try {
+      await downloadStatementPdf(statement);
+      toast({ title: 'Monthly report downloaded', description: statement.statement_number });
+    } catch (error) {
+      toast({ title: 'Monthly report failed', description: (error as Error).message, variant: 'destructive' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const downloadCoveringLetter = async (sponsorId: string) => {
     const retainer = accounts.find(account => account.id === sponsorId);
     const statement = statementBySponsor[sponsorId];
@@ -294,7 +376,7 @@ export function RetainerClaimsPanel() {
         payment_date: row.transaction_date,
         amount: Number(row.amount),
         payment_method: transactionLabels[row.transaction_type] || row.transaction_type.replaceAll('_', ' '),
-        bank_reference: row.notes,
+        bank_reference: row.bank_reference || null,
         notes: row.notes,
       }));
 
@@ -325,58 +407,12 @@ export function RetainerClaimsPanel() {
     }
   };
 
-  const downloadLetter = async (sponsorId: string) => {
-    const retainer = accounts.find(a => a.id === sponsorId);
-    const stmt = statementBySponsor[sponsorId];
-    if (!retainer) return;
-    setBusy(sponsorId);
-    try {
-      const pats = patients[sponsorId] || [];
-      const rows: RetainerLetterPatientRow[] = pats.map(p => {
-        const invs = invoices[p.id] || [];
-        const subtotal = invs.reduce((s, i) => s + i.total_amount, 0);
-        return {
-          patient_id: p.id,
-          patient_name: `${p.first_name} ${p.last_name || ''}`.trim(),
-          card_number: p.card_number,
-          visits: (visitCounts[sponsorId] || {})[p.id] || 0,
-          invoices: invs.map(i => ({
-            invoice_number: i.invoice_number, amount: i.total_amount,
-            service_date: i.created_at,
-          })),
-          subtotal,
-        };
-      });
-      const total = rows.reduce((s, r) => s + r.subtotal, 0);
-      const mode: 'receipt' | 'demand' = stmt?.status === 'paid' ? 'receipt' : 'demand';
-      const depositApplied = mode === 'receipt' ? total : Math.min(retainer.balance, total);
-      const outstanding = Math.max(0, total - depositApplied);
-      await downloadRetainerLetter({
-        statement_number: stmt?.statement_number || `PREVIEW-${year}${String(month).padStart(2,'0')}`,
-        retainer: {
-          company_name: retainer.company_name,
-          phone: retainer.phone,
-          address: retainer.address,
-          contact_person: retainer.contact_person,
-          email: retainer.email,
-        },
-        period_year: year,
-        period_month: month,
-        period_start: periodStart.toISOString(),
-        period_end: new Date(periodEnd.getTime() - 1).toISOString(),
-        total_amount: total,
-        deposit_applied: depositApplied,
-        balance_outstanding: outstanding,
-        balance_after: Math.max(0, retainer.balance - depositApplied),
-        patients: rows,
-        mode,
-        generated_at: new Date().toISOString(),
-      });
-      toast({ title: 'Letter downloaded' });
-    } catch (e) {
-      toast({ title: 'Letter failed', description: (e as Error).message, variant: 'destructive' });
-    } finally { setBusy(null); }
-  };
+  const settlementStatement = settlementDialog
+    ? statements.find(statement => statement.id === settlementDialog)
+    : null;
+  const settlementRetainer = settlementStatement
+    ? accounts.find(account => account.id === settlementStatement.sponsor_id)
+    : null;
 
   return (
     <div className="space-y-4">
@@ -384,7 +420,7 @@ export function RetainerClaimsPanel() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Building2 className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Retainer Claims — monthly view</h3>
+          <h3 className="font-semibold">Retainer Month-End Claims</h3>
           <Badge variant="outline">{activeRetainers.length} retainer(s)</Badge>
         </div>
         <div className="flex flex-wrap gap-2 items-center">
@@ -402,11 +438,9 @@ export function RetainerClaimsPanel() {
         </div>
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        All patients registered under a retainer appear here, even if they did not visit this month.
-        Select a month, then "Close month" to generate a receipt (if the deposit covers it) or a demand letter (if there is a balance).
-        After closing, new visits roll into the next month automatically.
-      </p>
+        <p className="text-xs text-muted-foreground">
+          Follow one monthly sequence for every Retainer: <b>1. Review services</b>, <b>2. Prepare report</b>, <b>3. Close and issue report</b>, then <b>4. Record company funding or apply available credit</b>. Once a month is closed, all later services are counted in the next month. Use the covering letter only when reconciling unpaid months or Retainer credit across periods.
+        </p>
 
       {/* Totals */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -415,11 +449,11 @@ export function RetainerClaimsPanel() {
           <p className="text-lg font-semibold mt-1">₦{money(overallTotals.billed)}</p>
         </div>
         <div className="rounded-lg border p-3 bg-card">
-          <p className="text-xs text-muted-foreground">Total deposits held</p>
+          <p className="text-xs text-muted-foreground">Available Retainer credit</p>
           <p className="text-lg font-semibold mt-1 text-success">₦{money(overallTotals.deposit)}</p>
         </div>
         <div className="rounded-lg border p-3 bg-warning/5 border-warning/30">
-          <p className="text-xs text-muted-foreground">Outstanding (finalized)</p>
+          <p className="text-xs text-muted-foreground">Unpaid selected-month claims</p>
           <p className="text-lg font-semibold mt-1 text-warning">₦{money(overallTotals.due)}</p>
         </div>
       </div>
@@ -467,7 +501,7 @@ export function RetainerClaimsPanel() {
                         <p className="text-sm font-semibold">{pats.length}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Deposit</p>
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Available credit</p>
                         <p className="text-sm font-semibold text-success">₦{money(r.balance)}</p>
                       </div>
                       <div className="text-right">
@@ -484,25 +518,32 @@ export function RetainerClaimsPanel() {
                     <div className="flex flex-wrap gap-2">
                       {!locked && (
                         <Button size="sm" variant="outline" onClick={() => handleGenerate(r.id)} disabled={busy === r.id}>
-                          <Wand2 className="h-3.5 w-3.5 mr-1" /> {stmt ? 'Regenerate statement' : 'Generate statement'}
+                          <Wand2 className="h-3.5 w-3.5 mr-1" /> {stmt ? 'Refresh draft report' : 'Prepare monthly report'}
                         </Button>
                       )}
-                      <Button size="sm" variant="outline" onClick={() => downloadLetter(r.id)} disabled={busy === r.id}>
-                        {busy === r.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
-                        {stmt?.status === 'paid' ? 'Download receipt letter' : 'Download demand letter'}
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => downloadCoveringLetter(r.id)} disabled={busy === r.id}>
-                        {busy === r.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
-                        Download covering letter
-                      </Button>
+                      {stmt && (
+                        <Button size="sm" variant="outline" onClick={() => void downloadMonthlyReport(stmt)} disabled={busy === stmt.id}>
+                          <FileDown className="h-3.5 w-3.5 mr-1" /> Download monthly report
+                        </Button>
+                      )}
+                      {stmt && (
+                        <Button size="sm" variant="outline" onClick={() => void downloadCoveringLetter(r.id)} disabled={busy === r.id}>
+                          <FileDown className="h-3.5 w-3.5 mr-1" /> Covering letter
+                        </Button>
+                      )}
                       {!locked && (
                         <Button size="sm" onClick={() => { setCloseDialog(r.id); setCloseNotes(''); }} disabled={busy === r.id}>
-                          <Lock className="h-3.5 w-3.5 mr-1" /> Close month & apply deposit
+                          <Lock className="h-3.5 w-3.5 mr-1" /> Close & issue report
+                        </Button>
+                      )}
+                      {stmt?.status === 'finalized' && (
+                        <Button size="sm" variant="secondary" onClick={() => openSettlementDialog(stmt.id)} disabled={busy === stmt.id}>
+                          <Landmark className="h-3.5 w-3.5 mr-1" /> Record funding / apply credit
                         </Button>
                       )}
                       {locked && (
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Lock className="h-3.5 w-3.5" /> Month locked · {stmt?.paid_at ? `paid on ${new Date(stmt.paid_at).toLocaleDateString()}` : stmt?.finalized_at ? `finalized on ${new Date(stmt.finalized_at).toLocaleDateString()}` : ''}
+                          <Lock className="h-3.5 w-3.5" /> {stmt?.status === 'paid' ? `Settled${stmt.paid_at ? ` on ${new Date(stmt.paid_at).toLocaleDateString()}` : ''}` : 'Issued — settlement still required'}
                         </span>
                       )}
                     </div>
@@ -564,12 +605,10 @@ export function RetainerClaimsPanel() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Lock className="h-5 w-5 text-primary" /> Close {MONTHS[month - 1]} {year}
+              <Lock className="h-5 w-5 text-primary" /> Close and issue {MONTHS[month - 1]} {year} report
             </DialogTitle>
             <DialogDescription>
-              The system will total this month, deduct from the retainer's deposit if sufficient,
-              and mark the statement as <b>paid</b> (if fully covered) or <b>finalized</b> (if a balance remains).
-              New visits will roll into the next month.
+              The system will lock this month’s services, issue the monthly report, and apply any Retainer credit already held. The report becomes <b>settled</b> if fully covered or <b>issued — settlement required</b> if a balance remains. New services are counted in the next month.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -585,7 +624,100 @@ export function RetainerClaimsPanel() {
             <Button variant="outline" onClick={() => setCloseDialog(null)}>Cancel</Button>
             <Button onClick={() => closeDialog && doClose(closeDialog)} disabled={busy === closeDialog}>
               {busy === closeDialog && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              <ReceiptText className="h-4 w-4 mr-1.5" /> Confirm close
+              <ReceiptText className="h-4 w-4 mr-1.5" /> Close and issue report
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!settlementDialog} onOpenChange={open => !open && setSettlementDialog(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Landmark className="h-5 w-5 text-primary" /> Record Retainer funding / apply credit
+            </DialogTitle>
+            <DialogDescription>
+              Record what the company paid now, then the system applies available Retainer credit to this issued report. Enter <b>0.00</b> when no new money arrived and you only want to apply credit already held.
+            </DialogDescription>
+          </DialogHeader>
+
+          {settlementStatement && (
+            <div className="rounded-md border bg-muted/30 p-3 grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Issued report</p>
+                <p className="font-medium">{settlementStatement.statement_number}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Report total</p>
+                <p className="font-medium">₦{money(settlementStatement.total_amount)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Available credit before settlement</p>
+                <p className="font-medium text-success">₦{money(settlementRetainer?.balance || 0)}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Selected period</p>
+                <p className="font-medium">{MONTHS[settlementStatement.period_month - 1]} {settlementStatement.period_year}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Amount received now (₦)</label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={settlementForm.amount_received}
+                onChange={event => setSettlementForm(current => ({ ...current, amount_received: event.target.value }))}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Payment date</label>
+              <Input
+                type="date"
+                value={settlementForm.payment_date}
+                onChange={event => setSettlementForm(current => ({ ...current, payment_date: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Payment method</label>
+              <Select value={settlementForm.payment_method} onValueChange={value => setSettlementForm(current => ({ ...current, payment_method: value }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bank_transfer">Bank transfer</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="cheque">Cheque</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Bank reference (optional)</label>
+              <Input
+                value={settlementForm.bank_reference}
+                onChange={event => setSettlementForm(current => ({ ...current, bank_reference: event.target.value }))}
+                placeholder="Transfer / receipt reference"
+              />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Notes (optional)</label>
+            <Textarea
+              value={settlementForm.notes}
+              onChange={event => setSettlementForm(current => ({ ...current, notes: event.target.value }))}
+              placeholder="Any company payment or settlement note..."
+              rows={2}
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettlementDialog(null)}>Cancel</Button>
+            <Button onClick={() => void settleStatement()} disabled={busy === settlementDialog}>
+              {busy === settlementDialog && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              <Landmark className="h-4 w-4 mr-1.5" /> Record and apply
             </Button>
           </DialogFooter>
         </DialogContent>

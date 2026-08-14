@@ -90,7 +90,9 @@ export function useEligibilityVerifications() {
     return () => { 
       mounted = false; 
       clearTimeout(timeout);
-      supabase.removeChannel(ch); 
+      if (ch) {
+        supabase.removeChannel(ch); 
+      }
     };
   }, [fetchAll]);
 

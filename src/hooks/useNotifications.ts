@@ -122,11 +122,9 @@ export function useNotifications() {
 
     return () => {
       clearTimeout(timeout);
-      supabase.removeChannel(channel);
-    };
-
-    return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [user, role]);
 

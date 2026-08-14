@@ -93,10 +93,10 @@ export function useInvoices() {
 
     return () => {
       clearTimeout(timeout);
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
-
-    return () => { supabase.removeChannel(channel); };
   }, [fetchInvoices]);
 
   const [isCreating, setIsCreating] = useState(false);

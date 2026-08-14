@@ -98,7 +98,9 @@ export function useLabRequests(): UseLabRequestsReturn {
 
     return () => {
       clearTimeout(timeout);
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [fetchLabRequests]);
 

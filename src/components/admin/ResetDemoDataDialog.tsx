@@ -44,10 +44,23 @@ const MODULES: {
   { key: 'snaps', label: 'Snap orders', description: 'Delete snap photos and OCR data.' },
   { key: 'admissions', label: 'Admissions', description: 'Delete admissions and reset all beds to available.' },
   { key: 'visits', label: 'Visits & clinical data', description: 'Delete visits, vitals, journey and attachments.' },
-  { key: 'patients', label: 'Patients', description: 'Delete all patient records. Requires clearing dependents.' },
+  {
+    key: 'patients',
+    label: 'Patients',
+    description:
+      'Delete all registered patients after linked clinical modules are selected. Archive register entries are retained without a patient link.',
+  },
 ];
 
 const CONFIRM_PHRASE = 'RESET';
+const PATIENT_DEPENDENCY_MODULES: ModuleKey[] = [
+  'lab',
+  'prescriptions',
+  'billing',
+  'snaps',
+  'admissions',
+  'visits',
+];
 
 interface Props {
   open: boolean;
@@ -72,8 +85,16 @@ export function ResetDemoDataDialog({ open, onOpenChange }: Props) {
     setConfirmText('');
   };
 
+  const missingPatientDependencies = PATIENT_DEPENDENCY_MODULES.filter(
+    (module) => !selected.has(module),
+  );
+  const patientPurgeIsSafe =
+    !selected.has('patients') || missingPatientDependencies.length === 0;
   const canSubmit =
-    selected.size > 0 && confirmText.trim().toUpperCase() === CONFIRM_PHRASE && !busy;
+    selected.size > 0 &&
+    confirmText.trim().toUpperCase() === CONFIRM_PHRASE &&
+    patientPurgeIsSafe &&
+    !busy;
 
   const runReset = async () => {
     setBusy(true);
@@ -146,10 +167,12 @@ export function ResetDemoDataDialog({ open, onOpenChange }: Props) {
           ))}
         </div>
 
-        {selected.has('patients') && !selected.has('visits') && (
+        {selected.has('patients') && !patientPurgeIsSafe && (
           <p className="text-xs text-warning">
-            Tip: deleting patients requires clearing visits & related data first, or
-            it may fail due to foreign key constraints.
+            Select all patient-linked clinical modules before purging patients: {missingPatientDependencies
+              .map((module) => MODULES.find((item) => item.key === module)?.label)
+              .filter(Boolean)
+              .join(', ')}.
           </p>
         )}
 

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FlaskConical, Image as ImageIcon, Archive, Eye } from 'lucide-react';
+import { FlaskConical, Image as ImageIcon, FileText, Archive, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
@@ -50,7 +50,7 @@ export function SnapLabResults({ patientId }: { patientId: string }) {
 
   useEffect(() => {
     let active = true;
-    Promise.all(items.map(async (s) => [s.id, await snapPhotoUrl(s.photo_path)] as const))
+    Promise.all(items.filter((s) => s.photo_path).map(async (s) => [s.id, await snapPhotoUrl(s.photo_path)] as const))
       .then((pairs) => {
         if (!active) return;
         const next: Record<string, string> = {};
@@ -91,7 +91,7 @@ export function SnapLabResults({ patientId }: { patientId: string }) {
     <div className="rounded-xl border p-3 space-y-3">
       <div className="flex items-center gap-2">
         <FlaskConical className="h-4 w-4 text-module-laboratory" />
-        <h4 className="text-sm font-semibold">Result Photos from Lab</h4>
+        <h4 className="text-sm font-semibold">Results from Lab</h4>
         <Badge variant="outline" className="text-[10px]">{visible.length}</Badge>
         {archivedCount > 0 && (
           <Button
@@ -133,13 +133,21 @@ export function SnapLabResults({ patientId }: { patientId: string }) {
                   )}
                 </div>
               </div>
-              {urls[s.id] ? (
+              {s.result_text ? (
+                <div className="p-4 bg-module-laboratory/5 border-y border-module-laboratory/20">
+                  <div className="flex items-center gap-2 mb-2 text-module-laboratory">
+                    <FileText className="h-4 w-4" />
+                    <span className="text-xs font-semibold uppercase tracking-wide">Typed laboratory result</span>
+                  </div>
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{s.result_text}</p>
+                </div>
+              ) : urls[s.id] ? (
                 <a href={urls[s.id]} target="_blank" rel="noreferrer">
                   <img src={urls[s.id]} alt="Lab result" className="w-full max-h-[55vh] object-contain bg-muted" />
                 </a>
               ) : (
                 <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
-                  <ImageIcon className="h-4 w-4" /> Loading photo…
+                  <ImageIcon className="h-4 w-4" /> {s.photo_path ? 'Loading result photo…' : 'No result attachment'}
                 </div>
               )}
               {s.note && (

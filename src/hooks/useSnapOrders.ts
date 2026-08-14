@@ -27,6 +27,7 @@ export interface SnapOrder {
   source_role: string;
   photo_path: string;
   note: string | null;
+  result_text: string | null;
   ocr_text: string | null;
   ocr_confidence: number | null;
   matched_items: MatchedItem[];

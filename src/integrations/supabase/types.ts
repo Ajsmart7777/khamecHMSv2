@@ -1731,6 +1731,7 @@ export type Database = {
           is_admitted_snap: boolean
           matched_items: Json
           note: string | null
+          result_text: string | null
           ocr_confidence: number | null
           ocr_corrected_at: string | null
           ocr_corrected_by: string | null
@@ -1775,6 +1776,7 @@ export type Database = {
           is_admitted_snap?: boolean
           matched_items?: Json
           note?: string | null
+          result_text?: string | null
           ocr_confidence?: number | null
           ocr_corrected_at?: string | null
           ocr_corrected_by?: string | null
@@ -1819,6 +1821,7 @@ export type Database = {
           is_admitted_snap?: boolean
           matched_items?: Json
           note?: string | null
+          result_text?: string | null
           ocr_confidence?: number | null
           ocr_corrected_at?: string | null
           ocr_corrected_by?: string | null

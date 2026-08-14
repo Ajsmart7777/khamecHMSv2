@@ -1,5 +1,5 @@
 import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,7 @@ const NurseStation = () => {
   const { patients, loading, refreshPatients, updatePatientStatus, getPatientsByStatus } = usePatients();
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [admitOpen, setAdmitOpen] = useState(false);
+  const [locallyForwardedPatientIds, setLocallyForwardedPatientIds] = useState<Set<string>>(new Set());
   const canAct = useAdmissionPerms();
   
   // Filter patients that are waiting or with nurse
@@ -44,13 +45,33 @@ const NurseStation = () => {
   // (which can briefly emit multiple realtime events for the same patient)
   // never render the same card twice in the queue.
   const nurseQueue = useMemo(() => {
-    const allNursePatients = getPatientsByStatus(['waiting', 'with_nurse']);
+    const allNursePatients = getPatientsByStatus(['waiting', 'with_nurse'])
+      .filter((p) => !locallyForwardedPatientIds.has(p.id));
     return Array.from(
       new Map(
         allNursePatients.map((p) => [p.id, p])
       ).values()
     );
-  }, [patients, getPatientsByStatus]);
+  }, [patients, getPatientsByStatus, locallyForwardedPatientIds]);
+
+  // Once the authoritative realtime/refetch status leaves the Nurse queue,
+  // release the local hide so a patient can legitimately return later.
+  useEffect(() => {
+    setLocallyForwardedPatientIds((previous) => {
+      const next = new Set(previous);
+      patients.forEach((patient) => {
+        if (!['waiting', 'with_nurse'].includes(patient.status)) next.delete(patient.id);
+      });
+      return next.size === previous.size ? previous : next;
+    });
+  }, [patients]);
+
+  const handleLabRequestSent = (patientId: string) => {
+    setLocallyForwardedPatientIds((previous) => new Set(previous).add(patientId));
+    setSelectedPatientId(null);
+    void refreshPatients();
+  };
+
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
   const handlePatientComplete = async (patientId: string, assignedDoctor: 'doctor1' | 'doctor2') => {
@@ -150,14 +171,15 @@ const NurseStation = () => {
             <div className="space-y-3">
               <UniversalPatientHeader patient={selectedPatient} />
               <div className="flex flex-wrap justify-end gap-2">
-                <SnapClinicalOrder
-                  patientId={selectedPatient.id}
-                  sourceStation="nurse"
-                  defaultOrderType="lab"
-                  label="Snap Lab Request"
-                  variant="outline"
-                  size="sm"
-                />
+                  <SnapClinicalOrder
+                    patientId={selectedPatient.id}
+                    sourceStation="nurse"
+                    defaultOrderType="lab"
+                    label="Snap Lab Request"
+                    variant="outline"
+                    size="sm"
+                    onSent={() => handleLabRequestSent(selectedPatient.id)}
+                  />
                 <SnapClinicalOrder
                   patientId={selectedPatient.id}
                   sourceStation="nurse"

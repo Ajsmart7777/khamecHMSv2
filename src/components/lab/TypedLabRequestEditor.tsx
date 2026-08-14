@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Loader2, Beaker } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,12 +23,16 @@ export function TypedLabRequestEditor({
   const [text, setText] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const submitLockRef = useRef(false);
 
   const handleSubmit = async () => {
+    if (submitLockRef.current || loading || submitted) return;
     if (!text.trim()) {
       return toast.error('Lab order details are required');
     }
 
+    submitLockRef.current = true;
     setLoading(true);
     try {
       const id = await createLabRequestFromTyped({
@@ -37,9 +41,12 @@ export function TypedLabRequestEditor({
         diagnosis: diagnosis.trim() || undefined,
         tests: [text.trim()] // Store the whole block as one "test" item
       });
-      toast.success('Lab request created');
+      setSubmitted(true);
+      toast.success('Lab request created — patient moved to Billing');
       onSuccess?.(id);
     } catch (err: any) {
+      submitLockRef.current = false;
+      setSubmitted(false);
       toast.error(err.message || 'Failed to create lab request');
     } finally {
       setLoading(false);
@@ -79,9 +86,9 @@ export function TypedLabRequestEditor({
             Cancel
           </Button>
         )}
-        <Button onClick={handleSubmit} disabled={loading} className="min-w-[120px]">
+        <Button onClick={handleSubmit} disabled={loading || submitted} className="min-w-[120px]">
           {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Beaker className="h-4 w-4 mr-2" />}
-          Submit Lab Order
+          {submitted ? 'Lab Order Sent' : 'Submit Lab Order'}
         </Button>
       </div>
     </div>

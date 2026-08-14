@@ -23,6 +23,12 @@ export interface CorporateAccount {
   linked_patients_count?: number;
 }
 
+interface SponsorAccountRemovalResult {
+  action: 'deleted' | 'suspended';
+  account_type: SponsorAccountType;
+  message: string;
+}
+
 export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
   const [accounts, setAccounts] = useState<CorporateAccount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,17 +131,37 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
   };
 
   const deleteAccount = async (id: string) => {
-    const { error } = await supabase
-      .from('corporate_accounts')
-      .delete()
-      .eq('id', id);
+    const { data, error } = await supabase.rpc('delete_unused_sponsor_account', {
+      p_sponsor_id: id,
+    });
 
     if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      toast({
+        title: 'Could not remove account',
+        description: error.message,
+        variant: 'destructive',
+      });
       return false;
     }
-    toast({ title: 'Deleted', description: 'Corporate account removed.' });
-    setAccounts(prev => prev.filter(a => a.id !== id));
+
+    const result = data as unknown as SponsorAccountRemovalResult;
+    if (!result?.action || !result?.message) {
+      toast({
+        title: 'Could not remove account',
+        description: 'The system did not return a valid account removal result.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+
+    if (result.action === 'deleted') {
+      toast({ title: 'Account deleted', description: result.message });
+      setAccounts(prev => prev.filter(account => account.id !== id));
+      return true;
+    }
+
+    toast({ title: 'Account suspended', description: result.message });
+    await fetchAccounts();
     return true;
   };
 

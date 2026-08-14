@@ -51,7 +51,7 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [topUpDialog, setTopUpDialog] = useState<CorporateAccount | null>(null);
   const [topUpAmount, setTopUpAmount] = useState('');
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<CorporateAccount | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Form state
@@ -141,8 +141,10 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
 
   const handleDelete = async () => {
     if (!deleteConfirm) return;
-    await deleteAccount(deleteConfirm);
-    setDeleteConfirm(null);
+    setSaving(true);
+    const completed = await deleteAccount(deleteConfirm.id);
+    if (completed) setDeleteConfirm(null);
+    setSaving(false);
   };
 
   const handleTopUp = async () => {
@@ -316,7 +318,7 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
                         <Button variant="ghost" size="icon" className="h-7 w-7" title="Edit" onClick={() => openEdit(account)}>
                           <Edit3 className="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Delete" onClick={() => setDeleteConfirm(account.id)}>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Remove safely" onClick={() => setDeleteConfirm(account)}>
                           <Trash2 className="h-3.5 w-3.5 text-destructive" />
                         </Button>
                       </div>
@@ -529,16 +531,22 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation */}
-      <Dialog open={!!deleteConfirm} onOpenChange={open => !open && setDeleteConfirm(null)}>
-        <DialogContent className="max-w-sm">
+      {/* Safe Removal Confirmation */}
+      <Dialog open={!!deleteConfirm} onOpenChange={open => !open && !saving && setDeleteConfirm(null)}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-destructive">Delete {singular} Account?</DialogTitle>
-            <DialogDescription>This action cannot be undone. All linked patients will need to be reassigned.</DialogDescription>
+            <DialogTitle className="text-destructive">Remove {singular} Account?</DialogTitle>
+            <DialogDescription>
+              <span className="block mb-2 font-medium text-foreground">{deleteConfirm?.company_name}</span>
+              Unused accounts are deleted completely. If this account has linked patients, a remaining balance, issued reports, services, invoices, payments, or other financial history, it will be suspended instead so the hospital audit record remains safe.
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)} disabled={saving}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Remove Safely
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

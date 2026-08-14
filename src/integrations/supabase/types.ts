@@ -3163,6 +3163,10 @@ export type Database = {
         Returns: string
       }
       current_actor_role: { Args: { _user_id: string }; Returns: string }
+      delete_unused_sponsor_account: {
+        Args: { p_sponsor_id: string }
+        Returns: Json
+      }
       discharge_admission: {
         Args: {
           _admission_id: string

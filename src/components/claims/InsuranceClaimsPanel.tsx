@@ -86,7 +86,7 @@ export function InsuranceClaimsPanel() {
         .lt('created_at', periodEnd.toISOString())
         .order('created_at', { ascending: false });
 
-      const invRows = (invs || []) as Invoice[];
+      const invRows = (invs || []) as any[] as Invoice[];
       const byPatient: Record<string, Invoice[]> = {};
       invRows.forEach(i => {
         // Automatically exclude unavailable or refunded items from the sponsor claim total

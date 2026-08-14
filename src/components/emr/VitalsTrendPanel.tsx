@@ -71,7 +71,7 @@ export function VitalsTrendPanel({ patientId }: { patientId: string }) {
         .eq('patient_id', patientId)
         .order('created_at', { ascending: true });
       if (mounted) {
-        setVitals((data ?? []) as Vital[]);
+        setVitals((data ?? []) as any[] as Vital[]);
         setLoading(false);
       }
     })();
@@ -87,7 +87,7 @@ export function VitalsTrendPanel({ patientId }: { patientId: string }) {
             .select('*')
             .eq('patient_id', patientId)
             .order('created_at', { ascending: true });
-          setVitals((data ?? []) as Vital[]);
+          setVitals((data ?? []) as any[] as Vital[]);
         }
       )
       .subscribe();

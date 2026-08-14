@@ -27,7 +27,7 @@ export function useExternalDoctors() {
       console.error('External doctors fetch error', error);
       setDoctors([]);
     } else {
-      setDoctors((data || []) as ExternalDoctor[]);
+      setDoctors((data || []) as any[] as ExternalDoctor[]);
     }
     setLoading(false);
   }, []);

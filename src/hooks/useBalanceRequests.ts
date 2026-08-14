@@ -48,7 +48,7 @@ export function useBalanceRequests() {
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      setRequests((data || []) as BalanceRequest[]);
+      setRequests((data || []) as any[] as BalanceRequest[]);
     } catch (err) {
       logError('fetchBalanceRequests', err);
     } finally {

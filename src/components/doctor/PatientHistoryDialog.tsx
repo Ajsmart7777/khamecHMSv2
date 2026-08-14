@@ -48,13 +48,13 @@ export function PatientHistoryDialog({ open, onOpenChange, patient }: PatientHis
       const entries: HistoryEntry[] = [];
 
       (vitalsRes.data || []).forEach(v => {
-        entries.push({ date: v.created_at, type: 'vitals', data: v });
+        entries.push({ date: (v as any).created_at, type: 'vitals', data: v });
       });
       (prescriptionsRes.data || []).forEach(p => {
-        entries.push({ date: p.created_at, type: 'prescription', data: p });
+        entries.push({ date: (p as any).created_at, type: 'prescription', data: p });
       });
       (labRes.data || []).forEach(l => {
-        entries.push({ date: l.created_at, type: 'lab', data: l });
+        entries.push({ date: (l as any).created_at, type: 'lab', data: l });
       });
 
       entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

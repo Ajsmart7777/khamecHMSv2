@@ -34,7 +34,7 @@ export function useEmrAttachments(patientId?: string) {
     if (error) {
       toast.error('Failed to load attachments');
     } else {
-      setAttachments((data ?? []) as EmrAttachment[]);
+      setAttachments((data ?? []) as any[] as EmrAttachment[]);
     }
     setLoading(false);
   }, [patientId]);
@@ -95,7 +95,7 @@ export function useEmrAttachments(patientId?: string) {
         return null;
       }
       toast.success('File uploaded');
-      return data as EmrAttachment;
+      return data as any as EmrAttachment;
     },
     [patientId],
   );

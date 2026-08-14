@@ -61,11 +61,11 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
 
       const mapped = (data || []).map(a => ({
         ...a,
-        account_type: (a.account_type || 'corporate') as SponsorAccountType,
-        treatment_limit: Number(a.treatment_limit),
-        balance: Number(a.balance),
-        discount_percentage: Number(a.discount_percentage),
-        linked_patients_count: countMap[a.id] || 0,
+        account_type: ((a as any).account_type || 'corporate') as SponsorAccountType,
+        treatment_limit: Number((a as any).treatment_limit),
+        balance: Number((a as any).balance),
+        discount_percentage: Number((a as any).discount_percentage),
+        linked_patients_count: countMap[(a as any).id] || 0,
       })) as CorporateAccount[];
 
       setAccounts(mapped);
@@ -131,7 +131,7 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
   };
 
   const deleteAccount = async (id: string) => {
-    const { data, error } = await supabase.rpc('delete_unused_sponsor_account', {
+    const { data, error } = await (supabase as any).rpc('delete_unused_sponsor_account', {
       p_sponsor_id: id,
     });
 
@@ -190,9 +190,9 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
     if (error) return null;
     return {
       ...data,
-      treatment_limit: Number(data.treatment_limit),
-      balance: Number(data.balance),
-      discount_percentage: Number(data.discount_percentage),
+      treatment_limit: Number((data as any).treatment_limit),
+      balance: Number((data as any).balance),
+      discount_percentage: Number((data as any).discount_percentage),
     } as CorporateAccount;
   };
 
@@ -213,7 +213,7 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
       .order('created_at', { ascending: false })
       .limit(50);
 
-    return (invoiceData || []).map(inv => ({
+    return (invoiceData || []).map((inv: any) => ({
       ...inv,
       patient_name: corpPatients.find(p => p.id === inv.patient_id)
         ? `${corpPatients.find(p => p.id === inv.patient_id)!.first_name} ${corpPatients.find(p => p.id === inv.patient_id)!.last_name}`

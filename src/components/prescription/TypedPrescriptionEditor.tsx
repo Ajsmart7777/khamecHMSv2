@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { createPrescriptionFromTyped } from '@/integrations/supabase/rpcs';
+import { openOrResumeVisit } from '@/hooks/useVisits';
 
 interface TypedPrescriptionEditorProps {
   patientId: string;
@@ -31,12 +32,16 @@ export function TypedPrescriptionEditor({
 
     setLoading(true);
     try {
+      // The active-visit hook can still be loading when the typed editor opens.
+      // Resolve the visit here so the prescription and its Pharmacy snap share
+      // the same Ledger Card visit section.
+      const effectiveVisitId = visitId ?? await openOrResumeVisit({ patientId });
       // Use the generic notes field to store the plain text prescription
       // Since createPrescriptionFromTyped expects items, we provide a dummy item
       // but store the real text in the notes.
       const id = await createPrescriptionFromTyped({
         patientId,
-        visitId,
+        visitId: effectiveVisitId,
         diagnosis,
         notes: text.trim(),
         items: [{

@@ -289,7 +289,7 @@ export function PatientLedgerCard({
     const visitIdForLedger = (visitId: string | null | undefined) =>
       visitId && visitIds.includes(visitId) ? visitId : fallbackVisitId;
 
-    const [vt, att, snaps, invs, adms, labReqs] = await Promise.all([
+    const [vt, att, snaps, invs, adms, labReqs, prescriptions] = await Promise.all([
       visitIds.length
         ? supabase.from('vitals').select('*').in('visit_id', visitIds)
         : Promise.resolve({ data: [] as any[] }),
@@ -305,6 +305,9 @@ export function PatientLedgerCard({
       // Keep the source lab request in the ledger as a fallback for typed orders
       // and for legacy workflows that materialise lab_requests separately.
       supabase.from('lab_requests').select('*').eq('patient_id', patient.id),
+      // Typed Pharmacy orders are stored in prescriptions and may also have a
+      // linked snap_orders row. Read the source table as a resilient fallback.
+      supabase.from('prescriptions').select('*, prescription_items(*)').eq('patient_id', patient.id),
     ]);
 
     const byVisit = new Map<string, LedgerRow[]>();
@@ -342,6 +345,12 @@ export function PatientLedgerCard({
         .filter((text: string) => text.startsWith('LINKED_LAB_REQUEST:'))
         .map((text: string) => text.slice('LINKED_LAB_REQUEST:'.length)),
     );
+    const linkedPrescriptionIds = new Set(
+      (snaps.data ?? [])
+        .map((s: any) => String(s.ocr_text ?? ''))
+        .filter((text: string) => text.startsWith('LINKED_PRESCRIPTION:'))
+        .map((text: string) => text.slice('LINKED_PRESCRIPTION:'.length)),
+    );
 
     (snaps.data ?? []).forEach((s: any) => {
       const sub = classifySnap(s);
@@ -361,6 +370,54 @@ export function PatientLedgerCard({
           station: 'pharmacy', title: 'Dispensed', data: s, subkind: 'dispense',
         });
       }
+    });
+
+    // Typed Pharmacy orders are written to prescriptions and normally also to
+    // snap_orders. Keep the source order visible if a legacy or restricted snap
+    // query does not return its linked row.
+    (prescriptions.data ?? []).forEach((rx: any) => {
+      if (linkedPrescriptionIds.has(String(rx.id))) return;
+      const ledgerVisitId = visitIdForLedger(rx.visit_id);
+      const items = Array.isArray(rx.prescription_items) ? rx.prescription_items : [];
+      const itemText = items
+        .map((item: any) => [
+          item.medication,
+          item.dosage && item.dosage !== '-' ? item.dosage : '',
+          item.frequency && item.frequency !== '-' ? item.frequency : '',
+          item.duration && item.duration !== '-' ? item.duration : '',
+          item.quantity ? `×${item.quantity}` : '',
+        ].filter(Boolean).join(' '))
+        .filter(Boolean)
+        .join('; ');
+      const note = [rx.diagnosis ? `Diagnosis: ${rx.diagnosis}` : '', rx.notes || '', itemText]
+        .filter(Boolean)
+        .join(' · ');
+      const rxStatus = ['fulfilled', 'dispensed', 'completed'].includes(String(rx.status).toLowerCase())
+        ? 'fulfilled'
+        : 'pending_billing';
+      push(ledgerVisitId, {
+        id: `rx-${rx.id}`,
+        visitId: ledgerVisitId ?? '',
+        at: rx.created_at,
+        kind: 'snap',
+        station: 'doctor',
+        title: 'Prescription Order',
+        data: {
+          id: rx.id,
+          patient_id: rx.patient_id,
+          visit_id: ledgerVisitId,
+          order_type: 'prescription',
+          target_station: 'pharmacy',
+          source_role: 'doctor',
+          photo_path: null,
+          note,
+          ocr_text: `LINKED_PRESCRIPTION:${rx.id}`,
+          intent: 'typed_order',
+          status: rxStatus,
+          matched_items: [],
+        },
+        subkind: rxStatus === 'fulfilled' ? 'dispense' : 'rx',
+      });
     });
 
     // Typed lab requests are written to both lab_requests and snap_orders in one
@@ -499,6 +556,8 @@ export function PatientLedgerCard({
     const ch = createRealtimeChannel(`ledger-${patient.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'snap_orders', filter: patientFilter }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lab_requests', filter: patientFilter }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prescriptions', filter: patientFilter }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'prescription_items' }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'visits', filter: patientFilter }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'admissions', filter: patientFilter }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices', filter: patientFilter }, bump)

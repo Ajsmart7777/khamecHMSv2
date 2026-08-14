@@ -57,3 +57,18 @@ If detailed Supabase history is cleared but an R2 cleanup request is interrupted
 | Patient names and card numbers match the selected list. | The detailed ledger is empty because the closed case has been archived. |
 | The typed reference exactly matches the ZIP reference. | Any R2 cleanup warning has been retried and resolved. |
 
+## Storage-Savings Report
+
+Every archive prepared after the storage-reporting feature is deployed records a measured storage summary before any live record is cleared. The Archive tab displays this summary under the selected archive reference. Before clearance, it shows the R2 files measured for removal and the logical database payload and detailed row count that will be cleared. After successful clearance, it changes to the actual **R2 storage saved** value, calculated only from files whose deletion was confirmed.
+
+| Displayed measurement | Meaning |
+|---|---|
+| **R2 storage saved** | Exact bytes of original R2 objects successfully deleted after the archive. If cleanup is partial, the report shows the bytes removed so far and the measured total; use **Retry storage cleanup** until both values agree. |
+| **Database case data cleared** | Logical PostgreSQL row payload and the clinical/billing row count removed for the archived case. PostgreSQL can reuse this space for future records, but its dashboard disk-size figure may not shrink immediately because database pages are allocated and reused internally. |
+
+Archives completed before this reporting feature display an explicit notice that their exact storage size was not captured. This is intentional: the system never invents a size after the original R2 files have already been deleted.
+
+---
+
+**Document owner:** Khamec HMS Administration  
+**Last updated:** 14 August 2026

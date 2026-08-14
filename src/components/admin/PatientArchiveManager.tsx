@@ -69,12 +69,22 @@ type ArchiveRecordRow = {
   status: 'pending_download' | 'download_confirmed' | 'purged';
   archived_at: string;
   attachment_paths: ArchiveAttachment[] | string | null;
+  database_payload_bytes?: number | string | null;
+  database_rows_cleared?: Record<string, number> | null;
+  r2_object_bytes?: number | string | null;
+  r2_deleted_bytes?: number | string | null;
+  r2_cleanup_status?: 'not_started' | 'partial' | 'completed' | null;
 };
 
 type ArchiveBatch = {
   reference: string;
   status: ArchiveRecordRow['status'];
   archivedAt: string;
+  databasePayloadBytes: number;
+  databaseRowsCleared: Record<string, number>;
+  r2ObjectBytes: number;
+  r2DeletedBytes: number;
+  r2CleanupStatus: 'not_started' | 'partial' | 'completed';
   patients: Array<{
     id: string;
     name: string;
@@ -128,6 +138,22 @@ function countSummary(counts: Record<string, number> | null | undefined) {
     .filter((key) => Number(counts[key] ?? 0) > 0)
     .map((key) => `${counts[key]} ${key.replace('_', ' ')}`)
     .join(' · ') || 'No detailed records';
+}
+
+function asNumber(value: number | string | null | undefined) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function formatBytes(bytes: number) {
+  if (bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  return `${(bytes / (1024 ** exponent)).toFixed(exponent === 0 ? 0 : 2)} ${units[exponent]}`;
+}
+
+function totalRows(counts: Record<string, number> | null | undefined) {
+  return Object.values(counts ?? {}).reduce((total, count) => total + asNumber(count), 0);
 }
 
 function triggerDownload(blob: Blob, filename: string) {
@@ -185,6 +211,31 @@ async function fetchArchivePatientData(patientId: string) {
   };
 }
 
+function StorageSavingsReport({ batch }: { batch: ArchiveBatch }) {
+  const rows = totalRows(batch.databaseRowsCleared);
+  const isHistoricUnmeasured = batch.status === 'purged'
+    && batch.databasePayloadBytes === 0
+    && batch.r2ObjectBytes === 0
+    && batch.r2DeletedBytes === 0;
+
+  if (isHistoricUnmeasured) {
+    return <div className="mt-4 rounded-lg border border-dashed border-border bg-muted/20 p-3 text-xs text-muted-foreground">This archive was completed before storage reporting was added, so an exact size was not captured.</div>;
+  }
+
+  const r2Label = batch.status !== 'purged'
+    ? `R2 files measured: ${formatBytes(batch.r2ObjectBytes)}`
+    : batch.r2CleanupStatus === 'completed'
+      ? `R2 storage saved: ${formatBytes(batch.r2DeletedBytes)}`
+      : `R2 storage removed so far: ${formatBytes(batch.r2DeletedBytes)} of ${formatBytes(batch.r2ObjectBytes)}`;
+
+  return <div className="mt-4 grid gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 text-sm sm:grid-cols-2">
+    <div className="flex gap-2"><HardDrive className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" /><div><p className="font-semibold text-emerald-950">{r2Label}</p><p className="mt-1 text-xs text-emerald-900/75">Measured from the original R2 files preserved inside this archive ZIP.</p></div></div>
+    <div><p className="font-semibold text-emerald-950">Database case data cleared: {formatBytes(batch.databasePayloadBytes)}</p><p className="mt-1 text-xs text-emerald-900/75">{rows.toLocaleString()} clinical and billing row{rows === 1 ? '' : 's'} released for PostgreSQL to reuse after verified clearance.</p></div>
+    {batch.status === 'purged' && batch.r2CleanupStatus !== 'completed' && <p className="sm:col-span-2 text-xs font-medium text-amber-800">R2 cleanup is not complete yet. Use <strong>Retry storage cleanup</strong> until the actual R2 saved amount reaches the measured amount.</p>}
+    {batch.status !== 'purged' && <p className="sm:col-span-2 text-xs text-emerald-900/75">This is the measured storage that will be released after you confirm the saved ZIP and clear the verified records.</p>}
+  </div>;
+}
+
 export function PatientArchiveManager() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -203,7 +254,7 @@ export function PatientArchiveManager() {
 
   const loadBatches = useCallback(async () => {
     const { data, error } = await (supabase.from('patient_archive_records' as any) as any)
-      .select('patient_id, patient_card_number, patient_name, archive_reference, status, archived_at, attachment_paths')
+      .select('patient_id, patient_card_number, patient_name, archive_reference, status, archived_at, attachment_paths, database_payload_bytes, database_rows_cleared, r2_object_bytes, r2_deleted_bytes, r2_cleanup_status')
       .order('archived_at', { ascending: false })
       .limit(250);
     if (error) throw error;
@@ -214,6 +265,11 @@ export function PatientArchiveManager() {
         reference: record.archive_reference,
         status: record.status,
         archivedAt: record.archived_at,
+        databasePayloadBytes: 0,
+        databaseRowsCleared: {},
+        r2ObjectBytes: 0,
+        r2DeletedBytes: 0,
+        r2CleanupStatus: 'not_started' as const,
         patients: [],
       };
       batch.patients.push({
@@ -222,10 +278,22 @@ export function PatientArchiveManager() {
         cardNumber: record.patient_card_number,
         attachments: normaliseAttachments(record.attachment_paths),
       });
+      batch.databasePayloadBytes += asNumber(record.database_payload_bytes);
+      batch.r2ObjectBytes += asNumber(record.r2_object_bytes);
+      batch.r2DeletedBytes += asNumber(record.r2_deleted_bytes);
+      Object.entries(record.database_rows_cleared ?? {}).forEach(([key, value]) => {
+        batch.databaseRowsCleared[key] = asNumber(batch.databaseRowsCleared[key]) + asNumber(value);
+      });
       if (record.status === 'purged' || (record.status === 'download_confirmed' && batch.status === 'pending_download')) batch.status = record.status;
       grouped.set(record.archive_reference, batch);
     });
-    setArchiveBatches([...grouped.values()]);
+    const batches = [...grouped.values()].map((batch) => ({
+      ...batch,
+      r2CleanupStatus: batch.r2ObjectBytes === 0 || batch.r2DeletedBytes >= batch.r2ObjectBytes
+        ? 'completed' as const
+        : batch.r2DeletedBytes > 0 ? 'partial' as const : 'not_started' as const,
+    }));
+    setArchiveBatches(batches);
   }, []);
 
   const loadCandidates = useCallback(async () => {
@@ -406,11 +474,31 @@ export function PatientArchiveManager() {
       });
       if (prepareResult.error) throw new Error(prepareResult.error.message ?? 'Archive safety record could not be created');
 
+      const measurementResult = await rpc('record_archive_storage_measurement', { _archive_reference: reference });
+      if (measurementResult.error) throw new Error(measurementResult.error.message ?? 'Archive storage measurement could not be recorded');
+      const measurements = (measurementResult.data ?? []) as Array<{
+        patient_id: string;
+        r2_object_bytes: number | string;
+        database_payload_bytes: number | string;
+        database_rows_cleared: Record<string, number>;
+      }>;
+      const measuredRows = measurements.reduce<Record<string, number>>((counts, measurement) => {
+        Object.entries(measurement.database_rows_cleared ?? {}).forEach(([key, value]) => {
+          counts[key] = asNumber(counts[key]) + asNumber(value);
+        });
+        return counts;
+      }, {});
+
       triggerDownload(zipBlob, `${safeName(reference)}.zip`);
       const batch: ArchiveBatch = {
         reference,
         status: 'pending_download',
         archivedAt: new Date().toISOString(),
+        databasePayloadBytes: measurements.reduce((total, measurement) => total + asNumber(measurement.database_payload_bytes), 0),
+        databaseRowsCleared: measuredRows,
+        r2ObjectBytes: measurements.reduce((total, measurement) => total + asNumber(measurement.r2_object_bytes), 0),
+        r2DeletedBytes: 0,
+        r2CleanupStatus: 'not_started',
         patients: selectedCandidates.map((candidate) => ({
           id: candidate.patient_id,
           name: candidate.patient_name,
@@ -458,16 +546,27 @@ export function PatientArchiveManager() {
   const cleanR2Objects = async (batch: ArchiveBatch) => {
     const r2Attachments = batch.patients.flatMap((patient) => patient.attachments
       .filter((attachment) => attachment.bucket !== 'external-url')
-      .map((attachment) => ({ ...attachment, patientName: patient.name })));
-    if (!r2Attachments.length) return { failed: [] as typeof r2Attachments };
+      .map((attachment) => ({ ...attachment, patientId: patient.id, patientName: patient.name })));
+    if (!r2Attachments.length) return { failed: [] as typeof r2Attachments, deleted: [] as typeof r2Attachments };
     const failed: typeof r2Attachments = [];
+    const deleted: typeof r2Attachments = [];
     for (let index = 0; index < r2Attachments.length; index += 1) {
       const attachment = r2Attachments[index];
       setProgress({ label: `Removing stored attachment ${index + 1} of ${r2Attachments.length}`, current: index + 1, total: r2Attachments.length });
       const success = await deleteFile(attachment.bucket as StorageBucket, attachment.path);
-      if (!success) failed.push(attachment);
+      if (success) deleted.push(attachment);
+      else failed.push(attachment);
     }
-    return { failed };
+    return { failed, deleted };
+  };
+
+  const recordR2Cleanup = async (batch: ArchiveBatch, deleted: Array<ArchiveAttachment & { patientId: string }>) => {
+    if (!deleted.length) return;
+    const result = await rpc('record_archive_r2_cleanup', {
+      _archive_reference: batch.reference,
+      _deleted_objects: deleted.map((attachment) => ({ patient_id: attachment.patientId, bucket: attachment.bucket, path: attachment.path })),
+    });
+    if (result.error) throw new Error(result.error.message ?? 'R2 storage savings could not be recorded');
   };
 
   const purgeArchive = async () => {
@@ -487,9 +586,19 @@ export function PatientArchiveManager() {
       });
       if (purgeResult.error) throw new Error(purgeResult.error.message ?? 'Clinical history clearance failed');
 
-      const { failed } = await cleanR2Objects(activeBatch);
+      const { failed, deleted } = await cleanR2Objects(activeBatch);
+      try {
+        await recordR2Cleanup(activeBatch, deleted);
+      } catch (measurementError) {
+        toast.warning(measurementError instanceof Error ? measurementError.message : 'R2 files were removed, but their storage-savings report needs a refresh.');
+      }
       setPurgeDialogOpen(false);
-      setActiveBatch({ ...activeBatch, status: 'purged' });
+      setActiveBatch({
+        ...activeBatch,
+        status: 'purged',
+        r2DeletedBytes: failed.length === 0 ? activeBatch.r2ObjectBytes : activeBatch.r2DeletedBytes,
+        r2CleanupStatus: failed.length === 0 ? 'completed' : activeBatch.r2CleanupStatus,
+      });
       if (failed.length) {
         toast.warning(`Patient records were cleared, but ${failed.length} R2 attachment${failed.length === 1 ? '' : 's'} could not be removed. Use Retry storage cleanup below.`);
       } else {
@@ -508,9 +617,18 @@ export function PatientArchiveManager() {
   const retryCleanup = async (batch: ArchiveBatch) => {
     setPurging(true);
     try {
-      const { failed } = await cleanR2Objects(batch);
+      const { failed, deleted } = await cleanR2Objects(batch);
+      try {
+        await recordR2Cleanup(batch, deleted);
+      } catch (measurementError) {
+        toast.warning(measurementError instanceof Error ? measurementError.message : 'R2 files were removed, but their storage-savings report needs a refresh.');
+      }
       if (failed.length) toast.warning(`${failed.length} attachment cleanup request${failed.length === 1 ? '' : 's'} still failed. Check R2 connectivity and try again.`);
-      else toast.success('Stored R2 attachment cleanup completed.');
+      else {
+        setActiveBatch((current) => current?.reference === batch.reference ? { ...current, r2DeletedBytes: current.r2ObjectBytes, r2CleanupStatus: 'completed' } : current);
+        toast.success('Stored R2 attachment cleanup completed.');
+      }
+      await loadBatches();
     } finally {
       setProgress(null);
       setPurging(false);
@@ -609,9 +727,9 @@ export function PatientArchiveManager() {
           <CardDescription>Preparation creates a protected database index entry but does not delete records. Clearance becomes available only after the exact ZIP reference has been confirmed.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {activeBatch ? <div className="rounded-lg border border-border bg-muted/20 p-4"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start"><div><div className="font-semibold">{activeBatch.reference}</div><p className="mt-1 text-sm text-muted-foreground">{activeBatch.patients.length} patient{activeBatch.patients.length === 1 ? '' : 's'} · prepared {prettyDate(activeBatch.archivedAt)}</p><p className="mt-2 text-xs text-muted-foreground">{activeBatch.patients.map((patient) => `${patient.name} (${patient.cardNumber})`).join(' · ')}</p></div><Badge className={activeBatch.status === 'pending_download' ? 'bg-amber-100 text-amber-800 hover:bg-amber-100' : activeBatch.status === 'download_confirmed' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100' : 'bg-slate-200 text-slate-800 hover:bg-slate-200'}>{activeBatch.status === 'pending_download' ? 'Awaiting download confirmation' : activeBatch.status === 'download_confirmed' ? 'Download confirmed' : 'Records cleared'}</Badge></div><div className="mt-4 flex flex-col gap-2 sm:flex-row">{activeBatch.status === 'pending_download' && <Button type="button" onClick={() => { setTypedReference(''); setConfirmDialogOpen(true); }} disabled={confirming || purging}><CheckCircle2 className="mr-2 h-4 w-4" />I saved and opened this archive</Button>}{activeBatch.status === 'download_confirmed' && <Button type="button" variant="destructive" onClick={() => setPurgeDialogOpen(true)} disabled={purging}><Trash2 className="mr-2 h-4 w-4" />Clear verified records</Button>}{activeBatch.status === 'purged' && <Button type="button" variant="outline" onClick={() => void retryCleanup(activeBatch)} disabled={purging}><HardDrive className="mr-2 h-4 w-4" />Retry storage cleanup</Button>}</div></div> : <div className="rounded-lg border border-dashed border-border px-4 py-7 text-center text-sm text-muted-foreground">Prepare an archive ZIP to begin the confirmation workflow, or select a recent archive below to continue it.</div>}
+          {activeBatch ? <div className="rounded-lg border border-border bg-muted/20 p-4"><div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start"><div><div className="font-semibold">{activeBatch.reference}</div><p className="mt-1 text-sm text-muted-foreground">{activeBatch.patients.length} patient{activeBatch.patients.length === 1 ? '' : 's'} · prepared {prettyDate(activeBatch.archivedAt)}</p><p className="mt-2 text-xs text-muted-foreground">{activeBatch.patients.map((patient) => `${patient.name} (${patient.cardNumber})`).join(' · ')}</p></div><Badge className={activeBatch.status === 'pending_download' ? 'bg-amber-100 text-amber-800 hover:bg-amber-100' : activeBatch.status === 'download_confirmed' ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-100' : 'bg-slate-200 text-slate-800 hover:bg-slate-200'}>{activeBatch.status === 'pending_download' ? 'Awaiting download confirmation' : activeBatch.status === 'download_confirmed' ? 'Download confirmed' : 'Records cleared'}</Badge></div><StorageSavingsReport batch={activeBatch} /><div className="mt-4 flex flex-col gap-2 sm:flex-row">{activeBatch.status === 'pending_download' && <Button type="button" onClick={() => { setTypedReference(''); setConfirmDialogOpen(true); }} disabled={confirming || purging}><CheckCircle2 className="mr-2 h-4 w-4" />I saved and opened this archive</Button>}{activeBatch.status === 'download_confirmed' && <Button type="button" variant="destructive" onClick={() => setPurgeDialogOpen(true)} disabled={purging}><Trash2 className="mr-2 h-4 w-4" />Clear verified records</Button>}{activeBatch.status === 'purged' && <Button type="button" variant="outline" onClick={() => void retryCleanup(activeBatch)} disabled={purging}><HardDrive className="mr-2 h-4 w-4" />Retry storage cleanup</Button>}</div></div> : <div className="rounded-lg border border-dashed border-border px-4 py-7 text-center text-sm text-muted-foreground">Prepare an archive ZIP to begin the confirmation workflow, or select a recent archive below to continue it.</div>}
 
-          {archiveBatches.length > 0 && <div className="space-y-2 border-t pt-4"><p className="text-sm font-medium">Recent archive references</p>{archiveBatches.slice(0, 8).map((batch) => <button key={batch.reference} type="button" onClick={() => setActiveBatch(batch)} className={`flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left transition hover:bg-muted/50 ${activeBatch?.reference === batch.reference ? 'border-primary bg-primary/5' : 'border-border'}`}><span><span className="block font-mono text-sm font-semibold">{batch.reference}</span><span className="block text-xs text-muted-foreground">{batch.patients.length} patient{batch.patients.length === 1 ? '' : 's'} · {prettyDate(batch.archivedAt)}</span></span><Badge variant="outline">{batch.status.replace(/_/g, ' ')}</Badge></button>)}</div>}
+          {archiveBatches.length > 0 && <div className="space-y-2 border-t pt-4"><p className="text-sm font-medium">Recent archive references</p>{archiveBatches.slice(0, 8).map((batch) => <button key={batch.reference} type="button" onClick={() => setActiveBatch(batch)} className={`flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left transition hover:bg-muted/50 ${activeBatch?.reference === batch.reference ? 'border-primary bg-primary/5' : 'border-border'}`}><span><span className="block font-mono text-sm font-semibold">{batch.reference}</span><span className="block text-xs text-muted-foreground">{batch.patients.length} patient{batch.patients.length === 1 ? '' : 's'} · {prettyDate(batch.archivedAt)}{batch.status === 'purged' && (batch.r2ObjectBytes > 0 || batch.databasePayloadBytes > 0) ? ` · R2 saved ${formatBytes(batch.r2DeletedBytes)}` : ''}</span></span><Badge variant="outline">{batch.status.replace(/_/g, ' ')}</Badge></button>)}</div>}
         </CardContent>
       </Card>
 

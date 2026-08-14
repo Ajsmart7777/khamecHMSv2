@@ -195,12 +195,29 @@ export function SnapFulfillDialog({
 
     setBusy(true);
     try {
-      // Update all 'pending' items to 'dispensed'
-      if (snap.invoice_id) {
-        await supabase.from('invoice_items')
+      // Pharmacy items must move through the protected inventory routine. It locks
+      // the earliest-expiring Pharmacy batch, blocks insufficient stock, records an
+      // immutable movement, and only then marks the billed item as dispensed.
+      if (snap.invoice_id && kind === 'pharmacy') {
+        const pendingInvoiceItems = items.filter(item => item.id && !String(item.id).startsWith('local-') && item.dispensing_status === 'pending');
+        for (const item of pendingInvoiceItems) {
+          const { data, error } = await (supabase as any).rpc('dispense_inventory_invoice_item', { _invoice_item_id: item.id });
+          if (error) throw error;
+          if (!data?.stock_controlled) {
+            toast.warning('Dispensed without stock deduction', {
+              description: `${item.description} is not yet mapped to Store inventory. Map it before the next delivery or opening count.`,
+              duration: 7000,
+            });
+          }
+        }
+        setItems(current => current.map(item => item.dispensing_status === 'pending' ? { ...item, dispensing_status: 'dispensed' } : item));
+      } else if (snap.invoice_id) {
+        // Laboratory snaps retain their independent, non-stock clinical workflow.
+        const { error } = await supabase.from('invoice_items')
           .update({ dispensing_status: 'dispensed', dispensing_updated_at: new Date().toISOString(), dispensing_updated_by: (await supabase.auth.getUser()).data.user?.id })
           .eq('invoice_id', snap.invoice_id)
           .eq('dispensing_status', 'pending');
+        if (error) throw error;
       }
 
       const ok = await markSnapFulfilled(snap.id);

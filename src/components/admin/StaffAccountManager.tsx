@@ -50,6 +50,7 @@ const roleOptions: { value: AppRole; label: string }[] = [
   { value: 'receptionist', label: 'Receptionist' },
   { value: 'lab_tech', label: 'Lab Tech' },
   { value: 'pharmacist', label: 'Pharmacist' },
+  { value: 'store', label: 'Store' },
   { value: 'billing', label: 'Billing' },
   { value: 'cashier', label: 'Cashier' },
   { value: 'claims_manager', label: 'Claims Manager' },

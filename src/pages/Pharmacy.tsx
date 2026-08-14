@@ -17,6 +17,7 @@ import {
 import { toast } from 'sonner';
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { PharmacySnapQueue } from '@/components/pharmacy/PharmacySnapQueue';
+import { PharmacyInventoryPanel } from '@/components/pharmacy/PharmacyInventoryPanel';
 import { prescriptionAuditLogger } from '@/lib/auditLogger';
 import { findOpenVisit, closeVisit } from '@/hooks/useVisits';
 import {
@@ -220,6 +221,9 @@ const Pharmacy = () => {
         </Button>
       </div>
 
+      <div className="mb-6">
+        <PharmacyInventoryPanel />
+      </div>
       <div className="mb-6">
         <PharmacySnapQueue />
       </div>

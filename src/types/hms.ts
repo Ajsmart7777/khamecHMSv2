@@ -8,6 +8,7 @@ export type UserRole =
   | 'anc'
   | 'receptionist'
   | 'pharmacist'
+  | 'store'
   | 'lab_tech'
   | 'billing'
   | 'cashier'

@@ -23,6 +23,7 @@ import { CorporateClaimsPanel } from '@/components/account/CorporateClaimsPanel'
 import { SponsorStatementsPanel } from '@/components/account/SponsorStatementsPanel';
 import { DailySalesReport } from '@/components/account/DailySalesReport';
 import { StaffFamilyDeductions } from '@/components/account/StaffFamilyDeductions';
+import { InventoryManagementReport } from '@/components/account/InventoryManagementReport';
 import type { PayrollPeriod } from '@/hooks/usePayroll';
 
 function TabHeader({ title, onRefresh }: { title: string; onRefresh: () => void }) {
@@ -129,6 +130,9 @@ const Account = () => {
           </TabsTrigger>
           <TabsTrigger value="pricelist" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <DollarSign className="h-4 w-4" /> Pricelist
+          </TabsTrigger>
+          <TabsTrigger value="inventory" className="flex items-center gap-1.5 text-xs sm:text-sm">
+            <ClipboardList className="h-4 w-4" /> Pharmacy & Store
           </TabsTrigger>
           <TabsTrigger value="daily-sales" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <FileText className="h-4 w-4" /> Daily Sales Report
@@ -240,6 +244,10 @@ const Account = () => {
         <TabsContent value="pricelist">
           <TabHeader title="Hospital Pricelist" onRefresh={() => {}} />
           <PricelistManager />
+        </TabsContent>
+
+        <TabsContent value="inventory">
+          <InventoryManagementReport />
         </TabsContent>
 
         <TabsContent value="daily-sales">

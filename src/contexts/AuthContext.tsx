@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 import { logSecurityEvent } from '@/lib/auditLogger';
 
-export type AppRole = 'admin' | 'doctor1' | 'doctor2' | 'nurse' | 'receptionist' | 'pharmacist' | 'lab_tech' | 'billing' | 'cashier' | 'accountant' | 'claims_manager';
+export type AppRole = 'admin' | 'doctor1' | 'doctor2' | 'nurse' | 'receptionist' | 'pharmacist' | 'store' | 'lab_tech' | 'billing' | 'cashier' | 'accountant' | 'claims_manager';
 
 interface AuthContextType {
   user: User | null;

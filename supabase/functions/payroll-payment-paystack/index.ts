@@ -30,10 +30,12 @@ async function psRequest(path: string, method = "GET", body?: unknown) {
   if (body) opts.body = JSON.stringify(body);
 
   const res = await fetch(`${PS_BASE}${path}`, opts);
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
 
-  if (data?.status === false) {
-    const msg = typeof data?.message === "string" ? data.message : "Paystack error";
+  // A provider envelope can report a business failure even when HTTP succeeds.
+  // Never let such a result create a processing payment attempt.
+  if (!res.ok || data?.status !== true) {
+    const msg = typeof data?.message === "string" ? data.message : "Paystack rejected the request";
     throw new PaystackBusinessError(msg);
   }
 
@@ -77,8 +79,8 @@ Deno.serve(async (req) => {
       .select("role")
       .eq("user_id", user.id);
     const roles = (roleRows ?? []).map((r: { role: string }) => r.role);
-    if (!roles.includes("billing") && !roles.includes("admin")) {
-      return new Response(JSON.stringify({ error: "Forbidden: billing or admin role required" }), {
+    if (!roles.includes("billing") && !roles.includes("accountant") && !roles.includes("admin")) {
+      return new Response(JSON.stringify({ error: "Forbidden: billing, accountant, or admin role required" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -136,15 +138,20 @@ Deno.serve(async (req) => {
           reason: narration || "Salary payment",
           reference,
         });
+        const transfer = transferRes.data;
+        const transferStatus = String(transfer?.status || "").toLowerCase();
+        if (!transfer?.id || ["failed", "rejected", "reversed", "cancelled"].includes(transferStatus)) {
+          throw new PaystackBusinessError(typeof transfer?.message === "string" ? transfer.message : "Paystack did not accept this transfer for processing");
+        }
 
         return new Response(
           JSON.stringify({
             transfer: {
-              id: transferRes.data?.id,
-              transfer_code: transferRes.data?.transfer_code,
+              id: transfer.id,
+              transfer_code: transfer.transfer_code,
               recipient_code: recipientCode,
-              reference: transferRes.data?.reference,
-              status: transferRes.data?.status,
+              reference: transfer.reference,
+              status: transfer.status,
             },
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }

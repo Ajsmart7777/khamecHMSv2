@@ -1,16 +1,18 @@
 // Khadija Medical Center HMS Types
 
-export type UserRole = 
-  | 'reception' 
-  | 'nurse' 
+export type UserRole =
+  | 'admin'
   | 'doctor1'
   | 'doctor2'
-  | 'lab' 
-  | 'billing' 
-  | 'pharmacy' 
-  | 'account' 
-  | 'auditing' 
-  | 'admin';
+  | 'nurse'
+  | 'anc'
+  | 'receptionist'
+  | 'pharmacist'
+  | 'lab_tech'
+  | 'billing'
+  | 'cashier'
+  | 'accountant'
+  | 'claims_manager';
 
 export type PatientStatus = 
   | 'registered'

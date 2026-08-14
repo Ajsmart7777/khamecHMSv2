@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Search, Edit2, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Loader2, CheckCircle2 } from 'lucide-react';
 import { Staff } from '@/types/hms';
 import { toast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -26,8 +26,23 @@ const NIGERIAN_BANKS = [
   'OPay', 'PalmPay', 'VFD MFB',
 ];
 
+const FLUTTERWAVE_BANK_CODES: Record<string, string> = {
+  'Access Bank': '044', 'Citibank': '023', 'Ecobank': '050', 'Fidelity Bank': '070',
+  'First Bank': '011', 'First City Monument Bank': '214', 'Globus Bank': '00103',
+  'Guaranty Trust Bank': '058', 'Heritage Bank': '030', 'Keystone Bank': '082',
+  'Polaris Bank': '076', 'Providus Bank': '101', 'Stanbic IBTC Bank': '221',
+  'Standard Chartered': '068', 'Sterling Bank': '232', 'SunTrust Bank': '100',
+  'Titan Trust Bank': '000025', 'Union Bank': '032', 'United Bank for Africa': '033',
+  'Unity Bank': '215', 'Wema Bank': '035', 'Zenith Bank': '057', 'Jaiz Bank': '301',
+  'Kuda Bank': '090267', 'Moniepoint MFB': '110007', 'OPay': '100004',
+  'PalmPay': '100033', 'VFD MFB': '090110',
+};
+
 export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
   const [search, setSearch] = useState('');
+  const [bankSearch, setBankSearch] = useState('');
+  const [beneficiaryName, setBeneficiaryName] = useState<string | null>(null);
+  const [verifyingBank, setVerifyingBank] = useState(false);
   const [editDialog, setEditDialog] = useState(false);
   const [editStaff, setEditStaff] = useState<Staff | null>(null);
   const [bankName, setBankName] = useState('');
@@ -42,6 +57,8 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
 
   const openEdit = (s: Staff) => {
     setEditStaff(s);
+    setBankSearch('');
+    setBeneficiaryName(null);
     // We need to fetch the extra fields from DB
     supabase.from('staff').select('bank_name, account_number, payment_method, designation').eq('id', s.id).single()
       .then(({ data }) => {
@@ -55,10 +72,20 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
 
   const handleSave = async () => {
     if (!editStaff) return;
+    if (paymentMethod === 'bank') {
+      if (!bankName || accountNumber.length !== 10) {
+        toast({ title: 'Incomplete bank details', description: 'Select a bank and enter the full 10-digit account number.', variant: 'destructive' });
+        return;
+      }
+      if (!beneficiaryName) {
+        toast({ title: 'Verify bank account first', description: 'Confirm the beneficiary before saving bank-transfer details.', variant: 'destructive' });
+        return;
+      }
+    }
     setSaving(true);
     const updates: Record<string, unknown> = {
-      bank_name: bankName || null,
-      account_number: accountNumber || null,
+      bank_name: paymentMethod === 'bank' ? bankName : null,
+      account_number: paymentMethod === 'bank' ? accountNumber : null,
       payment_method: paymentMethod,
       designation: designation || null,
     };
@@ -165,12 +192,14 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
 
             {paymentMethod === 'bank' && (
               <>
+                <p className="text-xs text-muted-foreground">Search the bank, verify the account, and save only after the beneficiary is displayed. The beneficiary does not need to match the staff name.</p>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Bank Name</label>
-                  <Select value={bankName} onValueChange={setBankName}>
+                  <Input value={bankSearch} onChange={e => setBankSearch(e.target.value)} placeholder="Search bank name…" />
+                  <Select value={bankName} onValueChange={value => { setBankName(value); setBeneficiaryName(null); }}>
                     <SelectTrigger><SelectValue placeholder="Select bank" /></SelectTrigger>
                     <SelectContent>
-                      {NIGERIAN_BANKS.map(b => (
+                      {NIGERIAN_BANKS.filter(bank => bank.toLowerCase().includes(bankSearch.toLowerCase())).map(b => (
                         <SelectItem key={b} value={b}>{b}</SelectItem>
                       ))}
                     </SelectContent>
@@ -178,7 +207,31 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Account Number</label>
-                  <Input value={accountNumber} onChange={e => setAccountNumber(e.target.value)} placeholder="0123456789" maxLength={10} />
+                  <div className="flex gap-2">
+                    <Input value={accountNumber} onChange={e => { setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 10)); setBeneficiaryName(null); }} placeholder="0123456789" inputMode="numeric" maxLength={10} />
+                    <Button type="button" variant="outline" disabled={verifyingBank || !bankName || accountNumber.length !== 10} onClick={async () => {
+                      const bankCode = FLUTTERWAVE_BANK_CODES[bankName];
+                      if (!bankCode) {
+                        toast({ title: 'Bank verification unavailable', description: 'This bank is not currently configured for verification.', variant: 'destructive' });
+                        return;
+                      }
+                      setVerifyingBank(true);
+                      try {
+                        const { data, error } = await supabase.functions.invoke('payroll-payment', {
+                          body: { action: 'resolve_account', account_number: accountNumber, account_bank: bankCode },
+                        });
+                        if (error || data?.error || !data?.account?.account_name) throw error || new Error(data?.error || 'Account verification failed.');
+                        setBeneficiaryName(data.account.account_name);
+                        toast({ title: 'Account verified', description: `Beneficiary: ${data.account.account_name}` });
+                      } catch (error) {
+                        setBeneficiaryName(null);
+                        toast({ title: 'Account verification failed', description: error instanceof Error ? error.message : 'Check the bank and account number, then try again.', variant: 'destructive' });
+                      } finally {
+                        setVerifyingBank(false);
+                      }
+                    }}>{verifyingBank ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify Account'}</Button>
+                  </div>
+                  {beneficiaryName && <div className="flex items-center gap-2 rounded-md border border-success/30 bg-success/5 px-3 py-2 text-sm text-success"><CheckCircle2 className="h-4 w-4" /> Verified beneficiary: <strong>{beneficiaryName}</strong></div>}
                 </div>
               </>
             )}

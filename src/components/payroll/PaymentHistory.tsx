@@ -16,6 +16,7 @@ interface PaymentRecord {
   provider: string;
   provider_reference: string | null;
   provider_transfer_code: string | null;
+  failure_reason: string | null;
   paid_at: string | null;
   created_at: string;
   staff_name: string;
@@ -62,6 +63,7 @@ export function PaymentHistory({ periods }: Props) {
             provider: p.provider as string,
             provider_reference: p.provider_reference as string | null,
             provider_transfer_code: p.provider_transfer_code as string | null,
+            failure_reason: p.failure_reason as string | null,
             paid_at: p.paid_at as string | null,
             created_at: p.created_at as string,
             staff_name: `${staff.first_name} ${staff.last_name}`,
@@ -78,7 +80,7 @@ export function PaymentHistory({ periods }: Props) {
     switch (s) {
       case 'paid': case 'success': return 'success' as const;
       case 'processing': return 'warning' as const;
-      case 'failed': return 'destructive' as const;
+      case 'failed': case 'reversed': return 'destructive' as const;
       default: return 'outline' as const;
     }
   };
@@ -136,6 +138,7 @@ export function PaymentHistory({ periods }: Props) {
                   <TableHead>Provider</TableHead>
                   <TableHead>Reference</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Outcome / Reason</TableHead>
                   <TableHead>Date</TableHead>
                 </TableRow>
               </TableHeader>
@@ -154,8 +157,9 @@ export function PaymentHistory({ periods }: Props) {
                       {p.provider_reference || '—'}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(p.status)}>{p.status}</Badge>
+                      <Badge variant={statusVariant(p.status)}>{p.status === 'processing' ? 'processing confirmation' : p.status}</Badge>
                     </TableCell>
+                    <TableCell className="max-w-64 text-xs text-muted-foreground">{p.failure_reason || (p.status === 'processing' ? 'Awaiting provider confirmation' : p.status === 'paid' || p.status === 'success' ? 'Confirmed by provider' : p.status === 'failed' || p.status === 'reversed' ? 'Provider rejected or reversed this payment; no detailed reason was retained by the earlier handler.' : '—')}</TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {p.paid_at ? format(new Date(p.paid_at), 'dd MMM yyyy HH:mm') : format(new Date(p.created_at), 'dd MMM yyyy HH:mm')}
                     </TableCell>

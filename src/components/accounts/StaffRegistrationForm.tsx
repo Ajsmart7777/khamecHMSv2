@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { UserPlus, Loader2, RefreshCw, Search, Trash2, KeyRound, ShieldCheck } from 'lucide-react';
+import { UserPlus, Loader2, RefreshCw, Search, Trash2, KeyRound, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Staff, UserRole } from '@/types/hms';
 import { supabase } from '@/integrations/supabase/client';
@@ -52,8 +52,24 @@ const NIGERIAN_BANKS = [
   'OPay', 'PalmPay', 'VFD MFB',
 ];
 
+// Flutterwave supports the bank/account resolution used before saving salary details.
+const FLUTTERWAVE_BANK_CODES: Record<string, string> = {
+  'Access Bank': '044', 'Citibank': '023', 'Ecobank': '050', 'Fidelity Bank': '070',
+  'First Bank': '011', 'First City Monument Bank': '214', 'Globus Bank': '00103',
+  'Guaranty Trust Bank': '058', 'Heritage Bank': '030', 'Keystone Bank': '082',
+  'Polaris Bank': '076', 'Providus Bank': '101', 'Stanbic IBTC Bank': '221',
+  'Standard Chartered': '068', 'Sterling Bank': '232', 'SunTrust Bank': '100',
+  'Titan Trust Bank': '000025', 'Union Bank': '032', 'United Bank for Africa': '033',
+  'Unity Bank': '215', 'Wema Bank': '035', 'Zenith Bank': '057', 'Jaiz Bank': '301',
+  'Kuda Bank': '090267', 'Moniepoint MFB': '110007', 'OPay': '100004',
+  'PalmPay': '100033', 'VFD MFB': '090110',
+};
+
 export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaff, onRefetch }: Props) {
   const [search, setSearch] = useState('');
+  const [bankSearch, setBankSearch] = useState('');
+  const [beneficiaryName, setBeneficiaryName] = useState<string | null>(null);
+  const [verifyingBank, setVerifyingBank] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     staffId: '',
@@ -74,6 +90,8 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
   });
 
   const resetForm = () => {
+    setBankSearch('');
+    setBeneficiaryName(null);
     setForm({
       staffId: '',
       designation: '',
@@ -99,6 +117,17 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
     if (nameParts.length < 2 || !form.staffId || !form.designation) {
       toast({ title: 'Validation Error', description: 'Please fill Staff ID, Designation, and Full Name (first & last).', variant: 'destructive' });
       return;
+    }
+
+    if (form.bankName || form.accountNumber) {
+      if (!form.bankName || form.accountNumber.length !== 10) {
+        toast({ title: 'Incomplete bank details', description: 'Select a bank and enter the full 10-digit account number, or leave both fields blank for a cash-paid staff member.', variant: 'destructive' });
+        return;
+      }
+      if (!beneficiaryName) {
+        toast({ title: 'Verify bank account first', description: 'Use Verify Account to confirm the beneficiary name before saving bank-paid staff details.', variant: 'destructive' });
+        return;
+      }
     }
 
     if (form.isSystemUser) {
@@ -307,14 +336,19 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
 
             {/* Bank Details Section */}
             <div>
-              <h3 className="text-sm font-semibold mb-3">Bank Details</h3>
+              <h3 className="text-sm font-semibold mb-1">Bank Details</h3>
+              <p className="text-xs text-muted-foreground mb-3">Search for the bank, enter the account number, then verify its beneficiary. The beneficiary may differ from the staff member’s name.</p>
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Select Bank</Label>
-                  <Select value={form.bankName} onValueChange={v => setForm(f => ({ ...f, bankName: v }))}>
+                  <Input value={bankSearch} onChange={e => setBankSearch(e.target.value)} placeholder="Search bank name…" />
+                  <Select value={form.bankName} onValueChange={v => {
+                    setBeneficiaryName(null);
+                    setForm(f => ({ ...f, bankName: v }));
+                  }}>
                     <SelectTrigger><SelectValue placeholder="Select a bank" /></SelectTrigger>
                     <SelectContent>
-                      {NIGERIAN_BANKS.map(b => (
+                      {NIGERIAN_BANKS.filter(bank => bank.toLowerCase().includes(bankSearch.toLowerCase())).map(b => (
                         <SelectItem key={b} value={b}>{b}</SelectItem>
                       ))}
                     </SelectContent>
@@ -322,7 +356,36 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                 </div>
                 <div className="space-y-2">
                   <Label>Account Number</Label>
-                  <Input value={form.accountNumber} onChange={e => setForm(f => ({ ...f, accountNumber: e.target.value }))} placeholder="10-digit account number" maxLength={10} />
+                  <div className="flex gap-2">
+                    <Input value={form.accountNumber} onChange={e => {
+                      setBeneficiaryName(null);
+                      setForm(f => ({ ...f, accountNumber: e.target.value.replace(/\D/g, '').slice(0, 10) }));
+                    }} placeholder="10-digit account number" inputMode="numeric" maxLength={10} />
+                    <Button type="button" variant="outline" disabled={verifyingBank || !form.bankName || form.accountNumber.length !== 10} onClick={async () => {
+                      const bankCode = FLUTTERWAVE_BANK_CODES[form.bankName];
+                      if (!bankCode) {
+                        toast({ title: 'Bank verification unavailable', description: 'This bank is not currently configured for account verification. Select another bank or contact an administrator.', variant: 'destructive' });
+                        return;
+                      }
+                      setVerifyingBank(true);
+                      try {
+                        const { data, error } = await supabase.functions.invoke('payroll-payment', {
+                          body: { action: 'resolve_account', account_number: form.accountNumber, account_bank: bankCode },
+                        });
+                        if (error || data?.error || !data?.account?.account_name) throw error || new Error(data?.error || 'The account could not be verified.');
+                        setBeneficiaryName(data.account.account_name);
+                        toast({ title: 'Account verified', description: `Beneficiary: ${data.account.account_name}` });
+                      } catch (error) {
+                        setBeneficiaryName(null);
+                        toast({ title: 'Account verification failed', description: error instanceof Error ? error.message : 'Check the bank and account number, then try again.', variant: 'destructive' });
+                      } finally {
+                        setVerifyingBank(false);
+                      }
+                    }}>
+                      {verifyingBank ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Verify Account'}
+                    </Button>
+                  </div>
+                  {beneficiaryName && <div className="flex items-center gap-2 rounded-md border border-success/30 bg-success/5 px-3 py-2 text-sm text-success"><CheckCircle2 className="h-4 w-4" /> Verified beneficiary: <strong>{beneficiaryName}</strong></div>}
                 </div>
               </div>
             </div>

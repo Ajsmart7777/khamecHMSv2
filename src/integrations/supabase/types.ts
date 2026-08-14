@@ -1449,6 +1449,7 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          failure_reason: string | null
           id: string
           paid_at: string | null
           payroll_entry_id: string
@@ -1463,6 +1464,7 @@ export type Database = {
         Insert: {
           amount?: number
           created_at?: string
+          failure_reason?: string | null
           id?: string
           paid_at?: string | null
           payroll_entry_id: string
@@ -1477,6 +1479,7 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string
+          failure_reason?: string | null
           id?: string
           paid_at?: string | null
           payroll_entry_id?: string

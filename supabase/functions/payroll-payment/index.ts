@@ -30,10 +30,18 @@ async function flwRequest(path: string, method = "GET", body?: unknown) {
   if (body) opts.body = JSON.stringify(body);
 
   const res = await fetch(`${FLW_BASE}${path}`, opts);
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
 
-  if (data?.status === "error") {
-    const providerMessage = typeof data?.message === "string" ? data.message : "Flutterwave error";
+  // Flutterwave can return HTTP 200 together with a failed response envelope.
+  // Treat every non-success envelope as a rejected request so the client never
+  // creates a processing payroll record for an unfunded or invalid transfer.
+  if (!res.ok || data?.status !== "success") {
+    const providerMessage =
+      typeof data?.message === "string"
+        ? data.message
+        : typeof data?.error?.message === "string"
+          ? data.error.message
+          : "Flutterwave rejected the request";
     throw new FlutterwaveBusinessError(providerMessage);
   }
 
@@ -77,8 +85,8 @@ Deno.serve(async (req) => {
       .select("role")
       .eq("user_id", user.id);
     const roles = (roleRows ?? []).map((r: { role: string }) => r.role);
-    if (!roles.includes("billing") && !roles.includes("admin")) {
-      return new Response(JSON.stringify({ error: "Forbidden: billing or admin role required" }), {
+    if (!roles.includes("billing") && !roles.includes("accountant") && !roles.includes("admin")) {
+      return new Response(JSON.stringify({ error: "Forbidden: billing, accountant, or admin role required" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -123,8 +131,22 @@ Deno.serve(async (req) => {
           reference,
           beneficiary_name,
         });
+
+        const transfer = data?.data;
+        const transferStatus = String(transfer?.status || "").toUpperCase();
+        const rejectedStatuses = new Set(["FAILED", "REJECTED", "CANCELLED", "REVERSED"]);
+        if (!transfer || !transfer?.id || rejectedStatuses.has(transferStatus)) {
+          const reason =
+            typeof transfer?.complete_message === "string"
+              ? transfer.complete_message
+              : typeof transfer?.failure_reason === "string"
+                ? transfer.failure_reason
+                : "Flutterwave did not accept this transfer for processing";
+          throw new FlutterwaveBusinessError(reason);
+        }
+
         return new Response(
-          JSON.stringify({ transfer: data.data }),
+          JSON.stringify({ transfer }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

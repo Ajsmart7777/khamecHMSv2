@@ -36,8 +36,9 @@ Deno.serve(async (req) => {
       return new Response("OK", { status: 200 });
     }
 
-    // Only handle transfer events
-    if (event !== "transfer.completed") {
+    // Transfer outcomes may arrive as completed, failed, or reversed events.
+    // Every transfer event is reconciled; non-transfer webhooks are ignored.
+    if (typeof event !== "string" || !event.startsWith("transfer.")) {
       console.log("[flutterwave-webhook] Ignoring event:", event);
       return new Response("OK", { status: 200 });
     }
@@ -47,38 +48,55 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const transferStatus = data.status; // "SUCCESSFUL", "FAILED", "REVERSED"
+    const transferStatus = String(data.status || "").toUpperCase();
     const reference = data.reference;
-    const transferId = String(data.id);
+    const transferId = String(data.id || data.transfer_id || data.transfer_code || "");
 
-    if (!reference) {
-      console.warn("[flutterwave-webhook] No reference in payload");
+    if (!reference && !transferId) {
+      console.warn("[flutterwave-webhook] No transfer reference or identifier in payload");
       return new Response("OK", { status: 200 });
     }
 
-    // Map Flutterwave status to our status
+    // Only a provider-confirmed success is marked paid.  An asynchronous result
+    // without a final outcome remains processing, while rejection stays retryable.
     let paymentStatus: string;
     switch (transferStatus) {
       case "SUCCESSFUL":
+      case "SUCCESS":
         paymentStatus = "paid";
         break;
       case "FAILED":
+      case "REJECTED":
+      case "CANCELLED":
         paymentStatus = "failed";
         break;
       case "REVERSED":
         paymentStatus = "reversed";
         break;
       default:
-        paymentStatus = "pending";
+        paymentStatus = "processing";
     }
+
+    const failureReason = paymentStatus === "paid" || paymentStatus === "processing"
+      ? null
+      : (typeof data.complete_message === "string"
+          ? data.complete_message
+          : typeof data.failure_reason === "string"
+            ? data.failure_reason
+            : `Flutterwave transfer ${transferStatus || "failed"}`);
 
     console.log(`[flutterwave-webhook] Updating reference=${reference} to status=${paymentStatus}`);
 
-    // Update payroll_payments by provider_reference or provider_transfer_code
+    // Match by the locally generated reference first, with the provider identifier
+    // as a fallback for callbacks that omit the original reference.
+    const lookupConditions = [
+      reference ? `provider_reference.eq.${reference}` : null,
+      transferId ? `provider_transfer_code.eq.${transferId}` : null,
+    ].filter(Boolean).join(",");
     const { data: payments, error: fetchErr } = await supabase
       .from("payroll_payments")
       .select("id, payroll_entry_id")
-      .or(`provider_reference.eq.${reference},provider_transfer_code.eq.${reference}`)
+      .or(lookupConditions)
       .limit(10);
 
     if (fetchErr) {
@@ -95,7 +113,8 @@ Deno.serve(async (req) => {
       // Update payment status
       const updateData: Record<string, unknown> = {
         status: paymentStatus,
-        provider_transfer_code: transferId,
+        provider_transfer_code: transferId || null,
+        failure_reason: failureReason,
       };
       if (paymentStatus === "paid") {
         updateData.paid_at = new Date().toISOString();

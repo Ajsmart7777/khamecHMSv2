@@ -77,7 +77,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
   useEffect(() => { if (canPay) fetchBalance(); }, [canPay, provider]);
 
   const payEntry = async (entry: PayrollEntry): Promise<boolean> => {
-    if (!entry.staff_bank_name || !entry.staff_account_number) return false;
+    if (!selectedPeriod || !entry.staff_bank_name || !entry.staff_account_number) return false;
     const bankCode = BANK_CODES_BY_PROVIDER[provider][entry.staff_bank_name];
     if (!bankCode) {
       toast({ title: 'Bank Not Supported', description: `${entry.staff_bank_name} is not mapped for ${providerLabel}. Please edit the staff bank details and retry.`, variant: 'destructive' });
@@ -85,74 +85,94 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
       return false;
     }
 
-    if (entry.status === 'failed') {
-      await supabase.from('payroll_entries').update({ status: 'pending' }).eq('id', entry.id);
-    }
-
+    const reference = `PAY-${entry.id.slice(0, 8)}-${Date.now()}`;
+    let paymentAttemptId: string | null = null;
     setPayingId(entry.id);
-    try {
-      await resolveAccount(entry.staff_account_number, bankCode);
 
-      const reference = `PAY-${entry.id.slice(0, 8)}-${Date.now()}`;
+    try {
+      // Record the attempt before contacting the provider.  This prevents an
+      // accepted transfer from becoming invisible if a later local write fails.
+      const { data: paymentAttempt, error: attemptError } = await supabase
+        .from('payroll_payments')
+        .insert({
+          payroll_period_id: selectedPeriod.id,
+          payroll_entry_id: entry.id,
+          staff_id: entry.staff_id,
+          amount: entry.net_pay,
+          status: 'processing',
+          provider_reference: reference,
+          provider,
+        })
+        .select('id')
+        .single();
+      if (attemptError || !paymentAttempt) throw attemptError || new Error('Could not record the payroll payment attempt.');
+      paymentAttemptId = paymentAttempt.id;
+
+      const { error: processingError } = await supabase
+        .from('payroll_entries')
+        .update({ status: 'processing', payment_reference: reference })
+        .eq('id', entry.id);
+      if (processingError) throw processingError;
+
+      const accountResult = await resolveAccount(entry.staff_account_number, bankCode);
+      const beneficiaryName = accountResult?.account?.account_name || entry.staff_name || 'Staff';
       const transferRes = await initiateTransfer({
         amount: entry.net_pay,
         account_bank: bankCode,
         account_number: entry.staff_account_number,
-        beneficiary_name: entry.staff_name || 'Staff',
+        beneficiary_name: beneficiaryName,
         narration: `Salary - ${entry.staff_name}`,
         reference,
       });
 
       const transferId = transferRes.transfer?.id?.toString() || transferRes.transfer?.transfer_code || '';
       const recipientCode = transferRes.transfer?.recipient_code || null;
+      if (!transferId) throw new Error('The provider did not return a usable transfer reference.');
 
-      await supabase.from('payroll_payments').insert({
-        payroll_period_id: selectedPeriod!.id,
-        payroll_entry_id: entry.id,
-        staff_id: entry.staff_id,
-        amount: entry.net_pay,
-        status: 'processing',
-        provider_transfer_code: transferId,
-        provider_reference: reference,
-        provider_recipient_code: recipientCode,
-        provider,
-      });
+      const { error: transferUpdateError } = await supabase
+        .from('payroll_payments')
+        .update({ provider_transfer_code: transferId, provider_recipient_code: recipientCode, failure_reason: null })
+        .eq('id', paymentAttemptId);
+      if (transferUpdateError) throw transferUpdateError;
 
-      await supabase.from('payroll_entries').update({ status: 'processing', payment_reference: reference }).eq('id', entry.id);
-
-      setPayingId(null);
       return true;
     } catch (err) {
-      await supabase.from('payroll_entries').update({ status: 'failed' }).eq('id', entry.id);
       const errorMsg = err instanceof Error ? err.message : 'Transfer failed';
-      
-      // Provide tailored, user-friendly error descriptions
-      let title = 'Payment Could Not Be Processed';
-      let description = `${entry.staff_name}: ${errorMsg}`;
-      
-      if (errorMsg.includes('third party payouts')) {
-        title = 'Transfers Not Enabled';
-        description = `${providerLabel} has not enabled third-party payouts on your account. Please contact ${providerLabel} support to activate transfers before retrying.`;
-      } else if (errorMsg.includes('insufficient') || errorMsg.includes('Insufficient')) {
-        title = 'Insufficient Balance';
-        description = `Your ${providerLabel} balance is too low to pay ${entry.staff_name} (₦${entry.net_pay.toLocaleString()}). Please fund your ${providerLabel} wallet and retry.`;
-      } else if (errorMsg.includes('not configured') || errorMsg.includes('SECRET_KEY')) {
-        title = 'Provider Not Configured';
-        description = `${providerLabel} API key is missing or invalid. Please check your configuration.`;
-      } else if (errorMsg.includes('Unknown Bank Code') || errorMsg.includes('Bank Code')) {
-        title = 'Bank Code Not Accepted';
-        description = `${providerLabel} rejected ${entry.staff_bank_name}. Please edit the staff bank details and select the correct bank option before retrying.`;
-      } else if (errorMsg.includes('recipient') || errorMsg.includes('account') || errorMsg.includes('beneficiary')) {
-        title = 'Invalid Bank Details';
-        description = `Could not process payment for ${entry.staff_name}. Please verify the bank name and account number are correct.`;
-      } else if (errorMsg.includes('IP') || errorMsg.includes('whitelist')) {
-        title = 'Access Restricted';
-        description = `${providerLabel} is blocking requests from this server. Please contact ${providerLabel} support to disable IP whitelisting.`;
+      if (paymentAttemptId) {
+        await supabase
+          .from('payroll_payments')
+          .update({ status: 'failed', failure_reason: errorMsg })
+          .eq('id', paymentAttemptId);
       }
-      
+      await supabase.from('payroll_entries').update({ status: 'failed' }).eq('id', entry.id);
+
+      let title = 'Payment Rejected';
+      let description = `${entry.staff_name}: ${errorMsg}`;
+      const normalizedError = errorMsg.toLowerCase();
+      if (normalizedError.includes('third party payouts')) {
+        title = 'Transfers Not Enabled';
+        description = `${providerLabel} has not enabled third-party payouts on this account. Activate transfers before retrying.`;
+      } else if (normalizedError.includes('insufficient') || normalizedError.includes('insufficient_balance')) {
+        title = 'Insufficient Balance';
+        description = `Your ${providerLabel} balance is too low to pay ${entry.staff_name} (₦${entry.net_pay.toLocaleString()}). Fund the wallet and retry.`;
+      } else if (normalizedError.includes('not configured') || normalizedError.includes('secret_key')) {
+        title = 'Provider Not Configured';
+        description = `${providerLabel} API credentials are missing or invalid.`;
+      } else if (normalizedError.includes('bank code')) {
+        title = 'Bank Code Not Accepted';
+        description = `${providerLabel} rejected ${entry.staff_bank_name}. Update the staff bank details and retry.`;
+      } else if (normalizedError.includes('recipient') || normalizedError.includes('account') || normalizedError.includes('beneficiary')) {
+        title = 'Invalid Bank Details';
+        description = `Could not process payment for ${entry.staff_name}. Verify the bank and account number, then retry.`;
+      } else if (normalizedError.includes('ip') || normalizedError.includes('whitelist')) {
+        title = 'Access Restricted';
+        description = `${providerLabel} is blocking requests from this server. Contact ${providerLabel} support to remove the restriction.`;
+      }
+
       toast({ title, description, variant: 'destructive' });
-      setPayingId(null);
       return false;
+    } finally {
+      setPayingId(null);
     }
   };
 
@@ -161,7 +181,10 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
     await onRefreshEntries();
     fetchBalance();
     if (ok) {
-      toast({ title: 'Transfer Initiated', description: `₦${entry.net_pay.toLocaleString()} sent to ${entry.staff_name} via ${provider === 'paystack' ? 'Paystack' : 'Flutterwave'}` });
+      toast({
+        title: 'Transfer Submitted for Confirmation',
+        description: `₦${entry.net_pay.toLocaleString()} for ${entry.staff_name} is processing with ${providerLabel}. It will show Paid only after provider confirmation.`,
+      });
     }
   };
 
@@ -187,11 +210,11 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
     setPayingAll(false);
 
     if (failed === 0 && succeeded > 0) {
-      toast({ title: 'Bulk Payment Complete', description: `${succeeded} transfer(s) initiated successfully via ${providerLabel}.` });
+      toast({ title: 'Transfers Submitted for Confirmation', description: `${succeeded} transfer(s) are processing with ${providerLabel}. They will show Paid only after provider confirmation.` });
     } else if (succeeded > 0 && failed > 0) {
-      toast({ title: 'Bulk Payment Partial', description: `${succeeded} succeeded, ${failed} failed. Check the individual error messages above for details.`, variant: 'destructive' });
+      toast({ title: 'Some Transfers Were Rejected', description: `${succeeded} submitted for confirmation; ${failed} rejected. Check the specific error toast, correct the issue, then retry.`, variant: 'destructive' });
     }
-    // When all fail, don't show a generic bulk toast — the individual tailored errors are already visible
+    // When all fail, individual rejection toasts already explain the reason.
   };
 
   const totalRetryableAmount = retryableBankEntries.reduce((sum, e) => sum + e.net_pay, 0);
@@ -283,9 +306,9 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
               <p className="text-2xl font-bold">{cashEntries.length}</p>
             </div>
             <div className="bg-card border border-border rounded-xl p-4">
-              <p className="text-sm text-muted-foreground">Paid</p>
+                <p className="text-sm text-muted-foreground">Confirmed Paid</p>
               <p className="text-2xl font-bold text-success">
-                {entries.filter(e => e.status === 'paid' || e.status === 'processing').length}
+                {entries.filter(e => e.status === 'paid').length}
               </p>
             </div>
           </div>
@@ -295,9 +318,12 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
       {canPay && (
         <>
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold flex items-center gap-2">
-              <Wallet className="h-5 w-5" /> Bank Transfers
-            </h3>
+            <div>
+              <h3 className="font-semibold flex items-center gap-2">
+                <Wallet className="h-5 w-5" /> Bank Transfers
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">Processing means submitted to the provider. Only Paid is a confirmed settlement; Failed can be corrected and retried.</p>
+            </div>
             <Button
               onClick={() => setShowConfirm(true)}
               disabled={payingAll || retryableBankEntries.length === 0}
@@ -334,7 +360,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
                           entry.status === 'paid' ? 'success' :
                           entry.status === 'processing' ? 'warning' :
                           entry.status === 'failed' ? 'destructive' : 'outline'
-                        }>{entry.status}</Badge>
+                        }>{entry.status === 'processing' ? 'processing confirmation' : entry.status}</Badge>
                       </TableCell>
                       <TableCell>
                         <Button
@@ -396,7 +422,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
         <div className="text-center py-12 text-muted-foreground">
           {selectedPeriod.status === 'draft'
             ? 'Lock the payroll period first before processing payments.'
-            : 'All payments for this period have been processed.'}
+            : `This period is closed. Confirmed paid: ${entries.filter(e => e.status === 'paid').length}; still processing or requiring attention: ${entries.filter(e => ['pending', 'processing', 'failed', 'reversed'].includes(e.status)).length}.`}
         </div>
       )}
 

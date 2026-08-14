@@ -42,6 +42,7 @@ export interface PayrollPayment {
   provider_transfer_code: string | null;
   provider_reference: string | null;
   provider_recipient_code: string | null;
+  failure_reason: string | null;
   paid_at: string | null;
   created_at: string;
   // joined

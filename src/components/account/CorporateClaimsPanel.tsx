@@ -324,8 +324,8 @@ export function CorporateClaimsPanel() {
         notes: manualForm.notes.trim() || null,
       };
       const request = editingManual
-        ? supabase.from('corporate_manual_service_rows').update(payload).eq('id', editingManual.id)
-        : supabase.from('corporate_manual_service_rows').insert(payload);
+        ? (supabase as any).from('corporate_manual_service_rows').update(payload).eq('id', editingManual.id)
+        : (supabase as any).from('corporate_manual_service_rows').insert(payload);
       const { error } = await request;
       if (error) throw error;
       toast({ title: editingManual ? 'Walk-in service updated' : 'Walk-in service added', description: 'Generate or regenerate the draft statement to include the revised total.' });
@@ -343,7 +343,7 @@ export function CorporateClaimsPanel() {
     if (!window.confirm(`Remove the walk-in service for ${row.patient_name}?`)) return;
     setBusy(row.id);
     try {
-      const { error } = await supabase.from('corporate_manual_service_rows').delete().eq('id', row.id);
+      const { error } = await (supabase as any).from('corporate_manual_service_rows').delete().eq('id', row.id);
       if (error) throw error;
       toast({ title: 'Walk-in service removed', description: 'Regenerate the draft statement to update its total.' });
       await load();
@@ -368,7 +368,7 @@ export function CorporateClaimsPanel() {
     }
     setBusy(paymentDialog);
     try {
-      const { data, error } = await supabase.rpc('record_corporate_statement_payment', {
+      const { data, error } = await (supabase as any).rpc('record_corporate_statement_payment', {
         _statement_id: paymentDialog,
         _payment_date: paymentForm.payment_date,
         _amount: amount,
@@ -414,7 +414,7 @@ export function CorporateClaimsPanel() {
     setBusy(sponsorId);
     try {
       const [{ data: reconciliation, error: reconciliationError }, { data: invoiceItems, error: itemsError }] = await Promise.all([
-        supabase.rpc('get_corporate_covering_letter_data', { _sponsor_id: sponsorId, _as_of_year: year, _as_of_month: month }),
+        (supabase as any).rpc('get_corporate_covering_letter_data', { _sponsor_id: sponsorId, _as_of_year: year, _as_of_month: month }),
         supabase
           .from('sponsor_statement_items')
           .select('service_date, amount, patient:patients(first_name,last_name,card_number), invoice:invoices(invoice_number)')

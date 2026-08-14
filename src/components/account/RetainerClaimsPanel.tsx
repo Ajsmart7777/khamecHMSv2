@@ -277,7 +277,7 @@ export function RetainerClaimsPanel() {
 
     setBusy(settlementDialog);
     try {
-      const { data, error } = await supabase.rpc('settle_retainer_statement', {
+      const { data, error } = await (supabase as any).rpc('settle_retainer_statement', {
         _statement_id: settlementDialog,
         _amount_received: amountReceived,
         _payment_date: settlementForm.payment_date,
@@ -330,7 +330,7 @@ export function RetainerClaimsPanel() {
     setBusy(sponsorId);
     try {
       const [{ data: reconciliation, error: reconciliationError }, { data: invoiceItems, error: itemsError }] = await Promise.all([
-        supabase.rpc('get_retainer_covering_letter_data', { _sponsor_id: sponsorId, _as_of_year: year, _as_of_month: month }),
+        (supabase as any).rpc('get_retainer_covering_letter_data', { _sponsor_id: sponsorId, _as_of_year: year, _as_of_month: month }),
         supabase
           .from('sponsor_statement_items')
           .select('service_date, amount, patient:patients(first_name,last_name,card_number), invoice:invoices(invoice_number)')

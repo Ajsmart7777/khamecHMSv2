@@ -131,7 +131,7 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
   };
 
   const deleteAccount = async (id: string) => {
-    const { data, error } = await supabase.rpc('delete_unused_sponsor_account', {
+    const { data, error } = await (supabase as any).rpc('delete_unused_sponsor_account', {
       p_sponsor_id: id,
     });
 

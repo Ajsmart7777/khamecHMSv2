@@ -53,9 +53,9 @@ export function useSponsorStatements(sponsorType?: 'corporate' | 'retainer') {
     } else {
       setStatements((data || []).map(s => ({
         ...s,
-        total_amount: Number(s.total_amount),
-        manual_service_count: Number(s.manual_service_count || 0),
-      })) as unknown as SponsorStatement[]);
+        total_amount: Number((s as any).total_amount),
+        manual_service_count: Number((s as any).manual_service_count || 0),
+      })) as any as SponsorStatement[]);
     }
     setLoading(false);
   }, [sponsorType]);

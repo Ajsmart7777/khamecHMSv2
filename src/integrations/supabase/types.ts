@@ -2987,32 +2987,19 @@ export type Database = {
         Args: { _admission_id: string; _note?: string }
         Returns: undefined
       }
-      settle_invoice_atomic:
-        | {
-            Args: {
-              _balance_amount?: number
-              _cash_amount?: number
-              _debt_amount?: number
-              _invoice_id: string
-              _notes?: string
-              _payment_method?: string
-              _sponsored?: boolean
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              _balance_amount?: number
-              _cash_amount?: number
-              _debt_amount?: number
-              _invoice_id: string
-              _is_salary_deduction?: boolean
-              _notes?: string
-              _payment_method?: string
-              _sponsored?: boolean
-            }
-            Returns: Json
-          }
+      settle_invoice_atomic: {
+        Args: {
+          _balance_amount?: number
+          _cash_amount?: number
+          _debt_amount?: number
+          _invoice_id: string
+          _is_salary_deduction?: boolean
+          _notes?: string
+          _payment_method?: string
+          _sponsored?: boolean
+        }
+        Returns: Json
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       simple_id: { Args: { _n: number; _prefix: string }; Returns: string }

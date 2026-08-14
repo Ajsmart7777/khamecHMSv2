@@ -205,7 +205,7 @@ export function SnapFulfillDialog({
           if (error) throw error;
           if (!data?.stock_controlled) {
             toast.warning('Dispensed without stock deduction', {
-              description: `${item.description} is not yet mapped to Store inventory. Map it before the next delivery or opening count.`,
+              description: `${item.description} is a non-stock invoice item and was dispensed without inventory deduction.`,
               duration: 7000,
             });
           }

@@ -90,9 +90,10 @@ export function useAdmissions(filter: { statuses?: AdmissionStatus[]; patientId?
 
     return () => {
       clearTimeout(timeout);
-      supabase.removeChannel(ch);
+      if (ch) {
+        supabase.removeChannel(ch);
+      }
     };
-    return () => { supabase.removeChannel(ch); };
   }, [refresh, channelId]);
 
   return { admissions, loading, refresh };

@@ -52,6 +52,8 @@ export interface CorporateCoveringLetterManualService {
 
 export interface CorporateCoveringLetterData {
   reference: string;
+  /** Defaults to corporate to retain compatibility with existing Corporate Claims callers. */
+  account_kind?: 'corporate' | 'retainer';
   generated_at?: string;
   as_of_year: number;
   as_of_month: number;
@@ -71,6 +73,8 @@ export interface CorporateCoveringLetterData {
     total_paid: number;
     net_balance_due: number;
     credit_amount: number;
+    /** Deposits currently held for a Retainer account but not yet applied to a statement. */
+    available_deposit_balance?: number;
   };
 }
 
@@ -136,7 +140,7 @@ function currentClaimRows(data: CorporateCoveringLetterData) {
   return invoiceRows || manualRows ? `${invoiceRows}${manualRows}` : '<tr><td colspan="5" class="empty">No billable services are included in the selected month.</td></tr>';
 }
 
-function paymentRows(payments: CorporateCoveringLetterPayment[]) {
+function paymentRows(payments: CorporateCoveringLetterPayment[], isRetainer: boolean) {
   const rows = payments.map((payment, index) => `
     <tr>
       <td class="center">${index + 1}</td>
@@ -145,10 +149,13 @@ function paymentRows(payments: CorporateCoveringLetterPayment[]) {
       <td>${escapeHtml(payment.payment_method.replaceAll('_', ' '))}${payment.bank_reference ? `<br><span class="mono dim">${escapeHtml(payment.bank_reference)}</span>` : ''}</td>
       <td class="num paid">${money(payment.amount)}</td>
     </tr>`).join('');
-  return rows || '<tr><td colspan="5" class="empty">No recorded payment has been applied to the statements in this period.</td></tr>';
+  return rows || `<tr><td colspan="5" class="empty">No recorded ${isRetainer ? 'Retainer deposit or deduction' : 'payment'} is included in this period.</td></tr>`;
 }
 
 function letterHtml(data: CorporateCoveringLetterData) {
+  const isRetainer = data.account_kind === 'retainer';
+  const accountLabel = isRetainer ? 'Retainer account' : 'Corporate account';
+  const accountNoun = isRetainer ? 'retainer' : 'corporate';
   const current = data.statements.find(s => s.period_year === data.as_of_year && s.period_month === data.as_of_month);
   const currentAmount = Number(current?.total_amount || 0);
   const previousArrears = data.statements
@@ -170,7 +177,7 @@ function letterHtml(data: CorporateCoveringLetterData) {
           </div>
         </div>
         <div class="stamp">
-          <span class="stamp-label">Corporate account</span>
+          <span class="stamp-label">${accountLabel}</span>
           <span class="stamp-title">Covering Letter</span>
           <span class="stamp-num">${reference}</span>
         </div>
@@ -203,12 +210,12 @@ function letterHtml(data: CorporateCoveringLetterData) {
 
       <section class="intro">
         <p>Dear Sir/Madam,</p>
-        <p>Please find below the reconciled position of your corporate account. This covering letter combines the current monthly claim, outstanding claims from previous months, payments received, and any resulting credit or balance due.</p>
+        <p>Please find below the reconciled position of your ${accountNoun} account. This covering letter combines the current monthly claim, outstanding claims from previous months, ${isRetainer ? 'retainer deposits and deductions' : 'payments received'}, and any resulting credit or balance due.</p>
       </section>
 
       <section>
         <h2><span>1</span> Current month claim</h2>
-        <p class="section-note">Services rendered during ${periodLabel(data.as_of_year, data.as_of_month)}. Rows marked <strong>Walk-in paper service</strong> were provided to company-referred patients who were not registered in the HMS.</p>
+        <p class="section-note">Services rendered during ${periodLabel(data.as_of_year, data.as_of_month)}.${isRetainer ? ' This Retainer claim contains services for registered beneficiaries.' : ' Rows marked <strong>Walk-in paper service</strong> were provided to company-referred patients who were not registered in the HMS.'}</p>
         <table>
           <thead><tr><th class="center">#</th><th>Date</th><th>Patient / recipient</th><th>Invoice or service</th><th class="num">Amount (₦)</th></tr></thead>
           <tbody>
@@ -230,10 +237,10 @@ function letterHtml(data: CorporateCoveringLetterData) {
       </section>
 
       <section>
-        <h2><span>3</span> Payment history</h2>
+        <h2><span>3</span> ${isRetainer ? 'Retainer deposit and deduction history' : 'Payment history'}</h2>
         <table>
-          <thead><tr><th class="center">#</th><th>Payment date</th><th>Applied statement</th><th>Method / reference</th><th class="num">Amount (₦)</th></tr></thead>
-          <tbody>${paymentRows(data.payments)}</tbody>
+          <thead><tr><th class="center">#</th><th>${isRetainer ? 'Transaction date' : 'Payment date'}</th><th>${isRetainer ? 'Related statement' : 'Applied statement'}</th><th>${isRetainer ? 'Transaction / notes' : 'Method / reference'}</th><th class="num">Amount (₦)</th></tr></thead>
+          <tbody>${paymentRows(data.payments, isRetainer)}</tbody>
         </table>
       </section>
 
@@ -241,14 +248,17 @@ function letterHtml(data: CorporateCoveringLetterData) {
         <h2><span>4</span> Reconciliation summary</h2>
         <div class="summary-box">
           <div><span>Total billed to date</span><strong>${money(data.summary.total_billed)}</strong></div>
-          <div><span>Total payments received</span><strong>${money(data.summary.total_paid)}</strong></div>
-          <div class="result ${status === 'BALANCE DUE' ? 'due' : 'paid'}"><span>${status === 'CREDIT BALANCE' ? 'Overpayment / credit' : status === 'SETTLED' ? 'Net balance' : 'Net balance due'}</span><strong>${money(status === 'CREDIT BALANCE' ? data.summary.credit_amount : data.summary.net_balance_due)}</strong></div>
+          <div><span>${isRetainer ? 'Retainer deposits applied to claims' : 'Total payments received'}</span><strong>${money(data.summary.total_paid)}</strong></div>
+          ${isRetainer ? `<div><span>Available retainer deposit (not yet applied)</span><strong>${money(data.summary.available_deposit_balance || 0)}</strong></div>` : ''}
+          <div class="result ${status === 'BALANCE DUE' ? 'due' : 'paid'}"><span>${status === 'CREDIT BALANCE' ? 'Overpayment / credit' : status === 'SETTLED' ? 'Net balance' : isRetainer ? 'Net claim balance after applied deposits' : 'Net balance due'}</span><strong>${money(status === 'CREDIT BALANCE' ? data.summary.credit_amount : data.summary.net_balance_due)}</strong></div>
         </div>
       </section>
 
       <section class="closing">
         ${status === 'BALANCE DUE'
-          ? `<p>We kindly request settlement of the net balance due of <strong>${money(data.summary.net_balance_due)}</strong>. Please quote reference <strong>${reference}</strong> on all payments so that the account can be reconciled promptly.</p>`
+          ? isRetainer
+            ? `<p>The statements above show an open Retainer claim balance of <strong>${money(data.summary.net_balance_due)}</strong> after deposits already applied. Please arrange or confirm the required Retainer funding and quote reference <strong>${reference}</strong> so the account can be reconciled promptly.</p>`
+            : `<p>We kindly request settlement of the net balance due of <strong>${money(data.summary.net_balance_due)}</strong>. Please quote reference <strong>${reference}</strong> on all payments so that the account can be reconciled promptly.</p>`
           : status === 'CREDIT BALANCE'
             ? `<p>The account currently has a credit of <strong>${money(data.summary.credit_amount)}</strong>, arising from payments received in excess of the billed position. The credit is shown here for reconciliation and can be applied according to your written instruction.</p>`
             : '<p>The account is fully reconciled as at the period shown above. Thank you for your continued partnership.</p>'}
@@ -358,5 +368,5 @@ export async function downloadCorporateCoveringLetter(data: CorporateCoveringLet
   const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
   addCanvasPages(pdf, canvas);
   const safeSponsor = data.sponsor.company_name.replace(/[^a-z0-9]+/gi, '_').replace(/^_|_$/g, '');
-  pdf.save(`${safeSponsor || 'Corporate'}_${data.reference}_Covering_Letter.pdf`);
+  pdf.save(`${safeSponsor || (data.account_kind === 'retainer' ? 'Retainer' : 'Corporate')}_${data.reference}_Covering_Letter.pdf`);
 }

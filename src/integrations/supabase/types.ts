@@ -3200,6 +3200,10 @@ export type Database = {
           database_size_bytes: number
         }[]
       }
+      get_retainer_covering_letter_data: {
+        Args: { _as_of_month: number; _as_of_year: number; _sponsor_id: string }
+        Returns: Json
+      }
       get_staff_directory: {
         Args: never
         Returns: {

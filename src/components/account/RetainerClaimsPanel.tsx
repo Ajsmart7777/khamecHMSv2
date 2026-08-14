@@ -17,6 +17,13 @@ import {
 import { useCorporateAccounts } from '@/hooks/useCorporateAccounts';
 import { useSponsorStatements } from '@/hooks/useSponsorStatements';
 import { downloadRetainerLetter, RetainerLetterPatientRow } from '@/lib/retainerLetterPdf';
+import {
+  downloadCorporateCoveringLetter,
+  CorporateCoveringLetterData,
+  CorporateCoveringLetterInvoiceLine,
+  CorporateCoveringLetterPayment,
+  CorporateCoveringLetterStatement,
+} from '@/lib/corporateCoveringLetterPdf';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -44,6 +51,18 @@ interface StatementRow {
   total_amount: number;
   paid_at: string | null;
   finalized_at: string | null;
+}
+
+interface RetainerCoveringTransaction {
+  id: string;
+  statement_id: string | null;
+  statement_number: string | null;
+  period_year: number | null;
+  period_month: number | null;
+  transaction_date: string;
+  amount: number;
+  transaction_type: string;
+  notes: string | null;
 }
 
 function money(v: number) {
@@ -217,6 +236,95 @@ export function RetainerClaimsPanel() {
     } finally { setBusy(null); }
   };
 
+  const downloadCoveringLetter = async (sponsorId: string) => {
+    const retainer = accounts.find(account => account.id === sponsorId);
+    const statement = statementBySponsor[sponsorId];
+    if (!retainer) return;
+    if (!statement) {
+      toast({ title: 'Generate the monthly statement first', description: 'The covering letter requires a statement for the selected month.', variant: 'destructive' });
+      return;
+    }
+
+    setBusy(sponsorId);
+    try {
+      const [{ data: reconciliation, error: reconciliationError }, { data: invoiceItems, error: itemsError }] = await Promise.all([
+        supabase.rpc('get_retainer_covering_letter_data', { _sponsor_id: sponsorId, _as_of_year: year, _as_of_month: month }),
+        supabase
+          .from('sponsor_statement_items')
+          .select('service_date, amount, patient:patients(first_name,last_name,card_number), invoice:invoices(invoice_number)')
+          .eq('statement_id', statement.id)
+          .order('service_date', { ascending: true }),
+      ]);
+      if (reconciliationError) throw reconciliationError;
+      if (itemsError) throw itemsError;
+
+      const raw = reconciliation as unknown as {
+        sponsor: CorporateCoveringLetterData['sponsor'];
+        statements: CorporateCoveringLetterStatement[];
+        transaction_history: RetainerCoveringTransaction[];
+        summary: CorporateCoveringLetterData['summary'];
+      };
+      const currentInvoiceItems: CorporateCoveringLetterInvoiceLine[] = (invoiceItems || []).map(item => {
+        const row = item as unknown as {
+          service_date: string;
+          amount: number;
+          patient: { first_name: string; last_name: string | null; card_number: string | null } | null;
+          invoice: { invoice_number: string } | null;
+        };
+        return {
+          service_date: row.service_date,
+          amount: Number(row.amount),
+          patient_name: `${row.patient?.first_name || ''} ${row.patient?.last_name || ''}`.trim() || 'Registered beneficiary',
+          card_number: row.patient?.card_number,
+          invoice_number: row.invoice?.invoice_number,
+        };
+      });
+      const transactionLabels: Record<string, string> = {
+        deposit: 'Deposit received',
+        monthly_deduction: 'Deposit applied to claim',
+        refund: 'Refund issued',
+        adjustment: 'Balance adjustment',
+      };
+      const transactions: CorporateCoveringLetterPayment[] = (raw.transaction_history || []).map(row => ({
+        id: row.id,
+        statement_id: row.statement_id || '',
+        statement_number: row.statement_number || 'Retainer account',
+        period_year: Number(row.period_year || year),
+        period_month: Number(row.period_month || month),
+        payment_date: row.transaction_date,
+        amount: Number(row.amount),
+        payment_method: transactionLabels[row.transaction_type] || row.transaction_type.replaceAll('_', ' '),
+        bank_reference: row.notes,
+        notes: row.notes,
+      }));
+
+      await downloadCorporateCoveringLetter({
+        account_kind: 'retainer',
+        reference: `RET-COV-${year}${String(month).padStart(2, '0')}-${statement.statement_number}`,
+        generated_at: new Date().toISOString(),
+        as_of_year: year,
+        as_of_month: month,
+        sponsor: raw.sponsor,
+        statements: (raw.statements || []).map(row => ({ ...row, total_amount: Number(row.total_amount), paid_amount: Number(row.paid_amount), balance: Number(row.balance) })),
+        payments: transactions,
+        current_invoice_items: currentInvoiceItems,
+        current_manual_services: [],
+        summary: {
+          total_billed: Number(raw.summary?.total_billed || 0),
+          total_paid: Number(raw.summary?.total_paid || 0),
+          net_balance_due: Number(raw.summary?.net_balance_due || 0),
+          credit_amount: Number(raw.summary?.credit_amount || 0),
+          available_deposit_balance: Number(raw.summary?.available_deposit_balance || 0),
+        },
+      });
+      toast({ title: 'Retainer covering letter downloaded' });
+    } catch (error) {
+      toast({ title: 'Covering letter failed', description: (error as Error).message, variant: 'destructive' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const downloadLetter = async (sponsorId: string) => {
     const retainer = accounts.find(a => a.id === sponsorId);
     const stmt = statementBySponsor[sponsorId];
@@ -382,6 +490,10 @@ export function RetainerClaimsPanel() {
                       <Button size="sm" variant="outline" onClick={() => downloadLetter(r.id)} disabled={busy === r.id}>
                         {busy === r.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
                         {stmt?.status === 'paid' ? 'Download receipt letter' : 'Download demand letter'}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => downloadCoveringLetter(r.id)} disabled={busy === r.id}>
+                        {busy === r.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
+                        Download covering letter
                       </Button>
                       {!locked && (
                         <Button size="sm" onClick={() => { setCloseDialog(r.id); setCloseNotes(''); }} disabled={busy === r.id}>

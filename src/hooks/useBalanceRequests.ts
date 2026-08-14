@@ -75,7 +75,9 @@ export function useBalanceRequests() {
 
     return () => { 
       clearTimeout(timeout);
-      supabase.removeChannel(channel); 
+      if (channel) {
+        supabase.removeChannel(channel); 
+      }
     };
   }, [fetchRequests]);
 

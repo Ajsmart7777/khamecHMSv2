@@ -240,7 +240,7 @@ const Doctor = () => {
         </div>
       </div>
 
-      {selectedPatient && (
+      {selectedPatient && selectedPatient.id && (
         <PatientHistoryDialog
           open={historyOpen}
           onOpenChange={setHistoryOpen}

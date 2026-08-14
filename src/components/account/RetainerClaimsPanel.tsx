@@ -309,7 +309,7 @@ export function RetainerClaimsPanel() {
   const downloadMonthlyReport = async (statement: StatementRow) => {
     setBusy(statement.id);
     try {
-      await downloadStatementPdf(statement);
+      await downloadStatementPdf(statement as any);
       toast({ title: 'Monthly report downloaded', description: statement.statement_number });
     } catch (error) {
       toast({ title: 'Monthly report failed', description: (error as Error).message, variant: 'destructive' });
@@ -375,7 +375,7 @@ export function RetainerClaimsPanel() {
         period_month: Number(row.period_month || month),
         payment_date: row.transaction_date,
         amount: Number(row.amount),
-        payment_method: transactionLabels[row.transaction_type] || row.transaction_type.replaceAll('_', ' '),
+        payment_method: transactionLabels[row.transaction_type] || row.transaction_type.replace(/_/g, ' '),
         bank_reference: row.bank_reference || null,
         notes: row.notes,
       }));

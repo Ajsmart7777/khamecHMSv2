@@ -146,7 +146,7 @@ function paymentRows(payments: CorporateCoveringLetterPayment[], isRetainer: boo
       <td class="center">${index + 1}</td>
       <td>${formatDate(payment.payment_date)}</td>
       <td><strong>${escapeHtml(payment.statement_number)}</strong><br><span class="dim">${periodLabel(payment.period_year, payment.period_month)}</span></td>
-      <td>${escapeHtml(payment.payment_method.replaceAll('_', ' '))}${payment.bank_reference ? `<br><span class="mono dim">${escapeHtml(payment.bank_reference)}</span>` : ''}</td>
+      <td>${escapeHtml(payment.payment_method.replace(/_/g, ' '))}${payment.bank_reference ? `<br><span class="mono dim">${escapeHtml(payment.bank_reference)}</span>` : ''}</td>
       <td class="num paid">${money(payment.amount)}</td>
     </tr>`).join('');
   return rows || `<tr><td colspan="5" class="empty">No recorded ${isRetainer ? 'Retainer deposit or deduction' : 'payment'} is included in this period.</td></tr>`;

@@ -184,13 +184,13 @@ export function CorporateClaimsPanel() {
       }
 
       const [{ data: manualData, error: manualError }, { data: paymentData, error: paymentError }] = await Promise.all([
-        supabase
+        (supabase as any)
           .from('corporate_manual_service_rows')
           .select('id, sponsor_id, patient_name, service_description, service_date, amount, notes')
           .eq('period_year', year)
           .eq('period_month', month)
           .order('service_date', { ascending: true }),
-        supabase
+        (supabase as any)
           .from('corporate_statement_payments')
           .select('statement_id, amount'),
       ]);
@@ -396,7 +396,7 @@ export function CorporateClaimsPanel() {
   const downloadMonthlyReport = async (statement: typeof statements[number]) => {
     setBusy(statement.id);
     try {
-      await downloadStatementPdf(statement);
+      await downloadStatementPdf(statement as any);
       toast({ title: 'Monthly report downloaded', description: statement.statement_number });
     } catch (error) {
       toast({ title: 'Monthly report failed', description: (error as Error).message, variant: 'destructive' });

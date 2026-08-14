@@ -143,8 +143,8 @@ export function SponsorStatementsPanel({ accountType }: { accountType: 'corporat
 
       <p className="text-xs text-muted-foreground">
         Generates one consolidated statement per {label.toLowerCase()} sponsor for the selected month —
-        includes every invoice raised for their linked patients. Draft statements can be regenerated;
-        finalized, printed, or paid statements must be voided first. The system also auto-runs on the
+        includes every invoice raised for their linked patients${accountType === 'corporate' ? ' and any entered walk-in paper services' : ''}. Draft statements can be regenerated;
+        finalized, printed, or paid statements must be voided first.${accountType === 'corporate' ? ' Corporate payments must be recorded in Corporate Claims so partial payments and credits remain auditable.' : ''} The system also auto-runs on the
         1st of each month for the previous month.
       </p>
 
@@ -211,10 +211,13 @@ export function SponsorStatementsPanel({ accountType }: { accountType: 'corporat
                       <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Finalize
                     </Button>
                   )}
-                  {(s.status === 'finalized' || s.status === 'printed') && (
+                  {accountType === 'retainer' && (s.status === 'finalized' || s.status === 'printed') && (
                     <Button size="sm" variant="outline" onClick={() => updateStatus(s.id, 'paid')}>
                       <DollarSign className="h-3.5 w-3.5 mr-1" /> Mark paid
                     </Button>
+                  )}
+                  {accountType === 'corporate' && (s.status === 'finalized' || s.status === 'printed') && (
+                    <span className="inline-flex items-center text-xs text-muted-foreground px-2">Record payments in Corporate Claims</span>
                   )}
                   {s.status !== 'void' && s.status !== 'paid' && (
                     <Button size="sm" variant="ghost" onClick={async () => {

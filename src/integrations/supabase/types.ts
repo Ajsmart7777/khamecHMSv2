@@ -386,6 +386,149 @@ export type Database = {
         }
         Relationships: []
       }
+      corporate_manual_service_rows: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          patient_name: string
+          period_month: number
+          period_year: number
+          service_date: string
+          service_description: string
+          sponsor_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          patient_name: string
+          period_month: number
+          period_year: number
+          service_date: string
+          service_description: string
+          sponsor_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          patient_name?: string
+          period_month?: number
+          period_year?: number
+          service_date?: string
+          service_description?: string
+          sponsor_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corporate_manual_service_rows_sponsor_id_fkey"
+            columns: ["sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "corporate_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      corporate_statement_manual_items: {
+        Row: {
+          created_at: string
+          id: string
+          manual_service_id: string
+          statement_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          manual_service_id: string
+          statement_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          manual_service_id?: string
+          statement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corporate_statement_manual_items_manual_service_id_fkey"
+            columns: ["manual_service_id"]
+            isOneToOne: true
+            referencedRelation: "corporate_manual_service_rows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corporate_statement_manual_items_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "sponsor_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      corporate_statement_payments: {
+        Row: {
+          amount: number
+          bank_reference: string | null
+          created_at: string
+          id: string
+          notes: string | null
+          payment_date: string
+          payment_method: string
+          recorded_by: string | null
+          sponsor_id: string
+          statement_id: string
+        }
+        Insert: {
+          amount: number
+          bank_reference?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          payment_date: string
+          payment_method?: string
+          recorded_by?: string | null
+          sponsor_id: string
+          statement_id: string
+        }
+        Update: {
+          amount?: number
+          bank_reference?: string | null
+          created_at?: string
+          id?: string
+          notes?: string | null
+          payment_date?: string
+          payment_method?: string
+          recorded_by?: string | null
+          sponsor_id?: string
+          statement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corporate_statement_payments_sponsor_id_fkey"
+            columns: ["sponsor_id"]
+            isOneToOne: false
+            referencedRelation: "corporate_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "corporate_statement_payments_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "sponsor_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       corporate_transactions: {
         Row: {
           amount: number
@@ -1098,6 +1241,95 @@ export type Database = {
         }
         Relationships: []
       }
+      patient_archive_records: {
+        Row: {
+          archive_manifest: Json
+          archive_reference: string
+          archived_at: string
+          archived_by: string
+          attachment_paths: Json
+          case_fingerprint: string
+          database_payload_bytes: number
+          database_rows_cleared: Json
+          download_confirmed_at: string | null
+          download_confirmed_by: string | null
+          id: string
+          invoice_count: number
+          patient_card_number: string
+          patient_id: string
+          patient_name: string
+          purged_at: string | null
+          purged_by: string | null
+          r2_cleanup_status: string
+          r2_deleted_bytes: number
+          r2_deleted_paths: Json
+          r2_object_bytes: number
+          row_counts: Json
+          status: string
+          visit_count: number
+        }
+        Insert: {
+          archive_manifest?: Json
+          archive_reference: string
+          archived_at?: string
+          archived_by: string
+          attachment_paths?: Json
+          case_fingerprint: string
+          database_payload_bytes?: number
+          database_rows_cleared?: Json
+          download_confirmed_at?: string | null
+          download_confirmed_by?: string | null
+          id?: string
+          invoice_count?: number
+          patient_card_number: string
+          patient_id: string
+          patient_name: string
+          purged_at?: string | null
+          purged_by?: string | null
+          r2_cleanup_status?: string
+          r2_deleted_bytes?: number
+          r2_deleted_paths?: Json
+          r2_object_bytes?: number
+          row_counts?: Json
+          status?: string
+          visit_count?: number
+        }
+        Update: {
+          archive_manifest?: Json
+          archive_reference?: string
+          archived_at?: string
+          archived_by?: string
+          attachment_paths?: Json
+          case_fingerprint?: string
+          database_payload_bytes?: number
+          database_rows_cleared?: Json
+          download_confirmed_at?: string | null
+          download_confirmed_by?: string | null
+          id?: string
+          invoice_count?: number
+          patient_card_number?: string
+          patient_id?: string
+          patient_name?: string
+          purged_at?: string | null
+          purged_by?: string | null
+          r2_cleanup_status?: string
+          r2_deleted_bytes?: number
+          r2_deleted_paths?: Json
+          r2_object_bytes?: number
+          row_counts?: Json
+          status?: string
+          visit_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_archive_records_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patient_journey: {
         Row: {
           created_at: string
@@ -1672,6 +1904,91 @@ export type Database = {
         }
         Relationships: []
       }
+      referral_letters: {
+        Row: {
+          clinical_notes: string | null
+          created_at: string
+          created_by: string
+          destination: string
+          file_path: string | null
+          finalized_at: string | null
+          finalized_by: string | null
+          id: string
+          input_method: string
+          patient_id: string
+          reason: string | null
+          ref_number: string | null
+          snap_id: string | null
+          specialist: string | null
+          status: string
+          typed_body: string | null
+          updated_at: string
+          visit_id: string | null
+        }
+        Insert: {
+          clinical_notes?: string | null
+          created_at?: string
+          created_by: string
+          destination: string
+          file_path?: string | null
+          finalized_at?: string | null
+          finalized_by?: string | null
+          id?: string
+          input_method: string
+          patient_id: string
+          reason?: string | null
+          ref_number?: string | null
+          snap_id?: string | null
+          specialist?: string | null
+          status?: string
+          typed_body?: string | null
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Update: {
+          clinical_notes?: string | null
+          created_at?: string
+          created_by?: string
+          destination?: string
+          file_path?: string | null
+          finalized_at?: string | null
+          finalized_by?: string | null
+          id?: string
+          input_method?: string
+          patient_id?: string
+          reason?: string | null
+          ref_number?: string | null
+          snap_id?: string | null
+          specialist?: string | null
+          status?: string
+          typed_body?: string | null
+          updated_at?: string
+          visit_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_letters_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_letters_snap_id_fkey"
+            columns: ["snap_id"]
+            isOneToOne: false
+            referencedRelation: "snap_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_letters_visit_id_fkey"
+            columns: ["visit_id"]
+            isOneToOne: false
+            referencedRelation: "visits"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rooms: {
         Row: {
           active: boolean
@@ -1937,6 +2254,7 @@ export type Database = {
           generated_by: string | null
           id: string
           invoice_count: number
+          manual_service_count: number
           notes: string | null
           paid_at: string | null
           patient_count: number
@@ -1959,6 +2277,7 @@ export type Database = {
           generated_by?: string | null
           id?: string
           invoice_count?: number
+          manual_service_count?: number
           notes?: string | null
           paid_at?: string | null
           patient_count?: number
@@ -1981,6 +2300,7 @@ export type Database = {
           generated_by?: string | null
           id?: string
           invoice_count?: number
+          manual_service_count?: number
           notes?: string | null
           paid_at?: string | null
           patient_count?: number
@@ -2728,6 +3048,20 @@ export type Database = {
         Args: { _patient_id: string; _user_id: string }
         Returns: boolean
       }
+      check_archive_eligibility: {
+        Args: { _patient_ids: string[] }
+        Returns: {
+          attachment_paths: Json
+          case_fingerprint: string
+          closed_at: string
+          is_eligible: boolean
+          patient_card_number: string
+          patient_id: string
+          patient_name: string
+          reasons: string[]
+          row_counts: Json
+        }[]
+      }
       check_monthly_consultation_paid: {
         Args: { _patient_id: string }
         Returns: boolean
@@ -2755,6 +3089,10 @@ export type Database = {
         Returns: Json
       }
       close_visit: { Args: { _visit_id: string }; Returns: undefined }
+      confirm_archive_download: {
+        Args: { _archive_reference: string }
+        Returns: number
+      }
       copay_percent: {
         Args: { _account_type: string; _plan?: string }
         Returns: number
@@ -2831,6 +3169,10 @@ export type Database = {
         Args: { _patient_id: string; _reason?: string }
         Returns: Json
       }
+      finalize_referral: {
+        Args: { _file_path?: string; _referral_id: string }
+        Returns: Json
+      }
       forward_snap_to_billing: {
         Args: {
           _note?: string
@@ -2846,6 +3188,10 @@ export type Database = {
       generate_sponsor_statement: {
         Args: { _month: number; _sponsor_id: string; _year: number }
         Returns: string
+      }
+      get_corporate_covering_letter_data: {
+        Args: { _as_of_month: number; _as_of_year: number; _sponsor_id: string }
+        Returns: Json
       }
       get_database_size: {
         Args: never
@@ -2944,14 +3290,57 @@ export type Database = {
         }
         Returns: string
       }
+      patient_archive_case_fingerprint: {
+        Args: { _patient_id: string }
+        Returns: string
+      }
+      patient_archive_storage_snapshot: {
+        Args: { _patient_id: string }
+        Returns: Json
+      }
       patient_outstanding: { Args: { _patient_id: string }; Returns: number }
       patient_pending_workflow_station: {
         Args: { _patient_id: string }
         Returns: string
       }
+      prepare_patient_archive: {
+        Args: { _archive_reference: string; _archives: Json }
+        Returns: {
+          archive_record_id: string
+          patient_id: string
+        }[]
+      }
+      purge_archived_cases: {
+        Args: { _archive_reference: string; _patient_ids: string[] }
+        Returns: number
+      }
       purge_clinical_data: { Args: { _modules: string[] }; Returns: Json }
       recalc_visit_totals: { Args: { _visit_id: string }; Returns: undefined }
       reconcile_paid_snap_orders: { Args: never; Returns: Json }
+      record_archive_r2_cleanup: {
+        Args: { _archive_reference: string; _deleted_objects: Json }
+        Returns: number
+      }
+      record_archive_storage_measurement: {
+        Args: { _archive_reference: string }
+        Returns: {
+          database_payload_bytes: number
+          database_rows_cleared: Json
+          patient_id: string
+          r2_object_bytes: number
+        }[]
+      }
+      record_corporate_statement_payment: {
+        Args: {
+          _amount: number
+          _bank_reference?: string
+          _notes?: string
+          _payment_date: string
+          _payment_method?: string
+          _statement_id: string
+        }
+        Returns: Json
+      }
       refund_invoice_item: {
         Args: { _item_id: string; _payment_method?: string }
         Returns: Json

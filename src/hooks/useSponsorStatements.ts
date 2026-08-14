@@ -14,6 +14,7 @@ export interface SponsorStatement {
   total_amount: number;
   invoice_count: number;
   patient_count: number;
+  manual_service_count: number;
   status: 'draft' | 'finalized' | 'printed' | 'paid' | 'void';
   notes: string | null;
   generated_at: string;
@@ -53,6 +54,7 @@ export function useSponsorStatements(sponsorType?: 'corporate' | 'retainer') {
       setStatements((data || []).map(s => ({
         ...s,
         total_amount: Number(s.total_amount),
+        manual_service_count: Number(s.manual_service_count || 0),
       })) as unknown as SponsorStatement[]);
     }
     setLoading(false);

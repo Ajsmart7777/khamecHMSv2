@@ -27,6 +27,15 @@ function amountInWords(n: number) {
   return `${cap} naira${kobo ? ` and ${toWords(kobo)} kobo` : ''} only`;
 }
 
+interface CorporateManualStatementItem {
+  id: string;
+  patient_name: string;
+  service_description: string;
+  service_date: string;
+  amount: number;
+  notes: string | null;
+}
+
 async function fetchItems(statementId: string): Promise<SponsorStatementItem[]> {
   const { data, error } = await supabase
     .from('sponsor_statement_items')
@@ -37,7 +46,19 @@ async function fetchItems(statementId: string): Promise<SponsorStatementItem[]> 
   return (data || []).map(i => ({ ...i, amount: Number(i.amount) })) as unknown as SponsorStatementItem[];
 }
 
-function statementHtml(statement: SponsorStatement, items: SponsorStatementItem[]) {
+async function fetchManualItems(statementId: string): Promise<CorporateManualStatementItem[]> {
+  const { data, error } = await supabase
+    .from('corporate_statement_manual_items')
+    .select('manual:corporate_manual_service_rows(id,patient_name,service_description,service_date,amount,notes)')
+    .eq('statement_id', statementId);
+  if (error) return [];
+  return (data || []).flatMap(row => {
+    const manual = row.manual as unknown as CorporateManualStatementItem | null;
+    return manual ? [{ ...manual, amount: Number(manual.amount) }] : [];
+  }).sort((a, b) => a.service_date.localeCompare(b.service_date));
+}
+
+function statementHtml(statement: SponsorStatement, items: SponsorStatementItem[], manualItems: CorporateManualStatementItem[]) {
   const grouped: Record<string, SponsorStatementItem[]> = {};
   items.forEach(it => { (grouped[it.patient_id] ||= []).push(it); });
 
@@ -59,8 +80,17 @@ function statementHtml(statement: SponsorStatement, items: SponsorStatementItem[
       </tr>`;
   }).join('');
 
-  const empty = items.length === 0
-    ? `<tr><td colspan="5" class="empty">No billable invoices in this period.</td></tr>`
+  const manualRows = manualItems.map(item => `
+    <tr class="manual-row">
+      <td>${new Date(item.service_date).toLocaleDateString()}</td>
+      <td>${item.patient_name}</td>
+      <td class="mono">WALK-IN</td>
+      <td>${item.service_description}</td>
+      <td class="num">${Number(item.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+    </tr>`).join('');
+
+  const empty = items.length === 0 && manualItems.length === 0
+    ? `<tr><td colspan="5" class="empty">No billable invoices or walk-in paper services in this period.</td></tr>`
     : '';
 
   return `
@@ -99,6 +129,7 @@ function statementHtml(statement: SponsorStatement, items: SponsorStatementItem[
         <div class="chips">
           <span class="chip"><b>${statement.patient_count}</b> patients</span>
           <span class="chip"><b>${statement.invoice_count}</b> invoices</span>
+          ${statement.manual_service_count ? `<span class="chip"><b>${statement.manual_service_count}</b> walk-in services</span>` : ''}
           <span class="chip status status-${statement.status}">${statement.status}</span>
         </div>
       </div>
@@ -117,6 +148,7 @@ function statementHtml(statement: SponsorStatement, items: SponsorStatementItem[
         </thead>
         <tbody>
           ${rows}
+          ${manualRows}
           ${empty}
           <tr class="grand">
             <td colspan="4">Grand Total</td>
@@ -124,7 +156,7 @@ function statementHtml(statement: SponsorStatement, items: SponsorStatementItem[
           </tr>
         </tbody>
       </table>
-      ${items.length > 0 ? `<p class="in-words"><em>Amount in words:</em> <strong>${amountInWords(statement.total_amount)}</strong></p>` : ''}
+      ${items.length > 0 || manualItems.length > 0 ? `<p class="in-words"><em>Amount in words:</em> <strong>${amountInWords(statement.total_amount)}</strong></p>` : ''}
     </section>
 
     <section class="terms">
@@ -263,6 +295,8 @@ const CSS = `
     border-bottom: 1px solid #cbd5e1; text-align: right;
   }
   .items tr.subtotal td.num { font-style: normal; font-weight: 700; color: #0f172a; }
+  .items tr.manual-row td { background: #fffbeb; }
+  .items tr.manual-row td:nth-child(3) { color: #92400e; font-size: 9px; font-weight: 700; }
   .items tr.grand td {
     background: #0f3c64; color: #fff;
     font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px;
@@ -302,10 +336,10 @@ const CSS = `
   }
 `;
 
-async function renderPage(statement: SponsorStatement, items: SponsorStatementItem[]): Promise<HTMLCanvasElement> {
+async function renderPage(statement: SponsorStatement, items: SponsorStatementItem[], manualItems: CorporateManualStatementItem[]): Promise<HTMLCanvasElement> {
   const host = document.createElement('div');
   host.style.cssText = 'position:fixed;left:-99999px;top:0;';
-  host.innerHTML = `<style>${CSS}</style>${statementHtml(statement, items)}`;
+  host.innerHTML = `<style>${CSS}</style>${statementHtml(statement, items, manualItems)}`;
   document.body.appendChild(host);
   try {
     const target = host.querySelector('.doc') as HTMLElement;
@@ -333,7 +367,8 @@ function addCanvasToPdf(pdf: jsPDF, canvas: HTMLCanvasElement, isFirstPage: bool
 
 export async function downloadStatementPdf(statement: SponsorStatement, existingItems?: SponsorStatementItem[]) {
   const items = existingItems ?? (await fetchItems(statement.id));
-  const canvas = await renderPage(statement, items);
+  const manualItems = await fetchManualItems(statement.id);
+  const canvas = await renderPage(statement, items, manualItems);
   const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
   addCanvasToPdf(pdf, canvas, true);
   pdf.save(`${statement.statement_number}.pdf`);
@@ -349,7 +384,8 @@ export async function downloadBulkStatementsPdf(
   for (let i = 0; i < statements.length; i++) {
     const s = statements[i];
     const items = await fetchItems(s.id);
-    const canvas = await renderPage(s, items);
+    const manualItems = await fetchManualItems(s.id);
+    const canvas = await renderPage(s, items, manualItems);
     addCanvasToPdf(pdf, canvas, i === 0);
     onProgress?.(i + 1, statements.length);
   }

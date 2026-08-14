@@ -6,8 +6,18 @@ import type { SponsorStatement, SponsorStatementItem } from '@/hooks/useSponsorS
 import { useSponsorStatements } from '@/hooks/useSponsorStatements';
 import { downloadStatementPdf } from '@/lib/sponsorStatementPdf';
 import { toast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+interface ManualStatementItem {
+  id: string;
+  patient_name: string;
+  service_description: string;
+  service_date: string;
+  amount: number;
+  notes: string | null;
+}
 
 function money(v: number) {
   return `₦${Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -39,13 +49,27 @@ export function SponsorStatementPrintDialog({ statement, open, onOpenChange, onP
 }) {
   const { getItems, updateStatus } = useSponsorStatements();
   const [items, setItems] = useState<SponsorStatementItem[]>([]);
+  const [manualItems, setManualItems] = useState<ManualStatementItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     if (statement && open) {
       setLoading(true);
-      getItems(statement.id).then(rs => { setItems(rs); setLoading(false); });
+      void Promise.all([
+        getItems(statement.id),
+        supabase
+          .from('corporate_statement_manual_items')
+          .select('manual:corporate_manual_service_rows(id,patient_name,service_description,service_date,amount,notes)')
+          .eq('statement_id', statement.id),
+      ]).then(([statementItems, manualResponse]) => {
+        setItems(statementItems);
+        const manual = (manualResponse.data || []).flatMap(row => {
+          const item = row.manual as unknown as ManualStatementItem | null;
+          return item ? [{ ...item, amount: Number(item.amount) }] : [];
+        }).sort((a, b) => a.service_date.localeCompare(b.service_date));
+        setManualItems(manual);
+      }).finally(() => setLoading(false));
     }
   }, [statement, open]);
 
@@ -133,14 +157,14 @@ export function SponsorStatementPrintDialog({ statement, open, onOpenChange, onP
                   {new Date(statement.period_start).toLocaleDateString()} — {new Date(statement.period_end).toLocaleDateString()}
                 </p>
                 <p className="text-xs mt-2">Generated: {new Date(statement.generated_at).toLocaleDateString()}</p>
-                <p className="text-xs">Patients: {statement.patient_count} · Invoices: {statement.invoice_count}</p>
+                <p className="text-xs">Patients: {statement.patient_count} · Invoices: {statement.invoice_count}{statement.manual_service_count ? ` · Walk-ins: ${statement.manual_service_count}` : ''}</p>
               </div>
             </div>
 
             {/* Items */}
             <div className="mt-5">
-              {items.length === 0 ? (
-                <p className="text-center text-sm text-gray-500 py-8 border">No billable invoices in this period.</p>
+              {items.length === 0 && manualItems.length === 0 ? (
+                <p className="text-center text-sm text-gray-500 py-8 border">No billable invoices or walk-in paper services in this period.</p>
               ) : (
                 <table className="w-full text-xs border-collapse">
                   <thead>
@@ -174,6 +198,15 @@ export function SponsorStatementPrintDialog({ statement, open, onOpenChange, onP
                         </>
                       );
                     })}
+                    {manualItems.map(item => (
+                      <tr key={`manual-${item.id}`} className="border-b border-gray-300 bg-amber-50">
+                        <td className="p-1.5">{new Date(`${item.service_date}T12:00:00`).toLocaleDateString()}</td>
+                        <td className="p-1.5">{item.patient_name}<span className="block text-[9px] text-amber-700 uppercase">Walk-in paper service</span></td>
+                        <td className="p-1.5 font-mono">WALK-IN</td>
+                        <td className="p-1.5">{item.service_description}</td>
+                        <td className="p-1.5 text-right">{Number(item.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+                      </tr>
+                    ))}
                     <tr className="border-y-2 border-black bg-gray-100">
                       <td colSpan={4} className="p-2 text-right font-bold uppercase">Grand Total</td>
                       <td className="p-2 text-right font-bold text-base">{money(statement.total_amount)}</td>
@@ -183,7 +216,7 @@ export function SponsorStatementPrintDialog({ statement, open, onOpenChange, onP
               )}
             </div>
 
-            {items.length > 0 && (
+            {(items.length > 0 || manualItems.length > 0) && (
               <p className="text-xs italic mt-2">
                 Amount in words: <span className="font-semibold">{amountInWords(statement.total_amount)}</span>.
               </p>

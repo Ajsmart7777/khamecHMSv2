@@ -35,10 +35,10 @@ export function classifySponsorService(item: SponsorInvoiceItemForCategory): Spo
   const description = normalizedText(item.description);
   const source = `${explicit} ${description}`;
 
-  if (/(medication|medicine|drug|pharmacy|pharmaceutical|prescription|tablet|capsule|syrup|injection)/.test(source)) return 'medication';
-  if (/(lab|laboratory|test|investigation|pathology|haematology|hematology|chemistry|malaria|genotype|urinalysis|x ray|xray|scan|ultrasound)/.test(source)) return 'lab_test';
-  if (/(delivery|dispatch|transport|courier|logistics)/.test(source)) return 'delivery';
-  if (/(bed|ward|admission|room|in patient|inpatient|accommodation)/.test(source)) return 'bed';
+  if (/\b(delivery|dispatch|transport|courier|logistics)\b/.test(explicit) || /\b(delivery|dispatch|transport|courier|logistics)\b/.test(description)) return 'delivery';
+  if (/\b(bed|ward|admission|room|in patient|inpatient|accommodation)\b/.test(explicit) || /\b(bed|ward|admission|room|in patient|inpatient|accommodation)\b/.test(description)) return 'bed';
+  if (/\b(lab|laboratory|test|investigation|pathology|haematology|hematology|chemistry|malaria|genotype|urinalysis|x[ -]?ray|xray|scan|ultrasound)\b/.test(source)) return 'lab_test';
+  if (/\b(medication|medicines?|drug|pharmacy|pharmaceutical|prescription|tablets?|capsules?|syrup|injection)\b/.test(source)) return 'medication';
   return 'others';
 }
 

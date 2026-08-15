@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
+import type { Json } from '@/integrations/supabase/types';
 import { getFileUrl } from '@/lib/storage';
 import { toast } from 'sonner';
 
@@ -97,18 +98,20 @@ export function useSnapOrders(filter: {
 } = {}) {
   const [orders, setOrders] = useState<SnapOrder[]>([]);
   const [loading, setLoading] = useState(false);
+  const statusKey = filter.statuses?.join(',') ?? '';
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    const statuses = statusKey ? statusKey.split(',') as SnapStatus[] : [];
     let q = supabase.from('snap_orders').select('*').order('created_at', { ascending: false });
     if (filter.station) q = q.eq('target_station', filter.station);
-    if (filter.statuses?.length) q = q.in('status', filter.statuses);
+    if (statuses.length) q = q.in('status', statuses);
     if (filter.patientId) q = q.eq('patient_id', filter.patientId);
     const { data, error } = await q;
     setLoading(false);
     if (error) { toast.error('Failed to load snap orders'); return; }
     setOrders(((data ?? []) as unknown) as SnapOrder[]);
-  }, [filter.station, filter.statuses?.join(','), filter.patientId]);
+  }, [filter.station, statusKey, filter.patientId]);
 
   useEffect(() => { refresh(); }, [refresh]);
 
@@ -125,7 +128,7 @@ export function useSnapOrders(filter: {
 export async function saveSnapOcr(id: string, ocrText: string, confidence: number, matched: MatchedItem[]) {
   const { error } = await supabase
     .from('snap_orders')
-    .update({ ocr_text: ocrText, ocr_confidence: confidence, matched_items: matched as any })
+    .update({ ocr_text: ocrText, ocr_confidence: confidence, matched_items: matched as unknown as Json })
     .eq('id', id);
   if (error) toast.error(error.message);
 }

@@ -3,6 +3,12 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { supabase } from '@/integrations/supabase/client';
 import type { SponsorStatement, SponsorStatementItem } from '@/hooks/useSponsorStatements';
+import {
+  addSponsorServiceBreakdown,
+  breakdownSponsorInvoice,
+  emptySponsorServiceBreakdown,
+  type SponsorServiceBreakdown,
+} from '@/lib/sponsorStatementCategories';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -36,61 +42,101 @@ interface CorporateManualStatementItem {
   notes: string | null;
 }
 
-async function fetchItems(statementId: string): Promise<SponsorStatementItem[]> {
+interface CorporateManualStatementRelationRow {
+  manual: CorporateManualStatementItem | null;
+}
+
+type SponsorStatementReportItem = SponsorStatementItem & {
+  service_breakdown: SponsorServiceBreakdown;
+};
+
+async function fetchItems(statementId: string): Promise<SponsorStatementReportItem[]> {
   const { data, error } = await supabase
     .from('sponsor_statement_items')
     .select('*, patient:patients(first_name,last_name,card_number), invoice:invoices(invoice_number,total_amount)')
     .eq('statement_id', statementId)
     .order('service_date', { ascending: true });
-  if (error) return [];
-  return (data || []).map(i => ({ ...i, amount: Number(i.amount) })) as unknown as SponsorStatementItem[];
+  if (error || !data) return [];
+
+  const invoiceIds = data.map(item => item.invoice_id).filter(Boolean);
+  const { data: invoiceItems } = invoiceIds.length
+    ? await supabase.from('invoice_items').select('invoice_id,description,category,total').in('invoice_id', invoiceIds)
+    : { data: [] };
+  const itemsByInvoice: Record<string, { description: string | null; category: string | null; total: number }[]> = {};
+  (invoiceItems || []).forEach(item => {
+    (itemsByInvoice[item.invoice_id] ||= []).push({
+      description: item.description,
+      category: item.category,
+      total: Number(item.total || 0),
+    });
+  });
+
+  return (data as unknown as SponsorStatementItem[]).map(item => ({
+    ...item,
+    amount: Number(item.amount),
+    service_breakdown: breakdownSponsorInvoice(itemsByInvoice[item.invoice_id] || [], item.amount),
+  }));
 }
 
 async function fetchManualItems(statementId: string): Promise<CorporateManualStatementItem[]> {
+  // This legacy relation is not present in the generated Supabase type map.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from('corporate_statement_manual_items')
     .select('manual:corporate_manual_service_rows(id,patient_name,service_description,service_date,amount,notes)')
     .eq('statement_id', statementId);
   if (error) return [];
-  return (data || []).flatMap(row => {
-    const manual = row.manual as unknown as CorporateManualStatementItem | null;
+  return (data as unknown as CorporateManualStatementRelationRow[] || []).flatMap(row => {
+    const manual = row.manual;
     return manual ? [{ ...manual, amount: Number(manual.amount) }] : [];
   }).sort((a, b) => a.service_date.localeCompare(b.service_date));
 }
 
-function statementHtml(statement: SponsorStatement, items: SponsorStatementItem[], manualItems: CorporateManualStatementItem[]) {
-  const grouped: Record<string, SponsorStatementItem[]> = {};
-  items.forEach(it => { (grouped[it.patient_id] ||= []).push(it); });
+function categoryCell(value: number) {
+  return value ? Number(value).toLocaleString(undefined, { minimumFractionDigits: 2 }) : '—';
+}
 
-  const rows = Object.entries(grouped).map(([pid, list]) => {
+function statementHtml(statement: SponsorStatement, items: SponsorStatementReportItem[], manualItems: CorporateManualStatementItem[]) {
+  const grouped: Record<string, SponsorStatementReportItem[]> = {};
+  items.forEach(it => { (grouped[it.patient_id] ||= []).push(it); });
+  const totalBreakdown = emptySponsorServiceBreakdown();
+
+  const rows = Object.entries(grouped).map(([, list]) => {
     const p = list[0].patient;
-    const subtotal = list.reduce((s, x) => s + x.amount, 0);
-    return `
-      ${list.map(it => `
-        <tr class="row">
-          <td>${new Date(it.service_date).toLocaleDateString()}</td>
-          <td>${p?.first_name ?? ''} ${p?.last_name ?? ''}</td>
-          <td class="mono">${p?.card_number ?? ''}</td>
-          <td class="mono">${it.invoice?.invoice_number ?? ''}</td>
-          <td class="num">${Number(it.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-        </tr>`).join('')}
-      <tr class="subtotal">
-        <td colspan="4">Subtotal — ${p?.first_name ?? ''} ${p?.last_name ?? ''}</td>
-        <td class="num">${subtotal.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-      </tr>`;
+    const breakdown = emptySponsorServiceBreakdown();
+    list.forEach(item => addSponsorServiceBreakdown(breakdown, item.service_breakdown));
+    addSponsorServiceBreakdown(totalBreakdown, breakdown);
+    const invoiceRefs = list.map(item => item.invoice?.invoice_number).filter(Boolean).join(', ');
+    const subtotal = list.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    return `<tr class="row">
+      <td><strong>${p?.first_name ?? ''} ${p?.last_name ?? ''}</strong><br><span class="detail">${invoiceRefs || 'Registered service'}</span></td>
+      <td class="mono">${p?.card_number ?? '—'}</td>
+      <td class="num">${categoryCell(breakdown.medication)}</td>
+      <td class="num">${categoryCell(breakdown.lab_test)}</td>
+      <td class="num">${categoryCell(breakdown.delivery)}</td>
+      <td class="num">${categoryCell(breakdown.bed)}</td>
+      <td class="num">${categoryCell(breakdown.others)}</td>
+      <td class="num total-cell">${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+    </tr>`;
   }).join('');
 
-  const manualRows = manualItems.map(item => `
-    <tr class="manual-row">
-      <td>${new Date(item.service_date).toLocaleDateString()}</td>
-      <td>${item.patient_name}</td>
+  const manualRows = manualItems.map(item => {
+    const breakdown = breakdownSponsorInvoice([{ description: item.service_description, total: item.amount }], item.amount);
+    addSponsorServiceBreakdown(totalBreakdown, breakdown);
+    return `<tr class="manual-row">
+      <td><strong>${item.patient_name}</strong><br><span class="detail">${item.service_description}</span></td>
       <td class="mono">WALK-IN</td>
-      <td>${item.service_description}</td>
-      <td class="num">${Number(item.amount).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-    </tr>`).join('');
+      <td class="num">${categoryCell(breakdown.medication)}</td>
+      <td class="num">${categoryCell(breakdown.lab_test)}</td>
+      <td class="num">${categoryCell(breakdown.delivery)}</td>
+      <td class="num">${categoryCell(breakdown.bed)}</td>
+      <td class="num">${categoryCell(breakdown.others)}</td>
+      <td class="num total-cell">${Number(item.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+    </tr>`;
+  }).join('');
 
   const empty = items.length === 0 && manualItems.length === 0
-    ? `<tr><td colspan="5" class="empty">No billable invoices or walk-in paper services in this period.</td></tr>`
+    ? `<tr><td colspan="8" class="empty">No billable invoices or walk-in paper services in this period.</td></tr>`
     : '';
 
   return `
@@ -139,11 +185,14 @@ function statementHtml(statement: SponsorStatement, items: SponsorStatementItem[
       <table>
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Patient</th>
+            <th>Name</th>
             <th>Card #</th>
-            <th>Invoice #</th>
-            <th class="num">Amount (₦)</th>
+            <th class="num">Medication (₦)</th>
+            <th class="num">Lab Test (₦)</th>
+            <th class="num">Delivery (₦)</th>
+            <th class="num">Bed (₦)</th>
+            <th class="num">Others (₦)</th>
+            <th class="num">Total (₦)</th>
           </tr>
         </thead>
         <tbody>
@@ -151,7 +200,12 @@ function statementHtml(statement: SponsorStatement, items: SponsorStatementItem[
           ${manualRows}
           ${empty}
           <tr class="grand">
-            <td colspan="4">Grand Total</td>
+            <td colspan="2">Grand Total</td>
+            <td class="num">${categoryCell(totalBreakdown.medication)}</td>
+            <td class="num">${categoryCell(totalBreakdown.lab_test)}</td>
+            <td class="num">${categoryCell(totalBreakdown.delivery)}</td>
+            <td class="num">${categoryCell(totalBreakdown.bed)}</td>
+            <td class="num">${categoryCell(totalBreakdown.others)}</td>
             <td class="num">${money(statement.total_amount)}</td>
           </tr>
         </tbody>
@@ -280,16 +334,20 @@ const CSS = `
   .status-void { background: #fee2e2; color: #991b1b; }
 
   .items { margin-top: 22px; }
-  .items table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .items table { width: 100%; border-collapse: collapse; font-size: 9.5px; table-layout: fixed; }
   .items thead th {
     background: #0f3c64; color: #fff;
-    text-align: left; padding: 9px 10px;
-    font-size: 10px; letter-spacing: 1px; text-transform: uppercase; font-weight: 600;
+    text-align: left; padding: 7px 5px;
+    font-size: 8px; letter-spacing: .7px; text-transform: uppercase; font-weight: 600;
   }
+  .items thead th:first-child { width: 22%; }
+  .items thead th:nth-child(2) { width: 12%; }
   .items thead th.num { text-align: right; }
-  .items td { padding: 7px 10px; border-bottom: 1px solid #eef2f7; }
-  .items td.num { text-align: right; font-variant-numeric: tabular-nums; }
-  .items td.mono { font-family: 'Courier New', monospace; font-size: 10.5px; color: #334155; }
+  .items td { padding: 7px 5px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
+  .items td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .items td.mono { font-family: 'Courier New', monospace; font-size: 8.5px; color: #334155; }
+  .items td.total-cell { font-weight: 700; color: #0f3c64; }
+  .items .detail { color: #64748b; font-size: 7.5px; }
   .items tr.subtotal td {
     background: #f8fafc; font-style: italic; color: #475569;
     border-bottom: 1px solid #cbd5e1; text-align: right;
@@ -365,8 +423,10 @@ function addCanvasToPdf(pdf: jsPDF, canvas: HTMLCanvasElement, isFirstPage: bool
   pdf.addImage(canvas.toDataURL('image/jpeg', 0.94), 'JPEG', x, y, w, h, undefined, 'FAST');
 }
 
-export async function downloadStatementPdf(statement: SponsorStatement, existingItems?: SponsorStatementItem[]) {
-  const items = existingItems ?? (await fetchItems(statement.id));
+export async function downloadStatementPdf(statement: SponsorStatement, _existingItems?: SponsorStatementItem[]) {
+  // Always fetch the enriched report rows; the panel’s cached statement items
+  // contain invoice totals but not the invoice_items needed for service columns.
+  const items = await fetchItems(statement.id);
   const manualItems = await fetchManualItems(statement.id);
   const canvas = await renderPage(statement, items, manualItems);
   const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });

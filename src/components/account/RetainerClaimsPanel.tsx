@@ -18,6 +18,11 @@ import { useCorporateAccounts } from '@/hooks/useCorporateAccounts';
 import { useSponsorStatements } from '@/hooks/useSponsorStatements';
 import { downloadStatementPdf } from '@/lib/sponsorStatementPdf';
 import {
+  buildPatientSponsorBreakdowns,
+  emptySponsorServiceBreakdown,
+  type SponsorServiceBreakdown,
+} from '@/lib/sponsorStatementCategories';
+import {
   downloadCorporateCoveringLetter,
   CorporateCoveringLetterData,
   CorporateCoveringLetterInvoiceLine,
@@ -109,6 +114,7 @@ export function RetainerClaimsPanel() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [patients, setPatients] = useState<Record<string, PatientRow[]>>({});
   const [invoices, setInvoices] = useState<Record<string, InvoiceRow[]>>({});
+  const [serviceBreakdowns, setServiceBreakdowns] = useState<Record<string, SponsorServiceBreakdown>>({});
   const [visitCounts, setVisitCounts] = useState<Record<string, Record<string, number>>>({});
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -144,14 +150,20 @@ export function RetainerClaimsPanel() {
 
       const patientIds = (pats || []).map(p => p.id);
       if (patientIds.length === 0) {
-        setInvoices({}); setVisitCounts({});
+        setInvoices({}); setServiceBreakdowns({}); setVisitCounts({});
       } else {
-        const { data: invs } = await supabase
+        const { data: invs, error: invoicesError } = await supabase
           .from('invoices')
           .select('id, invoice_number, patient_id, total_amount, visit_id, created_at')
           .in('patient_id', patientIds)
           .gte('created_at', periodStart.toISOString())
           .lt('created_at', periodEnd.toISOString());
+        if (invoicesError) throw invoicesError;
+        const invoiceIds = (invs || []).map(invoice => invoice.id);
+        const { data: invoiceItems, error: invoiceItemsError } = invoiceIds.length
+          ? await supabase.from('invoice_items').select('invoice_id, description, category, total').in('invoice_id', invoiceIds)
+          : { data: [], error: null };
+        if (invoiceItemsError) throw invoiceItemsError;
         const byPatient: Record<string, InvoiceRow[]> = {};
         (invs || []).forEach(i => {
           (byPatient[i.patient_id] ||= []).push({
@@ -159,6 +171,7 @@ export function RetainerClaimsPanel() {
           });
         });
         setInvoices(byPatient);
+        setServiceBreakdowns(buildPatientSponsorBreakdowns(invs || [], invoiceItems || []));
 
         // Visit counts per (retainer, patient)
         const { data: vs } = await supabase
@@ -556,36 +569,41 @@ export function RetainerClaimsPanel() {
                     ) : (
                       <div className="border rounded overflow-x-auto">
                         <table className="w-full text-sm">
-                          <thead className="bg-muted/50 text-xs uppercase text-muted-foreground">
+                          <thead className="bg-muted/50 text-[10px] uppercase text-muted-foreground">
                             <tr>
-                              <th className="text-left px-3 py-2">Patient</th>
+                              <th className="text-left px-3 py-2">Name</th>
                               <th className="text-left px-3 py-2">Card #</th>
                               <th className="text-center px-3 py-2">Visits</th>
-                              <th className="text-left px-3 py-2">Invoices</th>
-                              <th className="text-right px-3 py-2">Amount (₦)</th>
+                              <th className="text-right px-3 py-2">Medication</th>
+                              <th className="text-right px-3 py-2">Lab Test</th>
+                              <th className="text-right px-3 py-2">Delivery</th>
+                              <th className="text-right px-3 py-2">Bed</th>
+                              <th className="text-right px-3 py-2">Others</th>
+                              <th className="text-right px-3 py-2">Total</th>
                             </tr>
                           </thead>
                           <tbody>
                             {pats.map(p => {
                               const invs = invoices[p.id] || [];
                               const sub = invs.reduce((s, i) => s + i.total_amount, 0);
+                              const breakdown = serviceBreakdowns[p.id] || emptySponsorServiceBreakdown();
                               const vc = (visitCounts[r.id] || {})[p.id] || 0;
                               return (
                                 <tr key={p.id} className="border-t">
-                                  <td className="px-3 py-2">{p.first_name} {p.last_name || ''}</td>
+                                  <td className="px-3 py-2">{p.first_name} {p.last_name || ''}<div className="text-[10px] text-muted-foreground font-mono">{invs.length ? invs.map(i => i.invoice_number).join(', ') : 'No invoice'}</div></td>
                                   <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{p.card_number || '—'}</td>
                                   <td className="px-3 py-2 text-center">{vc || <span className="text-muted-foreground">0</span>}</td>
-                                  <td className="px-3 py-2 text-xs font-mono text-muted-foreground">
-                                    {invs.length === 0 ? '—' : invs.map(i => i.invoice_number).join(', ')}
-                                  </td>
-                                  <td className="px-3 py-2 text-right font-medium">
-                                    {sub > 0 ? money(sub) : <span className="text-muted-foreground">0.00</span>}
-                                  </td>
+                                  <td className="px-3 py-2 text-right">{money(breakdown.medication)}</td>
+                                  <td className="px-3 py-2 text-right">{money(breakdown.lab_test)}</td>
+                                  <td className="px-3 py-2 text-right">{money(breakdown.delivery)}</td>
+                                  <td className="px-3 py-2 text-right">{money(breakdown.bed)}</td>
+                                  <td className="px-3 py-2 text-right">{money(breakdown.others)}</td>
+                                  <td className="px-3 py-2 text-right font-medium">{sub > 0 ? money(sub) : <span className="text-muted-foreground">0.00</span>}</td>
                                 </tr>
                               );
                             })}
                             <tr className="border-t bg-muted/30 font-semibold">
-                              <td className="px-3 py-2" colSpan={4}>Month total</td>
+                              <td className="px-3 py-2" colSpan={8}>Month total</td>
                               <td className="px-3 py-2 text-right">₦{money(monthTotal)}</td>
                             </tr>
                           </tbody>

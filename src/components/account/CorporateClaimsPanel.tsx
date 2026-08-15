@@ -18,6 +18,11 @@ import { useCorporateAccounts } from '@/hooks/useCorporateAccounts';
 import { useSponsorStatements } from '@/hooks/useSponsorStatements';
 import { downloadStatementPdf } from '@/lib/sponsorStatementPdf';
 import {
+  buildPatientSponsorBreakdowns,
+  emptySponsorServiceBreakdown,
+  type SponsorServiceBreakdown,
+} from '@/lib/sponsorStatementCategories';
+import {
   CorporateCoveringLetterData,
   CorporateCoveringLetterInvoiceLine,
   CorporateCoveringLetterManualService,
@@ -103,6 +108,7 @@ export function CorporateClaimsPanel() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [patients, setPatients] = useState<Record<string, PatientRow[]>>({});
   const [invoices, setInvoices] = useState<Record<string, InvoiceRow[]>>({});
+  const [serviceBreakdowns, setServiceBreakdowns] = useState<Record<string, SponsorServiceBreakdown>>({});
   const [visitCounts, setVisitCounts] = useState<Record<string, Record<string, number>>>({});
   const [manualRows, setManualRows] = useState<Record<string, ManualServiceRow[]>>({});
   const [paymentTotals, setPaymentTotals] = useState<Record<string, number>>({});
@@ -148,6 +154,7 @@ export function CorporateClaimsPanel() {
       const patientIds = (pats || []).map(patient => patient.id);
       if (patientIds.length === 0) {
         setInvoices({});
+        setServiceBreakdowns({});
         setVisitCounts({});
       } else {
         const [{ data: invs, error: invoicesError }, { data: visits, error: visitsError }] = await Promise.all([
@@ -167,11 +174,18 @@ export function CorporateClaimsPanel() {
         if (invoicesError) throw invoicesError;
         if (visitsError) throw visitsError;
 
+        const invoiceIds = (invs || []).map(invoice => invoice.id);
+        const { data: invoiceItems, error: invoiceItemsError } = invoiceIds.length
+          ? await supabase.from('invoice_items').select('invoice_id, description, category, total').in('invoice_id', invoiceIds)
+          : { data: [], error: null };
+        if (invoiceItemsError) throw invoiceItemsError;
+
         const byPatient: Record<string, InvoiceRow[]> = {};
         (invs || []).forEach(invoice => {
           (byPatient[invoice.patient_id] ||= []).push({ ...invoice, total_amount: Number(invoice.total_amount) || 0 });
         });
         setInvoices(byPatient);
+        setServiceBreakdowns(buildPatientSponsorBreakdowns(invs || [], invoiceItems || []));
 
         const bySponsorVisitCount: Record<string, Record<string, number>> = {};
         (visits || []).forEach(visit => {
@@ -561,14 +575,15 @@ export function CorporateClaimsPanel() {
 
                     <div className="border rounded overflow-x-auto">
                       <table className="w-full text-sm">
-                        <thead className="bg-muted/50 text-xs uppercase text-muted-foreground"><tr><th className="text-left px-3 py-2">Registered patient</th><th className="text-left px-3 py-2">Card #</th><th className="text-center px-3 py-2">Visits</th><th className="text-left px-3 py-2">Invoices</th><th className="text-right px-3 py-2">Amount (₦)</th></tr></thead>
+                        <thead className="bg-muted/50 text-[10px] uppercase text-muted-foreground"><tr><th className="text-left px-3 py-2">Name</th><th className="text-left px-3 py-2">Card #</th><th className="text-center px-3 py-2">Visits</th><th className="text-right px-3 py-2">Medication</th><th className="text-right px-3 py-2">Lab Test</th><th className="text-right px-3 py-2">Delivery</th><th className="text-right px-3 py-2">Bed</th><th className="text-right px-3 py-2">Others</th><th className="text-right px-3 py-2">Total</th></tr></thead>
                         <tbody>
-                          {sponsorPatients.length === 0 ? <tr><td className="px-3 py-4 text-center text-muted-foreground" colSpan={5}>No registered patients under this corporate.</td></tr> : sponsorPatients.map(patient => {
+                          {sponsorPatients.length === 0 ? <tr><td className="px-3 py-4 text-center text-muted-foreground" colSpan={9}>No registered patients under this corporate.</td></tr> : sponsorPatients.map(patient => {
                             const patientInvoices = invoices[patient.id] || [];
                             const subtotal = patientInvoices.reduce((sum, invoice) => sum + invoice.total_amount, 0);
-                            return <tr key={patient.id} className="border-t"><td className="px-3 py-2">{patient.first_name} {patient.last_name || ''}</td><td className="px-3 py-2 font-mono text-xs text-muted-foreground">{patient.card_number || '—'}</td><td className="px-3 py-2 text-center">{(visitCounts[corporate.id] || {})[patient.id] || <span className="text-muted-foreground">0</span>}</td><td className="px-3 py-2 text-xs font-mono text-muted-foreground">{patientInvoices.length ? patientInvoices.map(invoice => invoice.invoice_number).join(', ') : '—'}</td><td className="px-3 py-2 text-right font-medium">{money(subtotal)}</td></tr>;
+                            const breakdown = serviceBreakdowns[patient.id] || emptySponsorServiceBreakdown();
+                            return <tr key={patient.id} className="border-t"><td className="px-3 py-2">{patient.first_name} {patient.last_name || ''}<div className="text-[10px] text-muted-foreground font-mono">{patientInvoices.length ? patientInvoices.map(invoice => invoice.invoice_number).join(', ') : 'No invoice'}</div></td><td className="px-3 py-2 font-mono text-xs text-muted-foreground">{patient.card_number || '—'}</td><td className="px-3 py-2 text-center">{(visitCounts[corporate.id] || {})[patient.id] || <span className="text-muted-foreground">0</span>}</td><td className="px-3 py-2 text-right">{money(breakdown.medication)}</td><td className="px-3 py-2 text-right">{money(breakdown.lab_test)}</td><td className="px-3 py-2 text-right">{money(breakdown.delivery)}</td><td className="px-3 py-2 text-right">{money(breakdown.bed)}</td><td className="px-3 py-2 text-right">{money(breakdown.others)}</td><td className="px-3 py-2 text-right font-medium">{money(subtotal)}</td></tr>;
                           })}
-                          <tr className="border-t bg-muted/30 font-semibold"><td className="px-3 py-2" colSpan={4}>Registered-patient services</td><td className="px-3 py-2 text-right">₦{money(registeredTotal)}</td></tr>
+                          <tr className="border-t bg-muted/30 font-semibold"><td className="px-3 py-2" colSpan={8}>Registered-patient services</td><td className="px-3 py-2 text-right">₦{money(registeredTotal)}</td></tr>
                         </tbody>
                       </table>
                     </div>

@@ -181,6 +181,13 @@ function statementHtml(statement: SponsorStatement, items: SponsorStatementRepor
       </div>
     </section>
 
+    <section class="stats" aria-label="Statement summary">
+      <div class="stat"><span class="stat-label">Total billed</span><strong class="stat-value">${money(statement.total_amount)}</strong></div>
+      <div class="stat"><span class="stat-label">Registered patients</span><strong class="stat-value count">${Number(statement.patient_count || 0).toLocaleString()}</strong></div>
+      <div class="stat"><span class="stat-label">Invoices</span><strong class="stat-value count">${Number(statement.invoice_count || 0).toLocaleString()}</strong></div>
+      <div class="stat count-stat"><span class="stat-label">Walk-in services</span><strong class="stat-value count">${Number(statement.manual_service_count || 0).toLocaleString()}</strong></div>
+    </section>
+
     <section class="items">
       <table>
         <thead>
@@ -332,6 +339,14 @@ const CSS = `
   .status-printed { background: #dbeafe; color: #1e40af; }
   .status-paid { background: #dcfce7; color: #166534; }
   .status-void { background: #fee2e2; color: #991b1b; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 18px; }
+  .stat { min-height: 58px; padding: 10px 11px; border: 1px solid #dce5ef; border-radius: 5px; background: #f8fafc; }
+  .stat.count-stat { background: #fffbeb; border-color: #ead8a3; }
+  .stat-label { display: block; color: #64748b; font-size: 8.5px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; }
+  .stat-value { display: block; margin-top: 5px; color: #0f3c64; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .stat.count-stat .stat-value { color: #92400e; }
+  .stat-value.count { font-size: 16px; }
 
   .items { margin-top: 22px; }
   .items table { width: 100%; border-collapse: collapse; font-size: 9.5px; table-layout: fixed; }

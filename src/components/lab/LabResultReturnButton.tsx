@@ -17,6 +17,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
 import { SnapCropDialog } from '@/components/visit/SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
+import { ownerRoleForLabReturn, shouldPreserveWardLocation } from '@/lib/clinicWorkflowRouting';
 
 interface Props {
   parentSnap: SnapOrder;
@@ -153,28 +154,58 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
         console.warn('Could not mark parent lab snap fulfilled', fulfillErr);
       }
 
-      // Return patient to the sender's queue. Admitted patients stay in the
-      // ward and are not moved to an outpatient station by a lab result.
+      // Return the patient to the original sender through the workflow engine.
+      // This records patient_journey/history and keeps Doctor 1/Doctor 2
+      // ownership aligned with the exact requester. Admitted patients remain
+      // in the ward; their result snap is still delivered to the requester.
+      let routingWarning: string | null = null;
       try {
         const newStatus = targetStation === 'nurse' ? 'with_nurse' : 'with_doctor';
-        const { data: activeAdmission } = await supabase
-          .from('admissions')
-          .select('id')
-          .eq('patient_id', parentSnap.patient_id)
-          .in('status', ['active', 'ready_for_discharge', 'waiting_assignment'])
-          .maybeSingle();
-        if (!activeAdmission) {
+        const [{ data: patientRow, error: patientReadError }, { data: activeAdmission, error: admissionReadError }] = await Promise.all([
+          supabase
+            .from('patients')
+            .select('status, assigned_doctor')
+            .eq('id', parentSnap.patient_id)
+            .maybeSingle(),
+          supabase
+            .from('admissions')
+            .select('id')
+            .eq('patient_id', parentSnap.patient_id)
+            .in('status', ['active', 'ready_for_discharge', 'waiting_assignment'])
+            .maybeSingle(),
+        ]);
+        if (patientReadError) throw patientReadError;
+        if (admissionReadError) throw admissionReadError;
+
+        if (!shouldPreserveWardLocation(patientRow?.status, Boolean(activeAdmission)) && patientRow?.status !== 'discharged') {
+          const ownerRole = ownerRoleForLabReturn({
+            targetStation,
+            senderRole,
+            assignedDoctor: patientRow?.assigned_doctor,
+          });
+          const { error: journeyError } = await supabase.rpc('advance_journey', {
+            _patient_id: parentSnap.patient_id,
+            _to_state: newStatus,
+            _owner_role: ownerRole,
+            _owner_user_id: requesterId ?? null,
+            _department: targetStation === 'nurse' ? 'nursing' : 'medical',
+            _location: targetStation,
+            _visit_id: parentSnap.visit_id,
+            _reason: 'Laboratory result returned to the original requester',
+          });
+          if (journeyError) throw journeyError;
           await supabase
             .from('patients')
-            .update({ status: newStatus, last_visit: new Date().toISOString() })
+            .update({ last_visit: new Date().toISOString() })
             .eq('id', parentSnap.patient_id);
         }
       } catch (statusErr) {
-        console.warn('Could not update patient status after lab return', statusErr);
+        console.warn('Could not route patient after lab return', statusErr);
+        routingWarning = 'The result was saved, but queue routing needs attention.';
       }
 
       toast.success(entryMode === 'typed' ? 'Typed result sent back' : 'Result snap sent back', {
-        description: `Delivered to ${senderRole}.`,
+        description: routingWarning ?? `Delivered to ${senderRole}.`,
       });
       close();
       onDone?.();

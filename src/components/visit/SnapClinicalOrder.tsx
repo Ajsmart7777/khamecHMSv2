@@ -29,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TypedPrescriptionEditor } from '@/components/prescription/TypedPrescriptionEditor';
 import { TypedLabRequestEditor } from '@/components/lab/TypedLabRequestEditor';
 import { ReferralEditorDialog } from '@/components/referral/ReferralEditorDialog';
+import { statusAfterClinicalOrder } from '@/lib/clinicWorkflowRouting';
 
 interface Props {
   patientId: string;
@@ -160,9 +161,15 @@ export function SnapClinicalOrder({
       if (!snap) throw new Error('Snap order not created');
       
       if (target === 'nurse') {
+        // A Doctor→Nurse treatment referral is a real station transition.
+        // Move outpatient patients out of the Doctor queue immediately; the
+        // PatientContext inpatient guard keeps admitted patients in the ward.
+        const routed = await updatePatientStatus(patientId, statusAfterClinicalOrder('nurse'));
+        if (!routed) throw new Error('Could not route patient to Nurse review');
         toast.success('Sent to Nurse for Review');
       } else {
-        await updatePatientStatus(patientId, 'awaiting_billing').catch(() => null);
+        const routed = await updatePatientStatus(patientId, statusAfterClinicalOrder(target));
+        if (!routed) throw new Error('Could not route patient to Billing');
         toast.success('Sent to Billing');
       }
       close();

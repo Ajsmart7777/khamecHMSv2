@@ -585,6 +585,21 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
             variant="hero" 
             className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-lg"
             onClick={async () => {
+              // Proactively check for open visits to avoid raw trigger errors
+              const { data: openVisit } = await supabase
+                .from('visits')
+                .select('id, visit_number')
+                .eq('patient_id', patient.id)
+                .eq('status', 'open')
+                .maybeSingle();
+
+              if (openVisit) {
+                toast.error('Cannot discharge patient', {
+                  description: `Visit ${openVisit.visit_number} is still open. Please settle it from Billing or Cashier first.`
+                });
+                return;
+              }
+
               const success = await updatePatientStatus(patient.id, 'discharged');
               if (success) {
                 toast.success(`${patient.first_name} ${patient.last_name} discharged`, {

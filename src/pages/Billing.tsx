@@ -146,6 +146,26 @@ const Billing = () => {
         return;
       }
 
+      // Use the database as the duplicate-billing guard, not only the local
+      // patient/invoice cache. A pending or partial invoice is already in the
+      // Cashier queue and must not be billed again.
+      if (!payViaCorporate) {
+        const { data: existingPending, error: pendingCheckError } = await supabase
+          .from('invoices')
+          .select('id, invoice_number, status')
+          .eq('patient_id', selectedPatientId)
+          .in('status', ['pending', 'partial'])
+          .limit(1)
+          .maybeSingle();
+        if (pendingCheckError) throw pendingCheckError;
+        if (existingPending || selectedPatient?.status === 'awaiting_payment') {
+          toast.info('Patient already sent to Cashier', {
+            description: 'An unpaid invoice is already waiting for settlement; duplicate billing was blocked.',
+          });
+          return;
+        }
+      }
+
       const invoiceItemsMapped = validItems.map(item => ({
         description: item.description,
         quantity: item.qty,
@@ -176,17 +196,20 @@ const Billing = () => {
           }
         }
 
-        // For custom bills generated here, we only update status if it was 'awaiting_payment'
-        // and we want to check if they have other clinical work.
-        // But based on the requirement, custom bills should not move patients at all.
-        // We will only call updatePatientStatus if there's clinical work pending.
+        // A normal invoice is complete from Billing's perspective and must
+        // hand the patient to Cashier immediately. Corporate-paid invoices
+        // retain their existing next-station calculation because payment is
+        // settled in the same action.
         const nextStatus = payViaCorporate
           ? await nextStationForInvoice(invoice.id, selectedPatientId)
-          : null;
-        
+          : 'awaiting_payment';
+
         if (nextStatus) {
-          await updatePatientStatus(selectedPatientId, nextStatus);
+          const statusUpdated = await updatePatientStatus(selectedPatientId, nextStatus);
+          if (!statusUpdated) throw new Error(`Invoice created, but patient could not move to ${nextStatus}`);
         }
+
+        await Promise.all([refreshPatients(), refreshInvoices()]);
 
         await paymentAuditLogger(
           'payment_received',

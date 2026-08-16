@@ -33,7 +33,7 @@ const STATE_TO_EVENT: Record<string, { type: JourneyEvent['type']; title: string
   with_doctor:      { type: 'consultation', title: 'With Doctor',         description: 'Consultation in progress' },
   in_lab:           { type: 'lab_test',     title: 'In Laboratory',       description: 'Lab tests requested / running' },
   awaiting_billing: { type: 'billing',      title: 'Awaiting Billing',    description: 'Order sent to Billing' },
-  awaiting_payment: { type: 'billing',      title: 'Awaiting Payment',    description: 'Invoice awaiting payment at Cashier' },
+  awaiting_payment: { type: 'billing',      title: 'Awaiting Cashier',    description: 'Invoice awaiting payment at Cashier' },
   at_pharmacy:      { type: 'pharmacy',     title: 'At Pharmacy',         description: 'Prescription awaiting dispense' },
   admitted:         { type: 'consultation', title: 'Admitted',            description: 'Patient admitted to ward' },
   discharged:       { type: 'payment',      title: 'Discharged',          description: 'Patient discharged' },

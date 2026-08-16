@@ -136,11 +136,19 @@ export async function saveSnapOcr(id: string, ocrText: string, confidence: numbe
 export async function attachInvoiceToSnap(id: string, invoiceId: string) {
   const { data: userData } = await supabase.auth.getUser();
   const uid = userData.user?.id;
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('snap_orders')
     .update({ invoice_id: invoiceId, status: 'awaiting_payment', billed_by: uid, billed_at: new Date().toISOString() })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('status', 'pending_billing')
+    .is('invoice_id', null)
+    .select('id')
+    .maybeSingle();
   if (error) { toast.error(error.message); return false; }
+  if (!data) {
+    toast.error('This order has already been billed or is no longer waiting for Billing');
+    return false;
+  }
   return true;
 }
 

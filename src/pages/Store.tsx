@@ -54,6 +54,9 @@ export default function Store() {
   const [supplierReference, setSupplierReference] = useState('');
   const [receiptNote, setReceiptNote] = useState('');
   const [receiptLines, setReceiptLines] = useState<ReceiptLineInput[]>([emptyReceiptLine()]);
+  const addReceiptLines = (count: number) => {
+    setReceiptLines(prev => [...prev, ...Array(count).fill(null).map(() => emptyReceiptLine())]);
+  };
   const [transferLines, setTransferLines] = useState<TransferLine[]>([emptyTransferLine()]);
   const [transferNote, setTransferNote] = useState('');
   const [saving, setSaving] = useState(false);
@@ -214,14 +217,22 @@ export default function Store() {
         </TabsContent>
 
         <TabsContent value="receive" className="space-y-5">
-          <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-sm text-amber-900"><div className="flex gap-2"><AlertTriangle className="h-5 w-5 shrink-0" /><p><strong>Opening count is performed by Store.</strong> Enter the real physical balance that is already in Main Store or Pharmacy. Each location can be opened only once; corrections must be visible and authorised later.</p></div></section>
+          <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-sm text-amber-900"><div className="flex gap-2"><AlertTriangle className="h-5 w-5 shrink-0" /><div><p><strong>Opening count is performed by Store.</strong> Enter the real physical balance currently on the shelf, not the quantity originally purchased. Use one line for each medicine batch and copy the batch number, expiry date, quantity, and unit cost from the approved worksheet.</p><p className="mt-1 text-xs text-amber-800/80">Each location can be opened only once. If a count needs correction later, keep the correction visible and authorised rather than overwriting the original count.</p></div></div></section>
           <section className="rounded-xl border bg-card p-5 space-y-5">
             <div className="flex flex-wrap gap-2"><Button variant={receiptKind === 'opening_count' ? 'default' : 'outline'} onClick={() => setReceiptKind('opening_count')}>Opening physical count</Button><Button variant={receiptKind === 'supplier_delivery' ? 'default' : 'outline'} onClick={() => { setReceiptKind('supplier_delivery'); setReceiptLocation('main_store'); }}>Supplier delivery</Button></div>
             <div className="grid gap-4 md:grid-cols-3">
               {receiptKind === 'opening_count' ? <div className="space-y-2"><Label>Count location</Label><select value={receiptLocation} onChange={event => setReceiptLocation(event.target.value as 'main_store' | 'pharmacy')} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="main_store">Main Store</option><option value="pharmacy">Pharmacy</option></select></div> : <><div className="space-y-2"><Label>Supplier name</Label><Input value={supplierName} onChange={event => setSupplierName(event.target.value)} placeholder="Supplier / distributor" /></div><div className="space-y-2"><Label>Supplier reference</Label><Input value={supplierReference} onChange={event => setSupplierReference(event.target.value)} placeholder="Invoice or delivery note number" /></div><div className="space-y-2"><Label>Destination</Label><Input value="Main Store (required)" disabled /></div></>}
               <div className="space-y-2 md:col-span-3"><Label>Note</Label><Input value={receiptNote} onChange={event => setReceiptNote(event.target.value)} placeholder="Optional receiving or count note" /></div>
             </div>
-            <ReceiptLines lines={receiptLines} catalog={catalog} productById={productById} onChange={updateReceiptLine} onAdd={() => setReceiptLines(lines => [...lines, emptyReceiptLine()])} onRemove={index => setReceiptLines(lines => lines.length === 1 ? lines : lines.filter((_, lineIndex) => lineIndex !== index))} />
+            <ReceiptLines
+              lines={receiptLines}
+              catalog={catalog}
+              productById={productById}
+              onChange={updateReceiptLine}
+              onAdd={() => addReceiptLines(1)}
+              onAddBulk={() => addReceiptLines(5)}
+              onRemove={index => setReceiptLines(lines => lines.length === 1 ? lines : lines.filter((_, lineIndex) => lineIndex !== index))}
+            />
             <Button onClick={() => void handleReceipt()} disabled={saving}>{saving ? 'Saving…' : receiptKind === 'opening_count' ? 'Record opening count' : 'Receive supplier delivery'}</Button>
           </section>
         </TabsContent>
@@ -238,8 +249,87 @@ function Metric({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl border bg-card p-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-semibold">{value}</p></div>;
 }
 
-function ReceiptLines({ lines, catalog, productById, onChange, onAdd, onRemove }: { lines: ReceiptLineInput[]; catalog: any[]; productById: Map<string, any>; onChange: (index: number, field: keyof ReceiptLineInput, value: string) => void; onAdd: () => void; onRemove: (index: number) => void }) {
-  return <div className="space-y-3"><div className="flex items-center justify-between"><h3 className="font-medium">Stock lines</h3><Button size="sm" variant="outline" onClick={onAdd}><Plus className="mr-1 h-4 w-4" />Add line</Button></div>{lines.map((line, index) => <div key={index} className="grid gap-3 rounded-lg border p-3 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]"><div className="space-y-1"><Label className="text-xs">Medicine</Label><select value={line.product_id} onChange={event => onChange(index, 'product_id', event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select mapped product…</option>{catalog.map(product => <option key={product.product_id} value={product.product_id}>{product.medicine_name}{product.size ? ` — ${product.size}` : ''}</option>)}</select></div><div className="space-y-1"><Label className="text-xs">Batch no.</Label><Input value={line.batch_number} onChange={event => onChange(index, 'batch_number', event.target.value)} placeholder="Batch" /></div><div className="space-y-1"><Label className="text-xs">Expiry</Label><Input type="date" value={line.expiry_date} onChange={event => onChange(index, 'expiry_date', event.target.value)} /></div><div className="space-y-1"><Label className="text-xs">Quantity</Label><Input type="number" min="0.001" step="0.001" value={line.quantity} onChange={event => onChange(index, 'quantity', event.target.value)} /></div><div className="space-y-1"><Label className="text-xs">Unit cost</Label><Input type="number" min="0" step="0.01" value={line.unit_cost} onChange={event => onChange(index, 'unit_cost', event.target.value)} placeholder={line.product_id ? `Unit: ${productById.get(line.product_id)?.unit_label ?? ''}` : '₦'} /></div><div className="flex items-end"><Button variant="ghost" size="icon" onClick={() => onRemove(index)} title="Remove line"><Trash2 className="h-4 w-4 text-destructive" /></Button></div></div>)}</div>;
+function ReceiptLines({ lines, catalog, productById, onChange, onAdd, onAddBulk, onRemove }: { lines: ReceiptLineInput[]; catalog: any[]; productById: Map<string, any>; onChange: (index: number, field: keyof ReceiptLineInput, value: string) => void; onAdd: () => void; onAddBulk: () => void; onRemove: (index: number) => void }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-medium">Stock lines</h3>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={onAddBulk}>
+            <Plus className="mr-1 h-4 w-4" /> Add 5 lines
+          </Button>
+          <Button size="sm" variant="outline" onClick={onAdd}>
+            <Plus className="mr-1 h-4 w-4" /> Add line
+          </Button>
+        </div>
+      </div>
+      {lines.map((line, index) => (
+        <div key={index} className="grid gap-3 rounded-lg border p-3 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] bg-muted/20">
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Medicine</Label>
+            <select
+              value={line.product_id}
+              onChange={event => onChange(index, 'product_id', event.target.value)}
+              className="h-9 w-full rounded-md border bg-background px-2 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+            >
+              <option value="">Select mapped product…</option>
+              {catalog.map(product => (
+                <option key={product.product_id} value={product.product_id}>
+                  {product.medicine_name}{product.size ? ` — ${product.size}` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Batch no.</Label>
+            <Input
+              className="h-9"
+              value={line.batch_number}
+              onChange={event => onChange(index, 'batch_number', event.target.value)}
+              placeholder="Batch"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Expiry</Label>
+            <Input
+              className="h-9"
+              type="date"
+              value={line.expiry_date}
+              onChange={event => onChange(index, 'expiry_date', event.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Quantity</Label>
+            <Input
+              className="h-9"
+              type="number"
+              min="0.001"
+              step="0.001"
+              value={line.quantity}
+              onChange={event => onChange(index, 'quantity', event.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Unit cost</Label>
+            <Input
+              className="h-9"
+              type="number"
+              min="0"
+              step="0.01"
+              value={line.unit_cost}
+              onChange={event => onChange(index, 'unit_cost', event.target.value)}
+              placeholder={line.product_id ? `Unit: ${productById.get(line.product_id)?.unit_label ?? ''}` : '₦'}
+            />
+          </div>
+          <div className="flex items-end pb-0.5">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onRemove(index)} title="Remove line">
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function TransferLines({ lines, batches, onChange, onAdd, onRemove }: { lines: TransferLine[]; batches: any[]; onChange: (index: number, field: keyof TransferLine, value: string) => void; onAdd: () => void; onRemove: (index: number) => void }) {

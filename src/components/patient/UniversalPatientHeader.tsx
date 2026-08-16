@@ -31,10 +31,24 @@ const STATUS_OWNER: Record<string, string> = {
   with_nurse: 'Nurse',
   with_doctor: 'Doctor',
   in_lab: 'Laboratory',
-  awaiting_payment: 'Billing / Cashier',
+  awaiting_payment: 'Cashier',
   at_pharmacy: 'Pharmacy',
   admitted: 'Ward',
   discharged: 'Discharged',
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  registered: 'Registered',
+  waiting: 'Waiting',
+  with_nurse: 'With Nurse',
+  with_doctor: 'With Doctor',
+  in_lab: 'In Lab',
+  awaiting_billing: 'Awaiting Billing',
+  awaiting_payment: 'Awaiting Cashier',
+  at_pharmacy: 'At Pharmacy',
+  admitted: 'Admitted',
+  discharged: 'Discharged',
+  awaiting_room: 'Awaiting Room',
 };
 
 type VisitRow = { id: string; visit_number: string; opened_at: string; status: string };
@@ -191,8 +205,8 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
               <Badge variant="secondary" className="capitalize">
                 {patient.account_type?.replace('_', ' ')}
               </Badge>
-              <Badge variant="outline" className="capitalize">
-                {patient.status?.replace('_', ' ')}
+              <Badge variant="outline">
+                {STATUS_LABELS[patient.status] || patient.status?.replace('_', ' ')}
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-1">

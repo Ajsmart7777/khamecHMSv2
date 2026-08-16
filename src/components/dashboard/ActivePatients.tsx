@@ -11,7 +11,7 @@ const statusConfig: Record<PatientStatus, { label: string; variant: 'default' | 
   with_doctor: { label: 'With Doctor', variant: 'info' },
   in_lab: { label: 'In Lab', variant: 'warning' },
   awaiting_billing: { label: 'Awaiting Billing', variant: 'warning' },
-  awaiting_payment: { label: 'Awaiting Payment', variant: 'warning' },
+  awaiting_payment: { label: 'Awaiting Cashier', variant: 'warning' },
   at_pharmacy: { label: 'At Pharmacy', variant: 'info' },
   admitted: { label: 'Admitted', variant: 'default' },
   discharged: { label: 'Discharged', variant: 'success' },

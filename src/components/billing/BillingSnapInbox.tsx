@@ -35,7 +35,7 @@ const confBand = (c: number) =>
 const fmt = (n: number) => `₦${n.toLocaleString()}`;
 
 export function BillingSnapInbox() {
-  const { orders, loading, refresh } = useSnapOrders({ statuses: ['pending_billing', 'awaiting_payment'] });
+  const { orders, loading, refresh } = useSnapOrders({ statuses: ['pending_billing'] });
   const { patients } = usePatients();
   const [selected, setSelected] = useState<SnapOrder | null>(null);
 
@@ -92,6 +92,7 @@ export function BillingSnapInbox() {
         <SnapReviewDialog
           snap={selected}
           onClose={() => setSelected(null)}
+          onBilled={refresh}
           patientName={patientById.get(selected.patient_id) ?? 'Unknown'}
         />
       )}
@@ -99,12 +100,14 @@ export function BillingSnapInbox() {
   );
 }
 
-function SnapReviewDialog({ snap, onClose, patientName }: {
+function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
   snap: SnapOrder;
   onClose: () => void;
+  onBilled: () => Promise<void>;
   patientName: string;
 }) {
   const { createInvoice } = useInvoices();
+  const { updatePatientStatus } = usePatients();
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [ocrText, setOcrText] = useState(snap.ocr_text ?? '');
@@ -263,6 +266,16 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
       await saveSnapOcr(snap.id, ocrText, snap.ocr_confidence ?? 0, items);
       const ok = await attachInvoiceToSnap(snap.id, invoice.id);
       if (!ok) throw new Error('Could not link invoice');
+
+      // Billing is complete at this point. Move the patient to the canonical
+      // Cashier state immediately so Reception and all station queues update
+      // through the workflow engine instead of waiting for payment settlement.
+      const statusUpdated = await updatePatientStatus(snap.patient_id, 'awaiting_payment');
+      if (!statusUpdated) throw new Error('Invoice created, but the patient could not be moved to Cashier');
+
+      // Remove the billed snap from this inbox immediately; realtime remains a
+      // second safety net for other open Billing workspaces.
+      await onBilled();
       toast.success('Invoice created · waiting for cashier payment');
       onClose();
     } catch (e: any) {
@@ -599,7 +612,7 @@ function SnapReviewDialog({ snap, onClose, patientName }: {
               >
                 <Send className="h-4 w-4 mr-2" />
                 {snap.status === 'awaiting_payment'
-                  ? 'Awaiting Payment'
+                  ? 'Awaiting Cashier'
                   : busy ? 'Creating…'
                   : blocked ? `Review ${pending} line(s) first`
                   : 'Create Invoice → Send to Cashier'}

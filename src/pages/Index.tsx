@@ -116,7 +116,7 @@ const Index = () => {
       {isAdmin && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 mb-4 sm:mb-6 md:mb-8">
           <StatsCard title="Pending Lab Tests" value={stats.pendingLab} icon={FlaskConical} color="text-module-lab" />
-          <StatsCard title="Pending Payments" value={stats.pendingPayments} icon={CreditCard} color="text-warning" />
+          <StatsCard title="Awaiting Cashier" value={stats.pendingPayments} icon={CreditCard} color="text-warning" />
           <StatsCard title="Completed Visits" value={stats.completedVisits} icon={CheckCircle} color="text-success" />
           <StatsCard title="Avg. Wait Time" value="—" icon={Clock} color="text-info" />
         </div>

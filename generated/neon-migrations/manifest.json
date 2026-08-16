@@ -1,0 +1,14 @@
+{
+  "source_migrations": 213,
+  "transformed_statements": 1354,
+  "batches": 17,
+  "batch_size_limit": 80,
+  "max_batch_bytes": 700000,
+  "removed_constructs": [
+    "Supabase Realtime publication statements",
+    "Supabase Storage object policies",
+    "pg_cron",
+    "pg_net"
+  ],
+  "auth_users_target": "neon_auth.user"
+}

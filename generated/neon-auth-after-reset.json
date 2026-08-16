@@ -1,0 +1,1 @@
+{"projectId":"quiet-heart-24036829","databaseName":"neondb","sql":"SELECT to_regnamespace('auth') AS auth_schema, to_regprocedure('auth.uid()') AS auth_uid, to_regprocedure('auth.user_id()') AS auth_user_id, to_regclass('neon_auth.user') AS neon_auth_user"}

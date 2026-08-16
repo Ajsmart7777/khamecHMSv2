@@ -1,0 +1,10 @@
+{
+  "projectId": "quiet-heart-24036829",
+  "databaseName": "neondb",
+  "sqlStatements": [
+    "REVOKE EXECUTE ON FUNCTION public.discharge_admission(uuid, text, text, numeric, text) FROM public, anon;",
+    "GRANT EXECUTE ON FUNCTION public.discharge_admission(uuid, text, text, numeric, text) TO authenticated;",
+    "ALTER TABLE public.patients\n  ADD COLUMN IF NOT EXISTS occupation TEXT;",
+    "ALTER TABLE public.patients\n  ALTER COLUMN last_name DROP NOT NULL,\n  ALTER COLUMN emergency_contact DROP NOT NULL;"
+  ]
+}

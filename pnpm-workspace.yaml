@@ -1,7 +1,7 @@
 allowBuilds:
-  '@swc/core': set this to true or false
-  core-js: set this to true or false
-  esbuild: set this to true or false
-  tesseract.js: set this to true or false
+  '@swc/core': true
+  core-js: true
+  esbuild: true
+  tesseract.js: true
 minimumReleaseAgeExclude:
   - '@lovable.dev/vite-plugin-hmr-gate@1.6.1'

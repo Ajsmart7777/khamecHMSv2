@@ -1,0 +1,35 @@
+import { json, objectKey, optionsResponse, r2Config, requireUser, validate } from './_shared/r2.js';
+
+export default async (request: Request) => {
+  if (request.method === 'OPTIONS') return optionsResponse();
+  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+
+  try {
+    const uid = await requireUser(request);
+    if (!uid) return json({ error: 'Unauthorized' }, 401);
+
+    const { bucket, path, contentType } = await request.json() as {
+      bucket?: unknown;
+      path?: unknown;
+      contentType?: unknown;
+    };
+    const invalid = validate(bucket, path);
+    if (invalid) return json({ error: invalid }, 400);
+
+    const cfg = r2Config();
+    if (!cfg) return json({ error: 'R2 is not configured' }, 500);
+    const type = typeof contentType === 'string' && contentType ? contentType : 'application/octet-stream';
+    const url = `${cfg.endpoint}/${objectKey(bucket as string, path as string)}`;
+    const signed = await cfg.client.sign(
+      new Request(`${url}?X-Amz-Expires=600`, {
+        method: 'PUT',
+        headers: { 'Content-Type': type },
+      }),
+      { aws: { signQuery: true, allHeaders: true } },
+    );
+
+    return json({ url: signed.url, expires_in: 600 });
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : String(error) }, 500);
+  }
+};

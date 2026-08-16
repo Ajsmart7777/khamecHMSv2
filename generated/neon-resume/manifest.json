@@ -1,0 +1,51 @@
+{
+  "source_start_batch": 7,
+  "source_end_batch": 17,
+  "resume_batches": 15,
+  "sources": [
+    {
+      "source_batch": 7,
+      "source_statements": 80
+    },
+    {
+      "source_batch": 8,
+      "source_statements": 80
+    },
+    {
+      "source_batch": 9,
+      "source_statements": 80
+    },
+    {
+      "source_batch": 10,
+      "source_statements": 80
+    },
+    {
+      "source_batch": 11,
+      "source_statements": 80
+    },
+    {
+      "source_batch": 12,
+      "source_statements": 80
+    },
+    {
+      "source_batch": 13,
+      "source_statements": 80
+    },
+    {
+      "source_batch": 14,
+      "source_statements": 80
+    },
+    {
+      "source_batch": 15,
+      "source_statements": 80
+    },
+    {
+      "source_batch": 16,
+      "source_statements": 80
+    },
+    {
+      "source_batch": 17,
+      "source_statements": 74
+    }
+  ]
+}

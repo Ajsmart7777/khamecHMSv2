@@ -39,7 +39,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 type ArchiveAttachment = {
-  bucket: 'visit-cards' | 'emr-attachments' | 'external-url';
+  bucket: 'visit-cards' | 'emr-attachments' | 'patient-photos' | 'external-url';
   path: string;
   source?: string;
 };
@@ -403,7 +403,11 @@ export function PatientArchiveManager() {
         const eligibility = refreshed.get(candidate.patient_id)!;
         setProgress({ label: `Building ledger PDF for ${candidate.patient_name}`, current: index + 1, total: selectedCandidates.length + 1 });
         const data = await fetchArchivePatientData(candidate.patient_id);
-        const attachments = normaliseAttachments(eligibility.attachment_paths);
+        const attachmentCandidates = normaliseAttachments(eligibility.attachment_paths);
+        if (data.patient.photo_path && !attachmentCandidates.some((attachment) => attachment.bucket === 'patient-photos' && attachment.path === data.patient.photo_path)) {
+          attachmentCandidates.push({ bucket: 'patient-photos', path: data.patient.photo_path, source: 'patients.photo_path' });
+        }
+        const attachments = attachmentCandidates;
         const imageUrls: Record<string, string> = {};
         for (const attachment of attachments) {
           const url = await resolveAttachmentUrl(attachment);

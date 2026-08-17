@@ -153,8 +153,20 @@ export const supabase = {
     getUser: async () => ({ data: { user: { id: localStorage.getItem('hms_user_id') || '00000000-0000-0000-0000-000000000001' } }, error: null }),
     onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
     signInWithPassword: async ({ email, password }: any) => {
-      localStorage.setItem('hms_user_id', '00000000-0000-0000-0000-000000000001');
-      return { data: { user: { id: '00000000-0000-0000-0000-000000000001', email }, session: { access_token: 'mock-token' } }, error: null };
+      try {
+        const res = await fetch('/.netlify/functions/auth-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const json = await res.json();
+        if (json.data?.user?.id) {
+          localStorage.setItem('hms_user_id', json.data.user.id);
+        }
+        return json;
+      } catch (err: any) {
+        return { data: null, error: { message: err.message } };
+      }
     },
     signOut: async () => {
       localStorage.removeItem('hms_user_id');

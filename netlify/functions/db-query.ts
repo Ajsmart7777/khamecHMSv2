@@ -24,7 +24,7 @@ export const handler: Handler = async (event) => {
       const paramKeys = args ? Object.keys(args) : [];
       const paramPlaceholders = paramKeys.map((_, idx) => `$${idx + 1}`).join(', ');
       const paramValues = paramKeys.map(k => args[k]);
-      const setReturningRpcs = new Set(['get_store_bin_cards', 'get_inventory_catalog', 'get_pharmacy_stock', 'get_pharmacy_inventory']);
+      const setReturningRpcs = new Set(['get_store_bin_cards', 'get_inventory_catalog', 'get_pharmacy_stock', 'get_pharmacy_inventory', 'get_pending_store_transfers']);
       const query = setReturningRpcs.has(rpc)
         ? `SELECT * FROM public.${rpc}(${paramPlaceholders})`
         : `SELECT public.${rpc}(${paramPlaceholders})`;

@@ -36,16 +36,6 @@ export interface StoreBinCard {
   active: boolean;
 }
 
-export interface PharmacyStockSummary {
-  product_id: string;
-  medicine_name: string;
-  size: string | null;
-  unit_label: string;
-  quantity_on_hand: number;
-  minimum_level: number;
-  next_expiry: string | null;
-}
-
 export interface StoreBatch {
   id: string;
   product_id: string;
@@ -103,7 +93,6 @@ export function useInventory() {
   const [catalog, setCatalog] = useState<InventoryCatalogProduct[]>([]);
   const [storeBinCards, setStoreBinCards] = useState<StoreBinCard[]>([]);
   const [batches, setBatches] = useState<StoreBatch[]>([]);
-  const [pharmacyStock, setPharmacyStock] = useState<PharmacyStockSummary[]>([]);
   const [pendingTransfers, setPendingTransfers] = useState<PendingStoreTransfer[]>([]);
   const [locations, setLocations] = useState<InventoryLocation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,19 +100,14 @@ export function useInventory() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [catalogResult, binCardResult, batchResult, pharmacyResult, transferResult, locationsResult] = await Promise.all([
+      const [catalogResult, binCardResult, batchResult, transferResult, locationsResult] = await Promise.all([
         (supabase as any).rpc('get_inventory_catalog'),
         (supabase as any).rpc('get_store_bin_cards'),
         (supabase as any)
           .from('inventory_batches')
           .select('id, product_id, location_id, batch_number, expiry_date, unit_cost, quantity_on_hand, status, received_at, inventory_locations(code,name), inventory_products(sku,unit_label,minimum_level,pricelist(name,size,category,price))')
           .order('expiry_date', { ascending: true }),
-        (supabase as any).rpc('get_pharmacy_stock'),
-        (supabase as any)
-          .from('stock_transfers')
-          .select('id,status,note,sent_at,from_location:inventory_locations!stock_transfers_from_location_id_fkey(name,code),stock_transfer_items(id,product_id,quantity_sent,quantity_received,inventory_products(pricelist(name,size)))')
-          .in('status', ['sent', 'partially_received'])
-          .order('sent_at', { ascending: false }),
+        (supabase as any).rpc('get_pending_store_transfers'),
         (supabase as any)
           .from('inventory_locations')
           .select('*')
@@ -133,7 +117,6 @@ export function useInventory() {
       if (catalogResult.error) throw catalogResult.error;
       if (binCardResult.error) throw binCardResult.error;
       if (batchResult.error) throw batchResult.error;
-      if (pharmacyResult.error) throw pharmacyResult.error;
       if (transferResult.error) throw transferResult.error;
       if (locationsResult.error) throw locationsResult.error;
 
@@ -154,21 +137,30 @@ export function useInventory() {
         inventory_locations: Array.isArray(row.inventory_locations) ? row.inventory_locations[0] : row.inventory_locations,
         inventory_products: Array.isArray(row.inventory_products) ? row.inventory_products[0] : row.inventory_products,
       })));
-      setPharmacyStock((pharmacyResult.data ?? []).map((row: any) => ({
-        ...row,
-        quantity_on_hand: Number(row.quantity_on_hand ?? 0),
-        minimum_level: Number(row.minimum_level ?? 0),
-      })));
-      setPendingTransfers((transferResult.data ?? []).map((row: any) => ({
-        ...row,
-        from_location: Array.isArray(row.from_location) ? row.from_location[0] : row.from_location,
-        stock_transfer_items: (row.stock_transfer_items ?? []).map((item: any) => ({
-          ...item,
-          quantity_sent: Number(item.quantity_sent ?? 0),
-          quantity_received: Number(item.quantity_received ?? 0),
-          inventory_products: Array.isArray(item.inventory_products) ? item.inventory_products[0] : item.inventory_products,
-        })),
-      })));
+      const transferGroups = new Map<string, PendingStoreTransfer>();
+      for (const row of transferResult.data ?? []) {
+        const transfer = row as any;
+        const current = transferGroups.get(String(transfer.transfer_id)) ?? {
+          id: String(transfer.transfer_id),
+          status: String(transfer.status),
+          note: transfer.note ?? null,
+          sent_at: String(transfer.sent_at),
+          from_location: {
+            name: String(transfer.from_location_name),
+            code: transfer.from_location_code as StoreLocationCode,
+          },
+          stock_transfer_items: [],
+        };
+        current.stock_transfer_items = [...(current.stock_transfer_items ?? []), {
+          id: String(transfer.item_id),
+          product_id: String(transfer.product_id),
+          quantity_sent: Number(transfer.quantity_sent ?? 0),
+          quantity_received: Number(transfer.quantity_received ?? 0),
+          inventory_products: { pricelist: { name: String(transfer.medicine_name), size: transfer.size ?? null } },
+        }];
+        transferGroups.set(current.id, current);
+      }
+      setPendingTransfers([...transferGroups.values()]);
       setLocations((locationsResult.data ?? []).map((row: unknown) => {
         const location = row as Record<string, unknown>;
         return {
@@ -263,6 +255,16 @@ export function useInventory() {
     return data as string;
   }, [refresh]);
 
+  const rejectTransfer = useCallback(async (transferId: string, reason?: string) => {
+    const { data, error } = await (supabase as any).rpc('reject_store_transfer', {
+      _transfer_id: transferId,
+      _reason: reason?.trim() || null,
+    });
+    if (error) throw error;
+    await refresh();
+    return data as string;
+  }, [refresh]);
+
   const dispenseItem = useCallback(async (invoiceItemId: string) => {
     const { data, error } = await (supabase as any).rpc('dispense_inventory_invoice_item', { _invoice_item_id: invoiceItemId });
     if (error) throw error;
@@ -275,7 +277,6 @@ export function useInventory() {
     storeBinCards,
     batches,
     storeBatches,
-    pharmacyStock,
     pendingTransfers,
     locations,
     storeLocations,
@@ -285,6 +286,7 @@ export function useInventory() {
     recordReceipt,
     sendToPharmacy,
     receiveTransfer,
+    rejectTransfer,
     dispenseItem,
   };
 }

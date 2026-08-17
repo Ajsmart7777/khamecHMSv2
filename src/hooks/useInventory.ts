@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 
-export type InventoryLocationCode = 'main_store' | 'pharmacy';
+export type InventoryLocationCode = 'main_store' | 'pharmacy' | 'store_2';
 export type ReceiptKind = 'opening_count' | 'supplier_delivery';
 
 export interface InventoryCatalogProduct {
@@ -59,6 +59,13 @@ export interface PendingStoreTransfer {
   }>;
 }
 
+export interface InventoryLocation {
+  id: string;
+  code: InventoryLocationCode;
+  name: string;
+  active: boolean;
+}
+
 export interface ReceiptLineInput {
   product_id: string;
   batch_number: string;
@@ -72,12 +79,13 @@ export function useInventory() {
   const [batches, setBatches] = useState<StoreBatch[]>([]);
   const [pharmacyStock, setPharmacyStock] = useState<PharmacyStockSummary[]>([]);
   const [pendingTransfers, setPendingTransfers] = useState<PendingStoreTransfer[]>([]);
+  const [locations, setLocations] = useState<InventoryLocation[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [catalogResult, batchResult, pharmacyResult, transferResult] = await Promise.all([
+      const [catalogResult, batchResult, pharmacyResult, transferResult, locationsResult] = await Promise.all([
         (supabase as any).rpc('get_inventory_catalog'),
         (supabase as any)
           .from('inventory_batches')
@@ -89,12 +97,17 @@ export function useInventory() {
           .select('id,status,note,sent_at,stock_transfer_items(id,quantity_sent,quantity_received,inventory_products(pricelist(name,size)))')
           .in('status', ['sent', 'partially_received'])
           .order('sent_at', { ascending: false }),
+        (supabase as any)
+          .from('inventory_locations')
+          .select('*')
+          .eq('active', true),
       ]);
 
       if (catalogResult.error) throw catalogResult.error;
       if (batchResult.error) throw batchResult.error;
       if (pharmacyResult.error) throw pharmacyResult.error;
       if (transferResult.error) throw transferResult.error;
+      if (locationsResult.error) throw locationsResult.error;
 
       setCatalog((catalogResult.data ?? []).map((row: any) => ({
         ...row,
@@ -114,6 +127,15 @@ export function useInventory() {
         minimum_level: Number(row.minimum_level ?? 0),
       })));
       setPendingTransfers(transferResult.data ?? []);
+      setLocations((locationsResult.data ?? []).map((row: unknown) => {
+        const location = row as Record<string, unknown>;
+        return {
+          id: String(location.id),
+          code: location.code as InventoryLocationCode,
+          name: String(location.name),
+          active: Boolean(location.active),
+        };
+      }));
     } finally {
       setLoading(false);
     }
@@ -131,8 +153,9 @@ export function useInventory() {
     return () => { void supabase.removeChannel(channel); };
   }, [refresh]);
 
-  const mainStoreBatches = useMemo(
-    () => batches.filter(batch => batch.inventory_locations?.code === 'main_store'),
+  const storeBatches = useMemo(
+    () => batches.filter(batch => ['main_store', 'store_2'].includes(batch.inventory_locations?.code || '')),
+
     [batches]
   );
 
@@ -204,9 +227,10 @@ export function useInventory() {
   return {
     catalog,
     batches,
-    mainStoreBatches,
+    storeBatches,
     pharmacyStock,
     pendingTransfers,
+    locations,
     loading,
     refresh,
     createProduct,

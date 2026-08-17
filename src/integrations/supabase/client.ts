@@ -149,9 +149,25 @@ export const supabase = {
     };
   },
   auth: {
-    getSession: async () => ({ data: { session: { user: { id: localStorage.getItem('hms_user_id') || '00000000-0000-0000-0000-000000000001' } } }, error: null }),
-    getUser: async () => ({ data: { user: { id: localStorage.getItem('hms_user_id') || '00000000-0000-0000-0000-000000000001' } }, error: null }),
-    onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    getSession: async () => {
+      const userId = localStorage.getItem('hms_user_id');
+      if (!userId) return { data: { session: null }, error: null };
+      return { data: { session: { user: { id: userId } } }, error: null };
+    },
+    getUser: async () => {
+      const userId = localStorage.getItem('hms_user_id');
+      if (!userId) return { data: { user: null }, error: null };
+      return { data: { user: { id: userId } }, error: null };
+    },
+    onAuthStateChange: (callback: any) => {
+      const userId = localStorage.getItem('hms_user_id');
+      if (userId && callback) {
+        callback('SIGNED_IN', { user: { id: userId } });
+      } else if (callback) {
+        callback('SIGNED_OUT', null);
+      }
+      return { data: { subscription: { unsubscribe: () => {} } } };
+    },
     signInWithPassword: async ({ email, password }: any) => {
       try {
         const res = await fetch('/.netlify/functions/auth-login', {

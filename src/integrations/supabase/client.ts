@@ -152,7 +152,7 @@ export const supabase = {
     getSession: async () => {
       const userId = localStorage.getItem('hms_user_id');
       if (!userId) return { data: { session: null }, error: null };
-      return { data: { session: { user: { id: userId } } }, error: null };
+      return { data: { session: { user: { id: userId }, expires_at: Math.floor(Date.now() / 1000) + 3600 } }, error: null };
     },
     getUser: async () => {
       const userId = localStorage.getItem('hms_user_id');
@@ -187,6 +187,11 @@ export const supabase = {
     signOut: async () => {
       localStorage.removeItem('hms_user_id');
       return { error: null };
+    },
+    refreshSession: async () => {
+      const userId = localStorage.getItem('hms_user_id');
+      if (!userId) return { data: { session: null, user: null }, error: null };
+      return { data: { session: { user: { id: userId }, expires_at: Math.floor(Date.now() / 1000) + 3600 }, user: { id: userId } }, error: null };
     }
   },
   functions: {

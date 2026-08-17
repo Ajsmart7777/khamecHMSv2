@@ -7,14 +7,18 @@ export const handler: Handler = async (event) => {
   }
 
   const { email, password } = JSON.parse(event.body || '{}');
+  console.log('Login attempt for:', email);
   const client = getCrdbClient();
 
   try {
+    console.log('Connecting to CockroachDB...');
     await client.connect();
+    console.log('Connected. Querying user...');
     const res = await client.query(
       'SELECT id, email, password FROM public.auth_users WHERE email = $1',
       [email]
     );
+    console.log('Query result rows:', res.rows.length);
 
     const user = res.rows[0];
     if (user && user.password === password) {
@@ -40,6 +44,7 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({ data: null, error: 'Invalid credentials' })
     };
   } catch (err: any) {
+    console.error('Login error:', err);
     try { await client.end(); } catch {}
     return {
       statusCode: 500,

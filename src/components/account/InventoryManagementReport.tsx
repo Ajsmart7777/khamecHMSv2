@@ -44,8 +44,8 @@ export function InventoryManagementReport() {
 
   useEffect(() => { void loadMovements(); }, []);
 
-  const mainStore = useMemo(() => batches.filter(batch => batch.inventory_locations?.code === 'main_store'), [batches]);
-  const mainStoreValue = mainStore.reduce((total, batch) => total + batch.quantity_on_hand * batch.unit_cost, 0);
+  const stores = useMemo(() => batches.filter(batch => ['main_store', 'store_2'].includes(batch.inventory_locations?.code || '')), [batches]);
+  const storeValue = stores.reduce((total, batch) => total + batch.quantity_on_hand * batch.unit_cost, 0);
   const pharmacyUnits = pharmacyStock.reduce((total, item) => total + item.quantity_on_hand, 0);
   const pharmacyLow = pharmacyStock.filter(item => item.quantity_on_hand <= item.minimum_level);
   const dispensedToday = movements.filter(movement => movement.movement_type === 'dispense' && movement.created_at.slice(0, 10) === new Date().toISOString().slice(0, 10));
@@ -55,7 +55,7 @@ export function InventoryManagementReport() {
   return <section className="space-y-5">
     <div className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex gap-3"><PackageCheck className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><div><h2 className="font-semibold">Pharmacy & Store management</h2><p className="text-sm text-muted-foreground">Read-only financial oversight of stock, purchase value, low-stock risk, and every controlled movement.</p></div></div><Button variant="outline" size="sm" onClick={() => void refreshAll()} disabled={loading || movementLoading}><RefreshCw className={`mr-2 h-4 w-4 ${(loading || movementLoading) ? 'animate-spin' : ''}`} />Refresh</Button></div>
 
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Stat label="Main Store value" value={money(mainStoreValue)} /><Stat label="Main Store units" value={mainStore.reduce((total, batch) => total + batch.quantity_on_hand, 0).toLocaleString()} /><Stat label="Pharmacy units" value={pharmacyUnits.toLocaleString()} /><Stat label="Dispensed today" value={String(dispensedToday.length)} /></div>
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"><Stat label="Store Inventory value" value={money(storeValue)} /><Stat label="Store Inventory units" value={stores.reduce((total, batch) => total + batch.quantity_on_hand, 0).toLocaleString()} /><Stat label="Pharmacy units" value={pharmacyUnits.toLocaleString()} /><Stat label="Dispensed today" value={String(dispensedToday.length)} /></div>
 
     {pharmacyLow.length > 0 && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4"><div className="mb-3 flex gap-2"><AlertTriangle className="h-5 w-5 text-destructive" /><div><h3 className="font-semibold text-destructive">Pharmacy low-stock attention</h3><p className="text-sm text-muted-foreground">These stock-controlled medicines are at or below their configured minimum.</p></div></div><div className="flex flex-wrap gap-2">{pharmacyLow.map(item => <Badge key={item.product_id} variant="outline" className="border-destructive/30 bg-background text-destructive">{item.medicine_name}: {item.quantity_on_hand} / min {item.minimum_level}</Badge>)}</div></div>}
 

@@ -47,8 +47,8 @@ BEGIN
   VALUES (_receipt_kind, NULLIF(btrim(_supplier_name), ''), NULLIF(btrim(_supplier_reference), ''), COALESCE(_received_on, current_date), _location_id, NULLIF(btrim(_note), ''))
   RETURNING id INTO _receipt_id;
 
-  FOR _row IN SELECT value FROM jsonb_array_elements(_items)
-  LOOP
+  FOR i IN 0 .. jsonb_array_length(_items) - 1 LOOP
+    _row := _items->i;
     _product_id := (_row->>'product_id')::uuid;
     _batch_number := NULLIF(btrim(_row->>'batch_number'), '');
     _expiry_date := (_row->>'expiry_date')::date;
@@ -89,7 +89,11 @@ DECLARE
   _to_location uuid;
   _source_location uuid;
   _row jsonb;
-  _batch record;
+  _batch_id_val uuid;
+  _batch_product_id uuid;
+  _batch_unit_cost numeric;
+  _batch_quantity_on_hand numeric;
+  _batch_location_id uuid;
   _quantity numeric;
 BEGIN
   IF jsonb_typeof(_items) <> 'array' OR jsonb_array_length(_items) = 0 THEN
@@ -99,13 +103,13 @@ BEGIN
   SELECT id INTO _to_location FROM public.inventory_locations WHERE code = 'pharmacy' AND active;
   IF _to_location IS NULL THEN RAISE EXCEPTION 'Pharmacy location is unavailable'; END IF;
 
-  FOR _row IN SELECT value FROM jsonb_array_elements(_items)
-  LOOP
+  FOR i IN 0 .. jsonb_array_length(_items) - 1 LOOP
+    _row := _items->i;
     _quantity := (_row->>'quantity')::numeric;
     IF _quantity IS NULL OR _quantity <= 0 THEN RAISE EXCEPTION 'Transfer quantities must be positive'; END IF;
 
     SELECT b.id, b.product_id, b.unit_cost, b.quantity_on_hand, b.location_id
-    INTO _batch
+    INTO _batch_id_val, _batch_product_id, _batch_unit_cost, _batch_quantity_on_hand, _batch_location_id
     FROM public.inventory_batches b
     JOIN public.inventory_locations source_location ON source_location.id = b.location_id
     WHERE b.id = (_row->>'batch_id')::uuid
@@ -114,30 +118,30 @@ BEGIN
       AND b.expiry_date >= current_date
     FOR UPDATE;
 
-    IF _batch.id IS NULL OR _batch.quantity_on_hand < _quantity THEN
+    IF _batch_id_val IS NULL OR _batch_quantity_on_hand < _quantity THEN
       RAISE EXCEPTION 'Insufficient available stock for one or more selected Store batches';
     END IF;
     IF _source_location IS NULL THEN
-      _source_location := _batch.location_id;
-    ELSIF _batch.location_id <> _source_location THEN
+      _source_location := _batch_location_id;
+    ELSIF _batch_location_id <> _source_location THEN
       RAISE EXCEPTION 'A transfer must contain stock from only one Store location';
     END IF;
 
     IF _transfer_id IS NULL THEN
       INSERT INTO public.stock_transfers (from_location_id, to_location_id, note)
-      VALUES (_batch.location_id, _to_location, NULLIF(btrim(_note), ''))
+      VALUES (_batch_location_id, _to_location, NULLIF(btrim(_note), ''))
       RETURNING id INTO _transfer_id;
     END IF;
 
     UPDATE public.inventory_batches
     SET quantity_on_hand = quantity_on_hand - _quantity, updated_at = clock_timestamp()
-    WHERE id = _batch.id;
+    WHERE id = _batch_id_val;
 
     INSERT INTO public.stock_transfer_items (transfer_id, source_batch_id, product_id, quantity_sent)
-    VALUES (_transfer_id, _batch.id, _batch.product_id, _quantity);
+    VALUES (_transfer_id, _batch_id_val, _batch_product_id, _quantity);
 
     INSERT INTO public.stock_movements (movement_type, product_id, batch_id, location_id, quantity_delta, unit_cost, transfer_id, reason)
-    VALUES ('transfer_out', _batch.product_id, _batch.id, _batch.location_id, -_quantity, _batch.unit_cost, _transfer_id, _note);
+    VALUES ('transfer_out', _batch_product_id, _batch_id_val, _batch_location_id, -_quantity, _batch_unit_cost, _transfer_id, _note);
   END LOOP;
 
   RETURN _transfer_id;

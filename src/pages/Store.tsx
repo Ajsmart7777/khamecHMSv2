@@ -50,7 +50,7 @@ export default function Store() {
   } = useInventory();
 
   const [pricelist, setPricelist] = useState<PricelistItem[]>([]);
-  const [mapping, setMapping] = useState({ pricelistItemId: '', sku: '', unitLabel: 'unit', minimumLevel: '0' });
+  const [mapping, setMapping] = useState({ pricelistItemId: '', sku: '' });
   const [receiptKind, setReceiptKind] = useState<ReceiptKind>('opening_count');
   const [receiptLocation, setReceiptLocation] = useState<InventoryLocationCode>('main_store');
   const [supplierName, setSupplierName] = useState('');
@@ -104,15 +104,16 @@ export default function Store() {
   };
 
   const handleMapProduct = async () => {
-    if (!mapping.pricelistItemId || !mapping.sku.trim() || !mapping.unitLabel.trim()) {
-      toast.error('Select a medicine and enter its SKU and unit label.');
+    if (!mapping.pricelistItemId || !mapping.sku.trim()) {
+      toast.error('Select a medicine and enter its Store SKU / Code.');
       return;
     }
     setSaving(true);
     try {
-      await createProduct(mapping.pricelistItemId, mapping.sku.trim(), mapping.unitLabel.trim(), Number(mapping.minimumLevel || 0));
+      // Default to 'unit' and 0 minimum level as per user request to simplify
+      await createProduct(mapping.pricelistItemId, mapping.sku.trim(), 'unit', 0);
       toast.success('Digital Bin Card created', { description: 'You can now record stock for this item.' });
-      setMapping({ pricelistItemId: '', sku: '', unitLabel: 'unit', minimumLevel: '0' });
+      setMapping({ pricelistItemId: '', sku: '' });
     } catch (error: unknown) {
       toast.error('Could not create bin card', { description: error instanceof Error ? error.message : 'An unexpected error occurred.' });
     } finally {
@@ -200,23 +201,34 @@ export default function Store() {
           <div className="rounded-xl border bg-card overflow-x-auto">
             <table className="w-full min-w-[860px] text-sm">
               <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <tr><th className="p-3">Medicine</th><th className="p-3">Location</th><th className="p-3">Batch</th><th className="p-3">Expiry</th><th className="p-3 text-right">Available</th><th className="p-3 text-right">Unit cost</th><th className="p-3 text-right">Value</th></tr>
+                <tr>
+                  <th className="p-3">Medicine</th>
+                  <th className="p-3">Location</th>
+                  <th className="p-3">Batch</th>
+                  <th className="p-3">Expiry</th>
+                  <th className="p-3 text-right">Available</th>
+                  <th className="p-3 text-right text-blue-600">Cost Price</th>
+                  <th className="p-3 text-right text-green-600">Selling Price</th>
+                  <th className="p-3 text-right">Stock Value</th>
+                </tr>
               </thead>
               <tbody>
                 {storeBatches.map(batch => {
                   const product = batch.inventory_products;
                   const expired = batch.expiry_date < new Date().toISOString().slice(0, 10);
+                  const sellingPrice = product?.pricelist?.price ?? 0;
                   return <tr key={batch.id} className="border-b last:border-0">
                     <td className="p-3 font-medium">{product?.pricelist?.name ?? 'Unknown product'} <span className="font-normal text-muted-foreground">{product?.pricelist?.size ?? ''}</span></td>
                     <td className="p-3"><Badge variant="outline">{batch.inventory_locations?.name}</Badge></td>
                     <td className="p-3">{batch.batch_number}</td>
                     <td className="p-3">{batch.expiry_date} {expired && <Badge variant="destructive" className="ml-1">Expired</Badge>}</td>
-                    <td className="p-3 text-right font-medium">{batch.quantity_on_hand.toLocaleString()} {product?.unit_label ?? ''}</td>
-                    <td className="p-3 text-right">{money(batch.unit_cost)}</td>
-                    <td className="p-3 text-right font-medium">{money(batch.quantity_on_hand * batch.unit_cost)}</td>
+                    <td className="p-3 text-right font-medium">{batch.quantity_on_hand.toLocaleString()}</td>
+                    <td className="p-3 text-right text-blue-600 font-medium">{money(batch.unit_cost)}</td>
+                    <td className="p-3 text-right text-green-600 font-medium">{money(sellingPrice)}</td>
+                    <td className="p-3 text-right font-bold">{money(batch.quantity_on_hand * batch.unit_cost)}</td>
                   </tr>;
                 })}
-                {!loading && storeBatches.length === 0 && <tr><td colSpan={7} className="p-10 text-center text-muted-foreground">No Store stock has been recorded yet.</td></tr>}
+                {!loading && storeBatches.length === 0 && <tr><td colSpan={8} className="p-10 text-center text-muted-foreground">No Store stock has been recorded yet.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -247,12 +259,10 @@ export default function Store() {
             <div className="grid gap-4 md:grid-cols-4">
               <div className="space-y-2 md:col-span-2"><Label>Select Medicine from Pricelist</Label><select value={mapping.pricelistItemId} onChange={event => setMapping(current => ({ ...current, pricelistItemId: event.target.value }))} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select a medicine…</option>{(medicineLikePricelist.length ? medicineLikePricelist : unmappedPricelist).map(item => <option key={item.id} value={item.id}>{item.name}{item.size ? ` — ${item.size}` : ''} ({item.category})</option>)}</select></div>
               <div className="space-y-2"><Label>Store SKU / Code</Label><Input value={mapping.sku} onChange={event => setMapping(current => ({ ...current, sku: event.target.value }))} placeholder="e.g. PCM-500-TAB" /></div>
-              <div className="space-y-2"><Label>Unit (e.g. tablet, vial)</Label><Input value={mapping.unitLabel} onChange={event => setMapping(current => ({ ...current, unitLabel: event.target.value }))} placeholder="tablet, vial, pack" /></div>
-              <div className="space-y-2"><Label>Minimum Stock Level</Label><Input type="number" min="0" value={mapping.minimumLevel} onChange={event => setMapping(current => ({ ...current, minimumLevel: event.target.value }))} /></div>
               <div className="flex items-end"><Button onClick={() => void handleMapProduct()} disabled={saving}><Plus className="mr-2 h-4 w-4" />Create Bin Card</Button></div>
             </div>
           </section>
-          <section className="rounded-xl border bg-card overflow-x-auto"><div className="border-b p-4"><h2 className="font-semibold">Active Bin Cards</h2></div><table className="w-full min-w-[720px] text-sm"><thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">Medicine</th><th className="p-3">SKU</th><th className="p-3">Unit</th><th className="p-3 text-right">Minimum</th><th className="p-3 text-right">Selling price</th></tr></thead><tbody>{catalog.map(product => <tr key={product.product_id} className="border-t"><td className="p-3 font-medium">{product.medicine_name} <span className="font-normal text-muted-foreground">{product.size ?? ''}</span></td><td className="p-3 font-mono text-xs">{product.sku}</td><td className="p-3">{product.unit_label}</td><td className="p-3 text-right">{product.minimum_level}</td><td className="p-3 text-right">{money(product.sale_price)}</td></tr>)}{catalog.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-muted-foreground">No Bin Cards created yet.</td></tr>}</tbody></table></section>
+          <section className="rounded-xl border bg-card overflow-x-auto"><div className="border-b p-4"><h2 className="font-semibold">Active Bin Cards</h2></div><table className="w-full min-w-[720px] text-sm"><thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">Medicine</th><th className="p-3">SKU</th><th className="p-3 text-right">Selling Price</th></tr></thead><tbody>{catalog.map(product => <tr key={product.product_id} className="border-t"><td className="p-3 font-medium">{product.medicine_name} <span className="font-normal text-muted-foreground">{product.size ?? ''}</span></td><td className="p-3 font-mono text-xs">{product.sku}</td><td className="p-3 text-right font-medium text-green-600">{money(product.sale_price)}</td></tr>)}{catalog.length === 0 && <tr><td colSpan={3} className="p-8 text-center text-muted-foreground">No Bin Cards created yet.</td></tr>}</tbody></table></section>
         </TabsContent>
 
         <TabsContent value="receive" className="space-y-5">
@@ -261,7 +271,7 @@ export default function Store() {
             <div className="flex flex-wrap gap-2"><Button variant={receiptKind === 'opening_count' ? 'default' : 'outline'} onClick={() => setReceiptKind('opening_count')}>Opening physical count</Button><Button variant={receiptKind === 'supplier_delivery' ? 'default' : 'outline'} onClick={() => { setReceiptKind('supplier_delivery'); }}>Supplier delivery</Button></div>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2"><Label>Store Location</Label><select value={receiptLocation} onChange={event => setReceiptLocation(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm">{locations.map(loc => <option key={loc.id} value={loc.code} disabled={receiptKind === 'supplier_delivery' && loc.code === 'pharmacy'}>{loc.name}</option>)}</select></div>
-              {receiptKind === 'supplier_delivery' && <><div className="space-y-2"><Label>Supplier name</Label><Input value={supplierName} onChange={event => setSupplierName(event.target.value)} placeholder="Supplier / distributor" /></div><div className="space-y-2"><Label>Supplier reference</Label><Input value={supplierReference} onChange={event => setSupplierReference(event.target.value)} placeholder="Invoice or delivery note number" /></div></>}
+              {receiptKind === 'supplier_delivery' && <><div className="space-y-2"><Label>Supplier name</Label><Input value={supplierName} onChange={event => setSupplierName(event.target.value)} placeholder="Supplier / distributor" /></div></>}
               <div className="space-y-2 md:col-span-3"><Label>Note</Label><Input value={receiptNote} onChange={event => setReceiptNote(event.target.value)} placeholder="Reason for receipt or opening" /></div>
             </div>
             <ReceiptLines lines={receiptLines} catalog={catalog} productById={productById} onChange={updateReceiptLine} onAdd={() => setReceiptLines(lines => [...lines, emptyReceiptLine()])} onRemove={index => setReceiptLines(lines => lines.length === 1 ? lines : lines.filter((_, lineIndex) => lineIndex !== index))} />
@@ -282,7 +292,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function ReceiptLines({ lines, catalog, productById, onChange, onAdd, onRemove }: { lines: ReceiptLineInput[]; catalog: InventoryCatalogProduct[]; productById: Map<string, InventoryCatalogProduct>; onChange: (index: number, field: keyof ReceiptLineInput, value: string) => void; onAdd: () => void; onRemove: (index: number) => void }) {
-  return <div className="space-y-3"><div className="flex items-center justify-between"><h3 className="font-medium">Stock lines</h3><Button size="sm" variant="outline" onClick={onAdd}><Plus className="mr-1 h-4 w-4" />Add line</Button></div>{lines.map((line, index) => <div key={index} className="grid gap-3 rounded-lg border p-3 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]"><div className="space-y-1"><Label className="text-xs">Medicine</Label><select value={line.product_id} onChange={event => onChange(index, 'product_id', event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select bin card…</option>{catalog.map(product => <option key={product.product_id} value={product.product_id}>{product.medicine_name}{product.size ? ` — ${product.size}` : ''}</option>)}</select></div><div className="space-y-1"><Label className="text-xs">Batch no.</Label><Input value={line.batch_number} onChange={event => onChange(index, 'batch_number', event.target.value)} placeholder="Batch" /></div><div className="space-y-1"><Label className="text-xs">Expiry</Label><Input type="date" value={line.expiry_date} onChange={event => onChange(index, 'expiry_date', event.target.value)} /></div><div className="space-y-1"><Label className="text-xs">Quantity</Label><Input type="number" min="0.001" step="0.001" value={line.quantity} onChange={event => onChange(index, 'quantity', event.target.value)} /></div><div className="space-y-1"><Label className="text-xs">Unit cost</Label><Input type="number" min="0" step="0.01" value={line.unit_cost} onChange={event => onChange(index, 'unit_cost', event.target.value)} placeholder={line.product_id ? `Unit: ${productById.get(line.product_id)?.unit_label ?? ''}` : '₦'} /></div><div className="flex items-end"><Button variant="ghost" size="icon" onClick={() => onRemove(index)} title="Remove line"><Trash2 className="h-4 w-4 text-destructive" /></Button></div></div>)}</div>;
+  return <div className="space-y-3"><div className="flex items-center justify-between"><h3 className="font-medium">Stock lines</h3><Button size="sm" variant="outline" onClick={onAdd}><Plus className="mr-1 h-4 w-4" />Add line</Button></div>{lines.map((line, index) => <div key={index} className="grid gap-3 rounded-lg border p-3 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]"><div className="space-y-1"><Label className="text-xs">Medicine</Label><select value={line.product_id} onChange={event => onChange(index, 'product_id', event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select bin card…</option>{catalog.map(product => <option key={product.product_id} value={product.product_id}>{product.medicine_name}{product.size ? ` — ${product.size}` : ''}</option>)}</select></div><div className="space-y-1"><Label className="text-xs">Batch no.</Label><Input value={line.batch_number} onChange={event => onChange(index, 'batch_number', event.target.value)} placeholder="Batch" /></div><div className="space-y-1"><Label className="text-xs">Expiry</Label><Input type="date" value={line.expiry_date} onChange={event => onChange(index, 'expiry_date', event.target.value)} /></div><div className="space-y-1"><Label className="text-xs">Quantity</Label><Input type="number" min="0.001" step="0.001" value={line.quantity} onChange={event => onChange(index, 'quantity', event.target.value)} /></div><div className="space-y-1"><Label className="text-xs">Cost Price (₦)</Label><Input type="number" min="0" step="0.01" value={line.unit_cost} onChange={event => onChange(index, 'unit_cost', event.target.value)} placeholder="0.00" /></div><div className="flex items-end"><Button variant="ghost" size="icon" onClick={() => onRemove(index)} title="Remove line"><Trash2 className="h-4 w-4 text-destructive" /></Button></div></div>)}</div>;
 }
 
 function TransferLines({ lines, batches, onChange, onAdd, onRemove }: { lines: TransferLine[]; batches: StoreBatch[]; onChange: (index: number, field: keyof TransferLine, value: string) => void; onAdd: () => void; onRemove: (index: number) => void }) {

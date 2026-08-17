@@ -99,10 +99,11 @@ export function BinCardView({ productId, locationId, productName, unitLabel }: B
         <Table>
           <TableHeader className="bg-slate-50">
             <TableRow>
-              <TableHead className="w-[150px] font-bold text-slate-900 border-r">Date</TableHead>
+              <TableHead className="w-[120px] font-bold text-slate-900 border-r">Date</TableHead>
               <TableHead className="font-bold text-slate-900 border-r">Particulars</TableHead>
               <TableHead className="w-[100px] text-right font-bold text-slate-900 border-r">Receipts</TableHead>
               <TableHead className="w-[100px] text-right font-bold text-slate-900 border-r">Issues</TableHead>
+              <TableHead className="w-[120px] text-right font-bold text-slate-900 border-r text-blue-600">Cost Price</TableHead>
               <TableHead className="w-[100px] text-right font-bold text-slate-900 text-primary">Balance</TableHead>
             </TableRow>
           </TableHeader>
@@ -117,6 +118,9 @@ export function BinCardView({ productId, locationId, productName, unitLabel }: B
                 <TableCell className="text-right border-r text-red-700 font-semibold">
                   {entry.quantity_delta < 0 ? Math.abs(entry.quantity_delta).toLocaleString() : '-'}
                 </TableCell>
+                <TableCell className="text-right border-r text-blue-600 font-medium">
+                  {entry.unit_cost > 0 ? `₦${entry.unit_cost.toLocaleString()}` : '-'}
+                </TableCell>
                 <TableCell className="text-right font-bold text-slate-900 bg-slate-50/30">
                   {entry.balance.toLocaleString()}
                 </TableCell>
@@ -124,7 +128,7 @@ export function BinCardView({ productId, locationId, productName, unitLabel }: B
             ))}
             {entries.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                   No bin card entries found for this location.
                 </TableCell>
               </TableRow>

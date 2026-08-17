@@ -10,19 +10,33 @@ export const handler: Handler = async (event) => {
   try {
     await client.connect();
     const body = JSON.parse(event.body || '{}');
-    const { action, table, rpc, args, filters, select, limit, offset, order } = body;
+    const { action, table, rpc, args, filters, select, limit, offset, order, user_id, user_role } = body;
+
+    // The database compatibility layer reads these settings through
+    // hms_current_user_id()/hms_current_user_role(). They are scoped to this
+    // connection and are never stored in the database.
+    await client.query('SELECT set_config(\'hms.user_id\', $1, false), set_config(\'hms.user_role\', $2, false)', [
+      user_id || '',
+      user_role || ''
+    ]);
 
     if (action === 'rpc') {
       const paramKeys = args ? Object.keys(args) : [];
       const paramPlaceholders = paramKeys.map((_, idx) => `$${idx + 1}`).join(', ');
       const paramValues = paramKeys.map(k => args[k]);
-      const query = `SELECT public.${rpc}(${paramPlaceholders})`;
+      const setReturningRpcs = new Set(['get_store_bin_cards', 'get_inventory_catalog', 'get_pharmacy_stock', 'get_pharmacy_inventory']);
+      const query = setReturningRpcs.has(rpc)
+        ? `SELECT * FROM public.${rpc}(${paramPlaceholders})`
+        : `SELECT public.${rpc}(${paramPlaceholders})`;
       const result = await client.query(query, paramValues);
+      const data = setReturningRpcs.has(rpc)
+        ? result.rows
+        : (result.rows[0]?.[rpc] ?? result.rows[0]);
       await client.end();
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: result.rows[0]?.[rpc] ?? result.rows[0], error: null })
+        body: JSON.stringify({ data, error: null })
       };
     }
 

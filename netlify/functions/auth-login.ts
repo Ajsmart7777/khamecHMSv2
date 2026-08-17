@@ -15,7 +15,12 @@ export const handler: Handler = async (event) => {
     await client.connect();
     console.log('Connected. Querying user...');
     const res = await client.query(
-      'SELECT id, email, password FROM public.auth_users WHERE email = $1',
+      `SELECT u.id, u.email, u.password,
+              (SELECT ur.role::text FROM public.user_roles ur
+               WHERE ur.user_id = u.id ORDER BY ur.role::text LIMIT 1) AS role
+       FROM public.auth_users u
+       WHERE u.email = $1
+       LIMIT 1`,
       [email]
     );
     console.log('Query result rows:', res.rows.length);
@@ -29,7 +34,7 @@ export const handler: Handler = async (event) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           data: { 
-            user: { id: user.id, email: user.email }, 
+            user: { id: user.id, email: user.email, role: user.role },
             session: { access_token: 'mock-token-' + user.id } 
           }, 
           error: null 

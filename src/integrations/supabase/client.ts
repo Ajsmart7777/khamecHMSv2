@@ -1,4 +1,10 @@
 // CockroachDB REST & RPC Client Adapter for Khamec HMS
+function requestContext() {
+  const userId = typeof localStorage !== 'undefined' ? localStorage.getItem('hms_user_id') : null;
+  const userRole = typeof localStorage !== 'undefined' ? localStorage.getItem('hms_user_role') : null;
+  return { user_id: userId, user_role: userRole };
+}
+
 class CockroachQueryBuilder {
   constructor(private table: string) {}
 
@@ -43,6 +49,7 @@ class CockroachQueryBuilder {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'select',
+          ...requestContext(),
           table: this.table,
           select: this._select,
           filters: this._filters,
@@ -70,6 +77,7 @@ class CockroachQueryBuilder {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'insert',
+          ...requestContext(),
           table: this.table,
           values
         })
@@ -88,6 +96,7 @@ class CockroachQueryBuilder {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'update',
+          ...requestContext(),
           table: this.table,
           values,
           filters: this._filters
@@ -107,6 +116,7 @@ class CockroachQueryBuilder {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'delete',
+          ...requestContext(),
           table: this.table,
           filters: this._filters
         })
@@ -138,7 +148,7 @@ export const supabase = {
           const res = await fetch('/.netlify/functions/db-query', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'rpc', rpc: fnName, args })
+            body: JSON.stringify({ action: 'rpc', ...requestContext(), rpc: fnName, args })
           });
           const json = await res.json();
           resolve({ data: json.data, error: json.error ? { message: json.error } : null });
@@ -178,6 +188,7 @@ export const supabase = {
         const json = await res.json();
         if (json.data?.user?.id) {
           localStorage.setItem('hms_user_id', json.data.user.id);
+          if (json.data.user.role) localStorage.setItem('hms_user_role', json.data.user.role);
         }
         return json;
       } catch (err: any) {
@@ -186,6 +197,7 @@ export const supabase = {
     },
     signOut: async () => {
       localStorage.removeItem('hms_user_id');
+      localStorage.removeItem('hms_user_role');
       return { error: null };
     },
     refreshSession: async () => {

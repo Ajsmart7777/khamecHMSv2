@@ -5,9 +5,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { InventoryCatalogProduct, InventoryLocationCode, ReceiptKind, ReceiptLineInput, StoreBatch, useInventory } from '@/hooks/useInventory';
+import {
+  ReceiptKind,
+  StoreLocationCode,
+  useInventory,
+} from '@/hooks/useInventory';
 import { supabase } from '@/integrations/supabase/client';
-import { PackagePlus, ArrowRightLeft, RefreshCw, Plus, Trash2, AlertTriangle, PackageCheck, FileText } from 'lucide-react';
+import { ArrowRightLeft, FileText, PackageCheck, Plus, RefreshCw, Search, Trash2, TriangleAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { BinCardView } from '@/components/inventory/BinCardView';
 
@@ -20,61 +24,71 @@ interface PricelistItem {
   active: boolean;
 }
 
-interface TransferLine {
-  batch_id: string;
+interface StockLine {
+  productId: string;
+  expiryDate: string;
+  quantity: string;
+  costPrice: string;
+}
+
+interface PharmacyIssueLine {
+  productId: string;
   quantity: string;
 }
 
-const emptyReceiptLine = (): ReceiptLineInput => ({
-  product_id: '',
-  batch_number: '',
-  expiry_date: '',
-  quantity: '',
-  unit_cost: '',
-});
-
-const emptyTransferLine = (): TransferLine => ({ batch_id: '', quantity: '' });
-
+const emptyStockLine = (): StockLine => ({ productId: '', expiryDate: '', quantity: '', costPrice: '' });
+const emptyIssueLine = (): PharmacyIssueLine => ({ productId: '', quantity: '' });
 const money = (amount: number) => `₦${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function Store() {
   const {
     catalog,
-    storeBatches,
+    storeBinCards,
+    storeLocations,
     locations,
     loading,
     refresh,
-    createProduct,
+    registerBinCard,
     recordReceipt,
     sendToPharmacy,
   } = useInventory();
 
   const [pricelist, setPricelist] = useState<PricelistItem[]>([]);
-  const [mapping, setMapping] = useState({ pricelistItemId: '', sku: '' });
-  const [receiptKind, setReceiptKind] = useState<ReceiptKind>('opening_count');
-  const [receiptLocation, setReceiptLocation] = useState<InventoryLocationCode>('main_store');
+  const [selectedStoreCode, setSelectedStoreCode] = useState<StoreLocationCode>('main_store');
+  const [searchText, setSearchText] = useState('');
+  const [selectedBinCardId, setSelectedBinCardId] = useState('');
+  const [registrationMedicineId, setRegistrationMedicineId] = useState('');
+  const [stockKind, setStockKind] = useState<ReceiptKind>('supplier_delivery');
   const [supplierName, setSupplierName] = useState('');
-  const [supplierReference, setSupplierReference] = useState('');
-  const [receiptNote, setReceiptNote] = useState('');
-  const [receiptLines, setReceiptLines] = useState<ReceiptLineInput[]>([emptyReceiptLine()]);
-  const [transferLines, setTransferLines] = useState<TransferLine[]>([emptyTransferLine()]);
-  const [transferSourceLocationId, setTransferSourceLocationId] = useState('');
-  const [transferNote, setTransferNote] = useState('');
+  const [stockLine, setStockLine] = useState<StockLine>(emptyStockLine());
+  const [issueLines, setIssueLines] = useState<PharmacyIssueLine[]>([emptyIssueLine()]);
   const [saving, setSaving] = useState(false);
 
-  // Bin Card state
-  const [binCardProductId, setBinCardProductId] = useState<string>('');
-  const [binCardLocationId, setBinCardLocationId] = useState<string>('');
-
-  const storeLocations = useMemo(() => locations.filter(l => l.code !== 'pharmacy'), [locations]);
-
-  useEffect(() => {
-    if (storeLocations.length > 0) {
-      if (!receiptLocation) setReceiptLocation(storeLocations[0].code);
-      if (!binCardLocationId) setBinCardLocationId(storeLocations[0].id);
-      if (!transferSourceLocationId) setTransferSourceLocationId(storeLocations[0].id);
-    }
-  }, [storeLocations, receiptLocation, binCardLocationId, transferSourceLocationId]);
+  const selectedLocation = useMemo(
+    () => storeLocations.find(location => location.code === selectedStoreCode),
+    [selectedStoreCode, storeLocations],
+  );
+  const selectedStoreBinCards = useMemo(
+    () => storeBinCards.filter(card => card.location_code === selectedStoreCode),
+    [selectedStoreCode, storeBinCards],
+  );
+  const filteredBinCards = useMemo(() => {
+    const query = searchText.trim().toLowerCase();
+    if (!query) return selectedStoreBinCards;
+    return selectedStoreBinCards.filter(card =>
+      `${card.medicine_name} ${card.size ?? ''} ${card.sku}`.toLowerCase().includes(query),
+    );
+  }, [searchText, selectedStoreBinCards]);
+  const selectedBinCard = selectedStoreBinCards.find(card => card.bin_card_id === selectedBinCardId);
+  const availableIssueCards = selectedStoreBinCards.filter(card => card.current_balance > 0);
+  const registeredPricelistIds = useMemo(
+    () => new Set(selectedStoreBinCards.map(card => card.pricelist_item_id)),
+    [selectedStoreBinCards],
+  );
+  const unregisteredPricelist = useMemo(
+    () => pricelist.filter(item => !registeredPricelistIds.has(item.id)),
+    [pricelist, registeredPricelistIds],
+  );
 
   useEffect(() => {
     const loadPricelist = async () => {
@@ -88,199 +102,162 @@ export default function Store() {
     void loadPricelist();
   }, []);
 
-  const mappedPricelistIds = useMemo(() => new Set(catalog.map(product => product.pricelist_item_id)), [catalog]);
-  const unmappedPricelist = useMemo(() => pricelist.filter(item => !mappedPricelistIds.has(item.id)), [pricelist, mappedPricelistIds]);
-  const medicineLikePricelist = useMemo(() => unmappedPricelist.filter(item => /medicine|drug|pharmacy|consumable|medication/i.test(item.category)), [unmappedPricelist]);
+  useEffect(() => {
+    const firstCard = selectedStoreBinCards[0];
+    setSelectedBinCardId(current => current && selectedStoreBinCards.some(card => card.bin_card_id === current) ? current : firstCard?.bin_card_id ?? '');
+    setStockLine(current => ({ ...current, productId: current.productId && selectedStoreBinCards.some(card => card.product_id === current.productId) ? current.productId : '' }));
+    setIssueLines(lines => lines.map(line => ({ ...line, productId: line.productId && selectedStoreBinCards.some(card => card.product_id === line.productId) ? line.productId : '' })));
+  }, [selectedStoreBinCards]);
 
-  const productById = useMemo(() => new Map(catalog.map(product => [product.product_id, product])), [catalog]);
-  const availableBatches = useMemo(() => storeBatches.filter(batch => batch.location_id === transferSourceLocationId && batch.status === 'active' && batch.quantity_on_hand > 0 && batch.expiry_date >= new Date().toISOString().slice(0, 10)), [storeBatches, transferSourceLocationId]);
-
-  const updateReceiptLine = (index: number, field: keyof ReceiptLineInput, value: string) => {
-    setReceiptLines(lines => lines.map((line, lineIndex) => lineIndex === index ? { ...line, [field]: value } : line));
-  };
-
-  const updateTransferLine = (index: number, field: keyof TransferLine, value: string) => {
-    setTransferLines(lines => lines.map((line, lineIndex) => lineIndex === index ? { ...line, [field]: value } : line));
-  };
-
-  const handleMapProduct = async () => {
-    if (!mapping.pricelistItemId || !mapping.sku.trim()) {
-      toast.error('Select a medicine and enter its Store SKU / Code.');
+  const handleRegister = async () => {
+    if (!registrationMedicineId) {
+      toast.error('Select a medicine from the Pricelist first.');
       return;
     }
     setSaving(true);
     try {
-      // Default to 'unit' and 0 minimum level as per user request to simplify
-      await createProduct(mapping.pricelistItemId, mapping.sku.trim(), 'unit', 0);
-      toast.success('Digital Bin Card created', { description: 'You can now record stock for this item.' });
-      setMapping({ pricelistItemId: '', sku: '' });
+      await registerBinCard(registrationMedicineId, selectedStoreCode);
+      toast.success(`${selectedLocation?.name ?? 'Store'} Bin Card registered`);
+      setRegistrationMedicineId('');
     } catch (error: unknown) {
-      toast.error('Could not create bin card', { description: error instanceof Error ? error.message : 'An unexpected error occurred.' });
+      toast.error('Could not register Bin Card', { description: error instanceof Error ? error.message : 'An unexpected error occurred.' });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleReceipt = async () => {
-    const validLines = receiptLines.filter(line => line.product_id && line.batch_number.trim() && line.expiry_date && Number(line.quantity) > 0 && Number(line.unit_cost) >= 0);
-    if (validLines.length !== receiptLines.length) {
-      toast.error('Complete every receipt line with product, batch, expiry date, quantity, and unit cost.');
+  const handleStock = async () => {
+    const quantity = Number(stockLine.quantity);
+    const costPrice = Number(stockLine.costPrice);
+    if (!stockLine.productId || !stockLine.expiryDate || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(costPrice) || costPrice < 0) {
+      toast.error('Select a Bin Card and enter expiry date, quantity, and cost price.');
       return;
     }
-    if (receiptKind === 'supplier_delivery' && !supplierName.trim()) {
+    if (stockKind === 'supplier_delivery' && !supplierName.trim()) {
       toast.error('Supplier name is required for a supplier delivery.');
       return;
     }
-    if (receiptKind === 'supplier_delivery' && receiptLocation === 'pharmacy') {
-      toast.error('Supplier deliveries must be received into Store 1 or Store 2, not Pharmacy.');
-      return;
-    }
     setSaving(true);
     try {
-      await recordReceipt(receiptKind, receiptLocation, validLines, supplierName, supplierReference, receiptNote);
-      toast.success(receiptKind === 'opening_count' ? 'Opening count recorded' : 'Supplier delivery received', {
-        description: `Stock has been added to ${locations.find(l => l.code === receiptLocation)?.name || 'Store'}.`,
+      await recordReceipt(stockKind, selectedStoreCode, [{
+        product_id: stockLine.productId,
+        expiry_date: stockLine.expiryDate,
+        quantity: stockLine.quantity,
+        unit_cost: stockLine.costPrice,
+      }], stockKind === 'supplier_delivery' ? supplierName.trim() : undefined);
+      toast.success(stockKind === 'opening_count' ? 'Opening Stock recorded' : 'Stock received', {
+        description: `${selectedLocation?.name ?? 'Store'} Bin Card balance has been updated.`,
       });
-      setReceiptLines([emptyReceiptLine()]);
+      setStockLine(emptyStockLine());
       setSupplierName('');
-      setSupplierReference('');
-      setReceiptNote('');
     } catch (error: unknown) {
-      toast.error('Could not save stock receipt', { description: error instanceof Error ? error.message : 'An unexpected error occurred.' });
+      toast.error('Could not record Stock', { description: error instanceof Error ? error.message : 'An unexpected error occurred.' });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleTransfer = async () => {
-    const validLines = transferLines.filter(line => line.batch_id && Number(line.quantity) > 0);
-    if (validLines.length !== transferLines.length) {
-      toast.error('Choose every stock batch and enter a positive quantity.');
+  const handleIssue = async () => {
+    const validLines = issueLines.filter(line => line.productId && Number(line.quantity) > 0);
+    if (validLines.length !== issueLines.length || validLines.length === 0) {
+      toast.error('Select a Bin Card and enter a positive Pharmacy issue quantity for every line.');
       return;
+    }
+    const quantities = new Map<string, number>();
+    for (const line of validLines) quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + Number(line.quantity));
+    for (const [productId, quantity] of quantities) {
+      const card = selectedStoreBinCards.find(item => item.product_id === productId);
+      if (!card || quantity > card.current_balance) {
+        toast.error(`Issue cannot exceed the available balance for ${card?.medicine_name ?? 'the selected medicine'}.`);
+        return;
+      }
     }
     setSaving(true);
     try {
-      await sendToPharmacy(validLines, transferNote);
-      toast.success('Stock sent to Pharmacy', { description: 'Pharmacy must confirm receipt before this stock is available for dispensing.' });
-      setTransferLines([emptyTransferLine()]);
-      setTransferNote('');
+      await sendToPharmacy(validLines, selectedStoreCode);
+      toast.success('Pharmacy issue sent for acceptance', { description: 'Store balance will change only after Pharmacy accepts the transfer.' });
+      setIssueLines([emptyIssueLine()]);
     } catch (error: unknown) {
-      toast.error('Could not send stock', { description: error instanceof Error ? error.message : 'An unexpected error occurred.' });
+      toast.error('Could not send Pharmacy issue', { description: error instanceof Error ? error.message : 'An unexpected error occurred.' });
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <MainLayout title="Store Management" subtitle="Controlled medicine receiving, Store 1 & 2, and Pharmacy supply">
+    <MainLayout title="Store Management" subtitle="Store 1 and Store 2 Bin Cards with controlled Pharmacy issues">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <PackageCheck className="h-4 w-4 text-primary" />
-          <span>Supplier → Store (1/2) → Pharmacy → Patient</span>
+          <span>Pricelist → Bin Card → Stock / Pharmacy</span>
         </div>
         <Button variant="outline" size="sm" onClick={() => void refresh()} disabled={loading}>
-          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> Refresh stock
+          <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />Refresh
         </Button>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-5">
+      <section className="mb-5 rounded-xl border bg-card p-5">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div><h2 className="font-semibold">Choose Store Location</h2><p className="text-sm text-muted-foreground">Store 1 and Store 2 maintain separate Bin Cards and balances.</p></div>
+          <div className="w-full sm:w-64"><Label>Store</Label><select value={selectedStoreCode} onChange={event => setSelectedStoreCode(event.target.value as StoreLocationCode)} className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="main_store">Store 1</option><option value="store_2">Store 2</option></select></div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Metric label="Registered Bin Cards" value={String(selectedStoreBinCards.length)} />
+          <Metric label="Available Balance" value={selectedStoreBinCards.reduce((total, card) => total + card.current_balance, 0).toLocaleString()} />
+          <Metric label="Pending Pharmacy Issues" value="See Pharmacy acceptance queue" />
+        </div>
+      </section>
+
+      <Tabs defaultValue="bincards" className="space-y-5">
         <TabsList className="h-auto flex flex-wrap justify-start gap-1 bg-muted p-1">
-          <TabsTrigger value="overview">Inventory Overview</TabsTrigger>
-          <TabsTrigger value="bincard">Digital Bin Card</TabsTrigger>
-          <TabsTrigger value="setup">Setup Bin Cards</TabsTrigger>
-          <TabsTrigger value="receive">Stock Receipts</TabsTrigger>
-          <TabsTrigger value="transfer">Send to Pharmacy</TabsTrigger>
+          <TabsTrigger value="bincards">Bin Cards</TabsTrigger>
+          <TabsTrigger value="register">Register Bin Card</TabsTrigger>
+          <TabsTrigger value="stock">Record Stock</TabsTrigger>
+          <TabsTrigger value="pharmacy">Issue to Pharmacy</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Metric label="Active batches" value={String(availableBatches.length)} />
-            <Metric label="Total Units in Store" value={storeBatches.reduce((total, batch) => total + batch.quantity_on_hand, 0).toLocaleString()} />
-            <Metric label="Stock value" value={money(storeBatches.reduce((total, batch) => total + batch.quantity_on_hand * batch.unit_cost, 0))} />
-          </div>
-          <div className="rounded-xl border bg-card overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
-              <thead className="border-b bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                <tr>
-                  <th className="p-3">Medicine</th>
-                  <th className="p-3">Location</th>
-                  <th className="p-3">Batch</th>
-                  <th className="p-3">Expiry</th>
-                  <th className="p-3 text-right">Available</th>
-                  <th className="p-3 text-right text-blue-600">Cost Price</th>
-                  <th className="p-3 text-right text-green-600">Selling Price</th>
-                  <th className="p-3 text-right">Stock Value</th>
-                </tr>
-              </thead>
-              <tbody>
-                {storeBatches.map(batch => {
-                  const product = batch.inventory_products;
-                  const expired = batch.expiry_date < new Date().toISOString().slice(0, 10);
-                  const sellingPrice = product?.pricelist?.price ?? 0;
-                  return <tr key={batch.id} className="border-b last:border-0">
-                    <td className="p-3 font-medium">{product?.pricelist?.name ?? 'Unknown product'} <span className="font-normal text-muted-foreground">{product?.pricelist?.size ?? ''}</span></td>
-                    <td className="p-3"><Badge variant="outline">{batch.inventory_locations?.name}</Badge></td>
-                    <td className="p-3">{batch.batch_number}</td>
-                    <td className="p-3">{batch.expiry_date} {expired && <Badge variant="destructive" className="ml-1">Expired</Badge>}</td>
-                    <td className="p-3 text-right font-medium">{batch.quantity_on_hand.toLocaleString()}</td>
-                    <td className="p-3 text-right text-blue-600 font-medium">{money(batch.unit_cost)}</td>
-                    <td className="p-3 text-right text-green-600 font-medium">{money(sellingPrice)}</td>
-                    <td className="p-3 text-right font-bold">{money(batch.quantity_on_hand * batch.unit_cost)}</td>
-                  </tr>;
-                })}
-                {!loading && storeBatches.length === 0 && <tr><td colSpan={8} className="p-10 text-center text-muted-foreground">No Store stock has been recorded yet.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="bincard" className="space-y-5">
+        <TabsContent value="bincards" className="space-y-5">
           <section className="rounded-xl border bg-card p-5">
-            <div className="mb-4 flex items-start gap-3"><FileText className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="font-semibold">View Digital Bin Card</h2><p className="text-sm text-muted-foreground">Select a medicine and location to view its movement history.</p></div></div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2"><Label>Medicine</Label><select value={binCardProductId} onChange={event => setBinCardProductId(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select a medicine…</option>{catalog.map(product => <option key={product.product_id} value={product.product_id}>{product.medicine_name}{product.size ? ` — ${product.size}` : ''}</option>)}</select></div>
-              <div className="space-y-2"><Label>Location</Label><select value={binCardLocationId} onChange={event => setBinCardLocationId(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm">{locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}</select></div>
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div><h2 className="font-semibold">{selectedLocation?.name ?? 'Store'} Bin Cards</h2><p className="text-sm text-muted-foreground">Search the registered medicines in this Store, then open a paper-style ledger.</p></div>
+              <div className="relative w-full sm:w-72"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="pl-9" value={searchText} onChange={event => setSearchText(event.target.value)} placeholder="Search medicine…" /></div>
+            </div>
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full min-w-[760px] text-sm"><thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">Medicine</th><th className="p-3">Particulars</th><th className="p-3 text-right">Balance</th><th className="p-3">Next expiry</th><th className="p-3 text-right">Selling price</th><th className="p-3"></th></tr></thead><tbody>
+                {filteredBinCards.map(card => <tr key={card.bin_card_id} className="border-t"><td className="p-3 font-medium">{card.medicine_name} <span className="font-normal text-muted-foreground">{card.size ?? ''}</span></td><td className="p-3"><Badge variant="outline">Stock / Pharmacy</Badge></td><td className="p-3 text-right font-semibold">{card.current_balance.toLocaleString()}</td><td className="p-3">{card.next_expiry ?? '—'}</td><td className="p-3 text-right text-green-600">{money(card.sale_price)}</td><td className="p-3 text-right"><Button size="sm" variant={selectedBinCardId === card.bin_card_id ? 'default' : 'outline'} onClick={() => setSelectedBinCardId(card.bin_card_id)}><FileText className="mr-2 h-4 w-4" />Open</Button></td></tr>)}
+                {!loading && filteredBinCards.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-muted-foreground">No Bin Cards match this Store and search.</td></tr>}
+              </tbody></table>
             </div>
           </section>
-
-          {binCardProductId && binCardLocationId && (
-            <BinCardView
-              productId={binCardProductId}
-              locationId={binCardLocationId}
-              productName={productById.get(binCardProductId)?.medicine_name || ''}
-              unitLabel={productById.get(binCardProductId)?.unit_label || ''}
-            />
-          )}
+          {selectedBinCard && <BinCardView productId={selectedBinCard.product_id} locationId={selectedBinCard.location_id} productName={selectedBinCard.medicine_name} unitLabel="" />}
         </TabsContent>
 
-        <TabsContent value="setup" className="space-y-5">
+        <TabsContent value="register" className="space-y-5">
           <section className="rounded-xl border bg-card p-5">
-            <div className="mb-4 flex items-start gap-3"><PackagePlus className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="font-semibold">Create a new Bin Card</h2><p className="text-sm text-muted-foreground">Link a medicine from the pricelist to start tracking its inventory.</p></div></div>
-            <div className="grid gap-4 md:grid-cols-4">
-              <div className="space-y-2 md:col-span-2"><Label>Select Medicine from Pricelist</Label><select value={mapping.pricelistItemId} onChange={event => setMapping(current => ({ ...current, pricelistItemId: event.target.value }))} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select a medicine…</option>{(medicineLikePricelist.length ? medicineLikePricelist : unmappedPricelist).map(item => <option key={item.id} value={item.id}>{item.name}{item.size ? ` — ${item.size}` : ''} ({item.category})</option>)}</select></div>
-              <div className="space-y-2"><Label>Store SKU / Code</Label><Input value={mapping.sku} onChange={event => setMapping(current => ({ ...current, sku: event.target.value }))} placeholder="e.g. PCM-500-TAB" /></div>
-              <div className="flex items-end"><Button onClick={() => void handleMapProduct()} disabled={saving}><Plus className="mr-2 h-4 w-4" />Create Bin Card</Button></div>
-            </div>
+            <div className="mb-4 flex items-start gap-3"><FileText className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="font-semibold">Register a Bin Card in {selectedLocation?.name ?? 'Store'}</h2><p className="text-sm text-muted-foreground">Choose the medicine from the Pricelist. No minimum level or unit setup is required.</p></div></div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end"><div className="w-full sm:max-w-xl"><Label>Medicine from Pricelist</Label><select value={registrationMedicineId} onChange={event => setRegistrationMedicineId(event.target.value)} className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select a medicine…</option>{unregisteredPricelist.map(item => <option key={item.id} value={item.id}>{item.name}{item.size ? ` — ${item.size}` : ''} ({item.category})</option>)}</select></div><Button onClick={() => void handleRegister()} disabled={saving || !registrationMedicineId}><Plus className="mr-2 h-4 w-4" />Register Bin Card</Button></div>
           </section>
-          <section className="rounded-xl border bg-card overflow-x-auto"><div className="border-b p-4"><h2 className="font-semibold">Active Bin Cards</h2></div><table className="w-full min-w-[720px] text-sm"><thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">Medicine</th><th className="p-3">SKU</th><th className="p-3 text-right">Selling Price</th></tr></thead><tbody>{catalog.map(product => <tr key={product.product_id} className="border-t"><td className="p-3 font-medium">{product.medicine_name} <span className="font-normal text-muted-foreground">{product.size ?? ''}</span></td><td className="p-3 font-mono text-xs">{product.sku}</td><td className="p-3 text-right font-medium text-green-600">{money(product.sale_price)}</td></tr>)}{catalog.length === 0 && <tr><td colSpan={3} className="p-8 text-center text-muted-foreground">No Bin Cards created yet.</td></tr>}</tbody></table></section>
+          <Info text="The same medicine can be registered separately in Store 1 and Store 2. Each registration has its own balance and movement ledger." />
         </TabsContent>
 
-        <TabsContent value="receive" className="space-y-5">
-          <section className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 text-sm text-amber-900"><div className="flex gap-2"><AlertTriangle className="h-5 w-5 shrink-0" /><p><strong>Opening count is performed by Store.</strong> Enter the real physical balance that is already in Store 1, Store 2, or Pharmacy. Each location can be opened only once; corrections must be visible and authorised later.</p></div></section>
-          <section className="rounded-xl border bg-card p-5 space-y-5">
-            <div className="flex flex-wrap gap-2"><Button variant={receiptKind === 'opening_count' ? 'default' : 'outline'} onClick={() => setReceiptKind('opening_count')}>Opening physical count</Button><Button variant={receiptKind === 'supplier_delivery' ? 'default' : 'outline'} onClick={() => { setReceiptKind('supplier_delivery'); }}>Supplier delivery</Button></div>
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2"><Label>Store Location</Label><select value={receiptLocation} onChange={event => setReceiptLocation(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm">{locations.map(loc => <option key={loc.id} value={loc.code} disabled={receiptKind === 'supplier_delivery' && loc.code === 'pharmacy'}>{loc.name}</option>)}</select></div>
-              {receiptKind === 'supplier_delivery' && <><div className="space-y-2"><Label>Supplier name</Label><Input value={supplierName} onChange={event => setSupplierName(event.target.value)} placeholder="Supplier / distributor" /></div></>}
-              <div className="space-y-2 md:col-span-3"><Label>Note</Label><Input value={receiptNote} onChange={event => setReceiptNote(event.target.value)} placeholder="Reason for receipt or opening" /></div>
-            </div>
-            <ReceiptLines lines={receiptLines} catalog={catalog} productById={productById} onChange={updateReceiptLine} onAdd={() => setReceiptLines(lines => [...lines, emptyReceiptLine()])} onRemove={index => setReceiptLines(lines => lines.length === 1 ? lines : lines.filter((_, lineIndex) => lineIndex !== index))} />
-            <Button onClick={() => void handleReceipt()} disabled={saving}>{saving ? 'Saving…' : receiptKind === 'opening_count' ? 'Record opening count' : 'Receive supplier delivery'}</Button>
+        <TabsContent value="stock" className="space-y-5">
+          <section className="rounded-xl border bg-card p-5">
+            <div className="mb-4 flex flex-wrap gap-2"><Button variant={stockKind === 'opening_count' ? 'default' : 'outline'} onClick={() => setStockKind('opening_count')}>Opening Stock</Button><Button variant={stockKind === 'supplier_delivery' ? 'default' : 'outline'} onClick={() => setStockKind('supplier_delivery')}>Supplier Delivery</Button></div>
+            <div className="mb-5"><h2 className="font-semibold">Record Stock in {selectedLocation?.name ?? 'Store'}</h2><p className="text-sm text-muted-foreground">Particulars will be recorded as <strong>Stock</strong>. Receipts increase the Bin Card Balance automatically.</p></div>
+            <div className="grid gap-4 md:grid-cols-3"><div className="space-y-2 md:col-span-2"><Label>Bin Card / Medicine</Label><select value={stockLine.productId} onChange={event => setStockLine(line => ({ ...line, productId: event.target.value }))} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select a registered Bin Card…</option>{selectedStoreBinCards.map(card => <option key={card.bin_card_id} value={card.product_id}>{card.medicine_name}{card.size ? ` — ${card.size}` : ''} (Balance: {card.current_balance})</option>)}</select></div>{stockKind === 'supplier_delivery' && <div className="space-y-2"><Label>Supplier name</Label><Input value={supplierName} onChange={event => setSupplierName(event.target.value)} placeholder="Supplier" /></div>}</div>
+            <div className="mt-4 grid gap-4 md:grid-cols-3"><div className="space-y-2"><Label>Expiry date</Label><Input type="date" value={stockLine.expiryDate} onChange={event => setStockLine(line => ({ ...line, expiryDate: event.target.value }))} /></div><div className="space-y-2"><Label>Receipts / Quantity</Label><Input type="number" min="0.001" step="0.001" value={stockLine.quantity} onChange={event => setStockLine(line => ({ ...line, quantity: event.target.value }))} placeholder="e.g. 60" /></div><div className="space-y-2"><Label>Cost price per unit (₦)</Label><Input type="number" min="0" step="0.01" value={stockLine.costPrice} onChange={event => setStockLine(line => ({ ...line, costPrice: event.target.value }))} placeholder="Price paid" /></div></div>
+            {stockLine.expiryDate && stockLine.expiryDate < new Date().toISOString().slice(0, 10) && <Info text="This expiry date is already past. The receipt can remain in the Bin Card history, but it will not count toward available balance." warning />}
+            <Button className="mt-5" onClick={() => void handleStock()} disabled={saving || selectedStoreBinCards.length === 0}><PackageCheck className="mr-2 h-4 w-4" />{saving ? 'Saving…' : stockKind === 'opening_count' ? 'Record Opening Stock' : 'Receive Stock'}</Button>
           </section>
         </TabsContent>
 
-        <TabsContent value="transfer" className="space-y-5">
-          <section className="rounded-xl border bg-card p-5 space-y-5"><div className="flex items-start gap-3"><ArrowRightLeft className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="font-semibold">Send stock to Pharmacy</h2><p className="text-sm text-muted-foreground">Choose either Store 1 or Store 2. A transfer cannot mix stock from both stores, and Pharmacy must confirm receipt before dispensing.</p></div></div><div className="grid gap-4 md:grid-cols-3"><div className="space-y-2"><Label>Source store</Label><select value={transferSourceLocationId} onChange={event => { setTransferSourceLocationId(event.target.value); setTransferLines([emptyTransferLine()]); }} className="h-10 w-full rounded-md border bg-background px-3 text-sm">{storeLocations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}</select></div><div className="space-y-2 md:col-span-2"><Label>Transfer note</Label><Input value={transferNote} onChange={event => setTransferNote(event.target.value)} placeholder="Optional issue voucher or purpose" /></div></div><TransferLines lines={transferLines} batches={availableBatches} onChange={updateTransferLine} onAdd={() => setTransferLines(lines => [...lines, emptyTransferLine()])} onRemove={index => setTransferLines(lines => lines.length === 1 ? lines : lines.filter((_, lineIndex) => index !== lineIndex))} /><Button onClick={() => void handleTransfer()} disabled={saving || availableBatches.length === 0}><ArrowRightLeft className="mr-2 h-4 w-4" />{saving ? 'Sending…' : 'Send to Pharmacy'}</Button></section>
+        <TabsContent value="pharmacy" className="space-y-5">
+          <section className="rounded-xl border bg-card p-5">
+            <div className="mb-4 flex items-start gap-3"><ArrowRightLeft className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="font-semibold">Issue Stock to Pharmacy from {selectedLocation?.name ?? 'Store'}</h2><p className="text-sm text-muted-foreground">Particulars will be recorded as <strong>Pharmacy</strong>. The Store balance stays unchanged until Pharmacy accepts the issue.</p></div></div>
+            <div className="space-y-3">{issueLines.map((line, index) => <div key={index} className="grid gap-3 rounded-lg border p-3 md:grid-cols-[1fr_220px_auto]"><div className="space-y-1"><Label className="text-xs">Bin Card / Medicine</Label><select value={line.productId} onChange={event => setIssueLines(lines => lines.map((item, itemIndex) => itemIndex === index ? { ...item, productId: event.target.value } : item))} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select a Bin Card…</option>{availableIssueCards.map(card => <option key={card.bin_card_id} value={card.product_id}>{card.medicine_name}{card.size ? ` — ${card.size}` : ''} (Balance: {card.current_balance})</option>)}</select></div><div className="space-y-1"><Label className="text-xs">Issues / Quantity</Label><Input type="number" min="0.001" step="0.001" value={line.quantity} onChange={event => setIssueLines(lines => lines.map((item, itemIndex) => itemIndex === index ? { ...item, quantity: event.target.value } : item))} placeholder="e.g. 10" /></div><div className="flex items-end"><Button variant="ghost" size="icon" onClick={() => setIssueLines(lines => lines.length === 1 ? lines : lines.filter((_, itemIndex) => itemIndex !== index))} title="Remove line"><Trash2 className="h-4 w-4 text-destructive" /></Button></div></div>)}</div>
+            <div className="mt-4 flex flex-wrap gap-2"><Button variant="outline" onClick={() => setIssueLines(lines => [...lines, emptyIssueLine()])}><Plus className="mr-2 h-4 w-4" />Add medicine</Button><Button onClick={() => void handleIssue()} disabled={saving || availableIssueCards.length === 0}><ArrowRightLeft className="mr-2 h-4 w-4" />{saving ? 'Sending…' : 'Send to Pharmacy'}</Button></div>
+          </section>
+          <Info text="Pharmacy will accept the pending issue. At acceptance, the Store Issues ledger entry and Pharmacy Receipts entry are created together. Patient dispensing does not deduct this Pharmacy balance." />
         </TabsContent>
       </Tabs>
     </MainLayout>
@@ -288,13 +265,9 @@ export default function Store() {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl border bg-card p-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-2xl font-semibold">{value}</p></div>;
+  return <div className="rounded-xl border bg-card p-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-xl font-semibold">{value}</p></div>;
 }
 
-function ReceiptLines({ lines, catalog, productById, onChange, onAdd, onRemove }: { lines: ReceiptLineInput[]; catalog: InventoryCatalogProduct[]; productById: Map<string, InventoryCatalogProduct>; onChange: (index: number, field: keyof ReceiptLineInput, value: string) => void; onAdd: () => void; onRemove: (index: number) => void }) {
-  return <div className="space-y-3"><div className="flex items-center justify-between"><h3 className="font-medium">Stock lines</h3><Button size="sm" variant="outline" onClick={onAdd}><Plus className="mr-1 h-4 w-4" />Add line</Button></div>{lines.map((line, index) => <div key={index} className="grid gap-3 rounded-lg border p-3 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto]"><div className="space-y-1"><Label className="text-xs">Medicine</Label><select value={line.product_id} onChange={event => onChange(index, 'product_id', event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select bin card…</option>{catalog.map(product => <option key={product.product_id} value={product.product_id}>{product.medicine_name}{product.size ? ` — ${product.size}` : ''}</option>)}</select></div><div className="space-y-1"><Label className="text-xs">Batch no.</Label><Input value={line.batch_number} onChange={event => onChange(index, 'batch_number', event.target.value)} placeholder="Batch" /></div><div className="space-y-1"><Label className="text-xs">Expiry</Label><Input type="date" value={line.expiry_date} onChange={event => onChange(index, 'expiry_date', event.target.value)} /></div><div className="space-y-1"><Label className="text-xs">Quantity</Label><Input type="number" min="0.001" step="0.001" value={line.quantity} onChange={event => onChange(index, 'quantity', event.target.value)} /></div><div className="space-y-1"><Label className="text-xs">Cost Price (₦)</Label><Input type="number" min="0" step="0.01" value={line.unit_cost} onChange={event => onChange(index, 'unit_cost', event.target.value)} placeholder="0.00" /></div><div className="flex items-end"><Button variant="ghost" size="icon" onClick={() => onRemove(index)} title="Remove line"><Trash2 className="h-4 w-4 text-destructive" /></Button></div></div>)}</div>;
-}
-
-function TransferLines({ lines, batches, onChange, onAdd, onRemove }: { lines: TransferLine[]; batches: StoreBatch[]; onChange: (index: number, field: keyof TransferLine, value: string) => void; onAdd: () => void; onRemove: (index: number) => void }) {
-  return <div className="space-y-3"><div className="flex items-center justify-between"><h3 className="font-medium">Batches to send</h3><Button size="sm" variant="outline" onClick={onAdd}><Plus className="mr-1 h-4 w-4" />Add batch</Button></div>{lines.map((line, index) => <div key={index} className="grid gap-3 rounded-lg border p-3 md:grid-cols-[3fr_1fr_auto]"><div className="space-y-1"><Label className="text-xs">Store batch</Label><select value={line.batch_id} onChange={event => onChange(index, 'batch_id', event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select batch…</option>{batches.map(batch => <option key={batch.id} value={batch.id}>{batch.inventory_products?.pricelist?.name ?? 'Unknown'} · {batch.batch_number} · Exp {batch.expiry_date} · Available {batch.quantity_on_hand} {batch.inventory_products?.unit_label ?? ''} ({batch.inventory_locations?.name})</option>)}</select></div><div className="space-y-1"><Label className="text-xs">Quantity</Label><Input type="number" min="0.001" step="0.001" value={line.quantity} onChange={event => onChange(index, 'quantity', event.target.value)} /></div><div className="flex items-end"><Button variant="ghost" size="icon" onClick={() => onRemove(index)} title="Remove line"><Trash2 className="h-4 w-4 text-destructive" /></Button></div></div>)}</div>;
+function Info({ text, warning = false }: { text: string; warning?: boolean }) {
+  return <div className={`rounded-lg border p-4 text-sm ${warning ? 'border-amber-200 bg-amber-50/60 text-amber-900' : 'bg-muted/30 text-muted-foreground'}`}><div className="flex gap-2">{warning && <TriangleAlert className="h-4 w-4 shrink-0" />}<span>{text}</span></div></div>;
 }

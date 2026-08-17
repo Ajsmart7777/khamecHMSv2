@@ -1,0 +1,7 @@
+{
+  "batch": "repair-invoice-compat",
+  "sqlStatements": [
+    "ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS is_salary_deduction boolean NOT NULL DEFAULT false;",
+    "ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS staff_sponsor_id uuid;"
+  ]
+}

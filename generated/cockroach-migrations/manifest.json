@@ -1,0 +1,16 @@
+{
+  "source_migrations": 213,
+  "transformed_statements": 1332,
+  "batches": 23,
+  "removed_constructs": [
+    "Supabase Realtime",
+    "Supabase Storage policies",
+    "pg_cron",
+    "pg_net",
+    "REPLICA IDENTITY",
+    "pg_trgm extension"
+  ],
+  "auth_users_target": "public.auth_users",
+  "auth_uid_target": "public.hms_current_user_id()",
+  "user_roles_admin_policy_target": "public.hms_current_user_role() = 'admin'"
+}

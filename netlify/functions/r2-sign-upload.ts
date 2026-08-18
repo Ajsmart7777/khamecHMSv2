@@ -1,4 +1,4 @@
-import { json, objectKey, optionsResponse, r2Config, requireUser, validate } from './_shared/r2.js';
+import { json, objectKey, optionsResponse, r2Config, r2MissingConfig, requireUser, validate } from './_shared/r2.js';
 
 export default async (request: Request) => {
   if (request.method === 'OPTIONS') return optionsResponse();
@@ -17,7 +17,12 @@ export default async (request: Request) => {
     if (invalid) return json({ error: invalid }, 400);
 
     const cfg = r2Config();
-    if (!cfg) return json({ error: 'R2 is not configured' }, 500);
+    if (!cfg) {
+      return json({
+        error: 'R2 is not configured',
+        missing: r2MissingConfig(),
+      }, 500);
+    }
     const type = typeof contentType === 'string' && contentType ? contentType : 'application/octet-stream';
     const url = `${cfg.endpoint}/${objectKey(bucket as string, path as string)}`;
     const signed = await cfg.client.sign(

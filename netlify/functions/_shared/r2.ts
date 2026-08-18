@@ -26,15 +26,33 @@ export function optionsResponse() {
   return new Response(null, { status: 204, headers: corsHeaders() });
 }
 
+function r2Environment() {
+  return {
+    accountId: process.env.R2_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID,
+    accessKeyId: process.env.R2_ACCESS_KEY_ID || process.env.CLOUDFLARE_R2_ACCESS_KEY_ID || process.env.R2_ACCESS_KEY,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || process.env.R2_SECRET_KEY,
+    bucket: process.env.R2_BUCKET || process.env.R2_BUCKET_NAME,
+  };
+}
+
+export function r2MissingConfig() {
+  const env = r2Environment();
+  return Object.entries(env)
+    .filter(([, value]) => !value)
+    .map(([key]) => ({
+      accountId: 'R2_ACCOUNT_ID',
+      accessKeyId: 'R2_ACCESS_KEY_ID',
+      secretAccessKey: 'R2_SECRET_ACCESS_KEY',
+      bucket: 'R2_BUCKET',
+    } as Record<string, string>)[key]);
+}
+
 export function r2Config() {
-  const accountId = process.env.R2_ACCOUNT_ID;
-  const accessKeyId = process.env.R2_ACCESS_KEY_ID;
-  const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-  const bucket = process.env.R2_BUCKET;
+  const { accountId, accessKeyId, secretAccessKey, bucket } = r2Environment();
   if (!accountId || !accessKeyId || !secretAccessKey || !bucket) return null;
   return {
     bucket,
-    endpoint: `https://${accountId}.r2.cloudflarestorage.com/${bucket}`,
+    endpoint: process.env.R2_ENDPOINT || `https://${accountId}.r2.cloudflarestorage.com/${bucket}`,
     client: new AwsClient({ accessKeyId, secretAccessKey, service: 's3', region: 'auto' }),
   };
 }

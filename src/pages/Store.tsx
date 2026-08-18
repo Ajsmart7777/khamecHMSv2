@@ -172,7 +172,10 @@ export default function Store() {
     }
     setSaving(true);
     try {
-      await sendToPharmacy(validLines, selectedStoreCode);
+      await sendToPharmacy(validLines.map(line => ({
+        product_id: line.productId,
+        quantity: line.quantity,
+      })), selectedStoreCode);
       toast.success('Pharmacy issue sent for acceptance', { description: 'Store balance will change only after Pharmacy accepts the transfer.' });
       setIssueLines([emptyIssueLine()]);
     } catch (error: unknown) {

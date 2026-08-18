@@ -13,8 +13,51 @@ class CockroachQueryBuilder {
     return this;
   }
   eq(column: string, value: any) {
-    this._filters = this._filters || {};
     this._filters[column] = value;
+    return this;
+  }
+  in(column: string, values: any[]) {
+    this._filterOps.push({ column, operator: 'in', value: values });
+    return this;
+  }
+  is(column: string, value: any) {
+    this._filterOps.push({ column, operator: 'is', value });
+    return this;
+  }
+  neq(column: string, value: any) {
+    this._filterOps.push({ column, operator: 'neq', value });
+    return this;
+  }
+  gt(column: string, value: any) {
+    this._filterOps.push({ column, operator: 'gt', value });
+    return this;
+  }
+  gte(column: string, value: any) {
+    this._filterOps.push({ column, operator: 'gte', value });
+    return this;
+  }
+  lt(column: string, value: any) {
+    this._filterOps.push({ column, operator: 'lt', value });
+    return this;
+  }
+  lte(column: string, value: any) {
+    this._filterOps.push({ column, operator: 'lte', value });
+    return this;
+  }
+  like(column: string, value: any) {
+    this._filterOps.push({ column, operator: 'like', value });
+    return this;
+  }
+  ilike(column: string, value: any) {
+    this._filterOps.push({ column, operator: 'ilike', value });
+    return this;
+  }
+  not(column: string, operator: string, value: any) {
+    this._filterOps.push({ column, operator: `not_${operator}`, value });
+    return this;
+  }
+  filter(column: string, operator: string, value: any) {
+    this._filterOps.push({ column, operator, value });
     return this;
   }
   order(column: string, options?: { ascending?: boolean }) {
@@ -34,9 +77,14 @@ class CockroachQueryBuilder {
     this._single = true;
     return this;
   }
+  maybeSingle() {
+    this._single = true;
+    return this;
+  }
 
   private _select = '*';
   private _filters: Record<string, any> = {};
+  private _filterOps: Array<{ column: string; operator: string; value: any }> = [];
   private _order?: { column: string; ascending: boolean };
   private _limit?: number;
   private _offset?: number;
@@ -72,6 +120,7 @@ class CockroachQueryBuilder {
           table: this.table,
           select: this._select,
           filters: this._filters,
+          filterOps: this._filterOps,
           order: this._order,
           limit: this._limit,
           offset: this._offset,

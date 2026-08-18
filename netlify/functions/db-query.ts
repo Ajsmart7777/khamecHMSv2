@@ -21,14 +21,88 @@ function normalizeRows(values: any): Record<string, any>[] {
   return rows;
 }
 
-function getFilterEntries(filters: unknown): [string, any][] {
-  if (!filters || typeof filters !== 'object' || Array.isArray(filters)) {
-    throw new Error('Write operations require filters');
+type FilterOperation = { column: string; operator: string; value: any };
+
+function normalizeFilterOperations(filters: unknown, filterOps: unknown, requireFilter = false): FilterOperation[] {
+  const operations: FilterOperation[] = [];
+
+  if (filters !== undefined && filters !== null) {
+    if (typeof filters !== 'object' || Array.isArray(filters)) {
+      throw new Error('Filters must be an object');
+    }
+    for (const [column, value] of Object.entries(filters as Record<string, any>)) {
+      assertIdentifier(column, 'filter column');
+      operations.push({ column, operator: 'eq', value });
+    }
   }
-  const entries = Object.entries(filters as Record<string, any>);
-  if (!entries.length) throw new Error('Write operations require at least one filter');
-  entries.forEach(([column]) => assertIdentifier(column, 'filter column'));
-  return entries;
+
+  if (filterOps !== undefined && filterOps !== null) {
+    if (!Array.isArray(filterOps)) throw new Error('Filter operations must be an array');
+    for (const operation of filterOps as any[]) {
+      if (!operation || typeof operation !== 'object') throw new Error('Invalid filter operation');
+      const { column, operator, value } = operation as FilterOperation;
+      assertIdentifier(column, 'filter column');
+      if (typeof operator !== 'string' || !/^(eq|in|is|neq|gt|gte|lt|lte|like|ilike|not_(eq|in|is|neq|gt|gte|lt|lte|like|ilike))$/.test(operator)) {
+        throw new Error(`Unsupported filter operator: ${operator}`);
+      }
+      operations.push({ column, operator, value });
+    }
+  }
+
+  if (requireFilter && operations.length === 0) {
+    throw new Error('Write operations require at least one filter');
+  }
+  return operations;
+}
+
+function buildWhereClause(operations: FilterOperation[], params: any[]): string {
+  return operations.map(({ column, operator, value }) => {
+    const addParam = (param: any) => {
+      params.push(param);
+      return `$${params.length}`;
+    };
+
+    switch (operator) {
+      case 'eq':
+        return value === null ? `${column} IS NULL` : `${column} = ${addParam(value)}`;
+      case 'neq':
+        return value === null ? `${column} IS NOT NULL` : `${column} <> ${addParam(value)}`;
+      case 'is':
+        if (value === null) return `${column} IS NULL`;
+        if (value === true) return `${column} IS TRUE`;
+        if (value === false) return `${column} IS FALSE`;
+        throw new Error('The is filter only supports null, true, or false');
+      case 'in': {
+        if (!Array.isArray(value)) throw new Error(`The in filter for ${column} must receive an array`);
+        if (value.length === 0) return 'FALSE';
+        return `${column} IN (${value.map(addParam).join(', ')})`;
+      }
+      case 'not_in': {
+        if (!Array.isArray(value)) throw new Error(`The not.in filter for ${column} must receive an array`);
+        if (value.length === 0) return 'TRUE';
+        return `${column} NOT IN (${value.map(addParam).join(', ')})`;
+      }
+      case 'gt': return `${column} > ${addParam(value)}`;
+      case 'gte': return `${column} >= ${addParam(value)}`;
+      case 'lt': return `${column} < ${addParam(value)}`;
+      case 'lte': return `${column} <= ${addParam(value)}`;
+      case 'like': return `${column} LIKE ${addParam(value)}`;
+      case 'ilike': return `${column} ILIKE ${addParam(value)}`;
+      case 'not_eq': return value === null ? `${column} IS NOT NULL` : `${column} <> ${addParam(value)}`;
+      case 'not_is':
+        if (value === null) return `${column} IS NOT NULL`;
+        if (value === true) return `${column} IS NOT TRUE`;
+        if (value === false) return `${column} IS NOT FALSE`;
+        throw new Error('The not.is filter only supports null, true, or false');
+      case 'not_gt': return `${column} <= ${addParam(value)}`;
+      case 'not_gte': return `${column} < ${addParam(value)}`;
+      case 'not_lt': return `${column} >= ${addParam(value)}`;
+      case 'not_lte': return `${column} > ${addParam(value)}`;
+      case 'not_like': return `${column} NOT LIKE ${addParam(value)}`;
+      case 'not_ilike': return `${column} NOT ILIKE ${addParam(value)}`;
+      default: throw new Error(`Unsupported filter operator: ${operator}`);
+    }
+  }).join(' AND ');
 }
 
 export const handler: Handler = async (event) => {
@@ -46,6 +120,7 @@ export const handler: Handler = async (event) => {
       rpc,
       args,
       filters,
+      filterOps,
       select,
       limit,
       offset,
@@ -122,17 +197,14 @@ export const handler: Handler = async (event) => {
       const updateEntries = Object.entries(updateRows[0]);
       if (!updateEntries.length) throw new Error('Update values cannot be empty');
       updateEntries.forEach(([column]) => assertIdentifier(column, 'update column'));
-      const filterEntries = getFilterEntries(filters);
+      const filterOperations = normalizeFilterOperations(filters, filterOps, true);
       const params: any[] = [];
       const setSql = updateEntries.map(([column, value]) => {
         params.push(value === undefined ? null : value);
         return `${column} = $${params.length}`;
       });
-      const whereSql = filterEntries.map(([column, value]) => {
-        params.push(value);
-        return `${column} = $${params.length}`;
-      });
-      const sql = `UPDATE public.${table} SET ${setSql.join(', ')} WHERE ${whereSql.join(' AND ')} RETURNING *`;
+      const whereSql = buildWhereClause(filterOperations, params);
+      const sql = `UPDATE public.${table} SET ${setSql.join(', ')} WHERE ${whereSql} RETURNING *`;
       const result = await client.query(sql, params);
       await client.end();
       return {
@@ -144,13 +216,10 @@ export const handler: Handler = async (event) => {
 
     if (action === 'delete') {
       assertTable(table);
-      const filterEntries = getFilterEntries(filters);
+      const filterOperations = normalizeFilterOperations(filters, filterOps, true);
       const params: any[] = [];
-      const whereSql = filterEntries.map(([column, value]) => {
-        params.push(value);
-        return `${column} = $${params.length}`;
-      });
-      const sql = `DELETE FROM public.${table} WHERE ${whereSql.join(' AND ')} RETURNING *`;
+      const whereSql = buildWhereClause(filterOperations, params);
+      const sql = `DELETE FROM public.${table} WHERE ${whereSql} RETURNING *`;
       const result = await client.query(sql, params);
       await client.end();
       return {
@@ -167,14 +236,11 @@ export const handler: Handler = async (event) => {
       const queryValues: any[] = [];
       let paramIdx = 1;
 
-      if (filters && typeof filters === 'object') {
-        const clauses: string[] = [];
-        for (const [key, val] of Object.entries(filters)) {
-          assertIdentifier(key, 'filter column');
-          clauses.push(`${key} = $${paramIdx++}`);
-          queryValues.push(val);
-        }
-        if (clauses.length > 0) sql += ` WHERE ${clauses.join(' AND ')}`;
+      const filterOperations = normalizeFilterOperations(filters, filterOps);
+      if (filterOperations.length > 0) {
+        const whereSql = buildWhereClause(filterOperations, queryValues);
+        paramIdx = queryValues.length + 1;
+        sql += ` WHERE ${whereSql}`;
       }
 
       if (order) {

@@ -77,42 +77,60 @@ export async function uploadFile(
 
 
   if (R2_PUBLIC_URL) {
+    const uploadThroughServer = async (): Promise<void> => {
+      const form = new FormData();
+      form.append('bucket', bucket);
+      form.append('path', path);
+      form.append('contentType', type);
+      form.append('file', body, 'upload');
+      const { data, error } = await supabase.functions.invoke('r2-upload', { body: form });
+      if (error) throw new Error(await readFnError(error));
+      if (!(data as any)?.ok) throw new Error((data as any)?.error || 'server upload failed');
+    };
+
     let data: unknown, error: unknown;
     try {
       ({ data, error } = await supabase.functions.invoke('r2-sign-upload', {
         body: { bucket, path, contentType: type },
       }));
     } catch (e) {
-      throw new Error(
-        'Step 1/2 (sign upload) failed to reach the server. Check that the edge function ' +
-          '"r2-sign-upload" is deployed and that you are logged in. ' +
-          `Details: ${(e as Error).message}`,
-      );
+      try {
+        await uploadThroughServer();
+        return path;
+      } catch (fallbackError) {
+        throw new Error(
+          'Step 1/2 (sign upload) failed and server upload fallback failed: ' +
+            `${(fallbackError as Error).message || (e as Error).message}`,
+        );
+      }
     }
-    if (error) throw new Error(`Step 1/2 (sign upload): ${await readFnError(error)}`);
-    const url = (data as any)?.url;
-    if (!url) throw new Error('Step 1/2 (sign upload): server did not return an upload URL');
+    if (error || !(data as any)?.url) {
+      try {
+        await uploadThroughServer();
+        return path;
+      } catch (fallbackError) {
+        throw new Error(`Step 1/2 (sign upload): ${await readFnError(error || fallbackError)}`);
+      }
+    }
 
-    let put: Response;
+    const url = (data as any).url;
     try {
-      // We must match the Content-Type exactly as it was signed in the edge function.
-      // We also ensure no other extra headers are sent that might interfere with the signature.
-      put = await fetch(url, { 
-        method: 'PUT', 
-        body, 
-        headers: { 
-          'Content-Type': type 
-        } 
-      });
-    } catch (e) {
+      // Match the Content-Type exactly as signed by the edge function.
+      const put = await fetch(url, { method: 'PUT', body, headers: { 'Content-Type': type } });
+      if (put.ok) return path;
+    } catch {
+      // Fall through to the server-side upload, which does not depend on bucket CORS.
+    }
+
+    try {
+      await uploadThroughServer();
+      return path;
+    } catch (fallbackError) {
       throw new Error(
-        'Step 2/2 (upload to R2) was blocked by the browser — this is almost always the R2 ' +
-          'bucket CORS policy. Add your site URL to the bucket CORS rules (PUT + GET allowed). ' +
-          `Details: ${(e as Error).message}`,
+        'Step 2/2 (direct R2 upload and server fallback) failed: ' +
+          `${(fallbackError as Error).message}`,
       );
     }
-    if (!put.ok) throw new Error(`Step 2/2 (upload to R2) failed (${put.status})`);
-    return path;
   }
 
 

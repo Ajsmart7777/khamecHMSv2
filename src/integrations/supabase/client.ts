@@ -229,12 +229,14 @@ export const supabase = {
     invoke: async (name: string, options: any) => {
       const token = typeof localStorage !== 'undefined' ? localStorage.getItem('hms_access_token') : null;
       const headers = new Headers(options?.headers || {});
-      headers.set('Content-Type', 'application/json');
+      const body = options?.body;
+      const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+      if (!isFormData) headers.set('Content-Type', 'application/json');
       if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
       const res = await fetch(`/.netlify/functions/${name}`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(options?.body || {})
+        body: isFormData ? body : JSON.stringify(body || {})
       });
       const data = await res.json();
       return { data, error: !res.ok ? { message: data?.error || `Request failed (${res.status})` } : null };

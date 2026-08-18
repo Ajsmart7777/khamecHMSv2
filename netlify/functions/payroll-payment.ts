@@ -1,4 +1,5 @@
-import { database, json, optionsResponse, readJson, verifyUser } from './_shared/auth.js';
+import { json, optionsResponse, readJson, verifyUser } from './_shared/auth.js';
+import { getCrdbClient } from './_shared/crdb.js';
 
 const FLW_BASE = 'https://api.flutterwave.com';
 const ALLOWED_ROLES = ['billing', 'accountant', 'admin'];
@@ -28,8 +29,18 @@ export default async (request: Request) => {
   try {
     const caller = await verifyUser(request);
     if (!caller) return json({ error: 'Unauthorized' }, 401);
-    const sql = database();
-    const roles = await sql`select role from public.user_roles where user_id = ${caller.id}::uuid` as Array<{ role: string }>;
+    const db = getCrdbClient();
+    await db.connect();
+    let roles: Array<{ role: string }>;
+    try {
+      const result = await db.query(
+        'SELECT role FROM public.user_roles WHERE user_id = $1::uuid LIMIT 20',
+        [caller.id],
+      );
+      roles = result.rows as Array<{ role: string }>;
+    } finally {
+      await db.end();
+    }
     if (!roles.some(({ role }) => ALLOWED_ROLES.includes(role))) return json({ error: 'Forbidden: billing, accountant, or admin role required' }, 403);
 
     const body = await readJson<Record<string, unknown>>(request);

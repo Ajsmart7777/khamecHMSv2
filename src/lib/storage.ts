@@ -83,7 +83,7 @@ export async function uploadFile(
       form.append('path', path);
       form.append('contentType', type);
       form.append('file', body, 'upload');
-      const { data, error } = await supabase.functions.invoke('r2-upload', { body: form });
+      const { data, error } = await supabase.functions.invoke('r2-sign-upload', { body: form });
       if (error) throw new Error(await readFnError(error));
       if (!(data as any)?.ok) throw new Error((data as any)?.error || 'server upload failed');
     };

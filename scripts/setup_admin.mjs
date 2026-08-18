@@ -1,7 +1,7 @@
 import pg from 'pg';
-const client = new pg.Client({
-    connectionString: 'postgresql://dev_walid:ys6IqAgYSTXN4XlmvWIVXw@swell-gorgon-32055.j77.aws-eu-central-1.cockroachlabs.cloud:26257/khamec?sslmode=verify-full'
-});
+const connectionString = process.env.CRDB_CONNECTION_STRING;
+if (!connectionString) throw new Error('CRDB_CONNECTION_STRING is required');
+const client = new pg.Client({ connectionString });
 
 async function run() {
     try {

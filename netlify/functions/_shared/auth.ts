@@ -2,6 +2,7 @@ import { neon } from '@neondatabase/serverless';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { BetterAuthVanillaAdapter } from '@neondatabase/neon-js';
 import { createAuthClient } from '@neondatabase/neon-js/auth';
+import { verifySessionToken } from './session.js';
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 
@@ -17,8 +18,17 @@ export function bearerToken(request: Request) {
 
 export async function verifyUser(request: Request): Promise<{ id: string; token: string } | null> {
   const token = bearerToken(request);
+  if (!token) return null;
+
+  // The CockroachDB clone uses its own signed session token because the
+  // browser login endpoint is local to this deployment. Prefer the token
+  // format when present, then fall back to Neon JWT verification for any
+  // environment that still provides Neon Auth configuration.
+  const localUserId = verifySessionToken(token);
+  if (localUserId) return { id: localUserId, token };
+
   const jwksUrl = process.env.NEON_AUTH_JWKS_URL;
-  if (!token || !jwksUrl) return null;
+  if (!jwksUrl) return null;
   try {
     jwks ??= createRemoteJWKSet(new URL(jwksUrl));
     const { payload } = await jwtVerify(token, jwks, {

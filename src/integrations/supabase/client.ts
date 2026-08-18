@@ -175,8 +175,9 @@ export const supabase = {
   auth: {
     getSession: async () => {
       const userId = localStorage.getItem('hms_user_id');
-      if (!userId) return { data: { session: null }, error: null };
-      return { data: { session: { user: { id: userId }, expires_at: Math.floor(Date.now() / 1000) + 3600 } }, error: null };
+      const accessToken = localStorage.getItem('hms_access_token');
+      if (!userId || !accessToken) return { data: { session: null }, error: null };
+      return { data: { session: { access_token: accessToken, user: { id: userId }, expires_at: Math.floor(Date.now() / 1000) + 24 * 3600 } }, error: null };
     },
     getUser: async () => {
       const userId = localStorage.getItem('hms_user_id');
@@ -185,8 +186,9 @@ export const supabase = {
     },
     onAuthStateChange: (callback: any) => {
       const userId = localStorage.getItem('hms_user_id');
+      const accessToken = localStorage.getItem('hms_access_token');
       if (userId && callback) {
-        callback('SIGNED_IN', { user: { id: userId } });
+        callback('SIGNED_IN', { access_token: accessToken, user: { id: userId } });
       } else if (callback) {
         callback('SIGNED_OUT', null);
       }
@@ -203,6 +205,7 @@ export const supabase = {
         if (json.data?.user?.id) {
           localStorage.setItem('hms_user_id', json.data.user.id);
           if (json.data.user.role) localStorage.setItem('hms_user_role', json.data.user.role);
+          if (json.data.session?.access_token) localStorage.setItem('hms_access_token', json.data.session.access_token);
         }
         return json;
       } catch (err: any) {
@@ -212,23 +215,29 @@ export const supabase = {
     signOut: async () => {
       localStorage.removeItem('hms_user_id');
       localStorage.removeItem('hms_user_role');
+      localStorage.removeItem('hms_access_token');
       return { error: null };
     },
     refreshSession: async () => {
       const userId = localStorage.getItem('hms_user_id');
-      if (!userId) return { data: { session: null, user: null }, error: null };
-      return { data: { session: { user: { id: userId }, expires_at: Math.floor(Date.now() / 1000) + 3600 }, user: { id: userId } }, error: null };
+      const accessToken = localStorage.getItem('hms_access_token');
+      if (!userId || !accessToken) return { data: { session: null, user: null }, error: null };
+      return { data: { session: { access_token: accessToken, user: { id: userId }, expires_at: Math.floor(Date.now() / 1000) + 24 * 3600 }, user: { id: userId } }, error: null };
     }
   },
   functions: {
     invoke: async (name: string, options: any) => {
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('hms_access_token') : null;
+      const headers = new Headers(options?.headers || {});
+      headers.set('Content-Type', 'application/json');
+      if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
       const res = await fetch(`/.netlify/functions/${name}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(options?.body || {})
       });
       const data = await res.json();
-      return { data, error: null };
+      return { data, error: !res.ok ? { message: data?.error || `Request failed (${res.status})` } : null };
     }
   },
   storage: {

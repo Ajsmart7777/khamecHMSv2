@@ -13,6 +13,28 @@ function assertTable(table: unknown): asserts table is string {
   assertIdentifier(table, 'table name');
 }
 
+function normalizeRpcValue(value: any): any {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+
+  // Some Supabase callers send JSONB values as JSON.stringify(...) strings.
+  // Unwrap one or more JSON layers while preserving ordinary text fields.
+  let current: any = value;
+  for (let depth = 0; depth < 2 && typeof current === 'string'; depth += 1) {
+    const candidate = current.trim();
+    if (!(candidate.startsWith('{') || candidate.startsWith('[') || candidate.startsWith('"'))) break;
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed === current) break;
+      current = parsed;
+    } catch {
+      break;
+    }
+  }
+  return current;
+}
+
 function normalizeRows(values: any): Record<string, any>[] {
   const rows = Array.isArray(values) ? values : [values];
   if (!rows.length || rows.some(row => !row || typeof row !== 'object' || Array.isArray(row))) {
@@ -140,8 +162,15 @@ export const handler: Handler = async (event) => {
 
     if (action === 'rpc') {
       const paramKeys = args ? Object.keys(args) : [];
-      const paramPlaceholders = paramKeys.map((_, idx) => `$${idx + 1}`).join(', ');
-      const paramValues = paramKeys.map(key => args[key]);
+      const rpcCastSignatures: Record<string, string[]> = {
+        create_prescription_from_typed: ['uuid', 'uuid', 'text', 'text', 'jsonb'],
+        create_lab_request_from_typed: ['uuid', 'uuid', 'text', 'text[]'],
+        settle_invoice_atomic: ['uuid', 'numeric', 'numeric', 'numeric', 'text', 'text', 'boolean', 'boolean'],
+        finalize_referral: ['uuid', 'text'],
+      };
+      const casts = rpcCastSignatures[rpc] || [];
+      const paramPlaceholders = paramKeys.map((_, idx) => `$${idx + 1}${casts[idx] ? `::${casts[idx]}` : ''}`).join(', ');
+      const paramValues = paramKeys.map(key => normalizeRpcValue(args[key]));
       assertIdentifier(rpc, 'RPC name');
       const setReturningRpcs = new Set([
         'get_store_bin_cards',

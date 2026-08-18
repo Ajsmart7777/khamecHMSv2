@@ -1,5 +1,6 @@
 import { AwsClient } from 'aws4fetch';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { verifySessionToken } from './session.js';
 
 const LOGICAL_BUCKETS = new Set(['visit-cards', 'emr-attachments', 'patient-photos']);
 
@@ -52,8 +53,17 @@ export function validate(logicalBucket: unknown, path: unknown): string | null {
 export async function requireUser(req: Request): Promise<string | null> {
   const authorization = req.headers.get('authorization');
   const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+  if (!token) return null;
+
+  // CockroachDB clone sessions are signed locally because there is no Neon
+  // Auth issuer in this deployment. Prefer this path when the token uses the
+  // hms scheme, then retain Neon JWT verification for environments that use it.
+  if (token.startsWith('hms.')) {
+    return verifySessionToken(token);
+  }
+
   const jwksUrl = process.env.NEON_AUTH_JWKS_URL;
-  if (!token || !jwksUrl) return null;
+  if (!jwksUrl) return null;
 
   try {
     jwks ??= createRemoteJWKSet(new URL(jwksUrl));

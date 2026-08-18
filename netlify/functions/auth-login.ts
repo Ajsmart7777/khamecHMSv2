@@ -1,5 +1,6 @@
 import { Handler } from '@netlify/functions';
 import { getCrdbClient } from './_shared/crdb.js';
+import { createSessionToken } from './_shared/session.js';
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -35,7 +36,7 @@ export const handler: Handler = async (event) => {
         body: JSON.stringify({ 
           data: { 
             user: { id: user.id, email: user.email, role: user.role },
-            session: { access_token: 'mock-token-' + user.id } 
+            session: { access_token: createSessionToken(String(user.id)), expires_at: Math.floor(Date.now() / 1000) + 24 * 60 * 60 }
           }, 
           error: null 
         })

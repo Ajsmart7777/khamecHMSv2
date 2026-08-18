@@ -51,7 +51,7 @@ npm install
 ## PART 2 — Cloudflare R2 (photo storage)
 
 1. Cloudflare dashboard → left menu **R2** → **Create bucket**.
-   - Name: `khamec-files`
+   - Name: `YOUR_R2_BUCKET`
    - Location: Automatic → **Create bucket**
    - (R2 asks for a card even on the free plan; free tier is 10 GB storage.)
 
@@ -79,7 +79,7 @@ npm install
 
 4. R2 main page → **Manage API tokens** → **Create API token**:
    - Permission: **Object Read & Write**
-   - Scope: only the `khamec-files` bucket
+   - Scope: only the `YOUR_R2_BUCKET` bucket
    - Create → copy **Access Key ID** and **Secret Access Key** (the secret is
      shown only once).
 
@@ -91,7 +91,7 @@ Notepad now has:
 R2_ACCOUNT_ID        = ...
 R2_ACCESS_KEY_ID     = ...
 R2_SECRET_ACCESS_KEY = ...
-R2_BUCKET            = khamec-files
+R2_BUCKET            = YOUR_R2_BUCKET
 R2_PUBLIC_URL        = https://pub-xxxx.r2.dev
 ```
 
@@ -161,7 +161,7 @@ Functions → Secrets) → add each one:
 | `R2_ACCOUNT_ID` | from Part 2 |
 | `R2_ACCESS_KEY_ID` | from Part 2 |
 | `R2_SECRET_ACCESS_KEY` | from Part 2 |
-| `R2_BUCKET` | `khamec-files` |
+| `R2_BUCKET` | `YOUR_R2_BUCKET` |
 | `R2_PUBLIC_URL` | from Part 2 |
 | `SEED_ADMIN_EMAIL` | the first admin email you want |
 | `SEED_ADMIN_PASSWORD` | a strong password for that admin |

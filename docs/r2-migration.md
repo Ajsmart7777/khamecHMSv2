@@ -13,7 +13,7 @@ Object paths are identical in both providers, so no database column changes.
 
 ## 1. Cloudflare setup
 
-1. Cloudflare dashboard -> R2 -> **Create bucket** (e.g. `khamec-files`).
+1. Cloudflare dashboard -> R2 -> **Create bucket** (e.g. `YOUR_R2_BUCKET`).
 2. Bucket -> Settings -> **Public access** -> connect a custom domain
    (e.g. `files.yourdomain.com`). Note the public URL.
 3. Bucket -> Settings -> **CORS policy**:

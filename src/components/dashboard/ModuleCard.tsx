@@ -10,7 +10,7 @@ interface ModuleCardProps {
   patientsToday: number;
   pendingTasks: number;
   status: 'active' | 'busy' | 'idle';
-  variant: 'reception' | 'nurse' | 'doctor' | 'lab' | 'billing' | 'pharmacy' | 'account' | 'auditing' | 'admin';
+  variant: 'reception' | 'nurse' | 'doctor' | 'lab' | 'billing' | 'pharmacy' | 'store' | 'account' | 'auditing' | 'admin';
 }
 
 const statusColors = {
@@ -26,6 +26,7 @@ const variantStyles = {
   lab: 'border-module-lab/30 hover:border-module-lab',
   billing: 'border-module-billing/30 hover:border-module-billing',
   pharmacy: 'border-module-pharmacy/30 hover:border-module-pharmacy',
+  store: 'border-primary/30 hover:border-primary',
   account: 'border-module-account/30 hover:border-module-account',
   auditing: 'border-module-auditing/30 hover:border-module-auditing',
   admin: 'border-module-admin/30 hover:border-module-admin',
@@ -38,6 +39,7 @@ const iconBgStyles = {
   lab: 'bg-module-lab/10 text-module-lab',
   billing: 'bg-module-billing/10 text-module-billing',
   pharmacy: 'bg-module-pharmacy/10 text-module-pharmacy',
+  store: 'bg-primary/10 text-primary',
   account: 'bg-module-account/10 text-module-account',
   auditing: 'bg-module-auditing/10 text-module-auditing',
   admin: 'bg-module-admin/10 text-module-admin',

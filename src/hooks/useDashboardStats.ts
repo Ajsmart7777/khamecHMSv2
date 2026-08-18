@@ -112,7 +112,7 @@ export function useDashboardStats() {
       };
 
       const moduleCounts: Record<string, { active: number; pending: number; completed: number }> = {};
-      const moduleNames = ['Reception', 'Nurse', 'Doctor', 'Lab', 'Billing', 'Pharmacy', 'Account', 'Auditing', 'Admin'];
+      const moduleNames = ['Reception', 'Nurse', 'Doctor', 'Lab', 'Billing', 'Pharmacy', 'Store', 'Account', 'Auditing', 'Admin'];
       moduleNames.forEach(m => { moduleCounts[m] = { active: 0, pending: 0, completed: 0 }; });
 
       patients.forEach(p => {

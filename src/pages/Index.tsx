@@ -33,18 +33,20 @@ const moduleIcons = {
   Lab: FlaskConical,
   Billing: Receipt,
   Pharmacy: Pill,
+  Store: Package,
   Account: Wallet,
   Auditing: ClipboardCheck,
   Admin: Shield,
 };
 
-const moduleVariants: Record<string, 'reception' | 'nurse' | 'doctor' | 'lab' | 'billing' | 'pharmacy' | 'account' | 'auditing' | 'admin'> = {
+const moduleVariants: Record<string, 'reception' | 'nurse' | 'doctor' | 'lab' | 'billing' | 'pharmacy' | 'store' | 'account' | 'auditing' | 'admin'> = {
   Reception: 'reception',
   Nurse: 'nurse',
   Doctor: 'doctor',
   Lab: 'lab',
   Billing: 'billing',
   Pharmacy: 'pharmacy',
+  Store: 'store',
   Account: 'account',
   Auditing: 'auditing',
   Admin: 'admin',
@@ -57,6 +59,7 @@ const modulePaths: Record<string, string> = {
   Lab: '/lab',
   Billing: '/billing',
   Pharmacy: '/pharmacy',
+  Store: '/store',
   Account: '/account',
   Auditing: '/auditing',
   Admin: '/admin',

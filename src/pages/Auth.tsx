@@ -67,6 +67,9 @@ export default function Auth() {
         return;
       }
       toast.success('Welcome back!');
+      // The CockroachDB adapter persists auth locally rather than emitting a
+      // Supabase browser event, so complete the redirect explicitly as well.
+      navigate(from, { replace: true });
     } finally {
       setIsLoading(false);
     }

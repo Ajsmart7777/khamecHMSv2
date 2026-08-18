@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { PatientStatus, AccountType } from '@/types/hms';
@@ -57,6 +58,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const location = useLocation();
 
   const fetchPatients = useCallback(async () => {
     try {
@@ -114,6 +116,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       toast.success('Patient registered successfully', {
         description: `${patientData.first_name} ${patientData.last_name} has been added.`
       });
+      await fetchPatients();
       
       return data as unknown as Patient;
     } catch (err) {
@@ -122,7 +125,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       toast.error('Failed to register patient');
       return null;
     }
-  }, []);
+  }, [fetchPatients]);
 
   const updatePatientStatus = useCallback(async (
     patientId: string,
@@ -228,8 +231,10 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      // Optimistic local update so acting user sees change instantly
-      setPatients(prev => prev.map(p => p.id === patientId ? { ...p, status } : p));
+      // Refresh from the database after every successful transition. This keeps
+      // status, assigned_doctor, last_visit, and workflow-backed fields in sync
+      // when the user moves immediately to another station.
+      await fetchPatients();
 
       return true;
     } catch (err) {
@@ -238,7 +243,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       toast.error(`Failed to update status → ${status}`, { description: String((err as Error)?.message ?? err) });
       return false;
     }
-  }, []);
+  }, [fetchPatients]);
 
   const deletePatient = useCallback(async (patientId: string): Promise<boolean> => {
     try {
@@ -252,6 +257,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       patientAuditLogger('patient_deleted', patientId, { timestamp: new Date().toISOString() });
       
       toast.success('Patient deleted successfully');
+      await fetchPatients();
       return true;
     } catch (err) {
       logError('Error deleting patient', err);
@@ -266,7 +272,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       }
       return false;
     }
-  }, []);
+  }, [fetchPatients]);
 
   const updatePatient = useCallback(async (patientId: string, updates: Partial<Patient>): Promise<boolean> => {
     try {
@@ -279,6 +285,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       
       // Log patient update
       patientAuditLogger('patient_updated', patientId, { updated_fields: Object.keys(updates) });
+      await fetchPatients();
       
       return true;
     } catch (err) {
@@ -294,7 +301,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       }
       return false;
     }
-  }, []);
+  }, [fetchPatients]);
 
   const getPatientsByStatus = useCallback((statuses: PatientStatus[]): Patient[] => {
     return patients.filter(p => statuses.includes(p.status));
@@ -320,6 +327,14 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, [fetchPatients]);
+
+  // Route changes represent movement between clinic workspaces. Refresh here
+  // so each queue sees the latest persisted state even when realtime is absent.
+  useEffect(() => {
+    if (location.pathname !== '/auth') {
+      fetchPatients();
+    }
+  }, [location.pathname, location.search, fetchPatients]);
 
   // Track the authenticated user so the realtime channel is only opened (and
   // re-opened) with a valid token. A channel subscribed while signed out is

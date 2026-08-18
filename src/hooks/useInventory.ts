@@ -32,7 +32,6 @@ export interface StoreBinCard {
   sku: string;
   unit_label: string;
   current_balance: number;
-  next_expiry: string | null;
   active: boolean;
 }
 
@@ -41,7 +40,6 @@ export interface StoreBatch {
   product_id: string;
   location_id: string;
   batch_number: string;
-  expiry_date: string;
   unit_cost: number;
   quantity_on_hand: number;
   status: string;
@@ -79,7 +77,6 @@ export interface InventoryLocation {
 
 export interface ReceiptLineInput {
   product_id: string;
-  expiry_date: string;
   quantity: string;
   unit_cost: string;
 }
@@ -105,8 +102,7 @@ export function useInventory() {
         (supabase as any).rpc('get_store_bin_cards'),
         (supabase as any)
           .from('inventory_batches')
-          .select('id, product_id, location_id, batch_number, expiry_date, unit_cost, quantity_on_hand, status, received_at, inventory_locations(code,name), inventory_products(sku,unit_label,minimum_level,pricelist(name,size,category,price))')
-          .order('expiry_date', { ascending: true }),
+          .select('id, product_id, location_id, batch_number, unit_cost, quantity_on_hand, status, received_at, inventory_locations(code,name), inventory_products(sku,unit_label,minimum_level,pricelist(name,size,category,price))'),
         (supabase as any).rpc('get_pending_store_transfers'),
         (supabase as any)
           .from('inventory_locations')
@@ -216,7 +212,6 @@ export function useInventory() {
   ) => {
     const payload = items.map(item => ({
       product_id: item.product_id,
-      expiry_date: item.expiry_date,
       quantity: Number(item.quantity),
       unit_cost: Number(item.unit_cost),
     }));

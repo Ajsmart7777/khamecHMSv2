@@ -17,10 +17,28 @@ interface MovementRow {
 }
 
 const money = (amount: number) => `₦${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const movementLabel: Record<string, string> = { opening_count: 'Opening count', receipt: 'Supplier receipt', transfer_out: 'Sent to Pharmacy', transfer_in: 'Received in Pharmacy', dispense: 'Dispensed to patient', adjustment: 'Authorised adjustment', damage: 'Damage / expiry' };
+const movementLabel: Record<string, string> = { opening_count: 'Opening count', receipt: 'Supplier receipt', transfer_out: 'Sent to Pharmacy', transfer_in: 'Received in Pharmacy', dispense: 'Dispensed to patient', adjustment: 'Authorised adjustment', damage: 'Damage' };
 
 export function InventoryManagementReport() {
-  const { batches, pharmacyStock, loading, refresh } = useInventory();
+  const { batches, loading, refresh } = useInventory();
+  const pharmacyStock = useMemo(() => {
+    const byProduct = new Map<string, { product_id: string; medicine_name: string; size: string | null; quantity_on_hand: number; minimum_level: number; unit_label: string }>();
+    for (const batch of batches) {
+      if (batch.inventory_locations?.code !== 'pharmacy' || !batch.inventory_products) continue;
+      const product = batch.inventory_products;
+      const name = product.pricelist?.name ?? product.sku;
+      const current = byProduct.get(batch.product_id);
+      byProduct.set(batch.product_id, {
+        product_id: batch.product_id,
+        medicine_name: name,
+        size: product.pricelist?.size ?? null,
+        quantity_on_hand: (current?.quantity_on_hand ?? 0) + batch.quantity_on_hand,
+        minimum_level: product.minimum_level,
+        unit_label: product.unit_label,
+      });
+    }
+    return [...byProduct.values()];
+  }, [batches]);
   const [movements, setMovements] = useState<MovementRow[]>([]);
   const [movementLoading, setMovementLoading] = useState(true);
 
@@ -59,7 +77,7 @@ export function InventoryManagementReport() {
 
     {pharmacyLow.length > 0 && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4"><div className="mb-3 flex gap-2"><AlertTriangle className="h-5 w-5 text-destructive" /><div><h3 className="font-semibold text-destructive">Pharmacy low-stock attention</h3><p className="text-sm text-muted-foreground">These stock-controlled medicines are at or below their configured minimum.</p></div></div><div className="flex flex-wrap gap-2">{pharmacyLow.map(item => <Badge key={item.product_id} variant="outline" className="border-destructive/30 bg-background text-destructive">{item.medicine_name}: {item.quantity_on_hand} / min {item.minimum_level}</Badge>)}</div></div>}
 
-    <div className="grid gap-5 xl:grid-cols-2"><div className="overflow-x-auto rounded-xl border bg-card"><div className="border-b p-4"><h3 className="font-semibold">Pharmacy availability</h3></div><table className="w-full min-w-[560px] text-sm"><thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">Medicine</th><th className="p-3 text-right">Available</th><th className="p-3 text-right">Minimum</th><th className="p-3">Next expiry</th></tr></thead><tbody>{pharmacyStock.map(item => <tr key={item.product_id} className="border-t"><td className="p-3 font-medium">{item.medicine_name} <span className="font-normal text-muted-foreground">{item.size ?? ''}</span></td><td className="p-3 text-right">{item.quantity_on_hand.toLocaleString()} {item.unit_label}</td><td className="p-3 text-right">{item.minimum_level}</td><td className="p-3">{item.next_expiry ?? '—'}</td></tr>)}{!loading && pharmacyStock.length === 0 && <tr><td colSpan={4} className="p-7 text-center text-muted-foreground">No Pharmacy opening count or Store transfer has been confirmed.</td></tr>}</tbody></table></div>
+    <div className="grid gap-5 xl:grid-cols-2"><div className="overflow-x-auto rounded-xl border bg-card"><div className="border-b p-4"><h3 className="font-semibold">Pharmacy availability</h3></div><table className="w-full min-w-[560px] text-sm"><thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">Medicine</th><th className="p-3 text-right">Available</th><th className="p-3 text-right">Minimum</th></tr></thead><tbody>{pharmacyStock.map(item => <tr key={item.product_id} className="border-t"><td className="p-3 font-medium">{item.medicine_name} <span className="font-normal text-muted-foreground">{item.size ?? ''}</span></td><td className="p-3 text-right">{item.quantity_on_hand.toLocaleString()} {item.unit_label}</td><td className="p-3 text-right">{item.minimum_level}</td></tr>)}{!loading && pharmacyStock.length === 0 && <tr><td colSpan={3} className="p-7 text-center text-muted-foreground">No Pharmacy opening count or Store transfer has been confirmed.</td></tr>}</tbody></table></div>
       <div className="overflow-x-auto rounded-xl border bg-card"><div className="border-b p-4"><h3 className="font-semibold">Recent controlled movement</h3></div><table className="w-full min-w-[620px] text-sm"><thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">When</th><th className="p-3">Medicine</th><th className="p-3">Action</th><th className="p-3 text-right">Quantity</th><th className="p-3">Route</th></tr></thead><tbody>{movements.map(movement => <tr key={movement.id} className="border-t"><td className="p-3 text-xs">{new Date(movement.created_at).toLocaleString()}</td><td className="p-3 font-medium">{movement.inventory_products?.pricelist?.name ?? 'Unknown product'}</td><td className="p-3"><Badge variant="outline">{movementLabel[movement.movement_type] ?? movement.movement_type}</Badge></td><td className="p-3 text-right">{movement.quantity.toLocaleString()}</td><td className="p-3 text-xs text-muted-foreground">{movement.from_location?.name ?? '—'} <ArrowRightLeft className="mx-1 inline h-3 w-3" /> {movement.to_location?.name ?? '—'}</td></tr>)}{!movementLoading && movements.length === 0 && <tr><td colSpan={5} className="p-7 text-center text-muted-foreground">No controlled inventory movement has been recorded yet.</td></tr>}</tbody></table></div></div>
   </section>;
 }

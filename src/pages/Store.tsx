@@ -11,7 +11,7 @@ import {
   useInventory,
 } from '@/hooks/useInventory';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowRightLeft, FileText, PackageCheck, Plus, RefreshCw, Search, Trash2, TriangleAlert } from 'lucide-react';
+import { ArrowRightLeft, FileText, PackageCheck, Plus, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { BinCardView } from '@/components/inventory/BinCardView';
 
@@ -26,7 +26,6 @@ interface PricelistItem {
 
 interface StockLine {
   productId: string;
-  expiryDate: string;
   quantity: string;
   costPrice: string;
 }
@@ -36,7 +35,7 @@ interface PharmacyIssueLine {
   quantity: string;
 }
 
-const emptyStockLine = (): StockLine => ({ productId: '', expiryDate: '', quantity: '', costPrice: '' });
+const emptyStockLine = (): StockLine => ({ productId: '', quantity: '', costPrice: '' });
 const emptyIssueLine = (): PharmacyIssueLine => ({ productId: '', quantity: '' });
 const money = (amount: number) => `₦${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -129,8 +128,8 @@ export default function Store() {
   const handleStock = async () => {
     const quantity = Number(stockLine.quantity);
     const costPrice = Number(stockLine.costPrice);
-    if (!stockLine.productId || !stockLine.expiryDate || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(costPrice) || costPrice < 0) {
-      toast.error('Select a Bin Card and enter expiry date, quantity, and cost price.');
+    if (!stockLine.productId || !Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(costPrice) || costPrice < 0) {
+      toast.error('Select a Bin Card and enter quantity and cost price.');
       return;
     }
     if (stockKind === 'supplier_delivery' && !supplierName.trim()) {
@@ -141,7 +140,6 @@ export default function Store() {
     try {
       await recordReceipt(stockKind, selectedStoreCode, [{
         product_id: stockLine.productId,
-        expiry_date: stockLine.expiryDate,
         quantity: stockLine.quantity,
         unit_cost: stockLine.costPrice,
       }], stockKind === 'supplier_delivery' ? supplierName.trim() : undefined);
@@ -223,9 +221,9 @@ export default function Store() {
               <div className="relative w-full sm:w-72"><Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="pl-9" value={searchText} onChange={event => setSearchText(event.target.value)} placeholder="Search medicine…" /></div>
             </div>
             <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full min-w-[760px] text-sm"><thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">Medicine</th><th className="p-3">Particulars</th><th className="p-3 text-right">Balance</th><th className="p-3">Next expiry</th><th className="p-3 text-right">Selling price</th><th className="p-3"></th></tr></thead><tbody>
-                {filteredBinCards.map(card => <tr key={card.bin_card_id} className="border-t"><td className="p-3 font-medium">{card.medicine_name} <span className="font-normal text-muted-foreground">{card.size ?? ''}</span></td><td className="p-3"><Badge variant="outline">Stock / Pharmacy</Badge></td><td className="p-3 text-right font-semibold">{card.current_balance.toLocaleString()}</td><td className="p-3">{card.next_expiry ?? '—'}</td><td className="p-3 text-right text-green-600">{money(card.sale_price)}</td><td className="p-3 text-right"><Button size="sm" variant={selectedBinCardId === card.bin_card_id ? 'default' : 'outline'} onClick={() => setSelectedBinCardId(card.bin_card_id)}><FileText className="mr-2 h-4 w-4" />Open</Button></td></tr>)}
-                {!loading && filteredBinCards.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-muted-foreground">No Bin Cards match this Store and search.</td></tr>}
+              <table className="w-full min-w-[760px] text-sm"><thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">Medicine</th><th className="p-3">Particulars</th><th className="p-3 text-right">Balance</th><th className="p-3 text-right">Selling price</th><th className="p-3"></th></tr></thead><tbody>
+                {filteredBinCards.map(card => <tr key={card.bin_card_id} className="border-t"><td className="p-3 font-medium">{card.medicine_name} <span className="font-normal text-muted-foreground">{card.size ?? ''}</span></td><td className="p-3"><Badge variant="outline">Stock / Pharmacy</Badge></td><td className="p-3 text-right font-semibold">{card.current_balance.toLocaleString()}</td><td className="p-3 text-right text-green-600">{money(card.sale_price)}</td><td className="p-3 text-right"><Button size="sm" variant={selectedBinCardId === card.bin_card_id ? 'default' : 'outline'} onClick={() => setSelectedBinCardId(card.bin_card_id)}><FileText className="mr-2 h-4 w-4" />Open</Button></td></tr>)}
+                {!loading && filteredBinCards.length === 0 && <tr><td colSpan={5} className="p-10 text-center text-muted-foreground">No Bin Cards match this Store and search.</td></tr>}
               </tbody></table>
             </div>
           </section>
@@ -245,8 +243,7 @@ export default function Store() {
             <div className="mb-4 flex flex-wrap gap-2"><Button variant={stockKind === 'opening_count' ? 'default' : 'outline'} onClick={() => setStockKind('opening_count')}>Opening Stock</Button><Button variant={stockKind === 'supplier_delivery' ? 'default' : 'outline'} onClick={() => setStockKind('supplier_delivery')}>Supplier Delivery</Button></div>
             <div className="mb-5"><h2 className="font-semibold">Record Stock in {selectedLocation?.name ?? 'Store'}</h2><p className="text-sm text-muted-foreground">Particulars will be recorded as <strong>Stock</strong>. Receipts increase the Bin Card Balance automatically.</p></div>
             <div className="grid gap-4 md:grid-cols-3"><div className="space-y-2 md:col-span-2"><Label>Bin Card / Medicine</Label><select value={stockLine.productId} onChange={event => setStockLine(line => ({ ...line, productId: event.target.value }))} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select a registered Bin Card…</option>{selectedStoreBinCards.map(card => <option key={card.bin_card_id} value={card.product_id}>{card.medicine_name}{card.size ? ` — ${card.size}` : ''} (Balance: {card.current_balance})</option>)}</select></div>{stockKind === 'supplier_delivery' && <div className="space-y-2"><Label>Supplier name</Label><Input value={supplierName} onChange={event => setSupplierName(event.target.value)} placeholder="Supplier" /></div>}</div>
-            <div className="mt-4 grid gap-4 md:grid-cols-3"><div className="space-y-2"><Label>Expiry date</Label><Input type="date" value={stockLine.expiryDate} onChange={event => setStockLine(line => ({ ...line, expiryDate: event.target.value }))} /></div><div className="space-y-2"><Label>Receipts / Quantity</Label><Input type="number" min="0.001" step="0.001" value={stockLine.quantity} onChange={event => setStockLine(line => ({ ...line, quantity: event.target.value }))} placeholder="e.g. 60" /></div><div className="space-y-2"><Label>Cost price per unit (₦)</Label><Input type="number" min="0" step="0.01" value={stockLine.costPrice} onChange={event => setStockLine(line => ({ ...line, costPrice: event.target.value }))} placeholder="Price paid" /></div></div>
-            {stockLine.expiryDate && stockLine.expiryDate < new Date().toISOString().slice(0, 10) && <Info text="This expiry date is already past. The receipt can remain in the Bin Card history, but it will not count toward available balance." warning />}
+            <div className="mt-4 grid gap-4 md:grid-cols-2"><div className="space-y-2"><Label>Receipts / Quantity</Label><Input type="number" min="0.001" step="0.001" value={stockLine.quantity} onChange={event => setStockLine(line => ({ ...line, quantity: event.target.value }))} placeholder="e.g. 60" /></div><div className="space-y-2"><Label>Cost price per unit (₦)</Label><Input type="number" min="0" step="0.01" value={stockLine.costPrice} onChange={event => setStockLine(line => ({ ...line, costPrice: event.target.value }))} placeholder="Price paid" /></div></div>
             <Button className="mt-5" onClick={() => void handleStock()} disabled={saving || selectedStoreBinCards.length === 0}><PackageCheck className="mr-2 h-4 w-4" />{saving ? 'Saving…' : stockKind === 'opening_count' ? 'Record Opening Stock' : 'Receive Stock'}</Button>
           </section>
         </TabsContent>
@@ -268,6 +265,6 @@ function Metric({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl border bg-card p-4"><p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p><p className="mt-1 text-xl font-semibold">{value}</p></div>;
 }
 
-function Info({ text, warning = false }: { text: string; warning?: boolean }) {
-  return <div className={`rounded-lg border p-4 text-sm ${warning ? 'border-amber-200 bg-amber-50/60 text-amber-900' : 'bg-muted/30 text-muted-foreground'}`}><div className="flex gap-2">{warning && <TriangleAlert className="h-4 w-4 shrink-0" />}<span>{text}</span></div></div>;
+function Info({ text }: { text: string }) {
+  return <div className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground"><span>{text}</span></div>;
 }

@@ -168,7 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -177,7 +177,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logSecurityEvent('login', { email }, 'failure', error.message);
         throw error;
       }
-      // Successful login will be logged after auth state change
+
+      // The CockroachDB compatibility adapter persists the session in
+      // localStorage but cannot emit Supabase's browser auth event. Hydrate
+      // React state here so route guards and Auth.tsx can redirect instantly.
+      const userId = data?.user?.id || localStorage.getItem('hms_user_id');
+      if (!userId) {
+        throw new Error('Login succeeded but no user session was returned');
+      }
+
+      const hydratedUser = data?.user || { id: userId, email };
+      const hydratedSession = data?.session || {
+        user: hydratedUser,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      };
+      const storedRole = localStorage.getItem('hms_user_role') as AppRole | null;
+
+      setUser(hydratedUser as User);
+      setSession(hydratedSession as Session);
+      setRole(storedRole);
+      setRoleLoading(false);
+      setLoading(false);
+      logSecurityEvent('login', { email }, 'success');
+
       return { error: null };
     } catch (error) {
       return { error: error as Error };

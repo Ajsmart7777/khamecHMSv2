@@ -41,90 +41,55 @@ class CockroachQueryBuilder {
   private _limit?: number;
   private _offset?: number;
   private _single = false;
+  private _action: 'select' | 'insert' | 'update' | 'delete' = 'select';
+  private _values: any = null;
 
-  async then(resolve: (res: { data: any; error: any }) => void, reject: (err: any) => void) {
+  insert(values: any, _options?: any) {
+    this._action = 'insert';
+    this._values = values;
+    return this;
+  }
+
+  update(values: any) {
+    this._action = 'update';
+    this._values = values;
+    return this;
+  }
+
+  delete() {
+    this._action = 'delete';
+    return this;
+  }
+
+  async then(resolve: (res: { data: any; error: any }) => void, reject?: (err: any) => void) {
     try {
       const res = await fetch('/.netlify/functions/db-query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'select',
+          action: this._action,
           ...requestContext(),
           table: this.table,
           select: this._select,
           filters: this._filters,
           order: this._order,
           limit: this._limit,
-          offset: this._offset
+          offset: this._offset,
+          values: this._values
         })
       });
       const json = await res.json();
       if (json.error) {
         resolve({ data: null, error: { message: json.error } });
       } else {
-        const data = this._single ? (json.data?.[0] || null) : json.data;
+        const rows = json.data ?? [];
+        const data = this._single ? (rows[0] || null) : rows;
         resolve({ data, error: null });
       }
     } catch (err: any) {
-      resolve({ data: null, error: { message: err.message || 'Network error' } });
-    }
-  }
-
-  async insert(values: any) {
-    try {
-      const res = await fetch('/.netlify/functions/db-query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'insert',
-          ...requestContext(),
-          table: this.table,
-          values
-        })
-      });
-      const json = await res.json();
-      return { data: json.data, error: json.error ? { message: json.error } : null };
-    } catch (err: any) {
-      return { data: null, error: { message: err.message } };
-    }
-  }
-
-  async update(values: any) {
-    try {
-      const res = await fetch('/.netlify/functions/db-query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'update',
-          ...requestContext(),
-          table: this.table,
-          values,
-          filters: this._filters
-        })
-      });
-      const json = await res.json();
-      return { data: json.data, error: json.error ? { message: json.error } : null };
-    } catch (err: any) {
-      return { data: null, error: { message: err.message } };
-    }
-  }
-
-  async delete() {
-    try {
-      const res = await fetch('/.netlify/functions/db-query', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'delete',
-          ...requestContext(),
-          table: this.table,
-          filters: this._filters
-        })
-      });
-      const json = await res.json();
-      return { data: json.data, error: json.error ? { message: json.error } : null };
-    } catch (err: any) {
-      return { data: null, error: { message: err.message } };
+      const result = { data: null, error: { message: err.message || 'Network error' } };
+      if (reject) reject(err);
+      else resolve(result);
     }
   }
 }

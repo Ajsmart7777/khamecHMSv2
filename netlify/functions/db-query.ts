@@ -63,7 +63,14 @@ const JSONB_COLUMNS: Record<string, Set<string>> = {
 };
 
 function normalizeWriteValue(table: string, column: string, value: any): any {
-  return JSONB_COLUMNS[table]?.has(column) ? normalizeRpcValue(value) : value;
+  if (!JSONB_COLUMNS[table]?.has(column)) return value;
+  const normalized = normalizeRpcValue(value);
+  // node-postgres treats a JavaScript array as a SQL array parameter. JSONB
+  // columns need JSON text instead, otherwise CockroachDB receives `{...}` and
+  // rejects it even though the payload is a valid JSON array/object.
+  return normalized !== null && typeof normalized === 'object'
+    ? JSON.stringify(normalized)
+    : normalized;
 }
 
 function normalizeRows(values: any): Record<string, any>[] {

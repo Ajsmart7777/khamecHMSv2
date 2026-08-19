@@ -627,8 +627,13 @@ export function PatientLedgerCard({
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_items' }, () => bump())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'balance_transactions', filter: patientFilter }, bump)
       .subscribe();
+
+    // CockroachDB uses a no-op realtime adapter. Poll while the card is open so
+    // actions from another workspace appear without requiring a manual refresh.
+    const poll = window.setInterval(() => load(false), 3_000);
     return () => {
       if (debounce) clearTimeout(debounce);
+      window.clearInterval(poll);
       supabase.removeChannel(ch);
     };
   }, [patient.id, load]);

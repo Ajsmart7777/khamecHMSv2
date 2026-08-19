@@ -184,7 +184,7 @@ export function StorageMonitoring() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Supabase Database Card */}
+        {/* CockroachDB Database Card */}
         <Card className="overflow-hidden border-border/60">
           <CardHeader className="pb-2 bg-muted/30">
             <div className="flex items-center justify-between">

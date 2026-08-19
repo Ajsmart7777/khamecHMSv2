@@ -140,20 +140,45 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
       } as any);
       if (error) throw error;
 
-      // Mark the original lab request as fulfilled so it disappears from the
-      // Lab workspace immediately after the result is sent.
+      // Mark the original lab snap and its linked lab request as completed so
+      // both the Laboratory queue and the canonical lab_requests record move
+      // forward together after a result is returned.
+      const completedAt = new Date().toISOString();
       try {
         const { data: userData2 } = await supabase.auth.getUser();
-        await supabase
+        const { error: fulfillError } = await supabase
           .from('snap_orders')
           .update({
             status: 'fulfilled',
             fulfilled_by: userData2.user?.id ?? null,
-            fulfilled_at: new Date().toISOString(),
+            fulfilled_at: completedAt,
           } as any)
           .eq('id', parentSnap.id);
+        if (fulfillError) throw fulfillError;
       } catch (fulfillErr) {
         console.warn('Could not mark parent lab snap fulfilled', fulfillErr);
+      }
+
+      // Typed lab requests are linked through the source snap's marker. Keep
+      // lab_requests in sync for EMR, reports, and any legacy lab views that
+      // read the canonical request table instead of snap_orders.
+      const linkedLabRequestId = String(parentSnap.ocr_text ?? '').startsWith('LINKED_LAB_REQUEST:')
+        ? String(parentSnap.ocr_text).slice('LINKED_LAB_REQUEST:'.length)
+        : null;
+      if (linkedLabRequestId) {
+        const { error: labRequestError } = await supabase
+          .from('lab_requests')
+          .update({
+            status: 'completed',
+            completed_at: completedAt,
+            results: {
+              result_text: entryMode === 'typed' ? trimmedResult : null,
+              photo_path: path,
+              note: note.trim() || null,
+            },
+          } as any)
+          .eq('id', linkedLabRequestId);
+        if (labRequestError) throw labRequestError;
       }
 
       // Return the patient to the original sender through the workflow engine.

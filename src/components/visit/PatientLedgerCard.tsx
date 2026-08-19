@@ -306,22 +306,51 @@ export function PatientLedgerCard({
         ? supabase.from('visit_attachments').select('*').in('visit_id', visitIds)
         : Promise.resolve({ data: [] as any[] }),
       supabase.from('snap_orders').select('*').eq('patient_id', patient.id),
-      // Invoices/custom bills are patient-owned financial records. Query by patient_id
-      // rather than only visit_id so a bill remains visible when a legacy workflow
-      // omitted or later corrected its visit linkage.
-      supabase.from('invoices').select('*, invoice_items(*)').eq('patient_id', patient.id),
-      supabase.from('admissions').select('*, wards(name), beds(bed_number), rooms(room_number)')
-        .eq('patient_id', patient.id),
+      // CockroachDB uses a compatibility gateway rather than PostgREST, so
+      // relational selects such as invoice_items(*) are not valid SQL here.
+      // Load invoice rows flat, then attach their items below.
+      // Query by patient_id so custom bills remain visible even when a legacy
+      // workflow omitted or later corrected the visit linkage.
+      supabase.from('invoices').select('*').eq('patient_id', patient.id),
+      // Admission details are loaded flat; ward/bed labels are optional and are
+      // not required to retain the admission/discharge event in the ledger.
+      supabase.from('admissions').select('*').eq('patient_id', patient.id),
       // Keep the source lab request in the ledger as a fallback for typed orders
       // and for legacy workflows that materialise lab_requests separately.
       supabase.from('lab_requests').select('*').eq('patient_id', patient.id),
       // Typed Pharmacy orders are stored in prescriptions and may also have a
-      // linked snap_orders row. Read the source table as a resilient fallback.
-      supabase.from('prescriptions').select('*, prescription_items(*)').eq('patient_id', patient.id),
+      // linked snap_orders row. Load the source table flat and attach items below.
+      supabase.from('prescriptions').select('*').eq('patient_id', patient.id),
       // Wallet/debt/credit movements are separate from the cumulative invoice paid_amount.
       // Load them so every financial movement is visible in the patient story.
       supabase.from('balance_transactions').select('*').eq('patient_id', patient.id),
     ]);
+
+    // The gateway intentionally supports flat SQL projections only. Recreate
+    // the two one-to-many relations in memory so ledger consumers retain the
+    // same shape they receive from Supabase.
+    const invoiceRows = (invs.data ?? []) as any[];
+    const invoiceIds = invoiceRows.map((invoice: any) => invoice.id).filter(Boolean);
+    const prescriptionRows = (prescriptions.data ?? []) as any[];
+    const prescriptionIds = prescriptionRows.map((prescription: any) => prescription.id).filter(Boolean);
+    const [invoiceItemsResult, prescriptionItemsResult] = await Promise.all([
+      invoiceIds.length
+        ? supabase.from('invoice_items').select('*').in('invoice_id', invoiceIds)
+        : Promise.resolve({ data: [] as any[] }),
+      prescriptionIds.length
+        ? supabase.from('prescription_items').select('*').in('prescription_id', prescriptionIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+    const invoiceItems = (invoiceItemsResult.data ?? []) as any[];
+    const prescriptionItems = (prescriptionItemsResult.data ?? []) as any[];
+    const invoicesWithItems = invoiceRows.map((invoice: any) => ({
+      ...invoice,
+      invoice_items: invoiceItems.filter((item: any) => String(item.invoice_id) === String(invoice.id)),
+    }));
+    const prescriptionsWithItems = prescriptionRows.map((prescription: any) => ({
+      ...prescription,
+      prescription_items: prescriptionItems.filter((item: any) => String(item.prescription_id) === String(prescription.id)),
+    }));
 
     const byVisit = new Map<string, LedgerRow[]>();
     const push = (vid: string | null, row: LedgerRow) => {
@@ -388,7 +417,7 @@ export function PatientLedgerCard({
     // Typed Pharmacy orders are written to prescriptions and normally also to
     // snap_orders. Keep the source order visible if a legacy or restricted snap
     // query does not return its linked row.
-    (prescriptions.data ?? []).forEach((rx: any) => {
+    prescriptionsWithItems.forEach((rx: any) => {
       if (linkedPrescriptionIds.has(String(rx.id))) return;
       const ledgerVisitId = visitIdForLedger(rx.visit_id);
       const items = Array.isArray(rx.prescription_items) ? rx.prescription_items : [];
@@ -469,7 +498,7 @@ export function PatientLedgerCard({
       });
     });
 
-    (invs.data ?? []).forEach((i: any) => {
+    invoicesWithItems.forEach((i: any) => {
       const paid = Number(i.paid_amount ?? 0);
       const total = Number(i.total_amount ?? 0);
       const invSub = paid <= 0 ? 'invoice_new' : paid < total ? 'invoice_partial' : 'invoice_paid';
@@ -523,7 +552,7 @@ export function PatientLedgerCard({
     // Balance transactions provide event-level financial history that invoices alone cannot show.
     // A settlement can consume wallet credit, create debt, issue overpayment credit, or refund money
     // while the invoice's paid_amount remains cumulative.
-    const invoiceById = new Map((invs.data ?? []).map((invoice: any) => [String(invoice.id), invoice]));
+    const invoiceById = new Map(invoicesWithItems.map((invoice: any) => [String(invoice.id), invoice]));
     (balanceTxs.data ?? []).forEach((tx: any) => {
       const delta = Number(tx.amount ?? 0);
       const absoluteAmount = Math.abs(delta);

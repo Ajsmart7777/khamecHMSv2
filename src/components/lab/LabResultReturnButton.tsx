@@ -26,6 +26,16 @@ interface Props {
 
 type EntryMode = 'snap' | 'typed';
 
+function withTimeout<T>(promise: PromiseLike<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), ms);
+    Promise.resolve(promise).then(
+      (value) => { window.clearTimeout(timer); resolve(value); },
+      (error) => { window.clearTimeout(timer); reject(error); },
+    );
+  });
+}
+
 /**
  * Lab tech can return the result as a photographed paper or as typed text.
  * Both paths create the same lab_result snap and route it back to the original
@@ -210,16 +220,20 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
             senderRole,
             assignedDoctor: patientRow?.assigned_doctor,
           });
-          const { error: journeyError } = await supabase.rpc('advance_journey', {
-            _patient_id: parentSnap.patient_id,
-            _to_state: newStatus,
-            _owner_role: ownerRole,
-            _owner_user_id: requesterId ?? null,
-            _department: targetStation === 'nurse' ? 'nursing' : 'medical',
-            _location: targetStation,
-            _visit_id: parentSnap.visit_id,
-            _reason: 'Laboratory result returned to the original requester',
-          });
+          const { error: journeyError } = await withTimeout(
+            supabase.rpc('advance_journey', {
+              _patient_id: parentSnap.patient_id,
+              _to_state: newStatus,
+              _owner_role: ownerRole,
+              _owner_user_id: requesterId ?? null,
+              _department: targetStation === 'nurse' ? 'nursing' : 'medical',
+              _location: targetStation,
+              _visit_id: parentSnap.visit_id,
+              _reason: 'Laboratory result returned to the original requester',
+            }),
+            12000,
+            'Laboratory result saved, but workflow routing timed out.',
+          );
           if (journeyError) throw journeyError;
           await supabase
             .from('patients')

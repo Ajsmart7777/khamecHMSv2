@@ -187,27 +187,78 @@ async function resolveAttachmentUrl(attachment: ArchiveAttachment): Promise<stri
 }
 
 async function fetchArchivePatientData(patientId: string) {
-  const [patientResult, visitsResult, vitalsResult, attachmentsResult, snapsResult, invoicesResult, admissionsResult] = await Promise.all([
+  const [
+    patientResult,
+    visitsResult,
+    vitalsResult,
+    attachmentsResult,
+    snapsResult,
+    invoicesResult,
+    invoiceItemsResult,
+    admissionsResult,
+    bedsResult,
+    roomsResult,
+    wardsResult
+  ] = await Promise.all([
     supabase.from('patients').select('*').eq('id', patientId).single(),
     supabase.from('visits').select('*').eq('patient_id', patientId).order('opened_at', { ascending: true }),
     supabase.from('vitals').select('*').eq('patient_id', patientId).order('created_at', { ascending: true }),
     supabase.from('visit_attachments').select('*').eq('patient_id', patientId).order('created_at', { ascending: true }),
     supabase.from('snap_orders').select('*').eq('patient_id', patientId).order('created_at', { ascending: true }),
-    supabase.from('invoices').select('*, invoice_items(*)').eq('patient_id', patientId).order('created_at', { ascending: true }),
-    supabase.from('admissions').select('*, beds(bed_label, rooms(room_number, wards(name)))').eq('patient_id', patientId).order('created_at', { ascending: true }),
+    supabase.from('invoices').select('*').eq('patient_id', patientId).order('created_at', { ascending: true }),
+    supabase.from('invoice_items').select('*').in('invoice_id', (await supabase.from('invoices').select('id').eq('patient_id', patientId)).data?.map(i => i.id) || []),
+    supabase.from('admissions').select('*').eq('patient_id', patientId).order('created_at', { ascending: true }),
+    supabase.from('beds').select('*'),
+    supabase.from('rooms').select('*'),
+    supabase.from('wards').select('*'),
   ]);
 
-  const error = [patientResult.error, visitsResult.error, vitalsResult.error, attachmentsResult.error, snapsResult.error, invoicesResult.error, admissionsResult.error].find(Boolean);
+  const error = [
+    patientResult.error,
+    visitsResult.error,
+    vitalsResult.error,
+    attachmentsResult.error,
+    snapsResult.error,
+    invoicesResult.error,
+    invoiceItemsResult.error,
+    admissionsResult.error,
+    bedsResult.error,
+    roomsResult.error,
+    wardsResult.error
+  ].find(Boolean);
+
   if (error) throw new Error(error.message);
   if (!patientResult.data) throw new Error('Patient identity could not be loaded');
+
+  // Manual joins for invoices
+  const itemsByInvoice = (invoiceItemsResult.data ?? []).reduce((acc: any, item: any) => {
+    acc[item.invoice_id] = [...(acc[item.invoice_id] || []), item];
+    return acc;
+  }, {});
+
+  const joinedInvoices = (invoicesResult.data ?? []).map((inv: any) => ({
+    ...inv,
+    invoice_items: itemsByInvoice[inv.id] || [],
+  }));
+
+  // Manual joins for admissions
+  const wardsById = new Map((wardsResult.data ?? []).map((w: any) => [w.id, w]));
+  const roomsById = new Map((roomsResult.data ?? []).map((r: any) => [r.id, { ...r, wards: wardsById.get(r.ward_id) }]));
+  const bedsById = new Map((bedsResult.data ?? []).map((b: any) => [b.id, { ...b, rooms: roomsById.get(b.room_id) }]));
+
+  const joinedAdmissions = (admissionsResult.data ?? []).map((adm: any) => ({
+    ...adm,
+    beds: bedsById.get(adm.bed_id),
+  }));
+
   return {
     patient: patientResult.data,
     visits: visitsResult.data ?? [],
     vitals: vitalsResult.data ?? [],
     visitAttachments: attachmentsResult.data ?? [],
     snapOrders: snapsResult.data ?? [],
-    invoices: invoicesResult.data ?? [],
-    admissions: admissionsResult.data ?? [],
+    invoices: joinedInvoices,
+    admissions: joinedAdmissions,
   };
 }
 

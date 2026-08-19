@@ -112,8 +112,8 @@ export function StorageMonitoring() {
         database: {
           size_bytes: dbSizeBytes,
           size_formatted: formatBytes(dbSizeBytes),
-          quota_bytes: 5 * 1024 * 1024 * 1024, // Assuming 5GB free tier default if not known
-          usage_percent: (dbSizeBytes / (5 * 1024 * 1024 * 1024)) * 100
+          quota_bytes: 10 * 1024 * 1024 * 1024, // 10GB Free Tier
+          usage_percent: (dbSizeBytes / (10 * 1024 * 1024 * 1024)) * 100
         },
         r2: r2Stats,
         lastUpdated: new Date()
@@ -190,7 +190,7 @@ export function StorageMonitoring() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Database className="h-5 w-5 text-primary" />
-                <CardTitle className="text-lg">Supabase Database</CardTitle>
+                <CardTitle className="text-lg">CockroachDB Serverless</CardTitle>
               </div>
               {stats && (
                 <Badge variant="outline" className={getStatus(stats.database.usage_percent).color}>
@@ -198,7 +198,7 @@ export function StorageMonitoring() {
                 </Badge>
               )}
             </div>
-            <CardDescription>PostgreSQL relational data storage</CardDescription>
+            <CardDescription>PostgreSQL-compatible relational data storage</CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
             {stats && (
@@ -209,7 +209,7 @@ export function StorageMonitoring() {
                     <span className="text-sm text-muted-foreground ml-2">used</span>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Approx. Quota</p>
+                    <p className="text-xs text-muted-foreground">Free Tier Quota</p>
                     <p className="text-sm font-medium">{formatBytes(stats.database.quota_bytes || 0)}</p>
                   </div>
                 </div>
@@ -268,17 +268,17 @@ export function StorageMonitoring() {
                     <span className="text-sm text-muted-foreground ml-2">used</span>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Total Objects</p>
-                    <p className="text-sm font-medium">{stats.r2.total_objects.toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">Free Tier Quota</p>
+                    <p className="text-sm font-medium">{formatBytes(10 * 1024 * 1024 * 1024)}</p>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs">
                     <span>Usage</span>
-                    <span>Quota Unlimited</span>
+                    <span>{((stats.r2.total_size_bytes / (10 * 1024 * 1024 * 1024)) * 100).toFixed(1)}%</span>
                   </div>
-                  <Progress value={5} className="h-2 opacity-50" />
+                  <Progress value={(stats.r2.total_size_bytes / (10 * 1024 * 1024 * 1024)) * 100} className="h-2" />
                 </div>
 
                 <div className="pt-2">

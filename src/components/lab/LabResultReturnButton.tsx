@@ -123,7 +123,9 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
       const { error } = await supabase.from('snap_orders').insert({
         patient_id: parentSnap.patient_id,
         visit_id: parentSnap.visit_id,
-        order_type: 'lab_result',
+        // CockroachDB mirrors the primary schema constraint: returned lab results
+        // remain lab orders, with the result carried in result_text/photo_path.
+        order_type: 'lab',
         target_station: targetStation as any,
         source_role: 'lab',
         original_sender_role: senderRole,

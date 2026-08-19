@@ -33,9 +33,6 @@ export default async (request: Request) => {
         : status === 'REVERSED'
           ? 'reversed'
           : 'processing';
-    const failureReason = paymentStatus === 'paid' || paymentStatus === 'processing'
-      ? null
-      : data.complete_message || data.failure_reason || `Flutterwave transfer ${status || 'failed'}`;
     const reference = data.reference || null;
     const transferId = String(data.id || data.transfer_id || data.transfer_code || '') || null;
     if (!reference && !transferId) return textResponse('OK');
@@ -57,10 +54,9 @@ export default async (request: Request) => {
           `UPDATE public.payroll_payments
               SET status = $1,
                   provider_transfer_code = COALESCE($2, provider_transfer_code),
-                  failure_reason = $3,
                   paid_at = CASE WHEN $1 = 'paid' THEN now() ELSE paid_at END
-            WHERE id = $4::uuid`,
-          [paymentStatus, transferId, failureReason, payment.id],
+            WHERE id = $3::uuid`,
+          [paymentStatus, transferId, payment.id],
         );
         await db.query(
           `UPDATE public.payroll_entries

@@ -15,24 +15,55 @@ function assertTable(table: unknown): asserts table is string {
 
 function normalizeRpcValue(value: any): any {
   if (typeof value !== 'string') return value;
-  const trimmed = value.trim();
-  if (!trimmed) return value;
+  if (!value.trim()) return value;
 
-  // Some Supabase callers send JSONB values as JSON.stringify(...) strings.
-  // Unwrap one or more JSON layers while preserving ordinary text fields.
+  // Some Supabase-compatible callers send JSONB values through more than one
+  // JSON.stringify layer. In that case the inner object arrives with escaped
+  // quotes (for example {\\"name\\":\\"Panadol\\"}), which CockroachDB
+  // correctly rejects as JSONB until it is unescaped. Decode only values that
+  // clearly look like JSON; ordinary notes and free text are left unchanged.
   let current: any = value;
-  for (let depth = 0; depth < 2 && typeof current === 'string'; depth += 1) {
+  for (let depth = 0; depth < 3 && typeof current === 'string'; depth += 1) {
     const candidate = current.trim();
-    if (!(candidate.startsWith('{') || candidate.startsWith('[') || candidate.startsWith('"'))) break;
-    try {
-      const parsed = JSON.parse(candidate);
-      if (parsed === current) break;
-      current = parsed;
-    } catch {
-      break;
+    const looksLikeJson = candidate.startsWith('{') || candidate.startsWith('[') || candidate.startsWith('"');
+    if (looksLikeJson) {
+      try {
+        const parsed = JSON.parse(candidate);
+        if (parsed === current) break;
+        current = parsed;
+        continue;
+      } catch {
+        // Fall through to the escaped-object recovery below.
+      }
     }
+
+    // Recover one escaped JSON layer when the payload is visibly an object or
+    // array whose quotes were escaped before reaching this endpoint.
+    if (candidate.startsWith('{\\"') || candidate.startsWith('[{\\"') || candidate.includes('\\\\"')) {
+      try {
+        const unescaped = candidate.replace(/\\\\"/g, '"').replace(/\\\\\\\\/g, '\\\\');
+        const parsed = JSON.parse(unescaped);
+        current = parsed;
+        continue;
+      } catch {
+        // It was not valid JSON after all; preserve the original text.
+      }
+    }
+    break;
   }
   return current;
+}
+
+const JSONB_COLUMNS: Record<string, Set<string>> = {
+  audit_logs: new Set(['details']),
+  lab_requests: new Set(['results']),
+  patients: new Set(['member_id_data']),
+  snap_orders: new Set(['matched_items', 'ocr_matches', 'ocr_reviewed_lines']),
+  visits: new Set(['claim_reason_details', 'sponsor_auth']),
+};
+
+function normalizeWriteValue(table: string, column: string, value: any): any {
+  return JSONB_COLUMNS[table]?.has(column) ? normalizeRpcValue(value) : value;
 }
 
 function normalizeRows(values: any): Record<string, any>[] {
@@ -204,7 +235,7 @@ export const handler: Handler = async (event) => {
       const params: any[] = [];
       const rowPlaceholders = rows.map(row => {
         const placeholders = columns.map(column => {
-          params.push(row[column] === undefined ? null : row[column]);
+          params.push(row[column] === undefined ? null : normalizeWriteValue(table, column, row[column]));
           return `$${params.length}`;
         });
         return `(${placeholders.join(', ')})`;
@@ -229,7 +260,7 @@ export const handler: Handler = async (event) => {
       const filterOperations = normalizeFilterOperations(filters, filterOps, true);
       const params: any[] = [];
       const setSql = updateEntries.map(([column, value]) => {
-        params.push(value === undefined ? null : value);
+        params.push(value === undefined ? null : normalizeWriteValue(table, column, value));
         return `${column} = $${params.length}`;
       });
       const whereSql = buildWhereClause(filterOperations, params);

@@ -97,6 +97,7 @@ export function CashierPanel() {
   const [isSalaryDeduction, setIsSalaryDeduction] = useState(false);
   const [salaryDeductionAmount, setSalaryDeductionAmount] = useState('');
   const [busy, setBusy] = useState(false);
+  const [confirmShortfall, setConfirmShortfall] = useState(false);
   const [receipt, setReceipt] = useState<{
     patient: any;
     amount: number;
@@ -229,7 +230,7 @@ export function CashierPanel() {
         try {
           await settleInvoiceAsPaid(
             inv.id,
-            Number(inv.paid_amount),
+            Number(inv.total_amount),
             'sponsor_claim',
             `Sponsor fully covered · ${sponsorLabel(patient)}`,
           );
@@ -310,6 +311,7 @@ export function CashierPanel() {
     setBalanceAmount('');
     setIsSalaryDeduction(false);
     setSalaryDeductionAmount('');
+    setConfirmShortfall(false);
   };
 
   // When user toggles "use balance", auto-suggest amounts
@@ -336,7 +338,7 @@ export function CashierPanel() {
         const remaining = invoiceTotal - alreadyPaid;
         await settleInvoiceAsPaid(
           selected.id,
-          alreadyPaid, // nothing new collected from patient — sponsor fully covers
+          invoiceTotal,
           'sponsor_claim',
           `Sponsor fully covered · ${sponsorLabel(selectedPatient)}`,
         );
@@ -381,6 +383,12 @@ export function CashierPanel() {
 
     if (applied < 0) {
       toast.error('Invalid amount entered');
+      return;
+    }
+    if (!sponsored && shortfall > 0 && !confirmShortfall) {
+      toast.error(applied === 0
+        ? 'Confirm that this patient is receiving credit before recording ₦0'
+        : 'Confirm that the remaining amount will be recorded as patient debt');
       return;
     }
     if (overpay > 0 && sponsored) {
@@ -432,11 +440,11 @@ export function CashierPanel() {
           : undefined;
 
       const debt = !sponsored && shortfall > 0 ? shortfall : 0;
-      const combinedCash = cash + pos + transfer;
-      
+      const combinedCollected = cash + pos + transfer + salDed;
+
       const result = await settleInvoiceAtomic({
         invoiceId: selected.id,
-        cashAmount: combinedCash,
+        cashAmount: combinedCollected,
         balanceAmount: bal,
         debtAmount: debt,
         paymentMethod,
@@ -482,6 +490,9 @@ export function CashierPanel() {
       if (nextStation) {
         await updatePatientStatus(selected.patient_id, nextStation);
       }
+      const resultingBalance = Number(
+        result?.new_wallet_balance ?? (patientBalance - bal - (!sponsored && shortfall > 0 ? shortfall : 0) + (!sponsored ? overpay : 0)),
+      );
 
       const parts: string[] = [];
       if (cash > 0) parts.push(`₦${cash.toLocaleString()} Cash`);
@@ -504,7 +515,7 @@ export function CashierPanel() {
         : 'Payment recorded';
 
       toast.success(successMessage,
-        { description: `${selected.invoice_number} · ${parts.join(' + ')} · routed to ${workflowStationLabel(nextStation)}` }
+        { description: `${selected.invoice_number} · ${parts.join(' + ')}${nextStation ? ` · routed to ${workflowStationLabel(nextStation)}` : ''}` }
       );
 
       // Open printable receipt with a clean breakdown.
@@ -514,7 +525,7 @@ export function CashierPanel() {
         paymentMethod: applied === 0 ? 'credit' : paymentMethod,
         receiptNumber: selected.invoice_number,
         date: new Date(),
-        newBalance: Number(patientBalance) - bal - (!sponsored && shortfall > 0 ? shortfall : 0),
+        newBalance: resultingBalance,
         breakdown: {
           invoiceNumber: selected.invoice_number,
           invoiceTotal,
@@ -1010,8 +1021,9 @@ export function CashierPanel() {
             </div>
             )}
 
-            {!sponsored && shortfall > 0 && (
+                          {!sponsored && shortfall > 0 && (
               <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 space-y-2">
+
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 text-warning mt-0.5" />
                   <div className="text-xs">
@@ -1032,10 +1044,18 @@ export function CashierPanel() {
                   </div>
                 </div>
                 {debtEligible && (
-                  <p className="text-[11px] text-muted-foreground italic">
-                    Confirm to accept ₦{applied.toLocaleString()} now and record ₦
-                    {shortfall.toLocaleString()} as owed on the patient's balance.
-                  </p>
+                  <label className="flex items-start gap-2 text-[11px] text-muted-foreground italic cursor-pointer">
+                    <Checkbox
+                      checked={confirmShortfall}
+                      onCheckedChange={(checked) => setConfirmShortfall(checked === true)}
+                      disabled={busy}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      I confirm that ₦{applied.toLocaleString()} is being accepted now and ₦
+                      {shortfall.toLocaleString()} will be recorded as owed on the patient's balance.
+                    </span>
+                  </label>
                 )}
               </div>
             )}
@@ -1053,7 +1073,7 @@ export function CashierPanel() {
                 (sponsored && overpay > 0) ||
                 balExceedsAvail ||
                 (sponsored && !fullCover && shortfall > 0) ||
-                (!sponsored && shortfall > 0 && !debtEligible)
+                (!sponsored && shortfall > 0 && (!debtEligible || !confirmShortfall))
               }
             >
               {busy

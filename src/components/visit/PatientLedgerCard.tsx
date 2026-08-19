@@ -306,9 +306,10 @@ export function PatientLedgerCard({
         ? supabase.from('visit_attachments').select('*').in('visit_id', visitIds)
         : Promise.resolve({ data: [] as any[] }),
       supabase.from('snap_orders').select('*').eq('patient_id', patient.id),
-      visitIds.length
-        ? supabase.from('invoices').select('*, invoice_items(*)').in('visit_id', visitIds)
-        : Promise.resolve({ data: [] as any[] }),
+      // Invoices/custom bills are patient-owned financial records. Query by patient_id
+      // rather than only visit_id so a bill remains visible when a legacy workflow
+      // omitted or later corrected its visit linkage.
+      supabase.from('invoices').select('*, invoice_items(*)').eq('patient_id', patient.id),
       supabase.from('admissions').select('*, wards(name), beds(bed_number), rooms(room_number)')
         .eq('patient_id', patient.id),
       // Keep the source lab request in the ledger as a fallback for typed orders
@@ -482,13 +483,14 @@ export function PatientLedgerCard({
       
       const displayTotal = activeItems.reduce((s: number, it: any) => s + Number(it.total || 0), 0);
 
-      push(i.visit_id, {
-        id: `inv-${i.id}`, visitId: i.visit_id, at: i.created_at, kind: 'invoice',
+      const ledgerVisitId = visitIdForLedger(i.visit_id);
+      push(ledgerVisitId, {
+        id: `inv-${i.id}`, visitId: ledgerVisitId ?? '', at: i.created_at, kind: 'invoice',
         station: 'billing', title: `Invoice ${i.invoice_number}`, data: { ...i, items: activeItems, displayTotal }, subkind: invSub,
       });
 
-      if (paid > 0) push(i.visit_id, {
-        id: `pay-${i.id}`, visitId: i.visit_id, at: i.updated_at ?? i.created_at,
+      if (paid > 0) push(ledgerVisitId, {
+        id: `pay-${i.id}`, visitId: ledgerVisitId ?? '', at: i.updated_at ?? i.created_at,
         kind: 'payment', station: 'cashier',
         title: paid >= total ? 'Receipt · Paid in Full' : 'Receipt · Part Payment',
         data: { amount: paid, method: i.payment_method, ref: i.invoice_number, total },
@@ -500,8 +502,8 @@ export function PatientLedgerCard({
         const isRefunded = it.dispensing_status === 'refunded';
         const isPending = ['unavailable', 'refund_requested', 'refund_pending', 'not_given'].includes(it.dispensing_status);
         
-        push(i.visit_id, {
-          id: `ref-${it.id}`, visitId: i.visit_id, at: it.dispensing_updated_at ?? i.updated_at,
+        push(ledgerVisitId, {
+          id: `ref-${it.id}`, visitId: ledgerVisitId ?? '', at: it.dispensing_updated_at ?? i.updated_at,
           kind: 'payment', station: 'cashier',
           title: isRefunded ? `Refunded · ${it.description}` : `Not Given · ${it.description}`,
           data: { 

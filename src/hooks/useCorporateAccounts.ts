@@ -196,11 +196,11 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
     } as CorporateAccount;
   };
 
-  const getCorporateTransactions = async (corporateId: string) => {
+  const getCorporateTransactions = async (corporateId: string, accountType: SponsorAccountType = typeFilter || 'corporate') => {
     const { data: corpPatients } = await supabase
       .from('patients')
       .select('id, first_name, last_name')
-      .eq('account_type', 'corporate')
+      .eq('account_type', accountType)
       .eq('corporate_id', corporateId);
 
     if (!corpPatients || corpPatients.length === 0) return [];
@@ -221,11 +221,11 @@ export function useCorporateAccounts(typeFilter?: SponsorAccountType) {
     }));
   };
 
-  const getLinkedPatients = async (corporateId: string) => {
+  const getLinkedPatients = async (corporateId: string, accountType: SponsorAccountType = typeFilter || 'corporate') => {
     const { data, error } = await supabase
       .from('patients')
       .select('id, first_name, last_name, card_number, phone, balance, status')
-      .eq('account_type', 'corporate')
+      .eq('account_type', accountType)
       .eq('corporate_id', corporateId);
 
     if (error) {

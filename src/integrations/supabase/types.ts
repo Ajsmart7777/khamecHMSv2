@@ -638,39 +638,6 @@ export type Database = {
         }
         Relationships: []
       }
-      external_doctors: {
-        Row: {
-          created_at: string
-          id: string
-          name: string
-          phone: string | null
-          schedule_notes: string | null
-          specialty: string | null
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          name: string
-          phone?: string | null
-          schedule_notes?: string | null
-          specialty?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          name?: string
-          phone?: string | null
-          schedule_notes?: string | null
-          specialty?: string | null
-          status?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       insurance_claims: {
         Row: {
           approved_at: string | null
@@ -2267,8 +2234,6 @@ export type Database = {
           captured_by: string | null
           created_at: string
           expiry_date: string | null
-          external_doctor_id: string | null
-          external_doctor_name: string | null
           fulfilled_at: string | null
           fulfilled_by: string | null
           id: string
@@ -2285,8 +2250,6 @@ export type Database = {
           captured_by?: string | null
           created_at?: string
           expiry_date?: string | null
-          external_doctor_id?: string | null
-          external_doctor_name?: string | null
           fulfilled_at?: string | null
           fulfilled_by?: string | null
           id?: string
@@ -2303,8 +2266,6 @@ export type Database = {
           captured_by?: string | null
           created_at?: string
           expiry_date?: string | null
-          external_doctor_id?: string | null
-          external_doctor_name?: string | null
           fulfilled_at?: string | null
           fulfilled_by?: string | null
           id?: string
@@ -2318,13 +2279,6 @@ export type Database = {
           visit_id?: string | null
         }
         Relationships: [
-          {
-            foreignKeyName: "standing_orders_external_doctor_id_fkey"
-            columns: ["external_doctor_id"]
-            isOneToOne: false
-            referencedRelation: "external_doctors"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "standing_orders_patient_id_fkey"
             columns: ["patient_id"]

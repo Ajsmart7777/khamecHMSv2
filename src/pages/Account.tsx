@@ -3,7 +3,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { LayoutDashboard, Users, FileSpreadsheet, CreditCard, FileText, Building2, UserCheck, UserPlus, RefreshCw, DollarSign, Wallet } from 'lucide-react';
-import { Stethoscope, ClipboardList } from 'lucide-react';
+import { ClipboardList } from 'lucide-react';
 import { PricelistManager } from '@/components/account/PricelistManager';
 import { useStaff } from '@/hooks/useStaff';
 import { usePayrollPeriods, usePayrollEntries } from '@/hooks/usePayroll';
@@ -17,7 +17,6 @@ import { PaymentHistory } from '@/components/payroll/PaymentHistory';
 import { CorporateAccountsManager } from '@/components/payroll/CorporateAccountsManager';
 import { StaffHRManager } from '@/components/accounts/StaffHRManager';
 import { StaffRegistrationForm } from '@/components/accounts/StaffRegistrationForm';
-import { ExternalDoctorsManager } from '@/components/account/ExternalDoctorsManager';
 import { RetainerClaimsPanel } from '@/components/account/RetainerClaimsPanel';
 import { CorporateClaimsPanel } from '@/components/account/CorporateClaimsPanel';
 import { SponsorStatementsPanel } from '@/components/account/SponsorStatementsPanel';
@@ -140,9 +139,6 @@ const Account = () => {
           <TabsTrigger value="staff-deductions" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Wallet className="h-4 w-4" /> Staff Family Deductions
           </TabsTrigger>
-          <TabsTrigger value="external-doctors" className="flex items-center gap-1.5 text-xs sm:text-sm">
-            <Stethoscope className="h-4 w-4" /> External Doctors
-          </TabsTrigger>
           <TabsTrigger value="register" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <UserPlus className="h-4 w-4" /> Register Staff
           </TabsTrigger>
@@ -234,11 +230,6 @@ const Account = () => {
               <SponsorStatementsPanel accountType="retainer" />
             </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value="external-doctors">
-          <TabHeader title="External Doctors" onRefresh={() => {}} />
-          <ExternalDoctorsManager />
         </TabsContent>
 
         <TabsContent value="pricelist">

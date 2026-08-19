@@ -1423,48 +1423,10 @@ ALTER TABLE public.invoices
   ADD COLUMN IF NOT EXISTS sponsor_type text,
   ADD COLUMN IF NOT EXISTS corporate_account_id uuid REFERENCES public.corporate_accounts(id);
 
--- 4. External doctors
-CREATE TABLE IF NOT EXISTS public.external_doctors (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name text NOT NULL,
-  phone text,
-  specialty text,
-  schedule_notes text,
-  status text NOT NULL DEFAULT 'active',
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.external_doctors TO authenticated;
-GRANT ALL ON public.external_doctors TO service_role;
-
-ALTER TABLE public.external_doctors ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Staff can read external_doctors" ON public.external_doctors
-  FOR SELECT TO authenticated USING (is_authenticated_staff());
-
-CREATE POLICY "Receptionist and admin can insert external_doctors" ON public.external_doctors
-  FOR INSERT TO authenticated
-  WITH CHECK (has_any_role(auth.uid(), ARRAY['receptionist'::app_role, 'admin'::app_role]));
-
-CREATE POLICY "Receptionist and admin can update external_doctors" ON public.external_doctors
-  FOR UPDATE TO authenticated
-  USING (has_any_role(auth.uid(), ARRAY['receptionist'::app_role, 'admin'::app_role]));
-
-CREATE POLICY "Admin can delete external_doctors" ON public.external_doctors
-  FOR DELETE TO authenticated
-  USING (has_role(auth.uid(), 'admin'::app_role));
-
-CREATE TRIGGER update_external_doctors_updated_at
-  BEFORE UPDATE ON public.external_doctors
-  FOR EACH ROW EXECUTE FUNCTION public.update_patients_updated_at();
-
--- 5. Standing orders (prescriptions from external doctors, captured by receptionist)
+-- 4. Standing orders (prescriptions captured by receptionist)
 CREATE TABLE IF NOT EXISTS public.standing_orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   patient_id uuid NOT NULL REFERENCES public.patients(id) ON DELETE CASCADE,
-  external_doctor_id uuid REFERENCES public.external_doctors(id),
-  external_doctor_name text,
   photo_url text NOT NULL,
   notes text,
   status text NOT NULL DEFAULT 'pending_fulfillment',
@@ -2515,10 +2477,6 @@ CREATE TRIGGER lab_requests_autofill_visit BEFORE INSERT ON public.lab_requests
 
 DROP TRIGGER IF EXISTS vitals_autofill_visit ON public.vitals;
 CREATE TRIGGER vitals_autofill_visit BEFORE INSERT ON public.vitals
-  FOR EACH ROW EXECUTE FUNCTION public.autofill_visit_id();
-
-DROP TRIGGER IF EXISTS standing_orders_autofill_visit ON public.standing_orders;
-CREATE TRIGGER standing_orders_autofill_visit BEFORE INSERT ON public.standing_orders
   FOR EACH ROW EXECUTE FUNCTION public.autofill_visit_id();
 
 -- ---------------------------------------------------------------------------

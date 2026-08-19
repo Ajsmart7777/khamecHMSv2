@@ -106,10 +106,10 @@ export function CorporateAccountsManager({ accountType = 'corporate' }: { accoun
     setViewAccount(account);
     setLoadingPatients(true);
     setLoadingTransactions(true);
-    const patients = await getLinkedPatients(account.id);
+    const patients = await getLinkedPatients(account.id, account.account_type);
     setLinkedPatients(patients as LinkedPatient[]);
     setLoadingPatients(false);
-    const txns = await getCorporateTransactions(account.id);
+    const txns = await getCorporateTransactions(account.id, account.account_type);
     setTransactions(txns as CorporateTransaction[]);
     setLoadingTransactions(false);
   };

@@ -78,6 +78,9 @@ const SNAP_LABEL: Record<string, string> = {
   invoice_paid: 'Invoice · Paid',
   receipt_full: 'Receipt · Paid in Full',
   receipt_partial: 'Receipt · Part Payment',
+  wallet_credit: 'Wallet Credit',
+  wallet_debit: 'Wallet Deduction',
+  debt_recorded: 'Debt Recorded',
   admission: 'Admission',
   discharge: 'Discharge',
 };
@@ -145,6 +148,9 @@ const SUB_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   invoice_paid: FileText,
   receipt_full: Receipt,
   receipt_partial: Receipt,
+  wallet_credit: Wallet,
+  wallet_debit: ArrowDown,
+  debt_recorded: AlertTriangle,
   admission: BedDouble,
   discharge: LogOut,
 };
@@ -165,6 +171,9 @@ const SUB_TONE: Record<string, string> = {
   invoice_paid: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   receipt_full: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   receipt_partial: 'bg-amber-50 text-amber-700 border-amber-200',
+  wallet_credit: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  wallet_debit: 'bg-orange-50 text-orange-700 border-orange-200',
+  debt_recorded: 'bg-red-50 text-red-700 border-red-200',
   admission: 'bg-blue-50 text-blue-700 border-blue-200',
   discharge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 };
@@ -289,7 +298,7 @@ export function PatientLedgerCard({
     const visitIdForLedger = (visitId: string | null | undefined) =>
       visitId && visitIds.includes(visitId) ? visitId : fallbackVisitId;
 
-    const [vt, att, snaps, invs, adms, labReqs, prescriptions] = await Promise.all([
+    const [vt, att, snaps, invs, adms, labReqs, prescriptions, balanceTxs] = await Promise.all([
       visitIds.length
         ? supabase.from('vitals').select('*').in('visit_id', visitIds)
         : Promise.resolve({ data: [] as any[] }),
@@ -308,6 +317,9 @@ export function PatientLedgerCard({
       // Typed Pharmacy orders are stored in prescriptions and may also have a
       // linked snap_orders row. Read the source table as a resilient fallback.
       supabase.from('prescriptions').select('*, prescription_items(*)').eq('patient_id', patient.id),
+      // Wallet/debt/credit movements are separate from the cumulative invoice paid_amount.
+      // Load them so every financial movement is visible in the patient story.
+      supabase.from('balance_transactions').select('*').eq('patient_id', patient.id),
     ]);
 
     const byVisit = new Map<string, LedgerRow[]>();
@@ -506,6 +518,55 @@ export function PatientLedgerCard({
     });
 
 
+    // Balance transactions provide event-level financial history that invoices alone cannot show.
+    // A settlement can consume wallet credit, create debt, issue overpayment credit, or refund money
+    // while the invoice's paid_amount remains cumulative.
+    const invoiceById = new Map((invs.data ?? []).map((invoice: any) => [String(invoice.id), invoice]));
+    (balanceTxs.data ?? []).forEach((tx: any) => {
+      const delta = Number(tx.amount ?? 0);
+      const absoluteAmount = Math.abs(delta);
+      const transactionType = String(tx.transaction_type ?? '').toLowerCase();
+      const relatedInvoice = tx.related_invoice_id ? invoiceById.get(String(tx.related_invoice_id)) : null;
+      const invoiceRef = relatedInvoice?.invoice_number ?? tx.related_invoice_id ?? tx.id;
+      const positive = delta >= 0;
+      const title = transactionType === 'debt_incurred'
+        ? `Debt Recorded · ${naira(absoluteAmount)}`
+        : transactionType === 'overpayment_credit'
+        ? `Wallet Credit · ${naira(absoluteAmount)}`
+        : transactionType === 'topup'
+        ? `Wallet Top-up · ${naira(absoluteAmount)}`
+        : transactionType === 'refund'
+        ? `Refund to Wallet · ${naira(absoluteAmount)}`
+        : transactionType === 'admitted_deduction'
+        ? `Admitted Charge · ${naira(absoluteAmount)}`
+        : transactionType === 'invoice_deduction'
+        ? `Wallet Applied · ${naira(absoluteAmount)}`
+        : `Balance Update · ${naira(absoluteAmount)}`;
+      const subkind = transactionType === 'debt_incurred'
+        ? 'debt_recorded'
+        : positive ? 'wallet_credit' : 'wallet_debit';
+      const ledgerVisitId = relatedInvoice?.visit_id ?? fallbackVisitId;
+      push(ledgerVisitId, {
+        id: `balance-${tx.id}`,
+        visitId: ledgerVisitId ?? '',
+        at: tx.created_at ?? tx.updated_at ?? new Date().toISOString(),
+        kind: 'payment',
+        station: relatedInvoice ? 'cashier' : 'admin',
+        title,
+        actor: tx.performed_by ?? null,
+        data: {
+          ...tx,
+          amount: absoluteAmount,
+          delta,
+          direction: positive ? 'credit' : 'debit',
+          method: tx.payment_method,
+          ref: invoiceRef,
+          total: relatedInvoice?.total_amount,
+        },
+        subkind,
+      });
+    });
+
     (adms.data ?? []).forEach((a: any) => {
       const vid = a.visit_id ?? vs.find(v => v.status === 'open')?.id ?? vs[0]?.id ?? null;
       push(vid, {
@@ -564,6 +625,7 @@ export function PatientLedgerCard({
       .on('postgres_changes', { event: '*', schema: 'public', table: 'vitals', filter: patientFilter }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'visit_attachments', filter: patientFilter }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_items' }, () => bump())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'balance_transactions', filter: patientFilter }, bump)
       .subscribe();
     return () => {
       if (debounce) clearTimeout(debounce);
@@ -1042,7 +1104,20 @@ function LedgerRowView({
         {row.kind === 'invoice' && <InvoiceRow inv={row.data} patient={patient} />}
         {row.kind === 'payment' && (
           <div className="text-sm">
-            {row.data.method === 'sponsor_claim' ? (
+            {row.data.transaction_type ? (
+              <>
+                <span className={`font-bold font-mono ${Number(row.data.delta ?? 0) >= 0 ? 'text-emerald-600' : 'text-orange-600'}`}>
+                  {Number(row.data.delta ?? 0) >= 0 ? '+' : '-'}{naira(Math.abs(Number(row.data.delta ?? 0)))}
+                </span>{' '}
+                <span className="text-muted-foreground">
+                  {String(row.data.transaction_type).replace(/_/g, ' ')} · {row.data.ref}
+                  {row.data.balance_after != null ? ` · balance ${naira(Number(row.data.balance_after))}` : ''}
+                </span>
+                {row.data.notes && (
+                  <div className="mt-1 text-xs text-muted-foreground italic">{row.data.notes}</div>
+                )}
+              </>
+            ) : row.data.method === 'sponsor_claim' ? (
               <>
                 <span className="font-bold font-mono text-indigo-600">
                   Sponsor claim · {naira(row.data.amount)}

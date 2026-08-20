@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Camera, ScanText, Plus, Trash2, Send, XCircle, Loader2, Check, Pencil, SkipForward } from 'lucide-react';
+import { Camera, ScanText, Plus, Trash2, Send, XCircle, Loader2, Check, Pencil, SkipForward, FileText } from 'lucide-react';
 import Tesseract from 'tesseract.js';
 import { SnapOcrPanel } from './SnapOcrPanel';
 import { highlightMatch } from '@/lib/highlightMatch';
@@ -128,23 +128,35 @@ function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
     return () => { cancelled = true; };
   }, [snap.photo_path]);
 
-  // Live search as the user types (debounced), so "pan" matches "Panadol" instantly.
+  // Resolve canonical typed-order rows with flat Cockroach-compatible reads.
+  // The Snap itself already carries the clinician's original typed text in note,
+  // so the Billing card can show it immediately even while linked details load.
   useEffect(() => {
     if (!snap.ocr_text) return;
-    
+    let cancelled = false;
+
     const fetchLinked = async () => {
       if (snap.ocr_text?.startsWith('LINKED_PRESCRIPTION:')) {
-        const id = snap.ocr_text.split(':')[1];
-        const { data } = await supabase.from('prescriptions').select('*, prescription_items(*)').eq('id', id).single();
-        if (data) setLinkedPrescription(data);
+        const id = snap.ocr_text.slice('LINKED_PRESCRIPTION:'.length).trim();
+        const [prescriptionResult, itemsResult] = await Promise.all([
+          supabase.from('prescriptions').select('*').eq('id', id).maybeSingle(),
+          supabase.from('prescription_items').select('*').eq('prescription_id', id).order('created_at', { ascending: true }),
+        ]);
+        if (!cancelled && prescriptionResult.data) {
+          setLinkedPrescription({
+            ...prescriptionResult.data,
+            prescription_items: itemsResult.data ?? [],
+          });
+        }
       } else if (snap.ocr_text?.startsWith('LINKED_LAB_REQUEST:')) {
-        const id = snap.ocr_text.split(':')[1];
-        const { data } = await supabase.from('lab_requests').select('*').eq('id', id).single();
-        if (data) setLinkedLabRequest(data);
+        const id = snap.ocr_text.slice('LINKED_LAB_REQUEST:'.length).trim();
+        const { data } = await supabase.from('lab_requests').select('*').eq('id', id).maybeSingle();
+        if (!cancelled && data) setLinkedLabRequest(data);
       }
     };
-    
+
     fetchLinked();
+    return () => { cancelled = true; };
   }, [snap.ocr_text]);
 
   useEffect(() => {
@@ -349,6 +361,27 @@ function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
                 className="text-xs font-mono"
                 placeholder="OCR text will appear here"
               />
+            )}
+
+            {(snap.ocr_text?.startsWith('LINKED_PRESCRIPTION:') || snap.ocr_text?.startsWith('LINKED_LAB_REQUEST:')) && (
+              <div className="p-3 border-2 border-primary/20 rounded-lg bg-primary/5 space-y-2">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-primary" />
+                  <p className="text-xs font-bold text-primary uppercase tracking-wider">
+                    Original Typed Order
+                  </p>
+                  <Badge variant="outline" className="text-[10px]">{snap.order_type === 'lab' ? 'Lab test' : 'Prescription'}</Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  This is the exact text entered by the {snap.source_role || snap.original_sender_role || 'clinical'} staff member.
+                </p>
+                <div className="bg-background rounded border border-primary/20 p-3 text-sm whitespace-pre-wrap break-words font-mono">
+                  {snap.note?.trim()
+                    || linkedPrescription?.notes?.trim()
+                    || linkedLabRequest?.tests?.join('\n')
+                    || 'The typed order text is not present on this Snap.'}
+                </div>
+              </div>
             )}
 
             {linkedPrescription && (

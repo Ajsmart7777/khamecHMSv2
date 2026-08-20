@@ -39,6 +39,18 @@ const emptyStockLine = (): StockLine => ({ productId: '', quantity: '', costPric
 const emptyIssueLine = (): PharmacyIssueLine => ({ productId: '', quantity: '' });
 const money = (amount: number) => `₦${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const describeStoreError = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === 'object') {
+    const value = error as Record<string, unknown>;
+    const parts = [value.message, value.details, value.hint, value.code ? `Code: ${value.code}` : null]
+      .filter((part): part is string => typeof part === 'string' && part.trim().length > 0);
+    if (parts.length > 0) return parts.join(' — ');
+    try { return JSON.stringify(error); } catch { return 'An unexpected error occurred.'; }
+  }
+  return typeof error === 'string' && error.trim() ? error : 'An unexpected error occurred.';
+};
+
 export default function Store() {
   const {
     catalog,
@@ -119,7 +131,7 @@ export default function Store() {
       toast.success(`${selectedLocation?.name ?? 'Store'} Bin Card registered`);
       setRegistrationMedicineId('');
     } catch (error: unknown) {
-      toast.error('Could not register Bin Card', { description: error instanceof Error ? error.message : 'An unexpected error occurred.' });
+      toast.error('Could not register Bin Card', { description: describeStoreError(error) });
     } finally {
       setSaving(false);
     }
@@ -149,7 +161,7 @@ export default function Store() {
       setStockLine(emptyStockLine());
       setSupplierName('');
     } catch (error: unknown) {
-      toast.error('Could not record Stock', { description: error instanceof Error ? error.message : 'An unexpected error occurred.' });
+      toast.error('Could not record Stock', { description: describeStoreError(error) });
     } finally {
       setSaving(false);
     }
@@ -179,7 +191,7 @@ export default function Store() {
       toast.success('Pharmacy issue sent for acceptance', { description: 'Store balance will change only after Pharmacy accepts the transfer.' });
       setIssueLines([emptyIssueLine()]);
     } catch (error: unknown) {
-      toast.error('Could not send Pharmacy issue', { description: error instanceof Error ? error.message : 'An unexpected error occurred.' });
+      toast.error('Could not send Pharmacy issue', { description: describeStoreError(error) });
     } finally {
       setSaving(false);
     }

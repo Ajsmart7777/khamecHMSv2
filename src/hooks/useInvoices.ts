@@ -99,13 +99,15 @@ export function useInvoices() {
   }, [fetchInvoices]);
 
   const [isCreating, setIsCreating] = useState(false);
+  const createLockRef = useRef(false);
 
   const createInvoice = async (
     patientId: string,
     items: { description: string; quantity: number; unitPrice: number; category?: string }[],
     notes?: string
   ): Promise<Invoice | null> => {
-    if (isCreating) return null;
+    if (createLockRef.current || isCreating) return null;
+    createLockRef.current = true;
     setIsCreating(true);
     try {
       const totalAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
@@ -162,21 +164,27 @@ export function useInvoices() {
           category: item.category || 'general',
         }));
 
-        const { error: itemsError } = await (supabase as any)
+        const { data: createdItems, error: itemsError } = await (supabase as any)
           .from('invoice_items')
           .insert(itemsToInsert);
 
         if (itemsError) {
           logError('Error creating invoice items', itemsError);
         }
+
+        // The clone returns inserted rows directly; keep them available for
+        // the immediate local update instead of waiting for a full refetch.
+        setInvoices(prev => [{ ...invoice, items: (createdItems || []) as InvoiceItem[] }, ...prev.filter(i => i.id !== invoice.id)]);
+      } else {
+        setInvoices(prev => [{ ...invoice, items: [] }, ...prev.filter(i => i.id !== invoice.id)]);
       }
 
-      await fetchInvoices();
       return { ...invoice, items: [] };
     } catch (error) {
       logError('Error in createInvoice', error);
       return null;
     } finally {
+      createLockRef.current = false;
       setIsCreating(false);
     }
   };
@@ -208,7 +216,11 @@ export function useInvoices() {
         return false;
       }
 
-      await fetchInvoices();
+      // Reflect the confirmed write immediately. A later background refresh can
+      // reconcile any server-side trigger changes without delaying the action.
+      setInvoices(prev => prev.map(item => item.id === invoiceId
+        ? { ...item, paid_amount: newPaidAmount, status: newStatus, payment_method: paymentMethod, paid_at: newStatus === 'paid' ? new Date().toISOString() : null }
+        : item));
       return true;
     } catch (error) {
       logError('Error in recordPayment', error);

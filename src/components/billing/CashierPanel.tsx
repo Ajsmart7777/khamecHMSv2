@@ -27,7 +27,7 @@ import { paymentAuditLogger } from '@/lib/auditLogger';
 import { supabase } from '@/integrations/supabase/client';
 import { copayPercent, hasWallet, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
 import { PrintableReceiptDialog } from '@/components/receipts/PrintableReceiptDialog';
-import { nextStationForInvoice, workflowStationLabel } from '@/lib/workflowRouting';
+import { nextStationForInvoice } from '@/lib/workflowRouting';
 
 // Wallet-enabled accounts (walk-in cash + staff_family) can carry a shortfall
 // on their own balance. Sponsored/insured/staff settle via the sponsor.
@@ -81,7 +81,7 @@ async function settleInvoiceAtomic(params: {
 }
 
 export function CashierPanel() {
-  const { getPendingInvoices, refreshInvoices, invoices } = useInvoices();
+  const { getPendingInvoices, invoices } = useInvoices();
   const { patients, updatePatientStatus, refreshPatients, updatePatient } = usePatients() as any;
 
   const [query, setQuery] = useState('');
@@ -97,6 +97,7 @@ export function CashierPanel() {
   const [isSalaryDeduction, setIsSalaryDeduction] = useState(false);
   const [salaryDeductionAmount, setSalaryDeductionAmount] = useState('');
   const [busy, setBusy] = useState(false);
+  const [settledInvoiceIds, setSettledInvoiceIds] = useState<Set<string>>(new Set());
   const [confirmShortfall, setConfirmShortfall] = useState(false);
   const [receipt, setReceipt] = useState<{
     patient: any;
@@ -116,7 +117,7 @@ export function CashierPanel() {
     };
   } | null>(null);
 
-  const pending = getPendingInvoices();
+  const pending = getPendingInvoices().filter(invoice => !settledInvoiceIds.has(invoice.id));
   const [refundItem, setRefundItem] = useState<{ item: any; invoice: Invoice } | null>(null);
 
   const unavailableItems = useMemo(() => {
@@ -458,9 +459,16 @@ export function CashierPanel() {
         updatePatient(selected.patient_id, { balance: result.new_wallet_balance });
       }
 
-      await refreshInvoices();
+      // Remove the successfully settled invoice from this queue immediately.
+      // Audit logging and station routing remain guaranteed, but no longer delay
+      // the cashier’s success toast and receipt dialog.
+      setSettledInvoiceIds(prev => {
+        const next = new Set(prev);
+        next.add(selected.id);
+        return next;
+      });
 
-      await paymentAuditLogger('payment_received', selected.invoice_number, {
+      const auditPayload = {
         patient_id: selected.patient_id,
         patient_name: `${selectedPatient.first_name} ${selectedPatient.last_name}`,
         action: salDed > 0
@@ -481,15 +489,21 @@ export function CashierPanel() {
         covered_amount: sponsored ? Math.max(invoiceTotal - split.copayAmount, 0) : undefined,
         method,
         shortfall: sponsored ? 0 : shortfall,
-      });
+      };
 
-      // Route the patient to the correct next station based on what was billed
-      // (lab tests → back to Lab; meds/other → Pharmacy).
-      // If it's a custom bill (no linked snaps), nextStation will be null, and we do NOT update status.
-      const nextStation = await nextStationForInvoice(selected.id, selected.patient_id);
-      if (nextStation) {
-        await updatePatientStatus(selected.patient_id, nextStation);
-      }
+      void (async () => {
+        try {
+          await paymentAuditLogger('payment_received', selected.invoice_number, auditPayload);
+          // Route the patient to the correct next station after settlement. The
+          // atomic invoice write already succeeded, so this must not delay the
+          // user-facing payment confirmation.
+          const nextStation = await nextStationForInvoice(selected.id, selected.patient_id);
+          if (nextStation) await updatePatientStatus(selected.patient_id, nextStation);
+        } catch (backgroundError) {
+          console.error('Post-settlement audit/routing failed', backgroundError);
+        }
+      })();
+
       const resultingBalance = Number(
         result?.new_wallet_balance ?? (patientBalance - bal - (!sponsored && shortfall > 0 ? shortfall : 0) + (!sponsored ? overpay : 0)),
       );
@@ -515,7 +529,7 @@ export function CashierPanel() {
         : 'Payment recorded';
 
       toast.success(successMessage,
-        { description: `${selected.invoice_number} · ${parts.join(' + ')}${nextStation ? ` · routed to ${workflowStationLabel(nextStation)}` : ''}` }
+        { description: `${selected.invoice_number} · ${parts.join(' + ')}` }
       );
 
       // Open printable receipt with a clean breakdown.

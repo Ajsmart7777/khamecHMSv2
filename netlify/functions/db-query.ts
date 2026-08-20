@@ -39,9 +39,12 @@ function normalizeRpcValue(value: any): any {
 
     // Recover one escaped JSON layer when the payload is visibly an object or
     // array whose quotes were escaped before reaching this endpoint.
-    if (candidate.startsWith('{\\"') || candidate.startsWith('[{\\"') || candidate.includes('\\\\"')) {
+    if (candidate.startsWith('{\\"') || candidate.startsWith('[{\\"') || candidate.includes('\\"')) {
       try {
-        const unescaped = candidate.replace(/\\\\"/g, '"').replace(/\\\\\\\\/g, '\\\\');
+        // A few callers historically double-escaped JSONB before it reached
+        // this compatibility gateway (e.g. {\\"medication\\":\\"Panadol\\"}).
+        // Remove only JSON quote escapes, then decode the recovered object.
+        const unescaped = candidate.replace(/\\"/g, '"');
         const parsed = JSON.parse(unescaped);
         current = parsed;
         continue;
@@ -208,7 +211,15 @@ export const handler: Handler = async (event) => {
       };
       const casts = rpcCastSignatures[rpc] || [];
       const paramPlaceholders = paramKeys.map((_, idx) => `$${idx + 1}${casts[idx] ? `::${casts[idx]}` : ''}`).join(', ');
-      const paramValues = paramKeys.map(key => normalizeRpcValue(args[key]));
+      const paramValues = paramKeys.map((key, index) => {
+        const normalized = normalizeRpcValue(args[key]);
+        // node-postgres treats JavaScript arrays as SQL arrays. Typed
+        // prescription RPCs expect _items as JSONB, so always pass JSON text
+        // for RPC parameters declared as jsonb.
+        return casts[index] === 'jsonb' && normalized !== null && typeof normalized === 'object'
+          ? JSON.stringify(normalized)
+          : normalized;
+      });
       assertIdentifier(rpc, 'RPC name');
       const setReturningRpcs = new Set([
         'get_store_bin_cards',

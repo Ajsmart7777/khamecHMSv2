@@ -24,12 +24,16 @@ export function TypedPrescriptionEditor({
   const [text, setText] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const submitLockRef = useRef(false);
 
   const handleSubmit = async () => {
+    if (submitLockRef.current || loading || submitted) return;
     if (!text.trim()) {
       return toast.error('Prescription text is required');
     }
 
+    submitLockRef.current = true;
     setLoading(true);
     try {
       // The active-visit hook can still be loading when the typed editor opens.
@@ -52,9 +56,12 @@ export function TypedPrescriptionEditor({
           quantity: 1
         }]
       });
+      setSubmitted(true);
       toast.success('Prescription created');
       onSuccess?.(id);
     } catch (err: any) {
+      submitLockRef.current = false;
+      setSubmitted(false);
       toast.error(err.message || 'Failed to create prescription');
     } finally {
       setLoading(false);
@@ -94,9 +101,9 @@ export function TypedPrescriptionEditor({
             Cancel
           </Button>
         )}
-        <Button onClick={handleSubmit} disabled={loading} className="min-w-[120px]">
+        <Button onClick={handleSubmit} disabled={loading || submitted} className="min-w-[120px]">
           {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Pill className="h-4 w-4 mr-2" />}
-          Submit Prescription
+          {submitted ? 'Prescription Sent' : 'Submit Prescription'}
         </Button>
       </div>
     </div>

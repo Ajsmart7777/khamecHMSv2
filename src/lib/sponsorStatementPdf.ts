@@ -42,10 +42,6 @@ interface CorporateManualStatementItem {
   notes: string | null;
 }
 
-interface CorporateManualStatementRelationRow {
-  manual: CorporateManualStatementItem | null;
-}
-
 type SponsorStatementReportItem = SponsorStatementItem & {
   service_breakdown: SponsorServiceBreakdown;
 };
@@ -53,12 +49,19 @@ type SponsorStatementReportItem = SponsorStatementItem & {
 async function fetchItems(statementId: string): Promise<SponsorStatementReportItem[]> {
   const { data, error } = await supabase
     .from('sponsor_statement_items')
-    .select('*, patient:patients(first_name,last_name,card_number), invoice:invoices(invoice_number,total_amount)')
+    .select('*')
     .eq('statement_id', statementId)
     .order('service_date', { ascending: true });
   if (error || !data) return [];
-
-  const invoiceIds = data.map(item => item.invoice_id).filter(Boolean);
+  const rows = data as unknown as Record<string, unknown>[];
+  const patientIds = [...new Set(rows.map(row => String(row.patient_id || '')).filter(Boolean))];
+  const invoiceIds = [...new Set(rows.map(row => String(row.invoice_id || '')).filter(Boolean))];
+  const [{ data: patients }, { data: invoices }] = await Promise.all([
+    patientIds.length ? supabase.from('patients').select('id, first_name, last_name, card_number').in('id', patientIds) : Promise.resolve({ data: [] as any[] }),
+    invoiceIds.length ? supabase.from('invoices').select('id, invoice_number, total_amount').in('id', invoiceIds) : Promise.resolve({ data: [] as any[] }),
+  ]);
+  const patientById = new Map((patients || []).map((patient: any) => [String(patient.id), patient]));
+  const invoiceById = new Map((invoices || []).map((invoice: any) => [String(invoice.id), invoice]));
   const { data: invoiceItems } = invoiceIds.length
     ? await supabase.from('invoice_items').select('invoice_id,description,category,total').in('invoice_id', invoiceIds)
     : { data: [] };
@@ -71,25 +74,30 @@ async function fetchItems(statementId: string): Promise<SponsorStatementReportIt
     });
   });
 
-  return (data as unknown as SponsorStatementItem[]).map(item => ({
-    ...item,
-    amount: Number(item.amount),
-    service_breakdown: breakdownSponsorInvoice(itemsByInvoice[item.invoice_id] || [], item.amount),
+  return rows.map(row => ({
+    ...(row as unknown as SponsorStatementItem),
+    amount: Number(row.amount || 0),
+    patient: patientById.get(String(row.patient_id || '')) || null,
+    invoice: invoiceById.get(String(row.invoice_id || '')) || null,
+    service_breakdown: breakdownSponsorInvoice(itemsByInvoice[String(row.invoice_id || '')] || [], Number(row.amount || 0)),
   }));
 }
 
 async function fetchManualItems(statementId: string): Promise<CorporateManualStatementItem[]> {
-  // This legacy relation is not present in the generated Supabase type map.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any)
+  const { data: links, error: linkError } = await supabase
     .from('corporate_statement_manual_items')
-    .select('manual:corporate_manual_service_rows(id,patient_name,service_description,service_date,amount,notes)')
+    .select('manual_service_id')
     .eq('statement_id', statementId);
+  if (linkError || !links?.length) return [];
+  const manualIds = links.map((link: any) => link.manual_service_id).filter(Boolean);
+  const { data, error } = await supabase
+    .from('corporate_manual_service_rows')
+    .select('id,patient_name,service_description,service_date,amount,notes')
+    .in('id', manualIds);
   if (error) return [];
-  return (data as unknown as CorporateManualStatementRelationRow[] || []).flatMap(row => {
-    const manual = row.manual;
-    return manual ? [{ ...manual, amount: Number(manual.amount) }] : [];
-  }).sort((a, b) => a.service_date.localeCompare(b.service_date));
+  return ((data || []) as unknown as CorporateManualStatementItem[])
+    .map(item => ({ ...item, amount: Number(item.amount) }))
+    .sort((a, b) => a.service_date.localeCompare(b.service_date));
 }
 
 function categoryCell(value: number) {

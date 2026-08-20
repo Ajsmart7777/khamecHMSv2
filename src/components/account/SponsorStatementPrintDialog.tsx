@@ -58,16 +58,16 @@ export function SponsorStatementPrintDialog({ statement, open, onOpenChange, onP
       setLoading(true);
       void Promise.all([
         getItems(statement.id),
-        (supabase as any)
-          .from('corporate_statement_manual_items')
-          .select('manual:corporate_manual_service_rows(id,patient_name,service_description,service_date,amount,notes)')
-          .eq('statement_id', statement.id),
-      ]).then(([statementItems, manualResponse]: [any, any]) => {
+        supabase.from('corporate_statement_manual_items').select('manual_service_id').eq('statement_id', statement.id),
+      ]).then(async ([statementItems, linkResponse]) => {
         setItems(statementItems);
-        const manual = (manualResponse.data || []).flatMap(row => {
-          const item = row.manual as unknown as ManualStatementItem | null;
-          return item ? [{ ...item, amount: Number(item.amount) }] : [];
-        }).sort((a, b) => a.service_date.localeCompare(b.service_date));
+        const manualIds = ((linkResponse.data || []) as any[]).map(row => row.manual_service_id).filter(Boolean);
+        const manualResponse = manualIds.length
+          ? await supabase.from('corporate_manual_service_rows').select('id,patient_name,service_description,service_date,amount,notes').in('id', manualIds)
+          : { data: [] as any[] };
+        const manual = ((manualResponse.data || []) as unknown as ManualStatementItem[])
+          .map(item => ({ ...item, amount: Number(item.amount) }))
+          .sort((a, b) => a.service_date.localeCompare(b.service_date));
         setManualItems(manual);
       }).finally(() => setLoading(false));
     }

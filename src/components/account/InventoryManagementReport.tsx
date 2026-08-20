@@ -11,7 +11,8 @@ interface MovementRow {
   quantity: number;
   created_at: string;
   note: string | null;
-  inventory_products?: { pricelist?: { name: string; size: string | null } | null } | null;
+  medicine_name: string | null;
+  size: string | null;
   from_location?: { name: string } | null;
   to_location?: { name: string } | null;
 }
@@ -45,18 +46,41 @@ export function InventoryManagementReport() {
   const loadMovements = async () => {
     setMovementLoading(true);
     try {
-      const { data } = await (supabase as any)
-        .from('stock_movements')
-        .select('id,movement_type,quantity,created_at,note,inventory_products(pricelist(name,size)),from_location:inventory_locations!stock_movements_from_location_id_fkey(name),to_location:inventory_locations!stock_movements_to_location_id_fkey(name)')
-        .order('created_at', { ascending: false })
-        .limit(100);
-      setMovements((data ?? []).map((row: any) => ({
-        ...row,
-        quantity: Number(row.quantity ?? 0),
-        inventory_products: Array.isArray(row.inventory_products) ? row.inventory_products[0] : row.inventory_products,
-        from_location: Array.isArray(row.from_location) ? row.from_location[0] : row.from_location,
-        to_location: Array.isArray(row.to_location) ? row.to_location[0] : row.to_location,
-      })));
+      const [{ data: movementRows, error: movementError }, { data: catalogRows, error: catalogError }, { data: locationRows, error: locationError }] = await Promise.all([
+        (supabase as any).from('stock_movements').select('id,movement_type,product_id,location_id,transfer_id,quantity_delta,created_at,reason').order('created_at', { ascending: false }).limit(100),
+        (supabase as any).rpc('get_inventory_catalog'),
+        (supabase as any).from('inventory_locations').select('id,name,code'),
+      ]);
+      if (movementError) throw movementError;
+      if (catalogError) throw catalogError;
+      if (locationError) throw locationError;
+      const rows = (movementRows ?? []) as any[];
+      const transferIds = [...new Set(rows.map(row => row.transfer_id).filter(Boolean))];
+      const { data: transferRows, error: transferError } = transferIds.length
+        ? await (supabase as any).from('stock_transfers').select('id,from_location_id,to_location_id').in('id', transferIds)
+        : { data: [], error: null };
+      if (transferError) throw transferError;
+      const productsById = new Map((catalogRows ?? []).map((row: any) => [String(row.product_id), row]));
+      const locationsById = new Map((locationRows ?? []).map((row: any) => [String(row.id), row]));
+      const transfersById = new Map((transferRows ?? []).map((row: any) => [String(row.id), row]));
+      setMovements(rows.map((row: any) => {
+        const product = productsById.get(String(row.product_id));
+        const transfer = row.transfer_id ? transfersById.get(String(row.transfer_id)) : null;
+        const movementLocation = locationsById.get(String(row.location_id));
+        const fromLocation = transfer ? locationsById.get(String(transfer.from_location_id)) : movementLocation;
+        const toLocation = transfer ? locationsById.get(String(transfer.to_location_id)) : null;
+        return {
+          id: String(row.id),
+          movement_type: String(row.movement_type),
+          quantity: Math.abs(Number(row.quantity_delta ?? 0)),
+          created_at: String(row.created_at),
+          note: row.reason ?? null,
+          medicine_name: product?.medicine_name ?? null,
+          size: product?.size ?? null,
+          from_location: fromLocation ? { name: String(fromLocation.name) } : null,
+          to_location: toLocation ? { name: String(toLocation.name) } : null,
+        };
+      }));
     } finally { setMovementLoading(false); }
   };
 
@@ -78,7 +102,7 @@ export function InventoryManagementReport() {
     {pharmacyLow.length > 0 && <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4"><div className="mb-3 flex gap-2"><AlertTriangle className="h-5 w-5 text-destructive" /><div><h3 className="font-semibold text-destructive">Pharmacy low-stock attention</h3><p className="text-sm text-muted-foreground">These stock-controlled medicines are at or below their configured minimum.</p></div></div><div className="flex flex-wrap gap-2">{pharmacyLow.map(item => <Badge key={item.product_id} variant="outline" className="border-destructive/30 bg-background text-destructive">{item.medicine_name}: {item.quantity_on_hand} / min {item.minimum_level}</Badge>)}</div></div>}
 
     <div className="grid gap-5 xl:grid-cols-2"><div className="overflow-x-auto rounded-xl border bg-card"><div className="border-b p-4"><h3 className="font-semibold">Pharmacy availability</h3></div><table className="w-full min-w-[560px] text-sm"><thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">Medicine</th><th className="p-3 text-right">Available</th><th className="p-3 text-right">Minimum</th></tr></thead><tbody>{pharmacyStock.map(item => <tr key={item.product_id} className="border-t"><td className="p-3 font-medium">{item.medicine_name} <span className="font-normal text-muted-foreground">{item.size ?? ''}</span></td><td className="p-3 text-right">{item.quantity_on_hand.toLocaleString()} {item.unit_label}</td><td className="p-3 text-right">{item.minimum_level}</td></tr>)}{!loading && pharmacyStock.length === 0 && <tr><td colSpan={3} className="p-7 text-center text-muted-foreground">No Pharmacy opening count or Store transfer has been confirmed.</td></tr>}</tbody></table></div>
-      <div className="overflow-x-auto rounded-xl border bg-card"><div className="border-b p-4"><h3 className="font-semibold">Recent controlled movement</h3></div><table className="w-full min-w-[620px] text-sm"><thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">When</th><th className="p-3">Medicine</th><th className="p-3">Action</th><th className="p-3 text-right">Quantity</th><th className="p-3">Route</th></tr></thead><tbody>{movements.map(movement => <tr key={movement.id} className="border-t"><td className="p-3 text-xs">{new Date(movement.created_at).toLocaleString()}</td><td className="p-3 font-medium">{movement.inventory_products?.pricelist?.name ?? 'Unknown product'}</td><td className="p-3"><Badge variant="outline">{movementLabel[movement.movement_type] ?? movement.movement_type}</Badge></td><td className="p-3 text-right">{movement.quantity.toLocaleString()}</td><td className="p-3 text-xs text-muted-foreground">{movement.from_location?.name ?? '—'} <ArrowRightLeft className="mx-1 inline h-3 w-3" /> {movement.to_location?.name ?? '—'}</td></tr>)}{!movementLoading && movements.length === 0 && <tr><td colSpan={5} className="p-7 text-center text-muted-foreground">No controlled inventory movement has been recorded yet.</td></tr>}</tbody></table></div></div>
+      <div className="overflow-x-auto rounded-xl border bg-card"><div className="border-b p-4"><h3 className="font-semibold">Recent controlled movement</h3></div><table className="w-full min-w-[620px] text-sm"><thead className="bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground"><tr><th className="p-3">When</th><th className="p-3">Medicine</th><th className="p-3">Action</th><th className="p-3 text-right">Quantity</th><th className="p-3">Route</th></tr></thead><tbody>{movements.map(movement => <tr key={movement.id} className="border-t"><td className="p-3 text-xs">{new Date(movement.created_at).toLocaleString()}</td><td className="p-3 font-medium">{movement.medicine_name ?? 'Unknown product'} {movement.size ?? ''}</td><td className="p-3"><Badge variant="outline">{movementLabel[movement.movement_type] ?? movement.movement_type}</Badge></td><td className="p-3 text-right">{movement.quantity.toLocaleString()}</td><td className="p-3 text-xs text-muted-foreground">{movement.from_location?.name ?? '—'} <ArrowRightLeft className="mx-1 inline h-3 w-3" /> {movement.to_location?.name ?? '—'}</td></tr>)}{!movementLoading && movements.length === 0 && <tr><td colSpan={5} className="p-7 text-center text-muted-foreground">No controlled inventory movement has been recorded yet.</td></tr>}</tbody></table></div></div>
   </section>;
 }
 

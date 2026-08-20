@@ -427,16 +427,27 @@ export function CorporateClaimsPanel() {
     }
     setBusy(sponsorId);
     try {
-      const [{ data: reconciliation, error: reconciliationError }, { data: invoiceItems, error: itemsError }] = await Promise.all([
+      const [{ data: reconciliation, error: reconciliationError }, { data: invoiceRows, error: itemsError }] = await Promise.all([
         (supabase as any).rpc('get_corporate_covering_letter_data', { _sponsor_id: sponsorId, _as_of_year: year, _as_of_month: month }),
         supabase
           .from('sponsor_statement_items')
-          .select('service_date, amount, patient:patients(first_name,last_name,card_number), invoice:invoices(invoice_number)')
+          .select('service_date, amount, patient_id, invoice_id')
           .eq('statement_id', statement.id)
           .order('service_date', { ascending: true }),
       ]);
       if (reconciliationError) throw reconciliationError;
       if (itemsError) throw itemsError;
+      const flatInvoiceRows = (invoiceRows || []) as unknown as Record<string, unknown>[];
+      const patientIds = [...new Set(flatInvoiceRows.map(row => String(row.patient_id || '')).filter(Boolean))];
+      const invoiceIds = [...new Set(flatInvoiceRows.map(row => String(row.invoice_id || '')).filter(Boolean))];
+      const [{ data: patients, error: patientsError }, { data: invoices, error: invoicesError }] = await Promise.all([
+        patientIds.length ? supabase.from('patients').select('id, first_name, last_name, card_number').in('id', patientIds) : Promise.resolve({ data: [] as any[], error: null }),
+        invoiceIds.length ? supabase.from('invoices').select('id, invoice_number').in('id', invoiceIds) : Promise.resolve({ data: [] as any[], error: null }),
+      ]);
+      if (patientsError) throw patientsError;
+      if (invoicesError) throw invoicesError;
+      const patientById = new Map((patients || []).map((patient: any) => [String(patient.id), patient]));
+      const invoiceById = new Map((invoices || []).map((invoice: any) => [String(invoice.id), invoice]));
 
       const raw = reconciliation as unknown as {
         sponsor: CorporateCoveringLetterData['sponsor'];
@@ -445,19 +456,15 @@ export function CorporateClaimsPanel() {
         current_manual_services: CorporateCoveringLetterManualService[];
         summary: CorporateCoveringLetterData['summary'];
       };
-      const currentInvoiceItems: CorporateCoveringLetterInvoiceLine[] = (invoiceItems || []).map(item => {
-        const row = item as unknown as {
-          service_date: string;
-          amount: number;
-          patient: { first_name: string; last_name: string | null; card_number: string | null } | null;
-          invoice: { invoice_number: string } | null;
-        };
+      const currentInvoiceItems: CorporateCoveringLetterInvoiceLine[] = flatInvoiceRows.map(row => {
+        const patient = patientById.get(String(row.patient_id || ''));
+        const invoice = invoiceById.get(String(row.invoice_id || ''));
         return {
-          service_date: row.service_date,
-          amount: Number(row.amount),
-          patient_name: `${row.patient?.first_name || ''} ${row.patient?.last_name || ''}`.trim() || 'Registered patient',
-          card_number: row.patient?.card_number,
-          invoice_number: row.invoice?.invoice_number,
+          service_date: String(row.service_date),
+          amount: Number(row.amount || 0),
+          patient_name: `${patient?.first_name || ''} ${patient?.last_name || ''}`.trim() || 'Registered patient',
+          card_number: patient?.card_number ?? null,
+          invoice_number: invoice?.invoice_number ?? null,
         };
       });
 

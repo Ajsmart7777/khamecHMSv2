@@ -214,6 +214,14 @@ export const handler: Handler = async (event) => {
         dispense_inventory_invoice_item: ['uuid'],
         settle_invoice_atomic: ['uuid', 'numeric', 'numeric', 'numeric', 'text', 'text', 'boolean', 'boolean'],
         finalize_referral: ['uuid', 'text'],
+        request_admission: ['uuid', 'text', 'text', 'text', 'uuid'],
+        assign_admission_bed: ['uuid', 'uuid'],
+        send_admission_to_cashier: ['uuid', 'text'],
+        discharge_admission: ['uuid', 'text', 'text', 'numeric', 'text', 'numeric'],
+        discharge_admission_atomic: ['uuid', 'text', 'text', 'numeric', 'text', 'numeric'],
+        advance_journey: ['uuid', 'text', 'text', 'uuid', 'text', 'text', 'uuid', 'text'],
+        open_visit_for_patient: ['uuid', 'text', 'boolean', 'text'],
+        calculate_payroll_deductions: ['uuid', 'date', 'date'],
       };
       const casts = rpcCastSignatures[rpc] || [];
       const paramPlaceholders = paramKeys.map((_, idx) => `$${idx + 1}${casts[idx] ? `::${casts[idx]}` : ''}`).join(', ');

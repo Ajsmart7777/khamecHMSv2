@@ -46,7 +46,7 @@ export function PaymentHistory({ periods }: Props) {
       setLoading(true);
       const { data, error } = await supabase
         .from('payroll_payments')
-        .select('*, staff!inner(first_name, last_name, employee_id)')
+        .select('*')
         .eq('payroll_period_id', selectedPeriodId)
         .order('created_at', { ascending: false });
 
@@ -54,8 +54,15 @@ export function PaymentHistory({ periods }: Props) {
         console.error('Error fetching payment history:', error);
         setPayments([]);
       } else {
-        setPayments((data || []).map((p: Record<string, unknown>) => {
-          const staff = p.staff as Record<string, unknown>;
+        const rows = (data || []) as unknown as Record<string, unknown>[];
+        const staffIds = [...new Set(rows.map(row => String(row.staff_id || '')).filter(Boolean))];
+        const { data: staffRows, error: staffError } = staffIds.length
+          ? await supabase.from('staff').select('id, first_name, last_name, employee_id').in('id', staffIds)
+          : { data: [], error: null };
+        if (staffError) console.error('Error fetching payment staff:', staffError);
+        const staffById = new Map((staffRows || []).map((staff: any) => [String(staff.id), staff]));
+        setPayments(rows.map(p => {
+          const staff = staffById.get(String(p.staff_id || '')) || {};
           return {
             id: p.id as string,
             amount: Number(p.amount),
@@ -66,8 +73,8 @@ export function PaymentHistory({ periods }: Props) {
             failure_reason: p.failure_reason as string | null,
             paid_at: p.paid_at as string | null,
             created_at: p.created_at as string,
-            staff_name: `${staff.first_name} ${staff.last_name}`,
-            staff_employee_id: staff.employee_id as string,
+            staff_name: `${staff.first_name || ''} ${staff.last_name || ''}`.trim() || 'Unknown staff',
+            staff_employee_id: staff.employee_id as string || '—',
           };
         }));
       }

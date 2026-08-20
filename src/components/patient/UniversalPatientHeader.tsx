@@ -128,7 +128,7 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
           .maybeSingle(),
         supabase
           .from('admissions')
-          .select('id, bed_id, beds(bed_label, rooms(room_number, wards(name)))')
+          .select('id, bed_id')
           .eq('patient_id', patient.id)
           .eq('status', 'active')
           .maybeSingle(),
@@ -137,7 +137,24 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
       if (visitError) console.error('Failed to load patient visit header data', visitError);
       if (admissionError) console.error('Failed to load patient admission header data', admissionError);
       setVisit((v as any) ?? null);
-      setAdmission((a as any) ?? null);
+      let admissionWithLocation: AdmissionRow | null = (a as any) ?? null;
+      if (admissionWithLocation?.bed_id) {
+        const { data: bed } = await supabase.from('beds').select('id, bed_label, room_id').eq('id', admissionWithLocation.bed_id).maybeSingle();
+        if (bed?.room_id) {
+          const { data: room } = await supabase.from('rooms').select('id, room_number, ward_id').eq('id', bed.room_id).maybeSingle();
+          const { data: ward } = room?.ward_id
+            ? await supabase.from('wards').select('id, name').eq('id', room.ward_id).maybeSingle()
+            : { data: null };
+          admissionWithLocation = {
+            ...admissionWithLocation,
+            beds: {
+              bed_label: bed.bed_label ?? null,
+              rooms: room ? { room_number: room.room_number ?? null, wards: ward ? { name: ward.name ?? null } : null } : null,
+            },
+          };
+        }
+      }
+      setAdmission(admissionWithLocation);
 
       if (patient.corporate_id) {
         const { data: c } = await supabase

@@ -42,7 +42,7 @@ export function useSponsorStatements(sponsorType?: 'corporate' | 'retainer') {
     setLoading(true);
     let q = supabase
       .from('sponsor_statements')
-      .select('*, sponsor:corporate_accounts(company_name,contact_person,email,phone,address)')
+      .select('*')
       .order('period_year', { ascending: false })
       .order('period_month', { ascending: false });
     if (sponsorType) q = q.eq('sponsor_type', sponsorType);
@@ -51,11 +51,18 @@ export function useSponsorStatements(sponsorType?: 'corporate' | 'retainer') {
       console.error('fetch statements error', error);
       setStatements([]);
     } else {
-      setStatements((data || []).map(s => ({
-        ...s,
-        total_amount: Number((s as any).total_amount),
-        manual_service_count: Number((s as any).manual_service_count || 0),
-      })) as any as SponsorStatement[]);
+      const rows = (data || []) as unknown as Record<string, unknown>[];
+      const sponsorIds = [...new Set(rows.map(row => String(row.sponsor_id || '')).filter(Boolean))];
+      const { data: sponsors } = sponsorIds.length
+        ? await supabase.from('corporate_accounts').select('id, company_name, contact_person, email, phone, address').in('id', sponsorIds)
+        : { data: [] };
+      const sponsorById = new Map((sponsors || []).map((sponsor: any) => [String(sponsor.id), sponsor]));
+      setStatements(rows.map(row => ({
+        ...row,
+        total_amount: Number(row.total_amount || 0),
+        manual_service_count: Number(row.manual_service_count || 0),
+        sponsor: sponsorById.get(String(row.sponsor_id || '')) || null,
+      })) as unknown as SponsorStatement[]);
     }
     setLoading(false);
   }, [sponsorType]);
@@ -105,11 +112,25 @@ export function useSponsorStatements(sponsorType?: 'corporate' | 'retainer') {
   const getItems = async (statementId: string): Promise<SponsorStatementItem[]> => {
     const { data, error } = await supabase
       .from('sponsor_statement_items')
-      .select('*, patient:patients(first_name,last_name,card_number), invoice:invoices(invoice_number,total_amount)')
+      .select('*')
       .eq('statement_id', statementId)
       .order('service_date', { ascending: true });
     if (error) return [];
-    return (data || []).map(i => ({ ...i, amount: Number(i.amount) })) as unknown as SponsorStatementItem[];
+    const rows = (data || []) as unknown as Record<string, unknown>[];
+    const patientIds = [...new Set(rows.map(row => String(row.patient_id || '')).filter(Boolean))];
+    const invoiceIds = [...new Set(rows.map(row => String(row.invoice_id || '')).filter(Boolean))];
+    const [{ data: patients }, { data: invoices }] = await Promise.all([
+      patientIds.length ? supabase.from('patients').select('id, first_name, last_name, card_number').in('id', patientIds) : Promise.resolve({ data: [] as any[] }),
+      invoiceIds.length ? supabase.from('invoices').select('id, invoice_number, total_amount').in('id', invoiceIds) : Promise.resolve({ data: [] as any[] }),
+    ]);
+    const patientById = new Map((patients || []).map((patient: any) => [String(patient.id), patient]));
+    const invoiceById = new Map((invoices || []).map((invoice: any) => [String(invoice.id), invoice]));
+    return rows.map(row => ({
+      ...row,
+      amount: Number(row.amount || 0),
+      patient: patientById.get(String(row.patient_id || '')) || null,
+      invoice: invoiceById.get(String(row.invoice_id || '')) || null,
+    })) as unknown as SponsorStatementItem[];
   };
 
   return { statements, loading, fetchStatements, generateForSponsor, generateAll, updateStatus, getItems };

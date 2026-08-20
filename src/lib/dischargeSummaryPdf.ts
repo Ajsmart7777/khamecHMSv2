@@ -23,12 +23,26 @@ async function fetchVitals(patientId: string, visitId: string) {
   return (data ?? []) as any[];
 }
 async function fetchPrescriptions(visitId: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('prescriptions')
-    .select('*, items:prescription_items(*)')
+    .select('*')
     .eq('visit_id', visitId)
     .order('created_at', { ascending: true });
-  return (data ?? []) as any[];
+  if (error || !data) return [];
+  const prescriptions = data as any[];
+  const prescriptionIds = prescriptions.map(row => row.id).filter(Boolean);
+  const { data: itemRows } = prescriptionIds.length
+    ? await supabase.from('prescription_items').select('*').in('prescription_id', prescriptionIds)
+    : { data: [] };
+  const itemsByPrescription = new Map<string, any[]>();
+  for (const item of itemRows || []) {
+    const key = String((item as any).prescription_id || '');
+    itemsByPrescription.set(key, [...(itemsByPrescription.get(key) || []), item]);
+  }
+  return prescriptions.map(prescription => ({
+    ...prescription,
+    items: itemsByPrescription.get(String(prescription.id)) || [],
+  }));
 }
 async function fetchLabs(visitId: string) {
   const { data } = await supabase

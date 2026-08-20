@@ -208,7 +208,7 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
         net_pay: netPay,
         status: 'pending',
       })
-      .select('*, staff!inner(first_name, last_name, employee_id, designation, bank_name, account_number, payment_method)')
+      .select('*')
       .single();
 
     if (error) {
@@ -412,13 +412,7 @@ export function useMedicalDeductionDetails(staffId: string | null, month: number
 
     const { data, error } = await supabase
       .from('invoices')
-      .select(`
-        id,
-        invoice_number,
-        paid_amount,
-        paid_at,
-        patient:patient_id (first_name, last_name)
-      `)
+      .select('id, invoice_number, paid_amount, paid_at, patient_id')
       .eq('staff_sponsor_id', staffId)
       .eq('is_salary_deduction', true)
       .eq('status', 'paid')
@@ -430,7 +424,16 @@ export function useMedicalDeductionDetails(staffId: string | null, month: number
       console.error('Error fetching medical deduction details:', error);
       toast({ title: 'Error', description: 'Could not fetch bill details.', variant: 'destructive' });
     } else {
-      setDetails(data || []);
+      const rows = (data || []) as unknown as Record<string, unknown>[];
+      const patientIds = [...new Set(rows.map(row => String(row.patient_id || '')).filter(Boolean))];
+      const { data: patients } = patientIds.length
+        ? await supabase.from('patients').select('id, first_name, last_name').in('id', patientIds)
+        : { data: [] };
+      const patientById = new Map((patients || []).map((patient: any) => [String(patient.id), patient]));
+      setDetails(rows.map(row => ({
+        ...row,
+        patient: patientById.get(String(row.patient_id || '')) || null,
+      })));
     }
     setLoading(false);
   }, [staffId, month, year]);

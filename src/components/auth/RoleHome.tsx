@@ -9,7 +9,7 @@ const roleHomePath: Record<Exclude<AppRole, 'admin'>, string> = {
   doctor2: '/doctor?as=doctor2',
   lab_tech: '/lab',
   billing: '/billing',
-  cashier: '/cashier',
+  cashier: '/reception',
   pharmacist: '/pharmacy',
   store: '/store',
   accountant: '/account',

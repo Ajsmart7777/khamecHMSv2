@@ -52,7 +52,6 @@ const roleOptions: { value: AppRole; label: string }[] = [
   { value: 'pharmacist', label: 'Pharmacist' },
   { value: 'store', label: 'Store' },
   { value: 'billing', label: 'Billing' },
-  { value: 'cashier', label: 'Cashier' },
   { value: 'claims_manager', label: 'Claims Manager' },
   { value: 'accountant', label: 'Accountant' },
   

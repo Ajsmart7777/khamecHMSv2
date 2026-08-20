@@ -78,7 +78,7 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="/cashier" element={
-                  <ProtectedRoute allowedRoles={['cashier', 'admin']}>
+                  <ProtectedRoute allowedRoles={['receptionist', 'cashier', 'admin']}>
                     <Cashier />
                   </ProtectedRoute>
                 } />
@@ -98,7 +98,7 @@ const App = () => (
                   </ProtectedRoute>
                 } />
                 <Route path="/daily-sales-report" element={
-                  <ProtectedRoute allowedRoles={['accountant', 'admin']}>
+                  <ProtectedRoute allowedRoles={['receptionist', 'cashier', 'accountant', 'admin']}>
                     <DailySalesReportPage />
                   </ProtectedRoute>
                 } />

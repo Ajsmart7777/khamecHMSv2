@@ -38,7 +38,7 @@ import {
 
 const allMenuItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, path: '/', color: 'text-primary', roles: ['admin'] },
-  { id: 'reception', label: 'Reception', icon: Users, path: '/reception', color: 'text-module-reception', roles: ['receptionist', 'admin'] },
+  { id: 'reception', label: 'Reception', icon: Users, path: '/reception', color: 'text-module-reception', roles: ['receptionist', 'cashier', 'admin'] },
   { id: 'nurse', label: 'Nurse Station', icon: Activity, path: '/nurse', color: 'text-module-nurse', roles: ['nurse', 'admin'] },
   { id: 'doctor1', label: 'Doctor 1', icon: Stethoscope, path: '/doctor?as=doctor1', color: 'text-module-doctor', roles: ['doctor1', 'admin'] },
   { id: 'doctor2', label: 'Doctor 2', icon: Stethoscope, path: '/doctor?as=doctor2', color: 'text-module-doctor', roles: ['doctor2', 'admin'] },
@@ -46,12 +46,12 @@ const allMenuItems = [
   { id: 'admitted', label: 'Admitted Patients', icon: BedDouble, path: '/admitted-patients', color: 'text-module-nurse', roles: ['doctor1', 'doctor2', 'nurse', 'admin'] },
   { id: 'lab', label: 'Laboratory', icon: FlaskConical, path: '/lab', color: 'text-module-lab', roles: ['lab_tech', 'admin'] },
   { id: 'billing', label: 'Billing', icon: Receipt, path: '/billing', color: 'text-module-billing', roles: ['billing', 'admin'] },
-  { id: 'cashier', label: 'Cashier', icon: Receipt, path: '/cashier', color: 'text-module-billing', roles: ['cashier', 'admin'] },
+  { id: 'cashier', label: 'Cashier', icon: Receipt, path: '/cashier', color: 'text-module-billing', roles: ['receptionist', 'cashier', 'admin'] },
   { id: 'pharmacy', label: 'Pharmacy', icon: Pill, path: '/pharmacy', color: 'text-module-pharmacy', roles: ['pharmacist', 'admin'] },
   { id: 'store', label: 'Store', icon: Package, path: '/store', color: 'text-primary', roles: ['store', 'admin'] },
   
   { id: 'account', label: 'Accounts', icon: Wallet, path: '/account', color: 'text-module-account', roles: ['accountant', 'admin'] },
-  { id: 'daily-sales', label: 'Daily Sales Report', icon: Wallet, path: '/daily-sales-report', color: 'text-module-account', roles: ['accountant', 'admin'] },
+  { id: 'daily-sales', label: 'Daily Sales Report', icon: Wallet, path: '/daily-sales-report', color: 'text-module-account', roles: ['receptionist', 'cashier', 'accountant', 'admin'] },
   { id: 'claims', label: 'Claims', icon: Shield, path: '/claims', color: 'text-module-billing', roles: ['claims_manager', 'admin'] },
   { id: 'auditing', label: 'Auditing', icon: ClipboardCheck, path: '/auditing', color: 'text-module-auditing', roles: ['admin'] },
   { id: 'admin', label: 'Admin', icon: Shield, path: '/admin', color: 'text-module-admin', roles: ['admin'] },

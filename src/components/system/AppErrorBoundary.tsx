@@ -45,7 +45,12 @@ export class AppErrorBoundary extends Component<Props, State> {
     } catch (error) {
       console.warn('Could not clear the stale app cache before reload', error);
     } finally {
-      window.location.reload();
+      // A normal reload can still reuse an HTTP-cached index.html after the old
+      // worker has been unregistered. A one-time query string forces Chrome to
+      // request the current shell from Netlify while preserving HMS localStorage.
+      const url = new URL(window.location.href);
+      url.searchParams.set('hms_refresh', Date.now().toString());
+      window.location.replace(url.toString());
     }
   };
 

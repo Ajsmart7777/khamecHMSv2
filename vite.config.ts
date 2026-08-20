@@ -25,6 +25,9 @@ export default defineConfig(({ mode }) => {
       mode === "development" && componentTagger(),
       VitePWA({
         registerType: "autoUpdate",
+        // Clinical workspaces must receive the current bundle after deployment;
+        // destroy legacy workers instead of retaining an offline app shell.
+        selfDestroying: true,
         includeAssets: ["favicon.ico", "pwa-icon-192.png", "pwa-icon-512.png"],
         manifest: {
           name: "Khadija Medical Center HMS",

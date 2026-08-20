@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -43,35 +43,48 @@ const DEPARTMENTS = [
   'Pharmacy', 'Radiology', 'Administration', 'Finance', 'Nursing',
 ];
 
-const NIGERIAN_BANKS = [
-  'Access Bank', 'Citibank', 'Ecobank', 'Fidelity Bank', 'First Bank',
-  'First City Monument Bank', 'Globus Bank', 'Guaranty Trust Bank',
-  'Heritage Bank', 'Keystone Bank', 'Polaris Bank', 'Providus Bank',
-  'Stanbic IBTC Bank', 'Standard Chartered', 'Sterling Bank', 'SunTrust Bank',
-  'Titan Trust Bank', 'Union Bank', 'United Bank for Africa', 'Unity Bank',
-  'Wema Bank', 'Zenith Bank', 'Jaiz Bank', 'Kuda Bank', 'Moniepoint MFB',
-  'OPay', 'PalmPay', 'VFD MFB',
-];
-
-// Flutterwave supports the bank/account resolution used before saving salary details.
-const FLUTTERWAVE_BANK_CODES: Record<string, string> = {
-  'Access Bank': '044', 'Citibank': '023', 'Ecobank': '050', 'Fidelity Bank': '070',
-  'First Bank': '011', 'First City Monument Bank': '214', 'Globus Bank': '00103',
-  'Guaranty Trust Bank': '058', 'Heritage Bank': '030', 'Keystone Bank': '082',
-  'Polaris Bank': '076', 'Providus Bank': '101', 'Stanbic IBTC Bank': '221',
-  'Standard Chartered': '068', 'Sterling Bank': '232', 'SunTrust Bank': '100',
-  'Titan Trust Bank': '000025', 'Union Bank': '032', 'United Bank for Africa': '033',
-  'Unity Bank': '215', 'Wema Bank': '035', 'Zenith Bank': '057', 'Jaiz Bank': '301',
-  'Kuda Bank': '090267', 'Moniepoint MFB': '110007', 'OPay': '100004',
-  'PalmPay': '100033', 'VFD MFB': '090110',
-};
+interface FlutterwaveBank {
+  code: string;
+  name: string;
+}
 
 export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaff, onRefetch }: Props) {
   const [search, setSearch] = useState('');
   const [bankSearch, setBankSearch] = useState('');
+  const [banks, setBanks] = useState<FlutterwaveBank[]>([]);
+  const [banksLoading, setBanksLoading] = useState(true);
+  const [selectedBankCode, setSelectedBankCode] = useState('');
   const [beneficiaryName, setBeneficiaryName] = useState<string | null>(null);
   const [verifyingBank, setVerifyingBank] = useState(false);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const loadBanks = async () => {
+      setBanksLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('payroll-payment', {
+          body: { action: 'list_banks' },
+        });
+        if (error || data?.error) throw error || new Error(data?.error || 'Could not load banks.');
+        const liveBanks = (Array.isArray(data?.banks) ? data.banks : [])
+          .map((bank: Record<string, unknown>) => ({
+            code: String(bank.code ?? bank.id ?? '').trim(),
+            name: String(bank.name ?? '').trim(),
+          }))
+          .filter((bank: FlutterwaveBank) => bank.code && bank.name)
+          .sort((a: FlutterwaveBank, b: FlutterwaveBank) => a.name.localeCompare(b.name));
+        if (!liveBanks.length) throw new Error('Flutterwave returned no Nigerian banks.');
+        if (!cancelled) setBanks(liveBanks);
+      } catch {
+        if (!cancelled) setBanks([]);
+      } finally {
+        if (!cancelled) setBanksLoading(false);
+      }
+    };
+    void loadBanks();
+    return () => { cancelled = true; };
+  }, []);
+
   const [form, setForm] = useState({
     staffId: '',
     designation: '',
@@ -92,6 +105,7 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
 
   const resetForm = () => {
     setBankSearch('');
+    setSelectedBankCode('');
     setBeneficiaryName(null);
     setForm({
       staffId: '',
@@ -343,17 +357,22 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                 <div className="space-y-2">
                   <Label>Select Bank</Label>
                   <Input value={bankSearch} onChange={e => setBankSearch(e.target.value)} placeholder="Search bank name…" />
-                  <Select value={form.bankName} onValueChange={v => {
+                  <Select value={selectedBankCode} onValueChange={code => {
+                    const selected = banks.find(bank => bank.code === code);
                     setBeneficiaryName(null);
-                    setForm(f => ({ ...f, bankName: v }));
-                  }}>
-                    <SelectTrigger><SelectValue placeholder="Select a bank" /></SelectTrigger>
+                    setSelectedBankCode(code);
+                    setForm(f => ({ ...f, bankName: selected?.name || '' }));
+                  }} disabled={banksLoading || banks.length === 0}>
+                    <SelectTrigger><SelectValue placeholder={banksLoading ? 'Loading banks…' : 'Select a bank'} /></SelectTrigger>
                     <SelectContent>
-                      {NIGERIAN_BANKS.filter(bank => bank.toLowerCase().includes(bankSearch.toLowerCase())).map(b => (
-                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      {banks.filter(bank => bank.name.toLowerCase().includes(bankSearch.toLowerCase())).map(bank => (
+                        <SelectItem key={`${bank.code}-${bank.name}`} value={bank.code}>{bank.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {!banksLoading && banks.length === 0 && (
+                    <p className="text-xs text-destructive">Could not load the live Flutterwave bank list. Refresh the page before entering bank details.</p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Account Number</Label>
@@ -362,18 +381,17 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                       setBeneficiaryName(null);
                       setForm(f => ({ ...f, accountNumber: e.target.value.replace(/\D/g, '').slice(0, 10) }));
                     }} placeholder="10-digit account number" inputMode="numeric" maxLength={10} />
-                    <Button type="button" variant="outline" disabled={verifyingBank || !form.bankName || form.accountNumber.length !== 10} onClick={async () => {
-                      const bankCode = FLUTTERWAVE_BANK_CODES[form.bankName];
-                      if (!bankCode) {
-                        toast({ title: 'Bank verification unavailable', description: 'This bank is not currently configured for account verification. Select another bank or contact an administrator.', variant: 'destructive' });
+                    <Button type="button" variant="outline" disabled={verifyingBank || banksLoading || !selectedBankCode || form.accountNumber.length !== 10} onClick={async () => {
+                      if (!selectedBankCode) {
+                        toast({ title: 'Bank verification unavailable', description: banksLoading ? 'The live Flutterwave bank list is still loading.' : 'The selected bank is not available from Flutterwave. Refresh the page and try again.', variant: 'destructive' });
                         return;
                       }
                       setVerifyingBank(true);
                       try {
                         const { data, error } = await supabase.functions.invoke('payroll-payment', {
-                          body: { action: 'resolve_account', account_number: form.accountNumber, account_bank: bankCode },
+                          body: { action: 'resolve_account', account_number: form.accountNumber, account_bank: selectedBankCode },
                         });
-                        if (error || data?.error || !data?.account?.account_name) throw error || new Error(data?.error || 'The account could not be verified.');
+                        if (error || data?.error || !data?.account?.account_name) throw error || new Error(data?.error || data?.message || 'The account could not be verified.');
                         setBeneficiaryName(data.account.account_name);
                         toast({ title: 'Account verified', description: `Beneficiary: ${data.account.account_name}` });
                       } catch (error) {

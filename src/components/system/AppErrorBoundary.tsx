@@ -8,22 +8,45 @@ interface Props {
 
 interface State {
   hasError: boolean;
+  isReloading: boolean;
 }
 
 /** Keeps an unexpected screen error recoverable instead of rendering a blank page. */
 export class AppErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false };
+  state: State = { hasError: false, isReloading: false };
 
   static getDerivedStateFromError(): State {
-    return { hasError: true };
+    return { hasError: true, isReloading: false };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Unhandled HMS screen error', error, errorInfo);
   }
 
-  private reload = () => {
-    window.location.reload();
+  /**
+   * A deployed PWA can briefly retain an old app shell or workbox cache after a
+   * release. Clear only service-worker registrations/caches; never clear HMS
+   * localStorage because it contains the authenticated session and settings.
+   */
+  private reload = async () => {
+    if (this.state.isReloading) return;
+    this.setState({ isReloading: true });
+
+    try {
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister()));
+      }
+
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map((cacheName) => caches.delete(cacheName)));
+      }
+    } catch (error) {
+      console.warn('Could not clear the stale app cache before reload', error);
+    } finally {
+      window.location.reload();
+    }
   };
 
   render() {
@@ -37,12 +60,12 @@ export class AppErrorBoundary extends Component<Props, State> {
             <div className="space-y-2">
               <h1 className="text-lg font-semibold">This screen could not be opened</h1>
               <p className="text-sm text-muted-foreground">
-                Your work has not been changed. Reload the workspace, then try the screen again.
+                Your work has not been changed. We will clear only the outdated app cache and reload the latest workspace.
               </p>
             </div>
-            <Button onClick={this.reload} className="w-full">
-              <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
-              Reload workspace
+            <Button onClick={this.reload} disabled={this.state.isReloading} className="w-full">
+              <RefreshCw className={`mr-2 h-4 w-4 ${this.state.isReloading ? 'animate-spin' : ''}`} aria-hidden="true" />
+              {this.state.isReloading ? 'Loading latest workspace…' : 'Reload latest workspace'}
             </Button>
           </section>
         </main>

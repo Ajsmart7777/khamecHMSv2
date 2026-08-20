@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
@@ -136,43 +136,56 @@ export function usePayrollPeriods() {
 export function usePayrollEntries(periodId: string | null, periods: PayrollPeriod[] = []) {
   const [entries, setEntries] = useState<PayrollEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const addingAllStaffRef = useRef(false);
+
+  const mapEntry = useCallback((entry: Record<string, unknown>, staff: Record<string, unknown> = {}) => ({
+    ...entry,
+    staff_name: [staff.first_name, staff.last_name].filter(Boolean).join(' ') || 'Unknown Staff',
+    staff_employee_id: staff.employee_id as string,
+    staff_designation: staff.designation as string,
+    staff_bank_name: staff.bank_name as string,
+    staff_account_number: staff.account_number as string,
+    staff_payment_method: staff.payment_method as string,
+    basic_salary: Number(entry.basic_salary ?? 0),
+    gross_pay: Number(entry.gross_pay ?? 0),
+    total_deductions: Number(entry.total_deductions ?? 0),
+    net_pay: Number(entry.net_pay ?? 0),
+    allowances: (entry.allowances || {}) as Record<string, number>,
+    deductions: (entry.deductions || {}) as Record<string, number>,
+  } as PayrollEntry), []);
 
   const fetch = useCallback(async () => {
     if (!periodId) { setEntries([]); return; }
     setLoading(true);
 
-    const { data, error } = await supabase
+    const { data: entryRows, error: entryError } = await supabase
       .from('payroll_entries')
-      .select('*, staff!inner(first_name, last_name, employee_id, designation, bank_name, account_number, payment_method)')
+      .select('*')
       .eq('payroll_period_id', periodId)
       .order('created_at', { ascending: true });
 
-    if (error) {
-      console.error('Error fetching payroll entries:', error);
+    if (entryError) {
+      console.error('Error fetching payroll entries:', entryError);
       setEntries([]);
+      setLoading(false);
+      return;
+    }
+
+    const rows = (entryRows || []) as Record<string, unknown>[];
+    const staffIds = [...new Set(rows.map(row => String(row.staff_id)).filter(Boolean))];
+    const { data: staffRows, error: staffError } = staffIds.length
+      ? await supabase.from('staff').select('id, first_name, last_name, employee_id, designation, bank_name, account_number, payment_method').in('id', staffIds)
+      : { data: [], error: null };
+
+    if (staffError) {
+      console.error('Error fetching payroll staff:', staffError);
+      setEntries(rows.map(row => mapEntry(row)));
     } else {
-      const mapped = (data || []).map((e: Record<string, unknown>) => {
-        const staff = e.staff as Record<string, unknown>;
-        return {
-          ...e,
-          staff_name: `${staff.first_name} ${staff.last_name}`,
-          staff_employee_id: staff.employee_id as string,
-          staff_designation: staff.designation as string,
-          staff_bank_name: staff.bank_name as string,
-          staff_account_number: staff.account_number as string,
-          staff_payment_method: staff.payment_method as string,
-          basic_salary: Number(e.basic_salary),
-          gross_pay: Number(e.gross_pay),
-          total_deductions: Number(e.total_deductions),
-          net_pay: Number(e.net_pay),
-          allowances: (e.allowances || {}) as Record<string, number>,
-          deductions: (e.deductions || {}) as Record<string, number>,
-        } as PayrollEntry;
-      });
-      setEntries(mapped);
+      const staffById = new Map((staffRows || []).map((staff: Record<string, unknown>) => [String(staff.id), staff]));
+      setEntries(rows.map(row => mapEntry(row, staffById.get(String(row.staff_id)) || {})));
     }
     setLoading(false);
-  }, [periodId]);
+  }, [periodId, mapEntry]);
 
   useEffect(() => { fetch(); }, [fetch]);
 
@@ -208,78 +221,61 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
   };
 
   const addAllStaff = async () => {
-    if (!periodId) return;
+    if (!periodId || addingAllStaffRef.current) return;
+    addingAllStaffRef.current = true;
     
     // 1) Fetch active staff
     const { data: staffList, error: staffErr } = await supabase
       .from('staff')
-      .select('id, salary')
+      .select('id, salary, first_name, last_name, employee_id, designation, bank_name, account_number, payment_method')
       .eq('status', 'active');
 
     if (staffErr || !staffList) {
+      addingAllStaffRef.current = false;
       toast({ title: 'Error', description: 'Could not fetch staff.', variant: 'destructive' });
       return;
     }
-
-    // 2) Get current period dates for deduction calculation
-    const period = periods.find(p => p.id === periodId);
-    const startDate = period ? new Date(period.year, period.month - 1, 1).toISOString().split('T')[0] : null;
-    const endDate = period ? new Date(period.year, period.month, 0).toISOString().split('T')[0] : null;
 
     const existingIds = new Set(entries.map(e => e.staff_id));
     const newStaff = staffList.filter(s => !existingIds.has(s.id));
     
     if (newStaff.length === 0) {
+      addingAllStaffRef.current = false;
       toast({ title: 'Info', description: 'All active staff already added.' });
       return;
     }
 
-    // 3) Calculate deductions for each staff (including family deductions)
-    const rows = await Promise.all(newStaff.map(async s => {
-      let familyDeductions = 0;
-      if (startDate && endDate) {
-        const { data: deductData, error: deductErr } = await supabase.rpc('calculate_payroll_deductions', {
-          _staff_id: s.id,
-          _period_start: startDate,
-          _period_end: endDate
-        });
-        if (deductErr) {
-          console.warn('Deduction calculation failed for staff', s.id, deductErr);
-        }
-        familyDeductions = Number(deductData) || 0;
-      }
-
-      const deductions: Record<string, number> = {};
-      // Medical deductions are now provided via the manual report for accountant to fill manually
-      // if (familyDeductions > 0) {
-      //   deductions['family_medical'] = familyDeductions;
-      // }
-
-      const basicSalary = Number(s.salary);
-      const totalDeductions = Object.values(deductions).reduce((a, b) => a + b, 0);
-
-
+    const rows = newStaff.map(s => {
+      const basicSalary = Number(s.salary) || 0;
       return {
         payroll_period_id: periodId,
         staff_id: s.id,
         basic_salary: basicSalary,
         allowances: {},
         gross_pay: basicSalary,
-        deductions: deductions,
-        total_deductions: totalDeductions,
-        net_pay: basicSalary - totalDeductions,
+        deductions: {},
+        total_deductions: 0,
+        net_pay: basicSalary,
         status: 'pending',
       };
-    }));
+    });
 
-    const { error } = await supabase.from('payroll_entries').insert(rows);
+    const { data: insertedRows, error } = await supabase
+      .from('payroll_entries')
+      .insert(rows)
+      .select('*');
     if (error) {
+      addingAllStaffRef.current = false;
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
       return;
     }
 
-    toast({ title: 'Success', description: `${newStaff.length} staff added to payroll.` });
-    await fetch();
+    const staffById = new Map(newStaff.map((staff: Record<string, unknown>) => [String(staff.id), staff]));
+    const immediateEntries = ((insertedRows || rows) as Record<string, unknown>[])
+      .map(row => mapEntry(row, staffById.get(String(row.staff_id)) || {}));
+    setEntries(prev => [...prev, ...immediateEntries]);
+    addingAllStaffRef.current = false;
+    toast({ title: 'Success', description: `${immediateEntries.length} staff added to payroll.` });
   };
 
   const updateEntry = async (id: string, updates: Partial<PayrollEntry>) => {
@@ -307,7 +303,15 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
       return false;
     }
 
-    await fetch();
+    setEntries(prev => prev.map(entry => entry.id === id ? {
+      ...entry,
+      basic_salary: basicSalary,
+      allowances,
+      gross_pay: grossPay,
+      deductions,
+      total_deductions: totalDeductions,
+      net_pay: netPay,
+    } : entry));
     return true;
   };
 

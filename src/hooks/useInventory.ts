@@ -102,7 +102,7 @@ export function useInventory() {
         (supabase as any).rpc('get_store_bin_cards'),
         (supabase as any)
           .from('inventory_batches')
-          .select('id, product_id, location_id, batch_number, unit_cost, quantity_on_hand, status, received_at, inventory_locations(code,name), inventory_products(sku,unit_label,minimum_level,pricelist(name,size,category,price))'),
+          .select('id, product_id, location_id, batch_number, unit_cost, quantity_on_hand, status, received_at'),
         (supabase as any).rpc('get_pending_store_transfers'),
         (supabase as any)
           .from('inventory_locations')
@@ -116,23 +116,41 @@ export function useInventory() {
       if (transferResult.error) throw transferResult.error;
       if (locationsResult.error) throw locationsResult.error;
 
-      setCatalog((catalogResult.data ?? []).map((row: any) => ({
+      const catalogRows = (catalogResult.data ?? []).map((row: any) => ({
         ...row,
         sale_price: Number(row.sale_price ?? 0),
         minimum_level: Number(row.minimum_level ?? 0),
-      })));
+      }));
+      const catalogByProduct = new Map(catalogRows.map((row: any) => [String(row.product_id), row]));
+      const locationById = new Map((locationsResult.data ?? []).map((row: any) => [String(row.id), row]));
+
+      setCatalog(catalogRows);
       setStoreBinCards((binCardResult.data ?? []).map((row: any) => ({
         ...row,
         sale_price: Number(row.sale_price ?? 0),
         current_balance: Number(row.current_balance ?? 0),
       })));
-      setBatches((batchResult.data ?? []).map((row: any) => ({
-        ...row,
-        unit_cost: Number(row.unit_cost ?? 0),
-        quantity_on_hand: Number(row.quantity_on_hand ?? 0),
-        inventory_locations: Array.isArray(row.inventory_locations) ? row.inventory_locations[0] : row.inventory_locations,
-        inventory_products: Array.isArray(row.inventory_products) ? row.inventory_products[0] : row.inventory_products,
-      })));
+      setBatches((batchResult.data ?? []).map((row: any) => {
+        const product = catalogByProduct.get(String(row.product_id));
+        const location = locationById.get(String(row.location_id));
+        return {
+          ...row,
+          unit_cost: Number(row.unit_cost ?? 0),
+          quantity_on_hand: Number(row.quantity_on_hand ?? 0),
+          inventory_locations: location ? { code: location.code, name: location.name } : null,
+          inventory_products: product ? {
+            sku: product.sku,
+            unit_label: product.unit_label,
+            minimum_level: product.minimum_level,
+            pricelist: {
+              name: product.medicine_name,
+              size: product.size,
+              category: product.category,
+              price: product.sale_price,
+            },
+          } : null,
+        };
+      }));
       const transferGroups = new Map<string, PendingStoreTransfer>();
       for (const row of transferResult.data ?? []) {
         const transfer = row as any;

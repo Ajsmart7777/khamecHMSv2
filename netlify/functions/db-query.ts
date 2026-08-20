@@ -206,6 +206,12 @@ export const handler: Handler = async (event) => {
       const rpcCastSignatures: Record<string, string[]> = {
         create_prescription_from_typed: ['uuid', 'uuid', 'text', 'text', 'jsonb'],
         create_lab_request_from_typed: ['uuid', 'uuid', 'text', 'text[]'],
+        register_inventory_bin_card: ['uuid', 'text'],
+        record_inventory_receipt: ['text', 'text', 'jsonb', 'text', 'text', 'text', 'date'],
+        create_store_to_pharmacy_transfer: ['jsonb', 'text', 'text'],
+        receive_store_transfer: ['uuid'],
+        reject_store_transfer: ['uuid', 'text'],
+        dispense_inventory_invoice_item: ['uuid'],
         settle_invoice_atomic: ['uuid', 'numeric', 'numeric', 'numeric', 'text', 'text', 'boolean', 'boolean'],
         finalize_referral: ['uuid', 'text'],
       };

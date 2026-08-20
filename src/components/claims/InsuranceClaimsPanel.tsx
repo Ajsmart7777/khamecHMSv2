@@ -73,35 +73,48 @@ export function InsuranceClaimsPanel() {
         return;
       }
 
-      const { data: invs } = await supabase
+      // CockroachDB compatibility: load invoices and invoice items separately.
+      // Supabase nested relation selects are not supported by the clone gateway.
+      const { data: invs, error: invoiceErr } = await supabase
         .from('invoices')
-        .select(`
-          id, invoice_number, patient_id, visit_id, total_amount, paid_amount, status, created_at, claim_submitted_at,
-          invoice_items (
-            id, total, dispensing_status
-          )
-        `)
+        .select('id, invoice_number, patient_id, visit_id, total_amount, paid_amount, status, created_at, claim_submitted_at')
         .in('patient_id', ids)
         .gte('created_at', periodStart.toISOString())
         .lt('created_at', periodEnd.toISOString())
         .order('created_at', { ascending: false });
+      if (invoiceErr) throw invoiceErr;
 
       const invRows = (invs || []) as any[] as Invoice[];
+      const invoiceIds = invRows.map(i => i.id);
+      const { data: itemRows, error: itemErr } = invoiceIds.length
+        ? await supabase
+            .from('invoice_items')
+            .select('id, invoice_id, total, dispensing_status')
+            .in('invoice_id', invoiceIds)
+        : { data: [], error: null } as any;
+      if (itemErr) throw itemErr;
+      const itemsByInvoice = new Map<string, any[]>();
+      (itemRows || []).forEach((it: any) => {
+        const list = itemsByInvoice.get(it.invoice_id) || [];
+        list.push(it);
+        itemsByInvoice.set(it.invoice_id, list);
+      });
+
       const byPatient: Record<string, Invoice[]> = {};
       invRows.forEach(i => {
-        // Automatically exclude unavailable or refunded items from the sponsor claim total
-        // only eligible amounts are reclaimed or credited.
-        // For insurance/corporate/retainer, this ensures un-dispensed items aren't billed to sponsor.
-        const activeItems = (i.invoice_items || []).filter((it: any) => 
-          it.dispensing_status !== 'unavailable' && it.dispensing_status !== 'refunded'
+        // Exclude unavailable/refunded items from sponsor claims; refund_pending
+        // and refund_requested are also not billable while awaiting Cashier action.
+        const activeItems = (itemsByInvoice.get(i.id) || []).filter((it: any) =>
+          !['unavailable', 'refund_requested', 'refund_pending', 'not_given', 'refunded'].includes(it.dispensing_status)
         );
         const activeTotal = activeItems.reduce((s: number, it: any) => s + (Number(it.total) || 0), 0);
-        
-        (byPatient[i.patient_id] ||= []).push({ 
-          ...i, 
-          total_amount: activeTotal, 
-          paid_amount: Number(i.paid_amount)||0 
-        }); 
+
+        (byPatient[i.patient_id] ||= []).push({
+          ...i,
+          invoice_items: itemsByInvoice.get(i.id) || [],
+          total_amount: activeTotal,
+          paid_amount: Number(i.paid_amount) || 0,
+        });
       });
 
       setInvoicesByPatient(byPatient);

@@ -211,6 +211,8 @@ export const handler: Handler = async (event) => {
         create_store_to_pharmacy_transfer: ['jsonb', 'text', 'text'],
         receive_store_transfer: ['uuid'],
         reject_store_transfer: ['uuid', 'text'],
+        mark_item_unavailable: ['uuid', 'text'],
+        refund_invoice_item: ['uuid', 'text'],
         dispense_inventory_invoice_item: ['uuid'],
         settle_invoice_atomic: ['uuid', 'numeric', 'numeric', 'numeric', 'text', 'text', 'boolean', 'boolean'],
         finalize_referral: ['uuid', 'text'],

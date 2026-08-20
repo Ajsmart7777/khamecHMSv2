@@ -116,50 +116,51 @@ export function SnapFulfillDialog({
 
     setBusy(true);
     try {
-      // Safeguard: verify the item is not already processed or refunded
+      // Safeguard: verify the item is not already processed or refunded.
+      // Keep these reads flat because CockroachDB does not support Supabase
+      // nested relation selects through the compatibility gateway.
       const { data: item, error: fetchErr } = await supabase
         .from('invoice_items')
-        .select(`
-          id,
-          dispensing_status,
-          total,
-          unit_price,
-          quantity,
-          invoices!inner (
-            id,
-            sponsor_type,
-            patients!inner (
-              account_type,
-              insurance_plan
-            )
-          )
-        `)
+        .select('id, invoice_id, dispensing_status, total, unit_price, quantity')
         .eq('id', itemId)
         .single();
-      
       if (fetchErr) throw fetchErr;
-      if (item?.dispensing_status === 'unavailable') {
+      if (!item) throw new Error('Invoice item was not found');
+      if (item.dispensing_status === 'unavailable') {
         toast.error('Item is already marked as unavailable');
         return;
       }
-      if (item?.dispensing_status === 'refunded') {
+      if (item.dispensing_status === 'refunded') {
         toast.error('Item has already been refunded');
         return;
       }
 
+      const { data: invoice, error: invoiceErr } = await supabase
+        .from('invoices')
+        .select('id, patient_id, sponsor_type')
+        .eq('id', item.invoice_id)
+        .single();
+      if (invoiceErr) throw invoiceErr;
+      const { data: patient, error: patientErr } = await supabase
+        .from('patients')
+        .select('account_type, insurance_plan')
+        .eq('id', invoice.patient_id)
+        .single();
+      if (patientErr) throw patientErr;
+
       const { error } = await supabase.rpc('mark_item_unavailable', {
         _item_id: itemId,
-        _reason: reason
+        _reason: reason,
       });
       if (error) throw error;
-      
-      // Calculate refund info for the toast
+
+      // Calculate refund info for the toast from the flat invoice/patient reads.
       const totalAmount = Number(item.total) || 0;
       const sponsor = {
-        account_type: (item.invoices as any).patients.account_type,
-        insurance_plan: (item.invoices as any).patients.insurance_plan
+        account_type: patient.account_type,
+        insurance_plan: patient.insurance_plan,
       };
-      const invoiceId = (item.invoices as any).id;
+      const invoiceId = invoice.id;
       
       const { copayAmount, coveredAmount } = splitInvoice(totalAmount, sponsor);
       

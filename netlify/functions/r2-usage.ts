@@ -51,7 +51,7 @@ export default async (request: Request) => {
 
       const xml = await listResponse.text();
       listingPages += 1;
-      for (const match of xml.matchAll(/<Contents>([\\s\\S]*?)<\\/Contents>/g)) {
+      for (const match of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
         const key = xmlTag(match[1], 'Key');
         const size = Number(xmlTag(match[1], 'Size') || 0);
         if (!key) continue;

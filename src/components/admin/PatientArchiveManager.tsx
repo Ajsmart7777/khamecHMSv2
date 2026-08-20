@@ -116,6 +116,12 @@ function normaliseAttachments(value: ArchiveAttachment[] | string | null | undef
   }
 }
 
+function asRows<T>(value: unknown, requiredKey?: string): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (value && typeof value === 'object' && (!requiredKey || requiredKey in value)) return [value as T];
+  return [];
+}
+
 function safeName(value: string): string {
   return value.replace(/[^a-z0-9._-]+/gi, '_').replace(/^_+|_+$/g, '') || 'file';
 }
@@ -311,7 +317,7 @@ export function PatientArchiveManager() {
     if (error) throw error;
 
     const grouped = new Map<string, ArchiveBatch>();
-    ((data ?? []) as ArchiveRecordRow[]).forEach((record) => {
+    asRows<ArchiveRecordRow>(data, 'archive_reference').forEach((record) => {
       const batch = grouped.get(record.archive_reference) ?? {
         reference: record.archive_reference,
         status: record.status,
@@ -359,7 +365,7 @@ export function PatientArchiveManager() {
       if (journeysError) throw journeysError;
 
       const latestJourneyByPatient = new Map<string, string | null>();
-      (journeys ?? []).forEach((journey: any) => {
+      asRows<any>(journeys, 'patient_id').forEach((journey: any) => {
         if (journey.patient_id && !latestJourneyByPatient.has(journey.patient_id)) latestJourneyByPatient.set(journey.patient_id, journey.updated_at ?? null);
       });
       const ids = [...latestJourneyByPatient.keys()];
@@ -376,8 +382,8 @@ export function PatientArchiveManager() {
       ]);
       if (patientsError) throw patientsError;
       if (eligibilityResult.error) throw new Error(eligibilityResult.error.message ?? 'Eligibility check failed');
-      const patientById = new Map((patients ?? []).map((patient: any) => [patient.id, patient]));
-      const nextCandidates = ((eligibilityResult.data ?? []) as ArchiveEligibility[])
+      const patientById = new Map(asRows<any>(patients, 'id').map((patient: any) => [patient.id, patient]));
+      const nextCandidates = asRows<ArchiveEligibility>(eligibilityResult.data, 'patient_id')
         .map((eligibility) => ({ ...eligibility, patient: patientById.get(eligibility.patient_id), journeyUpdatedAt: latestJourneyByPatient.get(eligibility.patient_id) }))
         .filter((candidate) => candidate.patient)
         .sort((a, b) => Number(b.is_eligible) - Number(a.is_eligible) || String(b.closed_at ?? '').localeCompare(String(a.closed_at ?? '')));

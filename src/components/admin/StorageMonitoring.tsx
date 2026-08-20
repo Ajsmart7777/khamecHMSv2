@@ -24,6 +24,8 @@ interface StorageStats {
     usage_percent: number | null;
     breakdown: Record<string, { objects: number, size: number }>;
     isConfigured: boolean;
+    measured: boolean;
+    message?: string;
   } | null;
   lastUpdated: Date;
 }
@@ -49,7 +51,8 @@ export function StorageMonitoring() {
       const { data: dbData, error: dbError } = await supabase.rpc('get_database_size');
       if (dbError) throw dbError;
 
-      const dbSizeBytes = dbData[0]?.database_size_bytes ?? 0;
+      const dbRow = Array.isArray(dbData) ? dbData[0] : dbData;
+      const dbSizeBytes = Number(dbRow?.database_size_bytes ?? 0);
 
       // 2. Fetch R2 usage via Edge Function
       let r2Stats = null;
@@ -59,16 +62,18 @@ export function StorageMonitoring() {
         if (r2Error) {
           console.warn('R2 usage fetch error:', r2Error);
           // If the error specifically says R2 is not configured, we want to reflect that
-          if (r2Error.message?.includes('not configured') || r2Error.debug?.accountId === false) {
+          if (r2Error.message?.includes('not configured') || r2Error.debug?.accountId === false || r2Data?.measured === false) {
             r2Stats = {
               bucket: '',
               total_objects: 0,
               total_size_bytes: 0,
-              total_size_formatted: '0 Bytes',
+              total_size_formatted: 'Unavailable',
               quota_bytes: null,
               usage_percent: null,
               breakdown: {},
-              isConfigured: false
+              isConfigured: false,
+              measured: false,
+              message: r2Data?.error || r2Error.message || 'R2 credentials are not configured in this deployment'
             };
           } else {
             // Unexpected error (e.g. 403 Unauthorized, 500 internal)
@@ -85,11 +90,13 @@ export function StorageMonitoring() {
               bucket: '',
               total_objects: 0,
               total_size_bytes: 0,
-              total_size_formatted: '0 Bytes',
+              total_size_formatted: 'Unavailable',
               quota_bytes: null,
               usage_percent: null,
               breakdown: {},
-              isConfigured: false
+              isConfigured: false,
+              measured: false,
+              message: msg
             };
           }
         } else if (r2Data) {
@@ -98,10 +105,12 @@ export function StorageMonitoring() {
             total_objects: r2Data.total_objects ?? 0,
             total_size_bytes: r2Data.total_size_bytes ?? 0,
             total_size_formatted: formatBytes(r2Data.total_size_bytes ?? 0),
-            quota_bytes: null,
-            usage_percent: null,
+            quota_bytes: r2Data.quota_bytes ?? null,
+            usage_percent: r2Data.quota_bytes ? (Number(r2Data.total_size_bytes ?? 0) / Number(r2Data.quota_bytes)) * 100 : null,
             breakdown: r2Data.breakdown || {},
-            isConfigured: true
+            isConfigured: true,
+            measured: r2Data.measured !== false,
+            message: r2Data.measured === false ? 'R2 usage was not measured' : undefined
           };
         }
       } catch (err) {
@@ -112,8 +121,8 @@ export function StorageMonitoring() {
         database: {
           size_bytes: dbSizeBytes,
           size_formatted: formatBytes(dbSizeBytes),
-          quota_bytes: 10 * 1024 * 1024 * 1024, // 10GB Free Tier
-          usage_percent: (dbSizeBytes / (10 * 1024 * 1024 * 1024)) * 100
+          quota_bytes: null,
+          usage_percent: null
         },
         r2: r2Stats,
         lastUpdated: new Date()
@@ -209,17 +218,17 @@ export function StorageMonitoring() {
                     <span className="text-sm text-muted-foreground ml-2">used</span>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Free Tier Quota</p>
-                    <p className="text-sm font-medium">{formatBytes(stats.database.quota_bytes || 0)}</p>
+                    <p className="text-xs text-muted-foreground">Provider quota</p>
+                    <p className="text-sm font-medium">{stats.database.quota_bytes ? formatBytes(stats.database.quota_bytes) : 'Not reported'}</p>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs">
-                    <span>Usage</span>
-                    <span>{stats.database.usage_percent?.toFixed(1)}%</span>
+                    <span>Measured usage</span>
+                    <span>{stats.database.usage_percent === null ? 'Exact size measured; quota unavailable' : `${stats.database.usage_percent.toFixed(1)}%`}</span>
                   </div>
-                  <Progress value={stats.database.usage_percent || 0} className="h-2" />
+                  {stats.database.usage_percent !== null && <Progress value={stats.database.usage_percent} className="h-2" />}
                 </div>
 
                 <div className="pt-2">
@@ -229,9 +238,9 @@ export function StorageMonitoring() {
                     ) : (
                       <AlertTriangle className="h-3 w-3 text-warning" />
                     )}
-                    {stats.database.usage_percent && stats.database.usage_percent > 85 
-                      ? "Database storage is becoming high. Consider reviewing storage usage."
-                      : "Database storage usage is within normal operating parameters."}
+                    {stats.database.usage_percent !== null && stats.database.usage_percent > 85
+                      ? 'Database storage is becoming high. Consider reviewing storage usage.'
+                      : 'Exact database size is measured from CockroachDB; the provider quota is not reported by the database API.'}
                   </p>
                 </div>
               </>
@@ -247,20 +256,20 @@ export function StorageMonitoring() {
                 <HardDrive className="h-5 w-5 text-orange-500" />
                 <CardTitle className="text-lg">Cloudflare R2</CardTitle>
               </div>
-              {stats?.r2?.isConfigured ? (
+              {stats?.r2?.measured ? (
                 <Badge variant="outline" className="text-success border-success/30">
-                  Active
+                  Measured
                 </Badge>
               ) : (
                 <Badge variant="outline" className="text-muted-foreground">
-                  Not Integrated
+                  Usage unavailable
                 </Badge>
               )}
             </div>
             <CardDescription>Object storage for images and attachments</CardDescription>
           </CardHeader>
           <CardContent className="pt-6 space-y-4">
-            {stats?.r2?.isConfigured ? (
+            {stats?.r2?.measured ? (
               <>
                 <div className="flex justify-between items-end">
                   <div>
@@ -268,42 +277,35 @@ export function StorageMonitoring() {
                     <span className="text-sm text-muted-foreground ml-2">used</span>
                   </div>
                   <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Free Tier Quota</p>
-                    <p className="text-sm font-medium">{formatBytes(10 * 1024 * 1024 * 1024)}</p>
+                    <p className="text-xs text-muted-foreground">Provider quota</p>
+                    <p className="text-sm font-medium">{stats.r2.quota_bytes ? formatBytes(stats.r2.quota_bytes) : 'Not reported'}</p>
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-xs">
-                    <span>Usage</span>
-                    <span>{((stats.r2.total_size_bytes / (10 * 1024 * 1024 * 1024)) * 100).toFixed(1)}%</span>
+                    <span>Measured usage</span>
+                    <span>{stats.r2.usage_percent === null ? 'Exact size measured; quota unavailable' : `${stats.r2.usage_percent.toFixed(1)}%`}</span>
                   </div>
-                  <Progress value={(stats.r2.total_size_bytes / (10 * 1024 * 1024 * 1024)) * 100} className="h-2" />
+                  {stats.r2.usage_percent !== null && <Progress value={stats.r2.usage_percent} className="h-2" />}
                 </div>
 
                 <div className="pt-2">
                   <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                     <CheckCircle2 className="h-3 w-3 text-success" />
-                    R2 storage is scaling automatically.
+                    Exact R2 object usage was measured from a complete bucket listing. Cloudflare plan quota is not reported by this API.
                   </p>
                 </div>
               </>
             ) : (
               <div className="py-8 text-center bg-muted/20 rounded-lg border border-dashed">
                 <p className="text-sm text-muted-foreground italic">
-                  {error?.includes('R2') ? error : 'Cloudflare R2 storage usage could not be retrieved or is not configured.'}
+                  {stats?.r2?.message || error || 'Cloudflare R2 storage usage is currently unavailable; no guessed size is shown.'}
                 </p>
                 <div className="mt-4 flex flex-col items-center gap-2">
                   <p className="text-xs text-muted-foreground max-w-xs mx-auto mb-2">
-                    To enable R2 monitoring and storage, please ensure the following secrets are set in your project:
+                    The dashboard will show an exact value only when the server can authenticate to the configured R2 bucket. It will never substitute a guessed size.
                   </p>
-                  <div className="flex flex-wrap justify-center gap-2">
-                    <Badge variant="secondary" className="font-mono text-[10px]">R2_ACCOUNT_ID</Badge>
-                    <Badge variant="secondary" className="font-mono text-[10px]">R2_ACCESS_KEY_ID</Badge>
-                    <Badge variant="secondary" className="font-mono text-[10px]">R2_SECRET_ACCESS_KEY</Badge>
-                    <Badge variant="secondary" className="font-mono text-[10px]">R2_BUCKET</Badge>
-                    <Badge variant="secondary" className="font-mono text-[10px]">VITE_R2_PUBLIC_URL</Badge>
-                  </div>
                   <Button 
                     variant="link" 
                     size="sm" 

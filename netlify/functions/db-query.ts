@@ -224,6 +224,7 @@ export const handler: Handler = async (event) => {
         advance_journey: ['uuid', 'text', 'text', 'uuid', 'text', 'text', 'uuid', 'text'],
         open_visit_for_patient: ['uuid', 'text', 'boolean', 'text'],
         calculate_payroll_deductions: ['uuid', 'date', 'date'],
+        check_archive_eligibility: ['uuid[]'],
       };
       const casts = rpcCastSignatures[rpc] || [];
       const paramPlaceholders = paramKeys.map((_, idx) => `$${idx + 1}${casts[idx] ? `::${casts[idx]}` : ''}`).join(', ');
@@ -243,6 +244,8 @@ export const handler: Handler = async (event) => {
         'get_pharmacy_stock',
         'get_pharmacy_inventory',
         'get_pending_store_transfers',
+        'check_archive_eligibility',
+        'get_database_size',
       ]);
       const query = setReturningRpcs.has(rpc)
         ? `SELECT * FROM public.${rpc}(${paramPlaceholders})`

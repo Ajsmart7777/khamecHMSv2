@@ -46,14 +46,14 @@ export function DailySalesReport() {
       const [invRes, txRes] = await Promise.all([
         supabase
           .from('invoices')
-          .select('id, invoice_number, total_amount, paid_amount, payment_method, sponsor_type, paid_at, patient_id, patients(first_name, last_name, card_number, account_type)')
+          .select('id, invoice_number, total_amount, paid_amount, payment_method, sponsor_type, paid_at, patient_id, notes')
           .eq('status', 'paid')
           .gte('paid_at', from)
           .lte('paid_at', to)
           .order('paid_at', { ascending: true }),
         supabase
           .from('balance_transactions')
-          .select('id, transaction_type, amount, payment_method, created_at, patient_id, patients(first_name, last_name, card_number, account_type)')
+          .select('id, transaction_type, amount, payment_method, created_at, patient_id')
           .in('transaction_type', ['topup', 'debt_cleared'])
           .gte('created_at', from)
           .lte('created_at', to)
@@ -63,29 +63,45 @@ export function DailySalesReport() {
       if (invRes.error) throw invRes.error;
       if (txRes.error) throw txRes.error;
 
-      const invRows: Row[] = (invRes.data || []).map((i: any) => ({
-        id: `inv-${i.id}`,
-        time: i.paid_at,
-        reference: i.invoice_number,
-        patientName: `${i.patients?.first_name ?? ''} ${i.patients?.last_name ?? ''}`.trim() || 'Unknown',
-        cardNumber: i.patients?.card_number ?? '—',
-        patientType: i.sponsor_type || i.patients?.account_type || 'cash',
-        paymentMethod: i.payment_method || 'cash',
-        kind: 'Invoice',
-        amount: Number(i.paid_amount || i.total_amount || 0),
-      }));
+      const patientIds = [...new Set([
+        ...(invRes.data || []).map((row: any) => row.patient_id),
+        ...(txRes.data || []).map((row: any) => row.patient_id),
+      ].filter(Boolean))];
+      const patientResult = patientIds.length
+        ? await supabase.from('patients').select('id, first_name, last_name, card_number, account_type').in('id', patientIds)
+        : { data: [], error: null };
+      if (patientResult.error) throw patientResult.error;
+      const patientById = new Map((patientResult.data || []).map((patient: any) => [patient.id, patient]));
 
-      const txRows: Row[] = (txRes.data || []).map((t: any) => ({
-        id: `tx-${t.id}`,
-        time: t.created_at,
-        reference: t.transaction_type === 'topup' ? 'Wallet Top-up' : 'Debt Cleared',
-        patientName: `${t.patients?.first_name ?? ''} ${t.patients?.last_name ?? ''}`.trim() || 'Unknown',
-        cardNumber: t.patients?.card_number ?? '—',
-        patientType: t.patients?.account_type || 'cash',
-        paymentMethod: t.payment_method || 'cash',
-        kind: t.transaction_type === 'topup' ? 'Top-up' : 'Debt Payment',
-        amount: Math.abs(Number(t.amount || 0)),
-      }));
+      const invRows: Row[] = (invRes.data || []).map((i: any) => {
+        const patient = patientById.get(i.patient_id);
+        return {
+          id: `inv-${i.id}`,
+          time: i.paid_at,
+          reference: i.invoice_number,
+          patientName: `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim() || 'Unknown',
+          cardNumber: patient?.card_number ?? '—',
+          patientType: i.sponsor_type || patient?.account_type || 'cash',
+          paymentMethod: i.payment_method || 'cash',
+          kind: 'Invoice',
+          amount: Number(i.paid_amount || i.total_amount || 0),
+        };
+      });
+
+      const txRows: Row[] = (txRes.data || []).map((t: any) => {
+        const patient = patientById.get(t.patient_id);
+        return {
+          id: `tx-${t.id}`,
+          time: t.created_at,
+          reference: t.transaction_type === 'topup' ? 'Wallet Top-up' : 'Debt Cleared',
+          patientName: `${patient?.first_name ?? ''} ${patient?.last_name ?? ''}`.trim() || 'Unknown',
+          cardNumber: patient?.card_number ?? '—',
+          patientType: patient?.account_type || 'cash',
+          paymentMethod: t.payment_method || 'cash',
+          kind: t.transaction_type === 'topup' ? 'Top-up' : 'Debt Payment',
+          amount: Math.abs(Number(t.amount || 0)),
+        };
+      });
 
       setRows([...txRows, ...invRows].sort((a, b) => a.time.localeCompare(b.time)));
     } catch (e: any) {

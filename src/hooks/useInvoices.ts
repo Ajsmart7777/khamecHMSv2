@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 

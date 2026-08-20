@@ -1,5 +1,5 @@
 import type { Handler } from '@netlify/functions';
-import { getCrdbClient } from './_shared/crdb.js';
+import { getCrdbPool } from './_shared/crdb.js';
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -173,9 +173,8 @@ export const handler: Handler = async (event) => {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
 
-  const client = getCrdbClient();
+  const client = await getCrdbPool().connect();
   try {
-    await client.connect();
     const body = JSON.parse(event.body || '{}');
     const {
       action,
@@ -251,7 +250,6 @@ export const handler: Handler = async (event) => {
         ? `SELECT * FROM public.${rpc}(${paramPlaceholders})`
         : `SELECT public.${rpc}(${paramPlaceholders})`;
       const result = await client.query(query, paramValues);
-      await client.end();
       const data = setReturningRpcs.has(rpc)
         ? result.rows
         : (result.rows[0]?.[rpc] ?? result.rows[0]);
@@ -279,7 +277,6 @@ export const handler: Handler = async (event) => {
       });
       const sql = `INSERT INTO public.${table} (${columns.join(', ')}) VALUES ${rowPlaceholders.join(', ')} RETURNING *`;
       const result = await client.query(sql, params);
-      await client.end();
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -303,7 +300,6 @@ export const handler: Handler = async (event) => {
       const whereSql = buildWhereClause(filterOperations, params);
       const sql = `UPDATE public.${table} SET ${setSql.join(', ')} WHERE ${whereSql} RETURNING *`;
       const result = await client.query(sql, params);
-      await client.end();
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -318,7 +314,6 @@ export const handler: Handler = async (event) => {
       const whereSql = buildWhereClause(filterOperations, params);
       const sql = `DELETE FROM public.${table} WHERE ${whereSql} RETURNING *`;
       const result = await client.query(sql, params);
-      await client.end();
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -354,7 +349,6 @@ export const handler: Handler = async (event) => {
       }
 
       const result = await client.query(sql, queryValues);
-      await client.end();
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -362,15 +356,15 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    await client.end();
     return { statusCode: 400, body: JSON.stringify({ error: 'Unknown action' }) };
   } catch (err: any) {
-    try { await client.end(); } catch {}
     return {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data: null, error: err.message || 'Database request failed' }),
     };
+  } finally {
+    try { client.release(); } catch {}
   }
 };
 

@@ -356,12 +356,15 @@ export function PatientArchiveManager() {
   const loadCandidates = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: journeys, error: journeysError } = await supabase
-        .from('patient_journey')
-        .select('patient_id, updated_at')
-        .eq('current_state', 'discharged')
-        .order('updated_at', { ascending: false })
-        .limit(250);
+      const [{ data: journeys, error: journeysError }] = await Promise.all([
+        supabase
+          .from('patient_journey')
+          .select('patient_id, updated_at')
+          .eq('current_state', 'discharged')
+          .order('updated_at', { ascending: false })
+          .limit(250),
+        loadBatches(),
+      ]);
       if (journeysError) throw journeysError;
 
       const latestJourneyByPatient = new Map<string, string | null>();
@@ -372,7 +375,6 @@ export function PatientArchiveManager() {
       if (!ids.length) {
         setCandidates([]);
         setSelectedIds(new Set());
-        await loadBatches();
         return;
       }
 
@@ -389,7 +391,6 @@ export function PatientArchiveManager() {
         .sort((a, b) => Number(b.is_eligible) - Number(a.is_eligible) || String(b.closed_at ?? '').localeCompare(String(a.closed_at ?? '')));
       setCandidates(nextCandidates);
       setSelectedIds((current) => new Set([...current].filter((id) => nextCandidates.some((candidate) => candidate.patient_id === id && candidate.is_eligible))));
-      await loadBatches();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to load archive candidates');
     } finally {

@@ -16,29 +16,6 @@ import { toast } from '@/hooks/use-toast';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-const BANK_CODES_BY_PROVIDER: Record<PaymentProvider, Record<string, string>> = {
-  flutterwave: {
-    'Access Bank': '044', 'Citibank': '023', 'Ecobank': '050', 'Fidelity Bank': '070',
-    'First Bank': '011', 'First City Monument Bank': '214', 'Guaranty Trust Bank': '058',
-    'Heritage Bank': '030', 'Keystone Bank': '082', 'Polaris Bank': '076',
-    'Providus Bank': '101', 'Stanbic IBTC Bank': '221', 'Standard Chartered': '068',
-    'Sterling Bank': '232', 'SunTrust Bank': '100', 'Titan Trust Bank': '000025',
-    'Union Bank': '032', 'United Bank for Africa': '033', 'Unity Bank': '215',
-    'Wema Bank': '035', 'Zenith Bank': '057', 'Jaiz Bank': '301',
-    'Kuda Bank': '090267', 'OPay': '100004', 'PalmPay': '100033', 'Moniepoint MFB': '110007',
-  },
-  paystack: {
-    'Access Bank': '044', 'Citibank': '023', 'Ecobank': '050', 'Fidelity Bank': '070',
-    'First Bank': '011', 'First City Monument Bank': '214', 'Guaranty Trust Bank': '058',
-    'Heritage Bank': '030', 'Keystone Bank': '082', 'Polaris Bank': '076',
-    'Providus Bank': '101', 'Stanbic IBTC Bank': '221', 'Standard Chartered': '068',
-    'Sterling Bank': '232', 'SunTrust Bank': '100', 'Titan Trust Bank': '000025',
-    'Union Bank': '032', 'United Bank for Africa': '033', 'Unity Bank': '215',
-    'Wema Bank': '035', 'Zenith Bank': '057', 'Jaiz Bank': '301',
-    'Kuda Bank': '50211', 'OPay': '999992', 'PalmPay': '999991', 'Moniepoint MFB': '50515',
-  },
-};
-
 interface Props {
   periods: PayrollPeriod[];
   selectedPeriod: PayrollPeriod | null;
@@ -54,7 +31,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
   const [payingId, setPayingId] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [provider, setProvider] = useState<PaymentProvider>('flutterwave');
-  const { getBalance, resolveAccount, initiateTransfer } = useProviderActions(provider);
+  const { getBalance, resolveBank, resolveAccount, initiateTransfer } = useProviderActions(provider);
 
   const bankEntries = entries.filter(e => e.staff_payment_method === 'bank' && e.staff_bank_name && e.staff_account_number);
   const cashEntries = entries.filter(e => e.staff_payment_method !== 'bank' || !e.staff_account_number);
@@ -78,18 +55,19 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
 
   const payEntry = async (entry: PayrollEntry): Promise<boolean> => {
     if (!selectedPeriod || !entry.staff_bank_name || !entry.staff_account_number) return false;
-    const bankCode = BANK_CODES_BY_PROVIDER[provider][entry.staff_bank_name];
-    if (!bankCode) {
-      toast({ title: 'Bank Not Supported', description: `${entry.staff_bank_name} is not mapped for ${providerLabel}. Please edit the staff bank details and retry.`, variant: 'destructive' });
-      await supabase.from('payroll_entries').update({ status: 'failed' }).eq('id', entry.id);
-      return false;
-    }
 
     const reference = `PAY-${entry.id.slice(0, 8)}-${Date.now()}`;
     let paymentAttemptId: string | null = null;
     setPayingId(entry.id);
 
     try {
+      // Resolve the saved display name against the provider's current bank list.
+      // This avoids case-sensitive failures such as "Opay" versus "OPay" and
+      // keeps codes current when a provider changes or adds a bank.
+      const bankResult = await resolveBank(entry.staff_bank_name);
+      const bankCode = String(bankResult?.bank?.code ?? '').trim();
+      if (!bankCode) throw new Error(`${entry.staff_bank_name} is not available in ${providerLabel}'s current bank list`);
+
       // Record the attempt before contacting the provider.  This prevents an
       // accepted transfer from becoming invisible if a later local write fails.
       const { data: paymentAttempt, error: attemptError } = await supabase
@@ -158,9 +136,9 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
       } else if (normalizedError.includes('not configured') || normalizedError.includes('secret_key')) {
         title = 'Provider Not Configured';
         description = `${providerLabel} API credentials are missing or invalid.`;
-      } else if (normalizedError.includes('bank code')) {
-        title = 'Bank Code Not Accepted';
-        description = `${providerLabel} rejected ${entry.staff_bank_name}. Update the staff bank details and retry.`;
+      } else if (normalizedError.includes('bank code') || normalizedError.includes('current bank list') || normalizedError.includes('not available')) {
+        title = 'Bank Not Supported';
+        description = `${entry.staff_bank_name} is not available in ${providerLabel}'s current bank list. Refresh the bank details and retry.`;
       } else if (normalizedError.includes('recipient') || normalizedError.includes('account') || normalizedError.includes('beneficiary')) {
         title = 'Invalid Bank Details';
         description = `Could not process payment for ${entry.staff_name}. Verify the bank and account number, then retry.`;

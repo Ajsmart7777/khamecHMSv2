@@ -458,6 +458,7 @@ function createProviderActions(functionName: string) {
 
   const getBalance = () => invoke('get_balance');
   const listBanks = () => invoke('list_banks');
+  const resolveBank = (bank_name: string) => invoke('resolve_bank', { bank_name });
   const resolveAccount = (account_number: string, account_bank: string) =>
     invoke('resolve_account', { account_number, account_bank });
   const initiateTransfer = (params: {
@@ -478,7 +479,7 @@ function createProviderActions(functionName: string) {
   }>) => invoke('bulk_transfer', { transfers });
   const verifyTransfer = (transfer_id: string) => invoke('verify_transfer', { transfer_id });
 
-  return { getBalance, listBanks, resolveAccount, initiateTransfer, bulkTransfer, verifyTransfer };
+  return { getBalance, listBanks, resolveBank, resolveAccount, initiateTransfer, bulkTransfer, verifyTransfer };
 }
 
 export function useProviderActions(provider: PaymentProvider) {

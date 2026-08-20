@@ -6,6 +6,10 @@ const ALLOWED_ROLES = ['billing', 'accountant', 'admin'];
 
 class FlutterwaveBusinessError extends Error {}
 
+function normalizeBankName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
 async function flwRequest(path: string, method = 'GET', body?: unknown) {
   const key = process.env.FLUTTERWAVE_SECRET_KEY;
   if (!key) throw new Error('FLUTTERWAVE_SECRET_KEY not configured');
@@ -49,6 +53,21 @@ export default async (request: Request) => {
         return json({ balance: (await flwRequest('/v3/balances/NGN')).data });
       case 'list_banks':
         return json({ banks: (await flwRequest('/v3/banks/NG')).data });
+      case 'resolve_bank': {
+        const requestedName = String(body.bank_name ?? '').trim();
+        if (!requestedName) throw new FlutterwaveBusinessError('Bank name is required');
+        const banks = (await flwRequest('/v3/banks/NG')).data;
+        const normalizedRequested = normalizeBankName(requestedName);
+        const bank = (Array.isArray(banks) ? banks : []).find((candidate: Record<string, unknown>) => {
+          const candidateName = String(candidate.name ?? '').trim();
+          const normalizedCandidate = normalizeBankName(candidateName);
+          return normalizedCandidate === normalizedRequested
+            || normalizedCandidate.includes(normalizedRequested)
+            || normalizedRequested.includes(normalizedCandidate);
+        });
+        if (!bank) throw new FlutterwaveBusinessError(`${requestedName} is not available in Flutterwave's current Nigerian bank list`);
+        return json({ bank: { code: String(bank.code ?? bank.id ?? ''), name: String(bank.name ?? requestedName) } });
+      }
       case 'resolve_account':
         return json({ account: (await flwRequest('/v3/accounts/resolve', 'POST', { account_number: body.account_number, account_bank: body.account_bank })).data });
       case 'initiate_transfer': {

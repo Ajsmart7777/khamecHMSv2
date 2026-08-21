@@ -1,15 +1,14 @@
-import { useState } from 'react';
-import { FlaskConical, Beaker, FileText, X } from 'lucide-react';
+import { FlaskConical, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { FlaskConical, X } from 'lucide-react';
 import { SnapLabResults } from '@/components/doctor/SnapLabResults';
-import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
 
 interface PatientLabResultsDialogProps {
   open: boolean;
@@ -19,18 +18,18 @@ interface PatientLabResultsDialogProps {
 }
 
 /**
- * A unified dialog to view all lab results for a patient:
- * 1. Photo-based snaps (SnapLabResults)
- * 2. Typed structured results (LabResultsViewer)
+ * Patient-scoped returned laboratory results.
+ *
+ * The result source is the same snap_orders record written by the Lab station
+ * for both typed and photographed returns. Keeping one view prevents typed
+ * results from being hidden behind the old generic lab_requests search UI.
  */
 export function PatientLabResultsDialog({
   open,
   onOpenChange,
   patientId,
-  patientName
+  patientName,
 }: PatientLabResultsDialogProps) {
-  const [activeTab, setActiveTab] = useState<'photos' | 'typed'>('photos');
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
@@ -39,39 +38,13 @@ export function PatientLabResultsDialog({
             <FlaskConical className="h-6 w-6 text-module-laboratory" />
             Lab Results · {patientName}
           </DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            Returned laboratory results for this patient. Typed reports appear exactly as entered by the laboratory officer.
+          </p>
         </DialogHeader>
 
-        <div className="flex px-6 border-b">
-          <button
-            onClick={() => setActiveTab('photos')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'photos' 
-                ? 'border-module-laboratory text-module-laboratory' 
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <Beaker className="h-4 w-4" />
-            Photo Results
-          </button>
-          <button
-            onClick={() => setActiveTab('typed')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
-              activeTab === 'typed' 
-                ? 'border-module-laboratory text-module-laboratory' 
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            <FileText className="h-4 w-4" />
-            Typed Results
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {activeTab === 'photos' ? (
-            <SnapLabResults patientId={patientId} />
-          ) : (
-            <LabResultsViewer patientId={patientId} />
-          )}
+        <div className="flex-1 overflow-y-auto p-6">
+          <SnapLabResults patientId={patientId} />
         </div>
 
         <DialogFooter className="p-4 border-t bg-muted/20">

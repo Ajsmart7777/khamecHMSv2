@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BedDouble, Camera, FileImage, LogOut, User2, Wallet, ScrollText, Beaker, FlaskConical } from 'lucide-react';
+import { BedDouble, Camera, FileImage, FileText, LogOut, User2, Wallet, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAdmissions } from '@/hooks/useAdmissions';
@@ -58,7 +58,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
       const { data } = await supabase
         .from('snap_orders')
         .select('patient_id')
-        .eq('order_type', 'lab_result')
+        .in('order_type', ['lab', 'lab_result'])
         .eq('status', 'returned');
       if (!active) return;
       const counts: Record<string, number> = {};
@@ -165,26 +165,10 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                   {can('admittedSnap') && (
                     <Button
                       size="sm"
-                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'prescription', accountType: p?.account_type, plan: p?.insurance_plan })}
-                    >
-                      <ScrollText className="h-3.5 w-3.5 mr-1.5" /> Add Items · Pharmacy
-                    </Button>
-                  )}
-                  {can('admittedSnap') && (
-                    <Button
-                      size="sm"
-                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'lab', accountType: p?.account_type, plan: p?.insurance_plan })}
-                    >
-                      <Beaker className="h-3.5 w-3.5 mr-1.5" /> Add Lab Tests
-                    </Button>
-                  )}
-                  {can('admittedSnap') && (
-                    <Button
-                      size="sm"
                       variant="outline"
                       onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'snap', orderType: 'prescription', accountType: p?.account_type, plan: p?.insurance_plan })}
                     >
-                      <Camera className="h-3.5 w-3.5 mr-1.5" /> Snap → Pharmacy
+                      <Camera className="h-3.5 w-3.5 mr-1.5" /> Snap to Pharmacy
                     </Button>
                   )}
                   {can('admittedSnap') && (
@@ -193,13 +177,31 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                       variant="outline"
                       onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'snap', orderType: 'lab', accountType: p?.account_type, plan: p?.insurance_plan })}
                     >
-                      <Camera className="h-3.5 w-3.5 mr-1.5" /> Snap → Lab
+                      <Camera className="h-3.5 w-3.5 mr-1.5" /> Snap to Lab
+                    </Button>
+                  )}
+                  {can('admittedSnap') && (
+                    <Button
+                      size="sm"
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'prescription', accountType: p?.account_type, plan: p?.insurance_plan })}
+                    >
+                      <FileText className="h-3.5 w-3.5 mr-1.5" /> Type to Pharmacy
+                    </Button>
+                  )}
+                  {can('admittedSnap') && (
+                    <Button
+                      size="sm"
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'lab', accountType: p?.account_type, plan: p?.insurance_plan })}
+                    >
+                      <FileText className="h-3.5 w-3.5 mr-1.5" /> Type to Lab
                     </Button>
                   )}
                   <SnapToCard
                     patientId={a.patient_id}
                     station={sourceStation}
-                    defaultLabel="Ward note"
+                    defaultLabel="Doctor review"
+                    allowTyped
+                    singleAction
                     className="w-full"
                   />
                   <Button

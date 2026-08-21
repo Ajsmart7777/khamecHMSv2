@@ -224,10 +224,11 @@ function narrativeSections(rows: LedgerRow[]) {
 }
 
 function NarrativeLedgerRows({
-  rows, thumbs, onOpenImage, patient,
+  rows, thumbs, attachmentText, onOpenImage, patient,
 }: {
   rows: LedgerRow[];
   thumbs: Record<string, string>;
+  attachmentText: Record<string, string>;
   onOpenImage: (url: string) => void;
   patient: Patient;
 }) {
@@ -246,7 +247,7 @@ function NarrativeLedgerRows({
           </div>
           {stageRows.map(row => (
             <LedgerRowView
-              key={row.id} row={row} thumbs={thumbs}
+              key={row.id} row={row} thumbs={thumbs} attachmentText={attachmentText}
               onOpenImage={onOpenImage}
               patient={patient}
             />
@@ -271,6 +272,7 @@ export function PatientLedgerCard({
   const [unassignedRows, setUnassignedRows] = useState<LedgerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
+  const [attachmentText, setAttachmentText] = useState<Record<string, string>>({});
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [stationFilter, setStationFilter] = useState<Set<string>>(new Set());
@@ -377,7 +379,11 @@ export function PatientLedgerCard({
       id: `att-${a.id}`, visitId: a.visit_id, at: a.captured_at ?? a.created_at,
       kind: 'attachment', station: a.station ?? 'other',
       title: a.label || `${a.station ?? 'Card'} photo`,
-      data: { path: a.storage_path, bucket: 'attachment' },
+      data: {
+        path: a.storage_path,
+        bucket: 'attachment',
+        mime_type: a.mime_type,
+      },
       subkind: 'card_photo',
     }));
 
@@ -678,7 +684,7 @@ export function PatientLedgerCard({
       visits.forEach(v => v.rows.forEach(r => {
         if (r.kind === 'snap' && r.data?.photo_path && !thumbs[r.data.photo_path])
           paths.push({ path: r.data.photo_path, kind: 'snap' });
-        if (r.kind === 'attachment' && r.data?.path && !thumbs[r.data.path])
+        if (r.kind === 'attachment' && r.data?.path && !r.data?.mime_type?.startsWith('text/') && !thumbs[r.data.path])
           paths.push({ path: r.data.path, kind: 'att' });
       }));
       const uniq = Array.from(new Map(paths.map(p => [p.path, p])).values());
@@ -693,6 +699,38 @@ export function PatientLedgerCard({
     })();
     return () => { cancelled = true; };
   }, [visits]); // eslint-disable-line
+
+  // Typed Snap-to-Card reviews are stored as plain text files in the same
+  // visit-card bucket. Load their exact contents for the patient narrative.
+  useEffect(() => {
+    let cancelled = false;
+    const textRows = visits
+      .flatMap(v => v.rows)
+      .filter(r => r.kind === 'attachment' && r.data?.mime_type?.startsWith('text/') && r.data?.path && !attachmentText[r.data.path]);
+    if (textRows.length === 0) return;
+    (async () => {
+      const pairs = await Promise.all(textRows.map(async row => {
+        const path = row.data.path as string;
+        const url = await signedUrl(path);
+        if (!url) return null;
+        try {
+          const response = await fetch(url);
+          if (!response.ok) return null;
+          return [path, await response.text()] as const;
+        } catch {
+          return null;
+        }
+      }));
+      if (!cancelled) {
+        setAttachmentText(prev => {
+          const next = { ...prev };
+          pairs.forEach(pair => { if (pair) next[pair[0]] = pair[1]; });
+          return next;
+        });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [visits, attachmentText]);
 
   const outstanding = Number(patient.balance ?? 0);
   const showWallet = hasWallet(patient);
@@ -830,6 +868,7 @@ export function PatientLedgerCard({
                     <NarrativeLedgerRows
                       rows={filteredUnassigned}
                       thumbs={thumbs}
+                      attachmentText={attachmentText}
                       onOpenImage={setLightbox}
                       patient={patient}
                     />
@@ -923,6 +962,7 @@ export function PatientLedgerCard({
                         <NarrativeLedgerRows
                           rows={filteredRows}
                           thumbs={thumbs}
+                          attachmentText={attachmentText}
                           onOpenImage={setLightbox}
                           patient={patient}
                         />
@@ -1064,11 +1104,12 @@ function LastActivityBadge({ rows }: { rows: LedgerRow[] }) {
 
 
 function LedgerRowView({
-  row, thumbs, onOpenImage,
+  row, thumbs, attachmentText, onOpenImage,
   patient,
 }: {
   row: LedgerRow;
   thumbs: Record<string, string>;
+  attachmentText: Record<string, string>;
   onOpenImage: (url: string) => void;
   patient: Patient;
 }) {
@@ -1131,9 +1172,19 @@ function LedgerRowView({
         )}
 
         {row.kind === 'vitals' && <VitalsRow v={row.data} />}
-        {row.kind === 'attachment' && (
+        {row.kind === 'attachment' && row.data?.mime_type?.startsWith('text/') ? (
+          <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-4">
+            <div className="flex items-center gap-2 text-indigo-700 mb-2">
+              <FileText className="h-4 w-4" />
+              <span className="text-xs font-semibold uppercase tracking-wide">Typed card review</span>
+            </div>
+            <p className="text-sm whitespace-pre-wrap leading-relaxed text-foreground">
+              {attachmentText[row.data?.path] ?? 'Loading review…'}
+            </p>
+          </div>
+        ) : row.kind === 'attachment' ? (
           <SnapPhoto url={thumbs[row.data?.path]} label={row.title} onOpen={onOpenImage} />
-        )}
+        ) : null}
         {row.kind === 'snap' && (
           <SnapRow snap={row.data} thumb={thumbs[row.data?.photo_path]} onOpen={onOpenImage} />
         )}

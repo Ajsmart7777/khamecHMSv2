@@ -59,7 +59,7 @@ interface Props {
 
 export function AdmittedSnapDialog({
   patientId, patientName, patientBalance, sourceStation, open, onOpenChange, onCreated,
-  mode = 'snap', orderType: fixedOrderType, accountType, insurancePlan,
+  mode, orderType: fixedOrderType, accountType, insurancePlan,
 }: Props) {
   const { items: pricelist, loading } = usePricelist();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,6 +69,7 @@ export function AdmittedSnapDialog({
   const orderType = fixedOrderType ?? orderTypeState;
   const target: Target = orderType === 'lab' ? 'lab' : orderType === 'treatment' ? 'nurse' : 'pharmacy';
   const [activeTab, setActiveTab] = useState<'snap' | 'type'>(mode === 'items' ? 'type' : 'snap');
+  const modeLocked = mode === 'items' || mode === 'snap';
   const [note, setNote] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -211,14 +212,16 @@ export function AdmittedSnapDialog({
         </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
-            <TabsTrigger value="snap" className="flex items-center gap-2">
-              <Camera className="h-4 w-4" /> Snap
-            </TabsTrigger>
-            <TabsTrigger value="type" className="flex items-center gap-2">
-              <Type className="h-4 w-4" /> Type
-            </TabsTrigger>
-          </TabsList>
+          {!modeLocked && (
+            <TabsList className="grid w-full grid-cols-2 mb-4">
+              <TabsTrigger value="snap" className="flex items-center gap-2">
+                <Camera className="h-4 w-4" /> Snap
+              </TabsTrigger>
+              <TabsTrigger value="type" className="flex items-center gap-2">
+                <Type className="h-4 w-4" /> Type
+              </TabsTrigger>
+            </TabsList>
+          )}
 
           <TabsContent value="snap" className="space-y-4">
             <div className={`p-3 rounded-lg border flex items-center gap-2 ${insufficient ? 'bg-amber-50 border-amber-300 dark:bg-amber-950/20' : 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/20'}`}>
@@ -404,18 +407,20 @@ export function AdmittedSnapDialog({
                   <TypedLabRequestEditor 
                     patientId={patientId}
                     visitId={null}
-                    onSuccess={() => { 
-                      toast.info("Lab order created. You can now close this dialog or add items below to bill them.");
-                      onCreated?.(); 
+                    onSuccess={() => {
+                      toast.success('Lab order sent to Billing');
+                      onCreated?.();
+                      onOpenChange(false);
                     }}
                   />
                 ) : (
                   <TypedPrescriptionEditor 
                     patientId={patientId}
                     visitId={null}
-                    onSuccess={() => { 
-                      toast.info("Prescription created. You can now close this dialog or add items below to bill them.");
-                      onCreated?.(); 
+                    onSuccess={() => {
+                      toast.success('Prescription sent to Billing');
+                      onCreated?.();
+                      onOpenChange(false);
                     }}
                   />
                 )}

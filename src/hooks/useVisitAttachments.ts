@@ -86,6 +86,47 @@ export async function uploadVisitAttachment(params: {
   }
 }
 
+export async function uploadVisitTextAttachment(params: {
+  visitId: string;
+  patientId: string;
+  text: string;
+  label: string;
+  station: VisitStation;
+}): Promise<VisitAttachment | null> {
+  const { data: userData } = await supabase.auth.getUser();
+  const uid = userData.user?.id;
+  if (!uid) {
+    toast.error('Not signed in');
+    return null;
+  }
+  try {
+    const body = new Blob([params.text], { type: 'text/plain;charset=utf-8' });
+    const path = `${params.visitId}/${crypto.randomUUID()}.txt`;
+    await uploadFile('visit-cards', path, body, 'text/plain;charset=utf-8');
+
+    const { data, error } = await supabase
+      .from('visit_attachments')
+      .insert({
+        visit_id: params.visitId,
+        patient_id: params.patientId,
+        storage_path: path,
+        label: params.label || 'Card review',
+        station: params.station,
+        mime_type: 'text/plain',
+        size_bytes: body.size,
+        captured_by: uid,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return data as VisitAttachment;
+  } catch (e: any) {
+    console.error(e);
+    toast.error(`Save failed: ${e.message ?? e}`);
+    return null;
+  }
+}
+
 export function useVisitAttachments(visitId?: string | null) {
   const [attachments, setAttachments] = useState<VisitAttachment[]>([]);
   const [loading, setLoading] = useState(false);

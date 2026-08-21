@@ -8,10 +8,9 @@ import { toast } from 'sonner';
 import { SnapOrder, snapPhotoUrl } from '@/hooks/useSnapOrders';
 
 /**
- * Photo-based lab results (snap_orders with order_type = 'lab_result')
- * for a single patient — regardless of who requested or who they were
- * returned to. Used inside the "Lab Results" dialog so admitted-patient
- * lab snaps are always visible to nurse / doctor1 / doctor2.
+ * Returned laboratory results for a single patient. The Lab station writes
+ * both typed and photographed returns as snap_orders with order_type = 'lab'
+ * and status = 'returned'; older lab_result rows remain supported.
  *
  * Once seen, a result can be archived (status -> 'acknowledged') so it stops
  * showing up as "New" in the Returned from Lab inbox.
@@ -30,9 +29,12 @@ export function SnapLabResults({ patientId }: { patientId: string }) {
       .from('snap_orders')
       .select('*')
       .eq('patient_id', patientId)
-      .eq('order_type', 'lab_result')
       .order('created_at', { ascending: false });
-    setItems(((data ?? []) as unknown) as SnapOrder[]);
+    const returned = ((data ?? []) as unknown as SnapOrder[]).filter((s: any) =>
+      (s.order_type === 'lab_result' || s.order_type === 'lab') &&
+      (s.status === 'returned' || s.status === 'acknowledged' || Boolean(s.result_text) || Boolean(s.photo_path)),
+    );
+    setItems(returned);
     setLoading(false);
   };
 
@@ -82,7 +84,7 @@ export function SnapLabResults({ patientId }: { patientId: string }) {
   };
 
   if (loading) {
-    return <p className="text-sm text-muted-foreground py-3">Loading lab result photos…</p>;
+    return <p className="text-sm text-muted-foreground py-3">Loading returned lab results…</p>;
   }
 
   if (items.length === 0) return null;
@@ -91,7 +93,7 @@ export function SnapLabResults({ patientId }: { patientId: string }) {
     <div className="rounded-xl border p-3 space-y-3">
       <div className="flex items-center gap-2">
         <FlaskConical className="h-4 w-4 text-module-laboratory" />
-        <h4 className="text-sm font-semibold">Results from Lab</h4>
+        <h4 className="text-sm font-semibold">Returned Lab Results</h4>
         <Badge variant="outline" className="text-[10px]">{visible.length}</Badge>
         {archivedCount > 0 && (
           <Button

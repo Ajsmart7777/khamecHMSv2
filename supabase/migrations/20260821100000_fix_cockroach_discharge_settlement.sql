@@ -695,6 +695,20 @@ BEGIN
     _rate, _amount, 'admission'
   );
 
+  -- A fully sponsored admission has no patient share. Marking this invoice
+  -- paid with a zero collection is required before the journey-discharge
+  -- trigger runs; otherwise the new invoice remains pending and blocks the
+  -- otherwise valid discharge transition.
+  IF _copay = 0 THEN
+    UPDATE public.invoices
+    SET paid_amount = 0,
+        status = 'paid',
+        paid_at = now(),
+        payment_method = 'sponsor',
+        updated_at = now()
+    WHERE id = _inv;
+  END IF;
+
   IF _copay > 0 THEN
     SELECT balance INTO _bal
     FROM public.patients

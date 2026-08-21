@@ -40,6 +40,11 @@ export interface Admission {
   ready_for_discharge_at?: string | null;
   ready_for_discharge_by?: string | null;
   discharge_order_snap_id?: string | null;
+  death_reported_at?: string | null;
+  death_reported_by?: string | null;
+  death_report_notes?: string | null;
+  death_finalized_at?: string | null;
+  death_finalized_by?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -145,6 +150,17 @@ export async function assignBed(admissionId: string, bedId: string): Promise<boo
 }
 
 /** Ward step: confirm the patient can leave — settlement happens at the Cashier. */
+export async function reportAdmissionDeath(admissionId: string, deathAt?: string | null, notes?: string | null): Promise<boolean> {
+  const { error } = await supabase.rpc('report_admission_death', {
+    _admission_id: admissionId,
+    _death_at: deathAt ?? null,
+    _notes: notes ?? null,
+  });
+  if (error) { reportActionError('reportDeath', error); return false; }
+  window.dispatchEvent(new Event('admissions:changed'));
+  return true;
+}
+
 export async function sendAdmissionToCashier(admissionId: string, note?: string): Promise<boolean> {
   const { error } = await supabase.rpc('send_admission_to_cashier', {
     _admission_id: admissionId,

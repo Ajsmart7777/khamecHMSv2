@@ -22,6 +22,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onDischarged?: () => void;
+  deceased?: boolean;
 }
 
 interface Preview {
@@ -52,7 +53,7 @@ const fmt = (n: number) => `₦${Number(n || 0).toLocaleString(undefined, { maxi
  * and settles it. Partial payment is allowed; the remainder is carried as debt.
  */
 export function DischargeDialog({
-  admissionId, patientId, patientName, patientBalance, open, onOpenChange, onDischarged,
+  admissionId, patientId, patientName, patientBalance, open, onOpenChange, onDischarged, deceased = false,
 }: Props) {
 
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -92,7 +93,7 @@ export function DischargeDialog({
   const shortfall = isPay && hasDebt ? Math.max(0, Math.round((due - amountNum) * 100) / 100) : 0;
   const needsReason = hasDebt && (method === 'carry' || shortfall > 0);
   const reasonMissing = false;
-  const invalidAmount = isPay && hasDebt && amountNum <= 0;
+  const invalidAmount = isPay && hasDebt && (amountNum <= 0 || (deceased && amountNum < due));
 
   // Change owed back to the patient: leftover wallet credit + any overpayment.
   const walletLeft = preview?.has_wallet
@@ -102,7 +103,11 @@ export function DischargeDialog({
   const changeDue = Math.round((walletLeft + overpay) * 100) / 100;
 
   const [refund, setRefund] = useState(false);
-  useEffect(() => { if (changeDue <= 0) setRefund(false); }, [changeDue]);
+  const refundRequired = deceased && changeDue > 0;
+  useEffect(() => {
+    if (changeDue <= 0) setRefund(false);
+    else if (deceased) setRefund(true);
+  }, [changeDue, deceased]);
 
   const [done, setDone] = useState(false);
   const [cancelBusy, setCancelBusy] = useState(false);
@@ -136,8 +141,12 @@ export function DischargeDialog({
   const submit = async () => {
     // Guard against double submits (double click / re-entry): one settlement only.
     if (busy || done) return;
+    if (deceased && changeDue > 0 && !refund) {
+      toast.error('Refund decision required', { description: 'Refund the remaining wallet credit before final death settlement.' });
+      return;
+    }
     setBusy(true);
-    const { data, error } = await supabase.rpc('discharge_admission', {
+    const { data, error } = await supabase.rpc(deceased ? 'finalize_deceased_admission' : 'discharge_admission', {
       _admission_id: admissionId,
       _notes: notes.trim() || null,
       _settlement_method: hasDebt ? method : null,
@@ -167,6 +176,15 @@ export function DischargeDialog({
       } else if (msg.includes('PAYMENT_REQUIRED:')) {
         toast.error('Payment is required first', { description: 'The related order must be processed by Billing before discharge settlement.' });
         onDischarged?.();
+      } else if (msg.includes('NOT_DEATH_REPORTED')) {
+        toast.error('Death report is missing', { description: 'The ward must report the patient death before final settlement.' });
+        onDischarged?.();
+      } else if (msg.includes('DEATH_SETTLEMENT_BUSY')) {
+        toast.error('Settlement is already in progress', { description: 'Refresh the Cashier queue and try again.' });
+        onDischarged?.();
+      } else if (msg.includes('DEATH_ALREADY_REPORTED')) {
+        toast.error('Death report already exists', { description: 'This case is already awaiting final settlement.' });
+        onDischarged?.();
       } else if (msg.includes('CANNOT_DISCHARGE')) {
         toast.error('Discharge is not ready', { description: 'Close all open visits and complete pending orders before settlement.' });
         onDischarged?.();
@@ -180,11 +198,13 @@ export function DischargeDialog({
     const outstanding = Number(res.outstanding ?? 0);
     const refunded = Number(res.refunded ?? 0);
     toast.success(
-      outstanding > 0
-        ? `Discharged — collected ${fmt(Number(res.collected ?? 0))}, ${fmt(outstanding)} carried as debt`
-        : refunded > 0
-          ? `Discharged — ${fmt(refunded)} change paid back to patient`
-          : 'Patient discharged — account settled',
+      deceased
+        ? `Final death settlement completed${refunded > 0 ? ` — ${fmt(refunded)} refunded` : ''}`
+        : outstanding > 0
+          ? `Discharged — collected ${fmt(Number(res.collected ?? 0))}, ${fmt(outstanding)} carried as debt`
+          : refunded > 0
+            ? `Discharged — ${fmt(refunded)} change paid back to patient`
+            : 'Patient discharged — account settled',
     );
     onDischarged?.();
     onOpenChange(false);
@@ -196,7 +216,7 @@ export function DischargeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Discharge · {patientName}</DialogTitle>
+          <DialogTitle>{deceased ? 'Deceased Patient Final Settlement' : 'Discharge'} · {patientName}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -302,8 +322,10 @@ export function DischargeDialog({
                   : `Balance: ${fmt(patientBalance)}`}
               </p>
               <p className="text-xs">
-                {hasDebt
-                  ? `Patient owes ${fmt(due)} — collect or carry as debt`
+                  {hasDebt
+                  ? deceased
+                    ? `Final settlement requires full payment of ${fmt(due)}`
+                    : `Patient owes ${fmt(due)} — collect or carry as debt`
                   : preview && !preview.has_wallet
                     ? 'Sponsor covers the bill — nothing to collect'
                     : (preview?.balance_after_bed ?? 0) > 0
@@ -316,7 +338,7 @@ export function DischargeDialog({
           {hasDebt && (
             <>
               <div className="space-y-2">
-                <Label>Settlement</Label>
+                  <Label>{deceased ? 'Final payment (no debt carry)' : 'Settlement'}</Label>
                 <RadioGroup value={method} onValueChange={(v) => setMethod(v as Method)} className="grid grid-cols-2 gap-2">
                   <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
                     <RadioGroupItem value="cash" /><span className="text-sm">Cash</span>
@@ -327,10 +349,12 @@ export function DischargeDialog({
                   <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
                     <RadioGroupItem value="transfer" /><span className="text-sm">Transfer</span>
                   </label>
-                  <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
-                    <RadioGroupItem value="carry" /><span className="text-sm">Carry as debt</span>
-                  </label>
-                  {preview?.account_type === 'staff_family' && (
+                  {!deceased && (
+                    <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
+                      <RadioGroupItem value="carry" /><span className="text-sm">Carry as debt</span>
+                    </label>
+                  )}
+                  {!deceased && preview?.account_type === 'staff_family' && (
                     <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted border-emerald-200 bg-emerald-50/30">
                       <RadioGroupItem value="salary" /><span className="text-sm">Salary Deduction</span>
                     </label>
@@ -347,7 +371,7 @@ export function DischargeDialog({
                   )}
                   {shortfall > 0 && !invalidAmount && (
                     <p className="text-xs text-amber-700 dark:text-amber-400">
-                      Collecting {fmt(amountNum)} · {fmt(shortfall)} will stay as debt on the patient's balance.
+                      {deceased ? `Collect the full ${fmt(due)} before final settlement.` : `Collecting ${fmt(amountNum)} · ${fmt(shortfall)} will stay as debt on the patient's balance.`}
                     </p>
                   )}
                   {amountNum > due && (
@@ -382,23 +406,25 @@ export function DischargeDialog({
           )}
 
           {changeDue > 0 && (
-            <div className="p-3 rounded-lg border space-y-2">
-              <p className="text-sm font-medium">Change due to patient: {fmt(changeDue)}</p>
-              <RadioGroup
-                value={refund ? 'refund' : 'keep'}
-                onValueChange={(v) => setRefund(v === 'refund')}
-                className="grid grid-cols-1 gap-2"
-              >
-                <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
-                  <RadioGroupItem value="keep" />
-                  <span className="text-sm">Leave on patient balance</span>
-                </label>
-                <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
-                  <RadioGroupItem value="refund" />
-                  <span className="text-sm">Pay change back to patient now</span>
-                </label>
-              </RadioGroup>
-            </div>
+              <div className="p-3 rounded-lg border space-y-2">
+                <p className="text-sm font-medium">{deceased ? 'Refund due to patient' : 'Change due to patient'}: {fmt(changeDue)}</p>
+                <RadioGroup
+                  value={refund ? 'refund' : 'keep'}
+                  onValueChange={(v) => !refundRequired && setRefund(v === 'refund')}
+                  className="grid grid-cols-1 gap-2"
+                >
+                  {!deceased && (
+                    <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
+                      <RadioGroupItem value="keep" />
+                      <span className="text-sm">Leave on patient balance</span>
+                    </label>
+                  )}
+                  <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-muted">
+                    <RadioGroupItem value="refund" />
+                    <span className="text-sm">{deceased ? 'Refund to patient now (required)' : 'Pay change back to patient now'}</span>
+                  </label>
+                </RadioGroup>
+              </div>
           )}
 
 
@@ -411,19 +437,21 @@ export function DischargeDialog({
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy || cancelBusy}>Close</Button>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={cancelSettlement}
-            disabled={busy || cancelBusy || done || loading}
-            className="mr-auto"
-          >
-            <RotateCcw className="h-4 w-4 mr-2" />
-            {cancelBusy ? 'Cancelling…' : 'Cancel Settlement'}
-          </Button>
-          <Button onClick={submit} disabled={busy || cancelBusy || done || loading || invalidAmount || reasonMissing}>
+          {!deceased && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={cancelSettlement}
+              disabled={busy || cancelBusy || done || loading}
+              className="mr-auto"
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              {cancelBusy ? 'Cancelling…' : 'Cancel Settlement'}
+            </Button>
+          )}
+          <Button onClick={submit} disabled={busy || cancelBusy || done || loading || invalidAmount || reasonMissing || (deceased && refundRequired && !refund)}>
             <LogOut className="h-4 w-4 mr-2" />
-            {busy ? 'Discharging…' : done ? 'Settled' : 'Confirm Discharge'}
+            {busy ? 'Finalizing…' : done ? 'Settled' : deceased ? 'Confirm Final Settlement' : 'Confirm Discharge'}
           </Button>
         </DialogFooter>
       </DialogContent>

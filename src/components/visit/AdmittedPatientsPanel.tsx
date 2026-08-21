@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BedDouble, Camera, FileImage, FileText, LogOut, User2, Wallet, FlaskConical } from 'lucide-react';
+import { BedDouble, Camera, FileImage, FileText, HeartPulse, LogOut, User2, Wallet, FlaskConical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAdmissions } from '@/hooks/useAdmissions';
@@ -9,6 +9,7 @@ import { SnapToCard } from './SnapToCard';
 import { AdmissionSnapDialog } from './AdmissionSnapDialog';
 
 import { ConfirmDischargeDialog } from '@/components/nurse/ConfirmDischargeDialog';
+import { ReportDeathDialog } from '@/components/nurse/ReportDeathDialog';
 import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -32,7 +33,7 @@ interface Props {
  * snaps to Pharmacy/Lab via Billing, sign a discharge order, or discharge).
  */
 export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patients', assignedDoctor }: Props) {
-  const { admissions } = useAdmissions({ statuses: ['active', 'ready_for_discharge'] });
+  const { admissions, refresh } = useAdmissions({ statuses: ['active', 'ready_for_discharge'] });
   const { patients } = usePatients();
   const [orderFor, setOrderFor] = useState<{
     id: string; name: string; balance: number;
@@ -41,6 +42,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
     accountType?: string | null; plan?: string | null;
   } | null>(null);
   const [dischargeFor, setDischargeFor] = useState<{ admissionId: string; patientId: string; name: string; balance: number } | null>(null);
+  const [deathFor, setDeathFor] = useState<{ admissionId: string; name: string } | null>(null);
 
   
   const [resultsFor, setResultsFor] = useState<{ patientId: string; name: string } | null>(null);
@@ -112,6 +114,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
             const bal = Number(p?.balance ?? 0);
             const low = bal <= 0;
             const isReady = a.status === 'ready_for_discharge';
+            const deathReported = Boolean(a.death_reported_at);
             const name = `${p?.first_name ?? ''} ${p?.last_name ?? ''}`.trim();
             const bed = a.bed_id ? bedInfo.get(a.bed_id) : undefined;
             const startedAt = a.admitted_at ?? a.created_at ?? null;
@@ -150,7 +153,9 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                         Day {days} · {nights} night{nights === 1 ? '' : 's'}
                       </Badge>
                     )}
-                    {isReady ? (
+                    {deathReported ? (
+                      <Badge variant="destructive" className="text-[10px]">Death Reported</Badge>
+                    ) : isReady ? (
                       <Badge variant="info" className="text-[10px]">Ready for Discharge</Badge>
                     ) : (
                       <Badge variant={low ? 'warning' : 'success'} className="text-[10px]">
@@ -161,8 +166,15 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                   </div>
                 </div>
 
+                {deathReported && (
+                  <div className="mb-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-xs text-muted-foreground">
+                    <p className="font-medium text-destructive flex items-center gap-1.5"><HeartPulse className="h-3.5 w-3.5" /> Death reported</p>
+                    <p>Awaiting Cashier final settlement. The bed remains occupied until settlement is complete.</p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2">
-                  {can('admittedSnap') && (
+                  {!deathReported && can('admittedSnap') && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -171,7 +183,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                       <Camera className="h-3.5 w-3.5 mr-1.5" /> Snap to Pharmacy
                     </Button>
                   )}
-                  {can('admittedSnap') && (
+                  {!deathReported && can('admittedSnap') && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -180,7 +192,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                       <Camera className="h-3.5 w-3.5 mr-1.5" /> Snap to Lab
                     </Button>
                   )}
-                  {can('admittedSnap') && (
+                  {!deathReported && can('admittedSnap') && (
                     <Button
                       size="sm"
                       onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'prescription', accountType: p?.account_type, plan: p?.insurance_plan })}
@@ -188,7 +200,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                       <FileText className="h-3.5 w-3.5 mr-1.5" /> Type to Pharmacy
                     </Button>
                   )}
-                  {can('admittedSnap') && (
+                  {!deathReported && can('admittedSnap') && (
                     <Button
                       size="sm"
                       onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'lab', accountType: p?.account_type, plan: p?.insurance_plan })}
@@ -196,14 +208,14 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                       <FileText className="h-3.5 w-3.5 mr-1.5" /> Type to Lab
                     </Button>
                   )}
-                  <SnapToCard
+                  {!deathReported && <SnapToCard
                     patientId={a.patient_id}
                     station={sourceStation}
                     defaultLabel="Doctor review"
                     allowTyped
                     singleAction
                     className="w-full"
-                  />
+                  />}
                   <Button
                     size="sm"
                     variant={newResults[a.patient_id] ? 'default' : 'outline'}
@@ -225,7 +237,20 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                   </Button>
 
 
-                  {can('requestDischarge') && (
+                  {deathReported ? (
+                    <Button size="sm" variant="destructive" disabled>
+                      <HeartPulse className="h-3.5 w-3.5 mr-1.5" /> Final Settlement at Cashier
+                    </Button>
+                  ) : can('reportDeath') ? (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setDeathFor({ admissionId: a.id, name })}
+                    >
+                      <HeartPulse className="h-3.5 w-3.5 mr-1.5" /> Report Death
+                    </Button>
+                  ) : null}
+                  {!deathReported && can('requestDischarge') && (
                     <Button
                       size="sm"
                       variant={isReady ? 'outline' : 'secondary'}
@@ -256,6 +281,16 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
           orderType={orderFor.orderType}
           accountType={orderFor.accountType}
           insurancePlan={orderFor.plan}
+        />
+      )}
+
+      {deathFor && (
+        <ReportDeathDialog
+          open
+          onOpenChange={(o) => !o && setDeathFor(null)}
+          admissionId={deathFor.admissionId}
+          patientName={deathFor.name}
+          onReported={refresh}
         />
       )}
 

@@ -15,6 +15,8 @@ export const ADMISSION_PERMS = {
   admittedSnap: ['nurse', 'doctor1', 'doctor2', 'admin'],
   /** Ward confirms the patient can go — sends them to the Cashier for settlement */
   requestDischarge: ['nurse', 'doctor1', 'doctor2', 'admin'],
+  /** Report an admitted patient death — final settlement remains with Cashier */
+  reportDeath: ['nurse', 'doctor1', 'doctor2', 'admin'],
   /** Settle the bill and complete the discharge — Reception-owned Cashier workflow */
   discharge: ['receptionist', 'cashier', 'billing', 'accountant', 'admin'],
 } satisfies Record<string, AppRole[]>;

@@ -153,6 +153,10 @@ DECLARE
   _credit numeric;
   _applied numeric;
   _due numeric;
+  _admitted_at timestamptz;
+  _discharged_at timestamptz;
+  _created_at timestamptz;
+  _room_rate numeric;
   _wallet boolean;
 BEGIN
   IF NOT public.has_any_role(
@@ -176,11 +180,32 @@ BEGIN
     RAISE EXCEPTION 'Patient not found';
   END IF;
 
-  -- Direct set-returning function syntax is supported by CockroachDB;
-  -- ROWS FROM(...) produced the preview failure in the generated routine.
-  SELECT days, daily_rate, amount
-  INTO _nights, _rate, _bed_total
-  FROM public.admission_bed_charge(_admission_id);
+  -- Inline bed-charge calculation. The legacy set-returning helper triggers
+  -- CockroachDB's top-level relational-expression error when called here.
+  SELECT a.admitted_at, a.discharged_at, a.created_at, r.daily_rate
+  INTO _admitted_at, _discharged_at, _created_at, _room_rate
+  FROM public.admissions a
+  LEFT JOIN public.beds b ON b.id = a.bed_id
+  LEFT JOIN public.rooms r ON r.id = b.room_id
+  WHERE a.id = _admission_id;
+
+  IF _created_at IS NULL THEN
+    _nights := 0;
+    _rate := 0;
+    _bed_total := 0;
+  ELSE
+    _nights := GREATEST(
+      0,
+      (COALESCE(_discharged_at, now())::date - COALESCE(_admitted_at, _created_at)::date)
+    )::int;
+    IF _nights = 0 THEN
+      _rate := 3000;
+      _bed_total := 3000;
+    ELSE
+      _rate := COALESCE(_room_rate, 0);
+      _bed_total := ROUND(_nights::numeric * _rate, 2);
+    END IF;
+  END IF;
 
   _pct := public.copay_percent((_p).account_type, (_p).insurance_plan);
   _share := ROUND(COALESCE(_bed_total, 0) * _pct / 100.0, 2);
@@ -265,6 +290,7 @@ DECLARE
   _share numeric;
   _due numeric;
   _apply numeric;
+  _pending_station text;
 BEGIN
   IF NOT public.has_any_role(
     public.hms_current_user_id(),
@@ -290,6 +316,21 @@ BEGIN
   END IF;
   IF (_adm).status <> 'ready_for_discharge' THEN
     RAISE EXCEPTION 'NOT_IN_CASHIER_QUEUE: the ward has not confirmed this discharge yet (%)', (_adm).status;
+  END IF;
+
+  -- Do this safety check before billing or wallet mutations. Pending clinical
+  -- work must be completed by Billing/Lab/Pharmacy before discharge settlement.
+  SELECT public.patient_pending_workflow_station((_adm).patient_id)
+  INTO _pending_station;
+  IF _pending_station IS NOT NULL THEN
+    RAISE EXCEPTION 'PENDING_WORKFLOW: complete % work before discharge settlement',
+      CASE _pending_station
+        WHEN 'awaiting_billing' THEN 'Billing'
+        WHEN 'awaiting_payment' THEN 'Cashier payment'
+        WHEN 'in_lab' THEN 'Laboratory'
+        WHEN 'at_pharmacy' THEN 'Pharmacy'
+        ELSE _pending_station
+      END;
   END IF;
 
   SELECT public.bill_admission_bed_days(_admission_id);
@@ -544,5 +585,150 @@ BEGIN
     'credit_left', _credit,
     'refunded', _refund
   );
+END;
+$$;
+
+
+-- Replace the legacy bill helper's ROWS FROM(admission_bed_charge(...)) call.
+-- This routine is invoked by discharge_admission and uses the same inline
+-- bed calculation as admission_discharge_preview.
+CREATE OR REPLACE FUNCTION public.bill_admission_bed_days(_admission_id uuid)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  _adm public.admissions;
+  _p public.patients;
+  _room_class text;
+  _admitted_at timestamptz;
+  _discharged_at timestamptz;
+  _created_at timestamptz;
+  _room_rate numeric;
+  _days int;
+  _rate numeric;
+  _amount numeric;
+  _pct numeric;
+  _copay numeric;
+  _inv uuid;
+  _bal numeric;
+  _from_wallet numeric;
+  _debt numeric;
+  _item_desc text;
+BEGIN
+  SELECT * INTO _adm
+  FROM public.admissions
+  WHERE id = _admission_id;
+  IF _adm IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT * INTO _p
+  FROM public.patients
+  WHERE id = (_adm).patient_id;
+  IF _p IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT a.admitted_at, a.discharged_at, a.created_at, r.daily_rate
+  INTO _admitted_at, _discharged_at, _created_at, _room_rate
+  FROM public.admissions a
+  LEFT JOIN public.beds b ON b.id = a.bed_id
+  LEFT JOIN public.rooms r ON r.id = b.room_id
+  WHERE a.id = _admission_id;
+  IF _created_at IS NULL THEN
+    RETURN NULL;
+  END IF;
+
+  _days := GREATEST(
+    0,
+    (COALESCE(_discharged_at, now())::date - COALESCE(_admitted_at, _created_at)::date)
+  )::int;
+  IF _days = 0 THEN
+    _rate := 3000;
+    _amount := 3000;
+  ELSE
+    _rate := COALESCE(_room_rate, 0);
+    _amount := ROUND(_days::numeric * _rate, 2);
+  END IF;
+  IF COALESCE(_amount, 0) <= 0 THEN
+    RETURN NULL;
+  END IF;
+
+  SELECT id INTO _inv
+  FROM public.invoices
+  WHERE patient_id = (_adm).patient_id
+    AND notes = 'BED_DAYS:' || _admission_id::text
+  LIMIT 1;
+  IF _inv IS NOT NULL THEN
+    RETURN _inv;
+  END IF;
+
+  _pct := public.copay_percent((_p).account_type, (_p).insurance_plan);
+  _copay := ROUND((_amount * _pct) / 100.0, 2);
+  SELECT r.room_class
+  INTO _room_class
+  FROM public.beds b
+  JOIN public.rooms r ON r.id = b.room_id
+  WHERE b.id = (_adm).bed_id;
+
+  INSERT INTO public.invoices(
+    patient_id, visit_id, total_amount, original_amount, discount_amount,
+    paid_amount, status, sponsor_type, corporate_account_id, notes
+  ) VALUES (
+    (_adm).patient_id, (_adm).visit_id, _amount, _amount, 0, 0, 'pending',
+    CASE WHEN _pct < 100 THEN (_p).account_type ELSE NULL END,
+    NULLIF(((_p).corporate_id)::text, '')::uuid,
+    'BED_DAYS:' || _admission_id::text
+  ) RETURNING id INTO _inv;
+
+  IF _days = 0 THEN
+    _item_desc := 'Observation fee (same-day discharge)';
+  ELSE
+    _item_desc := 'Bed charge - ' || COALESCE(_room_class, 'ward') ||
+      ' - ' || _days || ' night(s)';
+  END IF;
+  INSERT INTO public.invoice_items(
+    invoice_id, description, quantity, unit_price, total, category
+  ) VALUES (
+    _inv, _item_desc, CASE WHEN _days = 0 THEN 1 ELSE _days END,
+    _rate, _amount, 'admission'
+  );
+
+  IF _copay > 0 THEN
+    SELECT balance INTO _bal
+    FROM public.patients
+    WHERE id = (_adm).patient_id
+    FOR UPDATE;
+    _from_wallet := ROUND(LEAST(GREATEST(COALESCE(_bal, 0), 0), _copay), 2);
+    _debt := ROUND(_copay - _from_wallet, 2);
+    IF _from_wallet > 0 THEN
+      SELECT public.adjust_patient_balance(
+        (_adm).patient_id, -_from_wallet, 'invoice_deduction', NULL,
+        NULL, _inv,
+        CASE WHEN _days = 0 THEN 'Observation fee for admission'
+          ELSE 'Bed charge for admission (' || _days || ' night(s))' END
+      );
+    END IF;
+    IF _debt > 0 THEN
+      SELECT public.adjust_patient_balance(
+        (_adm).patient_id, -_debt, 'debt_incurred', NULL,
+        NULL, _inv,
+        CASE WHEN _days = 0 THEN 'Observation fee shortfall on discharge'
+          ELSE 'Bed charge shortfall on discharge (' || _days || ' night(s))' END
+      );
+    END IF;
+    UPDATE public.invoices
+    SET paid_amount = _from_wallet,
+        status = CASE
+          WHEN _from_wallet >= _amount THEN 'paid'
+          WHEN _from_wallet > 0 THEN 'partial'
+          ELSE 'pending'
+        END,
+        paid_at = CASE WHEN _from_wallet >= _amount THEN now() ELSE NULL END
+    WHERE id = _inv;
+  END IF;
+
+  RETURN _inv;
 END;
 $$;

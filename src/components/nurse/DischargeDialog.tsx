@@ -133,6 +133,16 @@ export function DischargeDialog({
         toast.error('Not ready for settlement', { description: 'The ward has not confirmed this discharge yet.' });
         onDischarged?.();
         onOpenChange(false);
+      } else if (msg.includes('PENDING_WORKFLOW:')) {
+        const detail = msg.split('PENDING_WORKFLOW:')[1]?.trim() || 'Complete all pending Billing, Laboratory, and Pharmacy work first.';
+        toast.error('Complete pending work first', { description: detail });
+        onDischarged?.();
+      } else if (msg.includes('PAYMENT_REQUIRED:')) {
+        toast.error('Payment is required first', { description: 'The related order must be processed by Billing before discharge settlement.' });
+        onDischarged?.();
+      } else if (msg.includes('CANNOT_DISCHARGE')) {
+        toast.error('Discharge is not ready', { description: 'Close all open visits and complete pending orders before settlement.' });
+        onDischarged?.();
       } else {
         toast.error(msg || 'Failed to complete discharge');
       }

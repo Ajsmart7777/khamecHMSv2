@@ -1799,7 +1799,25 @@ BEGIN
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.admissions a WHERE a.patient_id = d.actual_id AND a.status IN ('waiting_assignment', 'active', 'ready_for_discharge')) THEN 'An active admission still exists' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.invoices i WHERE i.patient_id = d.actual_id AND i.status::text IN ('pending', 'partial')) THEN 'An unpaid or partially paid invoice exists' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.lab_requests lr WHERE lr.patient_id = d.actual_id AND lr.status::text = 'pending') THEN 'A laboratory request is pending' END,
-      CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.prescriptions pr WHERE pr.patient_id = d.actual_id AND pr.status::text = 'pending') THEN 'A pharmacy prescription is pending' END,
+      CASE WHEN d.actual_id IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM public.prescriptions pr
+        WHERE pr.patient_id = d.actual_id
+          AND pr.status::text = 'pending'
+          AND (
+            SELECT count(*)
+            FROM public.prescriptions pr_all
+            WHERE pr_all.patient_id = pr.patient_id
+              AND pr_all.visit_id = pr.visit_id
+          ) > (
+            SELECT count(*)
+            FROM public.snap_orders so
+            WHERE so.patient_id = pr.patient_id
+              AND so.visit_id = pr.visit_id
+              AND so.order_type::text = 'prescription'
+              AND so.status::text = 'fulfilled'
+          )
+      ) THEN 'A pharmacy prescription is pending' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.snap_orders so WHERE so.patient_id = d.actual_id AND so.status::text = 'awaiting_payment') THEN 'A snap order awaits payment' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.balance_requests br WHERE br.patient_id = d.actual_id AND br.status::text = 'pending') THEN 'A patient balance request is pending' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.standing_orders sto WHERE sto.patient_id = d.actual_id AND COALESCE(sto.status::text, '') NOT IN ('completed', 'cancelled', 'closed', 'returned')) THEN 'A standing order or external referral is unresolved' END,
@@ -2081,7 +2099,25 @@ BEGIN
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.admissions a WHERE a.patient_id = d.actual_id AND a.status IN ('waiting_assignment', 'active', 'ready_for_discharge')) THEN 'An active admission still exists' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.invoices i WHERE i.patient_id = d.actual_id AND i.status::text IN ('pending', 'partial')) THEN 'An unpaid or partially paid invoice exists' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.lab_requests lr WHERE lr.patient_id = d.actual_id AND lr.status::text = 'pending') THEN 'A laboratory request is pending' END,
-      CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.prescriptions pr WHERE pr.patient_id = d.actual_id AND pr.status::text = 'pending') THEN 'A pharmacy prescription is pending' END,
+      CASE WHEN d.actual_id IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM public.prescriptions pr
+        WHERE pr.patient_id = d.actual_id
+          AND pr.status::text = 'pending'
+          AND (
+            SELECT count(*)
+            FROM public.prescriptions pr_all
+            WHERE pr_all.patient_id = pr.patient_id
+              AND pr_all.visit_id = pr.visit_id
+          ) > (
+            SELECT count(*)
+            FROM public.snap_orders so
+            WHERE so.patient_id = pr.patient_id
+              AND so.visit_id = pr.visit_id
+              AND so.order_type::text = 'prescription'
+              AND so.status::text = 'fulfilled'
+          )
+      ) THEN 'A pharmacy prescription is pending' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.snap_orders so WHERE so.patient_id = d.actual_id AND so.status::text = 'awaiting_payment') THEN 'A snap order awaits payment' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.balance_requests br WHERE br.patient_id = d.actual_id AND br.status::text = 'pending') THEN 'A patient balance request is pending' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.standing_orders sto WHERE sto.patient_id = d.actual_id AND COALESCE(sto.status::text, '') NOT IN ('completed', 'cancelled', 'closed', 'returned')) THEN 'A standing order or external referral is unresolved' END,
@@ -2172,7 +2208,25 @@ BEGIN
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.admissions a WHERE a.patient_id = d.actual_id AND a.status IN ('waiting_assignment', 'active', 'ready_for_discharge')) THEN 'An active admission still exists' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.invoices i WHERE i.patient_id = d.actual_id AND i.status::text IN ('pending', 'partial')) THEN 'An unpaid or partially paid invoice exists' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.lab_requests lr WHERE lr.patient_id = d.actual_id AND lr.status::text = 'pending') THEN 'A laboratory request is pending' END,
-      CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.prescriptions pr WHERE pr.patient_id = d.actual_id AND pr.status::text = 'pending') THEN 'A pharmacy prescription is pending' END,
+      CASE WHEN d.actual_id IS NOT NULL AND EXISTS (
+        SELECT 1
+        FROM public.prescriptions pr
+        WHERE pr.patient_id = d.actual_id
+          AND pr.status::text = 'pending'
+          AND (
+            SELECT count(*)
+            FROM public.prescriptions pr_all
+            WHERE pr_all.patient_id = pr.patient_id
+              AND pr_all.visit_id = pr.visit_id
+          ) > (
+            SELECT count(*)
+            FROM public.snap_orders so
+            WHERE so.patient_id = pr.patient_id
+              AND so.visit_id = pr.visit_id
+              AND so.order_type::text = 'prescription'
+              AND so.status::text = 'fulfilled'
+          )
+      ) THEN 'A pharmacy prescription is pending' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.snap_orders so WHERE so.patient_id = d.actual_id AND so.status::text = 'awaiting_payment') THEN 'A snap order awaits payment' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.balance_requests br WHERE br.patient_id = d.actual_id AND br.status::text = 'pending') THEN 'A patient balance request is pending' END,
       CASE WHEN d.actual_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.standing_orders sto WHERE sto.patient_id = d.actual_id AND COALESCE(sto.status::text, '') NOT IN ('completed', 'cancelled', 'closed', 'returned')) THEN 'A standing order or external referral is unresolved' END,

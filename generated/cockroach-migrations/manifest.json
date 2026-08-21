@@ -1,7 +1,7 @@
 {
-  "source_migrations": 213,
-  "transformed_statements": 1332,
-  "batches": 23,
+  "source_migrations": 228,
+  "transformed_statements": 1461,
+  "batches": 25,
   "removed_constructs": [
     "Supabase Realtime",
     "Supabase Storage policies",

@@ -43,6 +43,7 @@ export function useSponsorStatements(sponsorType?: 'corporate' | 'retainer') {
     let q = supabase
       .from('sponsor_statements')
       .select('*')
+      .is('archived_at', null)
       .order('period_year', { ascending: false })
       .order('period_month', { ascending: false });
     if (sponsorType) q = q.eq('sponsor_type', sponsorType);

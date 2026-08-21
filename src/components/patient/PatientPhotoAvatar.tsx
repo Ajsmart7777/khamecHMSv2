@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Upload, User, Loader2, Trash2 } from 'lucide-react';
 import { uploadFile as putFile, getFileUrl, deleteFile } from '@/lib/storage';
-import { usePatients, Patient } from '@/contexts/PatientContext';
+import { Patient } from '@/contexts/PatientContext';
+import { supabase } from '@/integrations/supabase/client';
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,9 +31,8 @@ interface Props {
 export function PatientPhotoAvatar({
   patient, size = 64, editable = true, className = '',
 }: Props) {
-  const { updatePatient } = usePatients();
   const { hasRole } = useAuth();
-  const canEdit = editable && hasRole(['receptionist', 'admin']);
+  const canEdit = editable && hasRole(['receptionist']);
   const photoPath = (patient as any).photo_path as string | null | undefined;
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -65,8 +65,11 @@ export function PatientPhotoAvatar({
       if (photoPath) {
         await deleteFile(BUCKET, photoPath);
       }
-      const ok = await updatePatient(patient.id, { photo_path: path } as Partial<Patient>);
-      if (!ok) throw new Error('Failed to save photo');
+      const { error: saveError } = await (supabase as any).rpc('set_patient_photo_path', {
+        _patient_id: patient.id,
+        _photo_path: path,
+      });
+      if (saveError) throw saveError;
       toast.success('Patient photo updated');
     } catch (e: any) {
       toast.error('Failed to upload photo', { description: e?.message });
@@ -80,7 +83,11 @@ export function PatientPhotoAvatar({
     setBusy(true);
     try {
       await deleteFile(BUCKET, photoPath);
-      await updatePatient(patient.id, { photo_path: null } as unknown as Partial<Patient>);
+      const { error: removeError } = await (supabase as any).rpc('set_patient_photo_path', {
+        _patient_id: patient.id,
+        _photo_path: null,
+      });
+      if (removeError) throw removeError;
       toast.success('Photo removed');
     } finally {
       setBusy(false);

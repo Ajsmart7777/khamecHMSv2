@@ -8,12 +8,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle2, XCircle, HelpCircle, RotateCcw, Loader2, ShieldCheck } from 'lucide-react';
+import { XCircle, HelpCircle, RotateCcw, Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Visit,
-  markClaimSettled, markClaimRejected, requestClaimInfo, reopenClaim,
+  markClaimRejected, requestClaimInfo, reopenClaim,
   CLAIM_REJECT_REASON_CODES, CLAIM_INFO_REASON_CODES,
 } from '@/hooks/useVisits';
 import { isSponsored } from '@/lib/copay';
@@ -35,7 +35,7 @@ function statusTone(s?: string | null) {
 
 export function ClaimActionsBar({ visit, patient }: { visit: Visit; patient: Patient }) {
   const { hasRole } = useAuth();
-  const [action, setAction] = useState<null | 'reject' | 'info' | 'settle' | 'reopen'>(null);
+  const [action, setAction] = useState<null | 'reject' | 'info' | 'reopen'>(null);
   const [reasonCode, setReasonCode] = useState('');
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
@@ -56,14 +56,13 @@ export function ClaimActionsBar({ visit, patient }: { visit: Visit; patient: Pat
     if ((action === 'reject' || action === 'info') && !reasonCode) {
       toast.error('Select a reason code'); return;
     }
-    if ((action === 'settle' || action === 'reopen') && action === 'reopen' && notes.trim().length < 3) {
+    if (action === 'reopen' && notes.trim().length < 3) {
       toast.error('Provide a reason (min 3 chars)'); return;
     }
     setBusy(true);
     try {
       if (action === 'reject') await markClaimRejected(visit.id, reasonCode, notes.trim() || undefined);
       else if (action === 'info') await requestClaimInfo(visit.id, reasonCode, notes.trim() || undefined);
-      else if (action === 'settle') await markClaimSettled(visit.id, notes.trim() || undefined);
       else if (action === 'reopen') await reopenClaim(visit.id, notes.trim());
       toast.success('Claim updated');
       setAction(null); setReasonCode(''); setNotes('');
@@ -103,10 +102,6 @@ export function ClaimActionsBar({ visit, patient }: { visit: Visit; patient: Pat
                 onClick={() => { setAction('reject'); setReasonCode(''); setNotes(''); }}>
                 <XCircle className="h-3 w-3 mr-1" /> Reject
               </Button>
-              <Button size="sm" className="h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
-                onClick={() => { setAction('settle'); setNotes(''); }}>
-                <CheckCircle2 className="h-3 w-3 mr-1" /> Mark Settled
-              </Button>
             </>
           )}
           {(status === 'rejected' || status === 'settled') && (
@@ -124,7 +119,6 @@ export function ClaimActionsBar({ visit, patient }: { visit: Visit; patient: Pat
             <AlertDialogTitle>
               {action === 'reject' && 'Reject this claim?'}
               {action === 'info' && 'Request more information?'}
-              {action === 'settle' && 'Mark claim as settled?'}
               {action === 'reopen' && 'Reopen this claim?'}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
@@ -156,7 +150,6 @@ export function ClaimActionsBar({ visit, patient }: { visit: Visit; patient: Pat
                     placeholder={
                       action === 'reject' ? 'Rejection details for the audit log…' :
                       action === 'info'   ? 'What info is needed from patient / scheme?' :
-                      action === 'settle' ? 'Reconciliation notes — remittance ref, batch #…' :
                       'Why is this claim being reopened?'
                     }
                     value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
@@ -176,7 +169,7 @@ export function ClaimActionsBar({ visit, patient }: { visit: Visit; patient: Pat
               className={
                 action === 'reject' ? 'bg-red-600 hover:bg-red-700' :
                 action === 'info'   ? 'bg-amber-600 hover:bg-amber-700' :
-                action === 'settle' ? 'bg-emerald-600 hover:bg-emerald-700' : ''
+                ''
               }
             >
               {busy ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}

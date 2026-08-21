@@ -57,6 +57,7 @@ export function useEligibilityVerifications() {
       const { data, error } = await supabase
         .from('eligibility_verifications' as any)
         .select('*')
+        .is('archived_at', null)
         .order('created_at', { ascending: false });
       if (error) throw error;
       setItems((data || []) as unknown as EligibilityVerification[]);

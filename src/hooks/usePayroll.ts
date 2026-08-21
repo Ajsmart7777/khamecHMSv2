@@ -60,6 +60,7 @@ export function usePayrollPeriods() {
     const { data, error } = await supabase
       .from('payroll_periods')
       .select('*')
+      .is('archived_at', null)
       .order('year', { ascending: false })
       .order('month', { ascending: false });
 

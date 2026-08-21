@@ -155,13 +155,23 @@ export function usePatientVisits(patientId?: string | null) {
   return { visits, loading, refresh };
 }
 
-/** Mark an insured visit's claim as settled (claims_manager / admin). */
-export async function markClaimSettled(visitId: string, notes?: string): Promise<void> {
-  const { error } = await supabase.rpc('mark_claim_settled', {
-    _visit_id: visitId,
-    _notes: notes ?? null,
+/** Settle one complete insurance provider/scheme month (Claim Manager only). */
+export async function settleClaimsMonth(params: {
+  sponsorType: string;
+  providerName: string | null;
+  year: number;
+  month: number;
+  notes?: string;
+}): Promise<{ settled_count: number; settled_amount: number }> {
+  const { data, error } = await supabase.rpc('settle_claims_month', {
+    _sponsor_type: params.sponsorType,
+    _provider_name: params.providerName ?? null,
+    _year: params.year,
+    _month: params.month,
+    _notes: params.notes ?? null,
   });
   if (error) throw error;
+  return (data ?? { settled_count: 0, settled_amount: 0 }) as { settled_count: number; settled_amount: number };
 }
 
 /** Reopen a settled claim (admin only). */

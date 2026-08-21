@@ -3,8 +3,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, Loader2, RefreshCw, CreditCard, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Loader2, RefreshCw, CreditCard, CheckCircle2, CalendarCheck } from 'lucide-react';
 import { PatientCardDialog } from '@/components/visit/PatientCardDialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
+import { settleClaimsMonth } from '@/hooks/useVisits';
 import type { Patient as CtxPatient } from '@/contexts/PatientContext';
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -52,6 +55,9 @@ export function InsuranceClaimsPanel() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [invoicesByPatient, setInvoicesByPatient] = useState<Record<string, Invoice[]>>({});
   const [openPatient, setOpenPatient] = useState<CtxPatient | null>(null);
+  const [claimVisitsByPatient, setClaimVisitsByPatient] = useState<Record<string, { claim_status?: string | null; claim_settled_at?: string | null }[]>>({});
+  const [settlingGroup, setSettlingGroup] = useState<string | null>(null);
+  const { hasRole } = useAuth();
 
   const periodStart = useMemo(() => new Date(year, month - 1, 1), [year, month]);
   const periodEnd = useMemo(() => new Date(year, month, 1), [year, month]);
@@ -85,6 +91,16 @@ export function InsuranceClaimsPanel() {
       if (invoiceErr) throw invoiceErr;
 
       const invRows = (invs || []) as any[] as Invoice[];
+      const { data: visitRows, error: visitErr } = await supabase
+        .from('visits')
+        .select('id, patient_id, claim_status, claim_settled_at, opened_at')
+        .in('patient_id', ids)
+        .gte('opened_at', periodStart.toISOString())
+        .lt('opened_at', periodEnd.toISOString());
+      if (visitErr) throw visitErr;
+      const claimsByPatient: Record<string, { claim_status?: string | null; claim_settled_at?: string | null }[]> = {};
+      (visitRows || []).forEach((v: any) => { (claimsByPatient[v.patient_id] ||= []).push(v); });
+      setClaimVisitsByPatient(claimsByPatient);
       const invoiceIds = invRows.map(i => i.id);
       const { data: itemRows, error: itemErr } = invoiceIds.length
         ? await supabase
@@ -135,18 +151,40 @@ export function InsuranceClaimsPanel() {
   const visiblePatients = useMemo(() => {
     return patients
       .filter(p => (typeFilter === 'all' || p.account_type === typeFilter))
-      .filter(p => (invoicesByPatient[p.id]?.length || 0) > 0);
-  }, [patients, typeFilter, invoicesByPatient]);
+      .filter(p => (invoicesByPatient[p.id]?.length || 0) > 0)
+      .filter(p => {
+        const claims = claimVisitsByPatient[p.id] || [];
+        // A card remains active until every matching monthly claim is settled or rejected.
+        // If legacy data has no visit claim row, keep the card visible for review.
+        return claims.length === 0 || claims.some(v => !['settled', 'rejected', 'not_applicable'].includes(String(v.claim_status || 'pending')));
+      });
+  }, [patients, typeFilter, invoicesByPatient, claimVisitsByPatient]);
 
   // Group by provider (fallback to scheme label)
   const groups = useMemo(() => {
-    const map: Record<string, Patient[]> = {};
+    const map: Record<string, { key: string; sponsorType: InsuranceType; providerName: string | null; patients: Patient[] }> = {};
     visiblePatients.forEach(p => {
-      const key = `${TYPE_LABEL[p.account_type]}${p.insurance_provider ? ' · ' + p.insurance_provider : ''}`;
-      (map[key] ||= []).push(p);
+      const providerName = p.insurance_provider || null;
+      const key = `${TYPE_LABEL[p.account_type]}${providerName ? ' · ' + providerName : ''}`;
+      (map[key] ||= { key, sponsorType: p.account_type, providerName, patients: [] }).patients.push(p);
     });
-    return Object.entries(map).sort(([a],[b]) => a.localeCompare(b));
+    return Object.values(map).sort((a, b) => a.key.localeCompare(b.key));
   }, [visiblePatients]);
+
+  async function settleGroup(group: { key: string; sponsorType: InsuranceType; providerName: string | null }) {
+    if (!hasRole(['claims_manager'])) return;
+    if (!window.confirm(`Mark all eligible claims for ${group.key} for ${MONTHS[month - 1]} ${year} as settled? The full patient ledger cards will remain unchanged.`)) return;
+    setSettlingGroup(group.key);
+    try {
+      const result = await settleClaimsMonth({ sponsorType: group.sponsorType, providerName: group.providerName, year, month });
+      toast.success(`${result.settled_count} monthly claim${result.settled_count === 1 ? '' : 's'} settled`, { description: `₦${money(result.settled_amount)} recorded for ${group.key}.` });
+      await load();
+    } catch (e: any) {
+      toast.error(e?.message || 'Monthly claim settlement failed');
+    } finally {
+      setSettlingGroup(null);
+    }
+  }
 
   const totals = useMemo(() => {
     let billed = 0, paid = 0;
@@ -214,21 +252,29 @@ export function InsuranceClaimsPanel() {
         </div>
       ) : (
         <div className="space-y-5">
-          {groups.map(([groupKey, groupPatients]) => {
-            const groupTotal = groupPatients.reduce((s, p) =>
+          {groups.map((group) => {
+            const groupTotal = group.patients.reduce((s, p) =>
               s + (invoicesByPatient[p.id] || []).reduce((ss, i) => ss + i.total_amount, 0), 0);
             return (
-              <div key={groupKey} className="space-y-2">
-                <div className="flex items-center justify-between border-b pb-1.5">
-                  <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-primary" />
-                    <h4 className="font-semibold text-sm">{groupKey}</h4>
-                    <Badge variant="outline" className="text-[10px]">{groupPatients.length}</Badge>
+              <div key={group.key} className="space-y-2">
+                <div className="flex items-center justify-between border-b pb-1.5 gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ShieldCheck className="h-4 w-4 text-primary flex-shrink-0" />
+                    <h4 className="font-semibold text-sm truncate">{group.key}</h4>
+                    <Badge variant="outline" className="text-[10px]">{group.patients.length} patients</Badge>
                   </div>
-                  <p className="text-xs font-semibold">₦{money(groupTotal)}</p>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <p className="text-xs font-semibold">₦{money(groupTotal)}</p>
+                    {hasRole(['claims_manager']) && (
+                      <Button size="sm" className="h-7 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => settleGroup(group)} disabled={settlingGroup === group.key}>
+                        {settlingGroup === group.key ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CalendarCheck className="h-3 w-3 mr-1" />}
+                        Settle {MONTHS[month - 1]}
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {groupPatients.map(p => {
+                  {group.patients.map(p => {
                     const invs = invoicesByPatient[p.id] || [];
                     const patTotal = invs.reduce((s, i) => s + i.total_amount, 0);
                     const submitted = invs.filter(i => i.claim_submitted_at).length;

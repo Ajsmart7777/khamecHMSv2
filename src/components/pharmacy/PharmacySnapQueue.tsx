@@ -205,9 +205,9 @@ export function SnapFulfillDialog({
           const { data, error } = await (supabase as any).rpc('dispense_inventory_invoice_item', { _invoice_item_id: item.id });
           if (error) throw error;
           if (!data?.stock_controlled) {
-            toast.warning('Dispensed without stock deduction', {
-              description: `${item.description} is a non-stock invoice item and was dispensed without inventory deduction.`,
-              duration: 7000,
+            toast.info('Dispensed — inventory unchanged', {
+              description: `${item.description} is configured as a non-stock item, so it was dispensed successfully without changing the pharmacy stock balance.`,
+              duration: 6000,
             });
           }
         }

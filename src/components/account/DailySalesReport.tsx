@@ -12,6 +12,14 @@ import { useInvoices } from '@/hooks/useInvoices';
 import { HOSPITAL, HOSPITAL_LOGO_URL } from '@/lib/hospital';
 
 
+type WalletClosing = {
+  total_balance: number;
+  total_wallet_credit: number;
+  total_wallet_debt: number;
+  patients_with_credit: number;
+  patients_with_debt: number;
+};
+
 type Row = {
   id: string;
   time: string;
@@ -35,6 +43,7 @@ export function DailySalesReport() {
   const [date, setDate] = useState(today);
   const { invoices } = useInvoices();
   const [rows, setRows] = useState<Row[]>([]);
+  const [walletClosing, setWalletClosing] = useState<WalletClosing | null>(null);
   const [loading, setLoading] = useState(false);
 
   const load = async () => {
@@ -43,7 +52,7 @@ export function DailySalesReport() {
       const from = new Date(`${date}T00:00:00`).toISOString();
       const to = new Date(`${date}T23:59:59.999`).toISOString();
 
-      const [invRes, txRes] = await Promise.all([
+      const [invRes, txRes, walletRes] = await Promise.all([
         supabase
           .from('invoices')
           .select('id, invoice_number, total_amount, paid_amount, payment_method, sponsor_type, paid_at, patient_id, notes')
@@ -58,10 +67,13 @@ export function DailySalesReport() {
           .gte('created_at', from)
           .lte('created_at', to)
           .order('created_at', { ascending: true }),
+        (supabase as any).rpc('admin_daily_wallet_balance_summary', { _day: date }),
       ]);
 
       if (invRes.error) throw invRes.error;
       if (txRes.error) throw txRes.error;
+      if (walletRes.error) throw walletRes.error;
+      setWalletClosing((walletRes.data ?? null) as WalletClosing | null);
 
       const patientIds = [...new Set([
         ...(invRes.data || []).map((row: any) => row.patient_id),
@@ -204,12 +216,18 @@ export function DailySalesReport() {
           <Button variant="outline" onClick={load} disabled={loading}>
             <RefreshCw className={`h-4 w-4 mr-1.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
           </Button>
-          <Button variant="hero" onClick={handlePrint} disabled={rows.length === 0}>
+          <Button variant="hero" onClick={handlePrint} disabled={loading}>
             <Printer className="h-4 w-4 mr-1.5" /> Print Report
           </Button>
-          <div className="ml-auto text-right">
-            <p className="text-xs text-muted-foreground">Total Sales</p>
-            <p className="text-xl font-bold">{naira(totals.total)}</p>
+          <div className="ml-auto flex flex-wrap gap-5 text-right">
+            <div>
+              <p className="text-xs text-muted-foreground">Total Sales</p>
+              <p className="text-xl font-bold">{naira(totals.total)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Wallet Balance at Close</p>
+              <p className="text-xl font-bold text-info">{naira(Number(walletClosing?.total_balance ?? 0))}</p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -270,6 +288,17 @@ export function DailySalesReport() {
             ))}
           </TableBody>
         </Table>
+
+        <div className="totals mt-4 p-3 border rounded bg-info/5 border-info/20">
+          <p className="font-semibold text-sm">Patient Wallet Position at End of Day</p>
+          <p className="text-[11px] text-muted-foreground mb-2">This is the remaining wallet position, not a sales or cash-collection total.</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px]">
+            <div><span className="text-muted-foreground">Net balance</span><p className="font-bold">{naira(Number(walletClosing?.total_balance ?? 0))}</p></div>
+            <div><span className="text-muted-foreground">Wallet credit</span><p className="font-bold">{naira(Number(walletClosing?.total_wallet_credit ?? 0))}</p></div>
+            <div><span className="text-muted-foreground">Wallet debt</span><p className="font-bold">{naira(Number(walletClosing?.total_wallet_debt ?? 0))}</p></div>
+            <div><span className="text-muted-foreground">Patients with credit</span><p className="font-bold">{walletClosing?.patients_with_credit ?? 0}</p></div>
+          </div>
+        </div>
 
         {rows.length > 0 && (
           <div className="totals mt-4 grid gap-4 sm:grid-cols-2">

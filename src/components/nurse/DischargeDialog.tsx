@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LogOut, Wallet } from 'lucide-react';
+import { LogOut, Wallet, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -105,6 +105,33 @@ export function DischargeDialog({
   useEffect(() => { if (changeDue <= 0) setRefund(false); }, [changeDue]);
 
   const [done, setDone] = useState(false);
+  const [cancelBusy, setCancelBusy] = useState(false);
+
+  const cancelSettlement = async () => {
+    if (busy || cancelBusy || done) return;
+    setCancelBusy(true);
+    const { error } = await (supabase as any).rpc('cancel_admission_discharge', {
+      _admission_id: admissionId,
+      _reason: settlementNotes.trim() || notes.trim() || null,
+    });
+    setCancelBusy(false);
+    if (error) {
+      const msg = error.message ?? 'Unable to cancel settlement';
+      if (msg.includes('NOT_IN_CASHIER_QUEUE')) {
+        toast.info('Settlement already left the queue', { description: 'Refreshing the Cashier list.' });
+        onDischarged?.();
+        onOpenChange(false);
+      } else {
+        toast.error('Could not cancel settlement', { description: msg });
+      }
+      return;
+    }
+    toast.success('Settlement cancelled', {
+      description: 'The patient remains admitted and the bed stays occupied. The ward can send the patient to Cashier again when ready.',
+    });
+    onDischarged?.();
+    onOpenChange(false);
+  };
 
   const submit = async () => {
     // Guard against double submits (double click / re-entry): one settlement only.
@@ -383,8 +410,18 @@ export function DischargeDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
-          <Button onClick={submit} disabled={busy || done || loading || invalidAmount || reasonMissing}>
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy || cancelBusy}>Close</Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={cancelSettlement}
+            disabled={busy || cancelBusy || done || loading}
+            className="mr-auto"
+          >
+            <RotateCcw className="h-4 w-4 mr-2" />
+            {cancelBusy ? 'Cancelling…' : 'Cancel Settlement'}
+          </Button>
+          <Button onClick={submit} disabled={busy || cancelBusy || done || loading || invalidAmount || reasonMissing}>
             <LogOut className="h-4 w-4 mr-2" />
             {busy ? 'Discharging…' : done ? 'Settled' : 'Confirm Discharge'}
           </Button>

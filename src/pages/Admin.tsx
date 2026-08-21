@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   BedDouble,
   BedSingle,
+  Wallet,
   HardDrive,
   Archive,
 } from 'lucide-react';
@@ -40,6 +41,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
+type WalletSummary = {
+  total_balance: number;
+  total_wallet_credit: number;
+  total_wallet_debt: number;
+};
+
 type SystemAlert = {
   id: string;
   message: string;
@@ -53,6 +60,7 @@ const Admin = () => {
   const [resettingHistory, setResettingHistory] = useState(false);
   const { staff } = useStaff();
   const [activeAdmissions, setActiveAdmissions] = useState(0);
+  const [walletSummary, setWalletSummary] = useState<WalletSummary | null>(null);
   const [recentErrors, setRecentErrors] = useState<{ id: string; error_type: string; error_message: string; created_at: string }[]>([]);
 
   const totalStaff = staff.length;
@@ -61,13 +69,15 @@ const Admin = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [{ count }, { data: errs }] = await Promise.all([
+      const [{ count }, { data: errs }, walletRes] = await Promise.all([
         supabase.from('admissions').select('id', { count: 'exact', head: true }).eq('status', 'active'),
         supabase.from('error_logs').select('id, error_type, error_message, created_at').order('created_at', { ascending: false }).limit(3),
+        (supabase as any).rpc('admin_patient_balance_summary'),
       ]);
       if (cancelled) return;
       setActiveAdmissions(count ?? 0);
       setRecentErrors(errs ?? []);
+      if (!walletRes.error) setWalletSummary((walletRes.data ?? null) as WalletSummary | null);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -151,6 +161,13 @@ const Admin = () => {
           value={activeAdmissions}
           icon={BedSingle}
           color="text-primary"
+        />
+        <StatsCard
+          title="Patient Wallet Balance"
+          value={`₦${Number(walletSummary?.total_balance ?? 0).toLocaleString('en-NG', { maximumFractionDigits: 0 })}`}
+          subtitle={`Credit ₦${Number(walletSummary?.total_wallet_credit ?? 0).toLocaleString('en-NG', { maximumFractionDigits: 0 })} · Debt ₦${Number(walletSummary?.total_wallet_debt ?? 0).toLocaleString('en-NG', { maximumFractionDigits: 0 })}`}
+          icon={Wallet}
+          color="text-info"
         />
       </div>
 

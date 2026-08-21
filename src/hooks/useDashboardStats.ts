@@ -11,6 +11,9 @@ interface DashboardStats {
   completedVisits: number;
   revenue: number;
   pendingBills: number;
+  totalWalletBalance: number;
+  totalWalletCredit: number;
+  totalWalletDebt: number;
 }
 
 interface ModuleStat {
@@ -43,6 +46,9 @@ export function useDashboardStats() {
     completedVisits: 0,
     revenue: 0,
     pendingBills: 0,
+    totalWalletBalance: 0,
+    totalWalletCredit: 0,
+    totalWalletDebt: 0,
   });
   const [moduleStats, setModuleStats] = useState<ModuleStat[]>([]);
   const [recentLogs, setRecentLogs] = useState<AuditLog[]>([]);
@@ -58,6 +64,9 @@ export function useDashboardStats() {
     const newToday = patients.filter(p => p.registered_at >= todayISO);
     const withDoctor = patients.filter(p => p.status === 'with_doctor');
     const discharged = patients.filter(p => p.status === 'discharged' && p.last_visit && p.last_visit >= todayISO);
+    const totalWalletBalance = patients.reduce((sum, p) => sum + Number(p.balance ?? 0), 0);
+    const totalWalletCredit = patients.reduce((sum, p) => sum + Math.max(0, Number(p.balance ?? 0)), 0);
+    const totalWalletDebt = patients.reduce((sum, p) => sum + Math.max(0, -Number(p.balance ?? 0)), 0);
 
     setLoading(true);
     try {
@@ -97,6 +106,9 @@ export function useDashboardStats() {
         completedVisits: discharged.length,
         revenue,
         pendingBills,
+        totalWalletBalance,
+        totalWalletCredit,
+        totalWalletDebt,
       });
 
       // Build module stats with real data

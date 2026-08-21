@@ -15,7 +15,6 @@ import {
   CreditCard,
   CheckCircle,
   TrendingUp,
-  Clock,
   Activity,
   Receipt,
   Pill,
@@ -121,7 +120,13 @@ const Index = () => {
           <StatsCard title="Pending Lab Tests" value={stats.pendingLab} icon={FlaskConical} color="text-module-lab" />
           <StatsCard title="Awaiting Cashier" value={stats.pendingPayments} icon={CreditCard} color="text-warning" />
           <StatsCard title="Completed Visits" value={stats.completedVisits} icon={CheckCircle} color="text-success" />
-          <StatsCard title="Avg. Wait Time" value="—" icon={Clock} color="text-info" />
+          <StatsCard
+            title="Patient Wallet Balance"
+            value={`₦${stats.totalWalletBalance.toLocaleString('en-NG', { maximumFractionDigits: 0 })}`}
+            subtitle={`Credit ₦${stats.totalWalletCredit.toLocaleString('en-NG', { maximumFractionDigits: 0 })} · Debt ₦${stats.totalWalletDebt.toLocaleString('en-NG', { maximumFractionDigits: 0 })}`}
+            icon={Wallet}
+            color="text-info"
+          />
         </div>
       )}
 

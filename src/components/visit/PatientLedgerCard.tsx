@@ -223,6 +223,165 @@ function narrativeSections(rows: LedgerRow[]) {
   })).filter(section => section.rows.length > 0);
 }
 
+type LinkedOrderGroup = {
+  key: string;
+  parent: LedgerRow;
+  rows: LedgerRow[];
+};
+
+const ORDER_ROW_SUBKINDS = new Set(['rx', 'lab_request', 'lab_result', 'dispense']);
+
+function linkedOrderRole(row: LedgerRow): string {
+  const source = row.data?.source_role ?? row.station;
+  return String(source).replace(/_/g, ' ');
+}
+
+function linkedOrderText(row: LedgerRow): string {
+  const snap = row.data ?? {};
+  if (row.kind === 'snap' && snap.ocr_text?.startsWith('LINKED_PRESCRIPTION:')) {
+    return `prescription:${snap.ocr_text.slice('LINKED_PRESCRIPTION:'.length)}`;
+  }
+  if (row.kind === 'snap' && snap.ocr_text?.startsWith('LINKED_LAB_REQUEST:')) {
+    return `lab:${snap.ocr_text.slice('LINKED_LAB_REQUEST:'.length)}`;
+  }
+  return '';
+}
+
+function buildLinkedOrderGroups(rows: LedgerRow[]): { groups: LinkedOrderGroup[]; standalone: LedgerRow[] } {
+  const groups = new Map<string, LinkedOrderGroup>();
+  const invoiceIdToKey = new Map<string, string>();
+  const invoiceNumberToKey = new Map<string, string>();
+  const linkedSourceToKey = new Map<string, string>();
+  const standalone: LedgerRow[] = [];
+
+  const ensureGroup = (key: string, row: LedgerRow) => {
+    if (!groups.has(key)) groups.set(key, { key, parent: row, rows: [] });
+    const group = groups.get(key)!;
+    if (group.rows.some(existing => existing.id === row.id)) return;
+    group.rows.push(row);
+    const parentRank = (candidate: LedgerRow) => {
+      if (candidate.subkind === 'lab_result' || candidate.subkind === 'dispense') return 2;
+      if (candidate.subkind === 'rx' || candidate.subkind === 'lab_request') return 0;
+      return 1;
+    };
+    if (parentRank(row) < parentRank(group.parent) || new Date(row.at).getTime() < new Date(group.parent.at).getTime()) {
+      group.parent = row;
+    }
+  };
+
+  // Source orders are always the parent rows. snap_orders.invoice_id is the
+  // strongest available link for billed pharmacy/lab orders, while the
+  // LINKED_* markers preserve typed prescription/lab request provenance.
+  rows.forEach(row => {
+    if (row.kind !== 'snap' || !ORDER_ROW_SUBKINDS.has(String(row.subkind))) return;
+    const snap = row.data ?? {};
+    const key = `order:${String(snap.parent_snap_id || snap.order_parent_id || snap.id || row.id)}`;
+    ensureGroup(key, row);
+    if (snap.invoice_id) invoiceIdToKey.set(String(snap.invoice_id), key);
+    const sourceLink = linkedOrderText(row);
+    if (sourceLink) linkedSourceToKey.set(sourceLink, key);
+  });
+
+  const invoiceRows = rows.filter(row => row.kind === 'invoice');
+  invoiceRows.forEach(row => {
+    const id = String(row.data?.id ?? '');
+    const key = invoiceIdToKey.get(id);
+    if (key) {
+      ensureGroup(key, row);
+      if (row.data?.invoice_number) invoiceNumberToKey.set(String(row.data.invoice_number), key);
+    }
+  });
+
+  rows.filter(row => row.kind === 'payment').forEach(row => {
+    const key = invoiceIdToKey.get(String(row.data?.related_invoice_id ?? row.data?.invoice_id ?? ''))
+      || invoiceNumberToKey.get(String(row.data?.ref ?? ''));
+    if (key) ensureGroup(key, row);
+  });
+
+  rows.forEach(row => {
+    if (row.kind === 'snap' && !ORDER_ROW_SUBKINDS.has(String(row.subkind))) {
+      const sourceLink = linkedOrderText(row);
+      const key = sourceLink ? linkedSourceToKey.get(sourceLink) : undefined;
+      if (key) ensureGroup(key, row);
+    }
+  });
+
+  const groupedIds = new Set(Array.from(groups.values()).flatMap(group => group.rows.map(row => row.id)));
+  rows.forEach(row => { if (!groupedIds.has(row.id)) standalone.push(row); });
+
+  groups.forEach(group => {
+    group.rows = group.rows.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+    group.parent = group.rows.find(row => row.subkind === 'rx' || row.subkind === 'lab_request') ?? group.rows[0];
+  });
+
+  return {
+    groups: Array.from(groups.values()).sort((a, b) => new Date(a.parent.at).getTime() - new Date(b.parent.at).getTime()),
+    standalone,
+  };
+}
+
+function LinkedOrderGroupView({
+  group, thumbs, attachmentText, onOpenImage, patient,
+}: {
+  group: LinkedOrderGroup;
+  thumbs: Record<string, string>;
+  attachmentText: Record<string, string>;
+  onOpenImage: (url: string) => void;
+  patient: Patient;
+}) {
+  const parent = group.parent;
+  const orderType = parent.subkind === 'lab_request' || parent.data?.target_station === 'lab' ? 'Laboratory order' : 'Pharmacy order';
+  const source = linkedOrderRole(parent);
+  return (
+    <div className="mx-3 my-3 rounded-lg border-2 border-primary/20 bg-background overflow-hidden shadow-sm">
+      <div className="px-3 py-2 border-b border-primary/20 bg-primary/5 flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Order story</span>
+          <span className="text-xs font-bold uppercase tracking-wider">{parent.title}</span>
+          <span className="text-[10px] text-muted-foreground">{orderType} · created by {source}</span>
+        </div>
+        <span className="text-[10px] font-mono text-muted-foreground">{group.rows.length} linked event{group.rows.length === 1 ? '' : 's'}</span>
+      </div>
+      <div className="divide-y divide-border">
+        {group.rows.map(row => (
+          <LedgerRowView
+            key={row.id} row={row} thumbs={thumbs} attachmentText={attachmentText}
+            onOpenImage={onOpenImage} patient={patient} nestedOrder
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function OrderAwareRows({
+  rows, thumbs, attachmentText, onOpenImage, patient,
+}: {
+  rows: LedgerRow[];
+  thumbs: Record<string, string>;
+  attachmentText: Record<string, string>;
+  onOpenImage: (url: string) => void;
+  patient: Patient;
+}) {
+  const { groups, standalone } = buildLinkedOrderGroups(rows);
+  const entries = [
+    ...groups.map(group => ({ at: group.parent.at, type: 'group' as const, group })),
+    ...standalone.map(row => ({ at: row.at, type: 'row' as const, row })),
+  ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+  return (
+    <>
+      {entries.map(entry => entry.type === 'group' ? (
+        <LinkedOrderGroupView key={entry.group.key} group={entry.group} thumbs={thumbs} attachmentText={attachmentText} onOpenImage={onOpenImage} patient={patient} />
+      ) : (
+        <LedgerRowView
+          key={entry.row.id} row={entry.row} thumbs={thumbs} attachmentText={attachmentText}
+          onOpenImage={onOpenImage} patient={patient}
+        />
+      ))}
+    </>
+  );
+}
+
 function NarrativeLedgerRows({
   rows, thumbs, attachmentText, onOpenImage, patient,
 }: {
@@ -245,13 +404,13 @@ function NarrativeLedgerRows({
               <div className="text-[10px] text-muted-foreground">{stage.description}</div>
             </div>
           </div>
-          {stageRows.map(row => (
-            <LedgerRowView
-              key={row.id} row={row} thumbs={thumbs} attachmentText={attachmentText}
-              onOpenImage={onOpenImage}
-              patient={patient}
-            />
-          ))}
+          <OrderAwareRows
+            rows={stageRows}
+            thumbs={thumbs}
+            attachmentText={attachmentText}
+            onOpenImage={onOpenImage}
+            patient={patient}
+          />
         </div>
       ))}
     </>
@@ -472,36 +631,69 @@ export function PatientLedgerCard({
     // transaction. The snap row is the primary visual event, while this fallback
     // keeps the order visible if the link is absent or a legacy row has no snap.
     (labReqs.data ?? []).forEach((lab: any) => {
-      if (linkedLabRequestIds.has(String(lab.id))) return;
       const ledgerVisitId = visitIdForLedger(lab.visit_id);
+      const linkedParent = (snaps.data ?? []).find((snap: any) => snap.ocr_text === `LINKED_LAB_REQUEST:${lab.id}`);
+      const isLinked = linkedLabRequestIds.has(String(lab.id));
       const tests = Array.isArray(lab.tests) ? lab.tests.filter(Boolean) : [];
       const note = [
         lab.diagnosis ? `Diagnosis: ${lab.diagnosis}` : '',
         tests.length ? tests.join(', ') : '',
       ].filter(Boolean).join(' · ');
-      push(ledgerVisitId, {
-        id: `lab-${lab.id}`,
-        visitId: ledgerVisitId ?? '',
-        at: lab.requested_at ?? lab.created_at,
-        kind: 'snap',
-        station: 'nurse',
-        title: 'Lab Request',
-        data: {
-          id: lab.id,
-          patient_id: lab.patient_id,
-          visit_id: ledgerVisitId,
-          order_type: 'lab',
-          target_station: 'lab',
-          source_role: 'nurse',
-          photo_path: null,
-          note,
-          ocr_text: `LINKED_LAB_REQUEST:${lab.id}`,
-          intent: 'typed_order',
-          status: lab.status === 'completed' ? 'fulfilled' : 'pending_billing',
-          matched_items: [],
-        },
-        subkind: 'lab_request',
-      });
+
+      if (!isLinked) {
+        push(ledgerVisitId, {
+          id: `lab-${lab.id}`,
+          visitId: ledgerVisitId ?? '',
+          at: lab.requested_at ?? lab.created_at,
+          kind: 'snap',
+          station: 'nurse',
+          title: 'Lab Request',
+          data: {
+            id: lab.id,
+            patient_id: lab.patient_id,
+            visit_id: ledgerVisitId,
+            order_type: 'lab',
+            target_station: 'lab',
+            source_role: 'nurse',
+            photo_path: null,
+            note,
+            ocr_text: `LINKED_LAB_REQUEST:${lab.id}`,
+            intent: 'typed_order',
+            status: lab.status === 'completed' ? 'fulfilled' : 'pending_billing',
+            matched_items: [],
+          },
+          subkind: 'lab_request',
+        });
+      }
+
+      const hasResult = lab.status === 'completed' && lab.results != null;
+      if (hasResult) {
+        const resultText = typeof lab.results === 'string' ? lab.results : JSON.stringify(lab.results, null, 2);
+        push(ledgerVisitId, {
+          id: `lab-result-${lab.id}`,
+          visitId: ledgerVisitId ?? '',
+          at: lab.completed_at ?? lab.updated_at ?? lab.created_at,
+          kind: 'snap',
+          station: 'lab',
+          title: 'Lab Result',
+          data: {
+            id: `lab-result-${lab.id}`,
+            patient_id: lab.patient_id,
+            visit_id: ledgerVisitId,
+            order_type: 'lab_result',
+            target_station: 'doctor',
+            source_role: 'lab_tech',
+            parent_snap_id: linkedParent?.id ?? null,
+            order_parent_id: linkedParent ? null : lab.id,
+            photo_path: null,
+            note: resultText,
+            result_text: resultText,
+            status: 'returned',
+            matched_items: [],
+          },
+          subkind: 'lab_result',
+        });
+      }
     });
 
     invoicesWithItems.forEach((i: any) => {
@@ -524,11 +716,11 @@ export function PatientLedgerCard({
         station: 'billing', title: `Invoice ${i.invoice_number}`, data: { ...i, items: activeItems, displayTotal }, subkind: invSub,
       });
 
-      if (paid > 0) push(ledgerVisitId, {
-        id: `pay-${i.id}`, visitId: ledgerVisitId ?? '', at: i.updated_at ?? i.created_at,
+      if (paid > 0 || ['paid', 'settled'].includes(String(i.status).toLowerCase())) push(ledgerVisitId, {
+        id: `pay-${i.id}`, visitId: ledgerVisitId ?? '', at: i.paid_at ?? i.updated_at ?? i.created_at,
         kind: 'payment', station: 'cashier',
-        title: paid >= total ? 'Receipt · Paid in Full' : 'Receipt · Part Payment',
-        data: { amount: paid, method: i.payment_method, ref: i.invoice_number, total },
+        title: paid >= total ? 'Receipt · Paid in Full' : paid > 0 ? 'Receipt · Part Payment' : 'Settlement · No Cash Collected',
+        data: { invoice_id: i.id, amount: paid, method: i.payment_method, ref: i.invoice_number, total },
         subkind: paid >= total ? 'receipt_full' : 'receipt_partial',
       });
       
@@ -542,6 +734,7 @@ export function PatientLedgerCard({
           kind: 'payment', station: 'cashier',
           title: isRefunded ? `Refunded · ${it.description}` : `Not Given · ${it.description}`,
           data: { 
+            invoice_id: i.id,
             amount: Number(it.total), 
             method: isRefunded ? 'refund' : 'pending_refund', 
             ref: i.invoice_number, 
@@ -1105,13 +1298,14 @@ function LastActivityBadge({ rows }: { rows: LedgerRow[] }) {
 
 function LedgerRowView({
   row, thumbs, attachmentText, onOpenImage,
-  patient,
+  patient, nestedOrder = false,
 }: {
   row: LedgerRow;
   thumbs: Record<string, string>;
   attachmentText: Record<string, string>;
   onOpenImage: (url: string) => void;
   patient: Patient;
+  nestedOrder?: boolean;
 }) {
   const tone = STATION_TONE[row.station] ?? STATION_TONE.admin;
   const subTone = row.subkind ? SUB_TONE[row.subkind] : null;
@@ -1121,20 +1315,22 @@ function LedgerRowView({
   return (
     <div className={`flex transition-colors ${row.isNew ? 'bg-primary/5 animate-in fade-in' : ''}`}>
       {/* Date cell */}
-      <div className="w-24 md:w-32 shrink-0 bg-muted/40 p-3 md:p-4 border-r border-border text-center">
+      <div className={`w-24 md:w-32 shrink-0 p-3 md:p-4 border-r border-border text-center ${nestedOrder ? 'bg-background/70' : 'bg-muted/40'}`}>
         <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
           {format(new Date(row.at), 'dd MMM')}
         </div>
         <div className="text-sm md:text-lg font-mono font-bold text-foreground">
           {format(new Date(row.at), 'HH:mm')}
         </div>
-        <div className={`mt-2 text-[9px] px-1.5 py-0.5 rounded border capitalize font-bold uppercase tracking-tight ${tone}`}>
-          {row.station}
-        </div>
+        {!nestedOrder && (
+          <div className={`mt-2 text-[9px] px-1.5 py-0.5 rounded border capitalize font-bold uppercase tracking-tight ${tone}`}>
+            {row.station}
+          </div>
+        )}
       </div>
 
       {/* Content cell */}
-      <div className="flex-1 p-3 md:p-4 min-w-0">
+      <div className={`flex-1 p-3 md:p-4 min-w-0 ${nestedOrder ? 'bg-background' : ''}`}>
         <div className="mb-2 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             {SubIcon && subTone && (

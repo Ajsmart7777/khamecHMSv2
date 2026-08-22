@@ -227,6 +227,7 @@ export const handler: Handler = async (event) => {
         open_visit_for_patient: ['uuid', 'text', 'boolean', 'text'],
         calculate_payroll_deductions: ['uuid', 'date', 'date'],
         check_archive_eligibility: ['uuid[]'],
+        confirm_archive_download: ['text'],
       };
       const casts = rpcCastSignatures[rpc] || [];
       const paramPlaceholders = paramKeys.map((_, idx) => `$${idx + 1}${casts[idx] ? `::${casts[idx]}` : ''}`).join(', ');

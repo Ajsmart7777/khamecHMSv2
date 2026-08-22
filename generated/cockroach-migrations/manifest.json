@@ -1,6 +1,6 @@
 {
-  "source_migrations": 228,
-  "transformed_statements": 1461,
+  "source_migrations": 229,
+  "transformed_statements": 1463,
   "batches": 25,
   "removed_constructs": [
     "Supabase Realtime",

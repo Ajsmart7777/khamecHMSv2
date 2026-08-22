@@ -1,5 +1,5 @@
 import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
@@ -7,37 +7,27 @@ import { Badge } from '@/components/ui/badge';
 import { Stethoscope, FileText, ClipboardList, Wifi, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SnapClinicalOrder } from '@/components/visit/SnapClinicalOrder';
-import { usePatients, Patient } from '@/contexts/PatientContext';
+import { usePatients } from '@/contexts/PatientContext';
 import { toast } from 'sonner';
 import { BedDouble } from 'lucide-react';
 import { PatientStatusIndicator } from '@/components/patients/PatientStatusIndicator';
-import { useLabRequests } from '@/hooks/useLabRequests';
-import { LabRequestPrintQueue } from '@/components/doctor/LabRequestPrintQueue';
-import { LabResultsViewer } from '@/components/doctor/LabResultsViewer';
-// import { LabResultInbox } from '@/components/doctor/LabResultInbox';
-import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
 import { AdmissionCaptureDialog } from '@/components/nurse/AdmissionCaptureDialog';
 import { useAdmissionPerms } from '@/lib/admissionPermissions';
 import { PatientHistoryDialog } from '@/components/doctor/PatientHistoryDialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { useSearchParams } from 'react-router-dom';
 import { QuickDischargeButton } from '@/components/patient/QuickDischargeButton';
 
 const Doctor = () => {
   const { patients, loading, refreshPatients, getPatientsByStatus } = usePatients();
   const { updatePatientStatus } = usePatients();
-  const { labRequests } = useLabRequests();
-  const { role, user } = useAuth();
+  const { role } = useAuth();
   const [searchParams] = useSearchParams();
   const asParam = searchParams.get('as');
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);
   const canAct = useAdmissionPerms();
-  // REMOVED: labReturnedPatients set logic is no longer used for queue filtering
-  // We want all patients with 'with_doctor' status to show in one list.
-
   const myDoctorKey: 'doctor1' | 'doctor2' | null =
     role === 'doctor1' ? 'doctor1'
     : role === 'doctor2' ? 'doctor2'
@@ -53,7 +43,7 @@ const Doctor = () => {
   const doctorQueue = scopedQueue;
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
-  // Handler for global "Snap to Admit" triggers (e.g. from LabResultInbox)
+  // Handler for global "Snap to Admit" triggers
   useEffect(() => {
     const handleOpenAdm = (e: any) => {
       setSelectedPatientId(e.detail.patientId);
@@ -97,7 +87,6 @@ const Doctor = () => {
                 </div>
               ) : (
                 doctorQueue.map((patient) => {
-                  // const isLabReturn = labReturnedPatients.some(p => p.id === patient.id);
                   return (
                     <div
                       key={patient.id}
@@ -125,10 +114,6 @@ const Doctor = () => {
               )}
             </div>
           </div>
-
-          {/* <LabResultInbox /> */}
-          <LabRequestPrintQueue assignedDoctor={myDoctorKey ?? undefined} />
-          <LabResultsViewer assignedDoctor={myDoctorKey ?? undefined} />
 
         </div>
 

@@ -249,6 +249,7 @@ export const handler: Handler = async (event) => {
         'check_archive_eligibility',
         'record_archive_storage_measurement',
         'get_database_size',
+        'get_staff_directory',
       ]);
       const query = setReturningRpcs.has(rpc)
         ? `SELECT * FROM public.${rpc}(${paramPlaceholders})`

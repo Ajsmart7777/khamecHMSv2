@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useSnapOrders, SnapOrder, snapPhotoUrl, saveSnapOcr, attachInvoiceToSnap, rejectSnap, MatchedItem } from '@/hooks/useSnapOrders';
+import { useSnapOrders, SnapOrder, snapPhotoUrl, saveSnapMatchedItems, attachInvoiceToSnap, rejectSnap, MatchedItem } from '@/hooks/useSnapOrders';
 import { fuzzyMatchPricelist, PricelistItem } from '@/hooks/usePricelist';
 import { usePatients } from '@/contexts/PatientContext';
 import { useInvoices } from '@/hooks/useInvoices';
@@ -8,29 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Camera, ScanText, Plus, Trash2, Send, XCircle, Loader2, Check, Pencil, SkipForward, FileText } from 'lucide-react';
-import Tesseract from 'tesseract.js';
+import { Camera, Plus, Trash2, Send, FileText } from 'lucide-react';
 import { SnapOcrPanel } from './SnapOcrPanel';
 import { highlightMatch } from '@/lib/highlightMatch';
-
-type ReviewStatus = 'pending' | 'approved' | 'skipped';
-interface ReviewLine {
-  query: string;
-  ocrConfidence: number; // 0..1 from tesseract for that line
-  matches: PricelistItem[];
-  chosenId?: string;
-  qty: number;
-  status: ReviewStatus;
-  editing?: boolean;
-  manualQuery?: string;
-}
-
-const confBand = (c: number) =>
-  c >= 0.85 ? { label: 'High', cls: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30' }
-  : c >= 0.6 ? { label: 'Med',  cls: 'bg-amber-500/15 text-amber-700 border-amber-500/30' }
-  :            { label: 'Low',  cls: 'bg-red-500/15 text-red-700 border-red-500/30' };
 
 const fmt = (n: number) => `₦${n.toLocaleString()}`;
 
@@ -110,10 +91,6 @@ function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
   const { updatePatientStatus } = usePatients();
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
-  const [ocrText, setOcrText] = useState(snap.ocr_text ?? '');
-  const [ocrRunning, setOcrRunning] = useState(false);
-  const [ocrProgress, setOcrProgress] = useState(0);
-  const [lines, setLines] = useState<ReviewLine[]>([]);
   const [items, setItems] = useState<MatchedItem[]>(snap.matched_items ?? []);
   const [linkedPrescription, setLinkedPrescription] = useState<any>(null);
   const [linkedLabRequest, setLinkedLabRequest] = useState<any>(null);
@@ -184,73 +161,6 @@ function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
     setActiveIdx(0);
   };
 
-  const runOcr = async () => {
-    if (!imgUrl) return;
-    setOcrRunning(true);
-    setOcrProgress(0);
-    try {
-      const { data } = await Tesseract.recognize(imgUrl, 'eng', {
-        logger: (m) => { if (m.status === 'recognizing text') setOcrProgress(Math.round(m.progress * 100)); },
-      });
-      const text = data.text ?? '';
-      setOcrText(text);
-      const overallConf = (data.confidence ?? 0) / 100;
-
-      // Prefer per-line confidence from tesseract when available
-      const rawLines: { text: string; conf: number }[] = Array.isArray((data as any).lines) && (data as any).lines.length
-        ? (data as any).lines.map((l: any) => ({ text: (l.text ?? '').trim(), conf: (l.confidence ?? 0) / 100 }))
-        : text.split(/\r?\n/).map((t: string) => ({ text: t.trim(), conf: overallConf }));
-
-      const candidates = rawLines.filter(l => l.text.length >= 3 && /[a-zA-Z]/.test(l.text)).slice(0, 25);
-      const scanned: ReviewLine[] = [];
-      for (const c of candidates) {
-        const m = await fuzzyMatchPricelist(c.text, 5);
-        if (m.length === 0) continue;
-        scanned.push({
-          query: c.text,
-          ocrConfidence: c.conf,
-          matches: m,
-          chosenId: m[0].id,
-          qty: 1,
-          status: 'pending',
-        });
-      }
-      setLines(scanned);
-      setItems([]); // reset — force review of freshly-extracted lines
-      await saveSnapOcr(snap.id, text, overallConf, []);
-      toast.success(`OCR done · ${scanned.length} lines to review`);
-    } catch (e: any) {
-      toast.error('OCR failed: ' + (e.message ?? e));
-    } finally {
-      setOcrRunning(false);
-    }
-  };
-
-  const updateLine = (idx: number, patch: Partial<ReviewLine>) =>
-    setLines(prev => prev.map((l, i) => i === idx ? { ...l, ...patch } : l));
-
-  const approveLine = (idx: number) => {
-    const line = lines[idx];
-    const it = line.matches.find(m => m.id === line.chosenId) ?? line.matches[0];
-    if (!it) { toast.error('Pick a match first'); return; }
-    setItems(prev => [...prev, {
-      pricelist_id: it.id, name: it.name, size: it.size, category: it.category,
-      unit_price: it.price, qty: Math.max(1, line.qty || 1),
-    }]);
-    updateLine(idx, { status: 'approved' });
-  };
-
-  const skipLine = (idx: number) => updateLine(idx, { status: 'skipped' });
-
-  const searchInLine = async (idx: number) => {
-    const q = (lines[idx].manualQuery ?? '').trim();
-    if (!q) return;
-    const m = await fuzzyMatchPricelist(q, 6);
-    if (m.length === 0) { toast.error('No matches'); return; }
-    updateLine(idx, { matches: m, chosenId: m[0].id });
-  };
-
-
   const setQty = (idx: number, qty: number) =>
     setItems(prev => prev.map((it, i) => i === idx ? { ...it, qty: Math.max(1, qty) } : it));
 
@@ -275,7 +185,7 @@ function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
         `From snap ${snap.id.slice(0, 8)} · ${snap.order_type} → ${snap.target_station}`,
       );
       if (!invoice) throw new Error('Invoice creation failed');
-      await saveSnapOcr(snap.id, ocrText, snap.ocr_confidence ?? 0, items);
+      await saveSnapMatchedItems(snap.id, items);
       const ok = await attachInvoiceToSnap(snap.id, invoice.id);
       if (!ok) throw new Error('Could not link invoice');
 
@@ -345,23 +255,6 @@ function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
             </Dialog>
 
 
-            <div className="flex gap-2">
-              <Button onClick={runOcr} disabled={ocrRunning || !imgUrl} size="sm">
-                {ocrRunning
-                  ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> OCR {ocrProgress}%</>
-                  : <><ScanText className="h-4 w-4 mr-1.5" /> Run OCR</>}
-              </Button>
-            </div>
-
-            {ocrText && (
-              <Textarea
-                value={ocrText}
-                onChange={(e) => setOcrText(e.target.value)}
-                rows={5}
-                className="text-xs font-mono"
-                placeholder="OCR text will appear here"
-              />
-            )}
 
             {(snap.ocr_text?.startsWith('LINKED_PRESCRIPTION:') || snap.ocr_text?.startsWith('LINKED_LAB_REQUEST:')) && (
               <div className="p-3 border-2 border-primary/20 rounded-lg bg-primary/5 space-y-2">
@@ -425,111 +318,6 @@ function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
               snapId={snap.id}
               onAddItem={(it) => setItems(prev => [...prev, it])}
             />
-
-            {lines.length > 0 && (() => {
-              const pending = lines.filter(l => l.status === 'pending').length;
-              const approved = lines.filter(l => l.status === 'approved').length;
-              const skipped = lines.filter(l => l.status === 'skipped').length;
-              return (
-                <div className="space-y-2 border rounded-lg p-2 max-h-[420px] overflow-y-auto">
-                  <div className="flex items-center justify-between sticky top-0 bg-card pb-1">
-                    <p className="text-xs font-medium">OCR Confidence Review</p>
-                    <div className="flex gap-1 text-[10px]">
-                      <Badge variant="warning">{pending} pending</Badge>
-                      <Badge variant="success">{approved} approved</Badge>
-                      {skipped > 0 && <Badge variant="secondary">{skipped} skipped</Badge>}
-                    </div>
-                  </div>
-                  {lines.map((line, idx) => {
-                    const band = confBand(line.ocrConfidence);
-                    const chosen = line.matches.find(m => m.id === line.chosenId);
-                    const isDone = line.status !== 'pending';
-                    return (
-                      <div
-                        key={idx}
-                        className={`text-xs space-y-1.5 p-2 rounded border ${
-                          line.status === 'approved' ? 'bg-emerald-500/5 border-emerald-500/30' :
-                          line.status === 'skipped'  ? 'bg-muted/50 opacity-60' :
-                          'bg-background'
-                        }`}
-                      >
-                        <div className="flex items-start gap-2">
-                          <span className={`px-1.5 py-0.5 rounded border text-[10px] font-medium ${band.cls}`}>
-                            {band.label} {Math.round(line.ocrConfidence * 100)}%
-                          </span>
-                          <p className="font-mono text-muted-foreground flex-1 break-words">{line.query}</p>
-                        </div>
-
-                        {!isDone && (
-                          <>
-                            {line.editing ? (
-                              <div className="flex gap-1">
-                                <Input
-                                  className="h-7 text-xs"
-                                  placeholder="Search pricelist…"
-                                  value={line.manualQuery ?? ''}
-                                  onChange={(e) => updateLine(idx, { manualQuery: e.target.value })}
-                                  onKeyDown={(e) => e.key === 'Enter' && searchInLine(idx)}
-                                />
-                                <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => searchInLine(idx)}>Go</Button>
-                                <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => updateLine(idx, { editing: false })}>×</Button>
-                              </div>
-                            ) : null}
-
-                            <div className="flex flex-wrap gap-1">
-                              {line.matches.map(m => (
-                                <button
-                                  key={m.id}
-                                  onClick={() => updateLine(idx, { chosenId: m.id })}
-                                  className={`px-2 py-1 rounded border text-[11px] ${
-                                    line.chosenId === m.id ? 'border-primary bg-primary/10 font-medium' : 'hover:bg-muted'
-                                  }`}
-                                >
-                                  {m.name}{m.size ? ` ${m.size}` : ''} · {fmt(m.price)}
-                                </button>
-                              ))}
-                            </div>
-
-                            <div className="flex items-center gap-1 pt-1">
-                              <Input
-                                type="number"
-                                min={1}
-                                value={line.qty}
-                                onChange={(e) => updateLine(idx, { qty: parseInt(e.target.value) || 1 })}
-                                className="w-14 h-7 text-xs"
-                              />
-                              <Button size="sm" className="h-7" onClick={() => approveLine(idx)} disabled={!chosen}>
-                                <Check className="h-3 w-3 mr-1" /> Approve
-                              </Button>
-                              <Button size="sm" variant="outline" className="h-7" onClick={() => updateLine(idx, { editing: !line.editing })}>
-                                <Pencil className="h-3 w-3 mr-1" /> Correct
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-7" onClick={() => skipLine(idx)}>
-                                <SkipForward className="h-3 w-3 mr-1" /> Skip
-                              </Button>
-                            </div>
-                          </>
-                        )}
-
-                        {line.status === 'approved' && chosen && (
-                          <p className="text-[11px] text-emerald-700 flex items-center gap-1">
-                            <Check className="h-3 w-3" /> Approved: {chosen.name} × {line.qty}
-                          </p>
-                        )}
-                        {line.status === 'skipped' && (
-                          <button
-                            onClick={() => updateLine(idx, { status: 'pending' })}
-                            className="text-[11px] text-muted-foreground underline"
-                          >
-                            Skipped — undo
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
           </div>
 
           {/* Right: Invoice items */}
@@ -634,24 +422,16 @@ function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose} disabled={busy}>Close</Button>
-          {(() => {
-            const pending = lines.filter(l => l.status === 'pending').length;
-            const blocked = pending > 0;
-            return (
-              <Button
-                onClick={createInvoiceAndSend}
-                disabled={busy || items.length === 0 || snap.status !== 'pending_billing' || blocked}
-                title={blocked ? `Review ${pending} pending OCR line(s) first` : undefined}
-              >
-                <Send className="h-4 w-4 mr-2" />
-                {snap.status === 'awaiting_payment'
-                  ? 'Awaiting Cashier'
-                  : busy ? 'Creating…'
-                  : blocked ? `Review ${pending} line(s) first`
-                  : 'Create Invoice → Send to Cashier'}
-              </Button>
-            );
-          })()}
+          <Button
+            onClick={createInvoiceAndSend}
+            disabled={busy || items.length === 0 || snap.status !== 'pending_billing'}
+          >
+            <Send className="h-4 w-4 mr-2" />
+            {snap.status === 'awaiting_payment'
+              ? 'Awaiting Cashier'
+              : busy ? 'Creating…'
+              : 'Create Invoice → Send to Cashier'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

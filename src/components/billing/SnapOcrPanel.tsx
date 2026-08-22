@@ -40,46 +40,65 @@ export function SnapOcrPanel({
   const [reviewOpen, setReviewOpen] = useState(false);
 
   const load = async () => {
-    const { data } = await supabase
+    const { data, error: queryError } = await supabase
       .from('snap_orders')
-      .select('ocr_status, ocr_text, ocr_confidence, ocr_matches, ocr_error')
+      .select('ocr_status, ocr_text, ocr_confidence, ocr_matches, ocr_error, ocr_reviewed_at')
       .eq('id', snapId)
       .single<any>();
+    if (queryError) {
+      setError(queryError.message);
+      return;
+    }
     if (!data) return;
     setStatus(data.ocr_status ?? 'pending');
     setText(data.ocr_text ?? '');
     setConfidence(Number(data.ocr_confidence ?? 0));
     setMatches(Array.isArray(data.ocr_matches) ? (data.ocr_matches as OcrMatch[]) : []);
     setError(data.ocr_error ?? null);
-    // Fetch reviewed flag separately since select above is fixed
-    supabase
-      .from('snap_orders')
-      .select('ocr_reviewed_at')
-      .eq('id', snapId)
-      .single<any>()
-      .then(({ data: r }) => setReviewed(!!r?.ocr_reviewed_at));
+    setReviewed(!!data.ocr_reviewed_at);
   };
 
   useEffect(() => {
-    load();
+    let disposed = false;
+    const refresh = () => { if (!disposed) void load(); };
+    refresh();
+    // CockroachDB intentionally has no realtime socket; polling keeps OCR results
+    // visible on tablets as soon as the server function finishes.
+    const timer = window.setInterval(refresh, 1800);
     const ch = createRealtimeChannel(`snap-ocr-${snapId}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'snap_orders', filter: `id=eq.${snapId}` },
-        () => load(),
+        refresh,
       )
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+      supabase.removeChannel(ch);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapId]);
 
   const rerun = async () => {
+    if (running) return;
     setRunning(true);
-    await supabase.from('snap_orders').update({ ocr_status: 'pending', ocr_error: null } as any).eq('id', snapId);
-    const { error } = await supabase.functions.invoke('snap-ocr', { body: { snap_id: snapId } });
+    setStatus('pending');
+    setError(null);
+    const { error: resetError } = await supabase
+      .from('snap_orders')
+      .update({ ocr_status: 'pending', ocr_error: null } as any)
+      .eq('id', snapId);
+    if (resetError) {
+      setRunning(false);
+      toast.error(resetError.message);
+      return;
+    }
+    const { data, error } = await supabase.functions.invoke('snap-ocr', { body: { snap_id: snapId } });
     setRunning(false);
-    if (error) toast.error(error.message);
-    else toast.success('OCR re-run started');
+    if (error || data?.ok === false) toast.error(error?.message ?? data?.error ?? 'OCR failed');
+    else toast.success('OCR completed');
+    await load();
   };
 
   const addCandidate = (m: OcrMatch, c: Candidate) => {

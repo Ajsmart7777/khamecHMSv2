@@ -1,7 +1,7 @@
 import { database, json, optionsResponse, readJson, verifyUser } from './_shared/auth.js';
 
 const GATEWAY = 'https://ai.gateway.lovable.dev/v1/chat/completions';
-const DEFAULT_MODEL = 'google/gemini-3.1-pro-preview';
+const DEFAULT_MODEL = 'google/gemini-2.5-flash';
 
 type Body = { snap_id?: string };
 type Snap = { id: string; photo_path: string; order_type: string; target_station: string | null };
@@ -31,7 +31,9 @@ export default async (request: Request) => {
 
     const settingRows = await sql`select value from public.app_settings where key = 'ocr' limit 1` as Array<{ value: unknown }>;
     const settingValue = settingRows[0]?.value;
-    model = typeof settingValue === 'object' && settingValue !== null && 'model' in settingValue && typeof settingValue.model === 'string' ? settingValue.model : DEFAULT_MODEL;
+    const configuredModel = typeof settingValue === 'object' && settingValue !== null && 'model' in settingValue && typeof settingValue.model === 'string' ? settingValue.model : '';
+    // The old Pro preview model is unnecessarily slow for routine handwritten snaps.
+    model = configuredModel && !/pro-preview/i.test(configuredModel) ? configuredModel : DEFAULT_MODEL;
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) return fail(sql, snap.id, model, 'LOVABLE_API_KEY missing');
 
@@ -39,35 +41,43 @@ export default async (request: Request) => {
     if (!publicUrl) return fail(sql, snap.id, model, 'R2_PUBLIC_URL missing');
     const imageUrl = `${publicUrl}/visit-cards/${snap.photo_path.split('/').map(encodeURIComponent).join('/')}`;
 
-    const aiResponse = await fetch(GATEWAY, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: 'You are a medical OCR assistant. Read handwritten hospital notes and return strict JSON only.' },
-          { role: 'user', content: [{ type: 'text', text: buildPrompt(snap.order_type) }, { type: 'image_url', image_url: { url: imageUrl } }] },
-        ],
-        temperature: 0,
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45_000);
+    let aiResponse: Response;
+    try {
+      aiResponse = await fetch(GATEWAY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: 'You are a medical OCR assistant. Read handwritten hospital notes and return strict JSON only.' },
+            { role: 'user', content: [{ type: 'text', text: buildPrompt(snap.order_type) }, { type: 'image_url', image_url: { url: imageUrl } }] },
+          ],
+          temperature: 0,
+          max_tokens: 700,
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!aiResponse.ok) return fail(sql, snap.id, model, `gateway ${aiResponse.status}: ${(await aiResponse.text()).slice(0, 500)}`);
 
     const aiJson = await aiResponse.json() as VisionResponse;
-    const raw = aiJson.choices?.[0]?.message?.content ?? '';
+    const raw = contentToString(aiJson.choices?.[0]?.message?.content);
     const parsed = parseJson(raw);
     if (!parsed) return fail(sql, snap.id, model, `unparseable model output: ${String(raw).slice(0, 300)}`);
 
     const lines = Array.isArray(parsed.lines) ? parsed.lines : [];
     const fullText = typeof parsed.full_text === 'string' ? parsed.full_text : lines.map((line) => line.text ?? '').join('\n');
     const confidence = typeof parsed.confidence === 'number' ? parsed.confidence : 0.7;
-    const matches: OcrMatch[] = [];
-    for (const line of lines) {
+    const matches = (await Promise.all(lines.map(async (line) => {
       const query = String(line.text ?? '').trim();
-      if (query.length < 2) continue;
+      if (query.length < 2) return null;
       const candidates = await sql`select * from public.match_catalogue(${query}, 3)`;
-      matches.push({ query, type: line.type ?? null, qty: line.qty ?? 1, candidates });
-    }
+      return { query, type: line.type ?? null, qty: line.qty ?? 1, candidates } as OcrMatch;
+    }))).filter((match): match is OcrMatch => Boolean(match));
 
     await sql`update public.snap_orders set ocr_status = 'done', ocr_text = ${fullText}, ocr_confidence = ${confidence}, ocr_model = ${model}, ocr_matches = ${JSON.stringify(matches)}::jsonb, ocr_error = null where id = ${snap.id}::uuid`;
     return json({ ok: true, model, lines: lines.length, matches: matches.length });
@@ -85,6 +95,14 @@ async function fail(sql: ReturnType<typeof database>, id: string, model: string,
 function buildPrompt(kind: string) {
   const hint = kind === 'prescription' ? 'Each line is a medicine: name, strength, dosage. Set type="medicine".' : kind === 'lab' ? 'Each line is a lab test name. Set type="test".' : kind === 'lab_result' ? 'Each line is a lab test result. Set type="result".' : 'Each line is a clinical action or item. Set type="note".';
   return `Read the attached hospital note image and return ONLY strict JSON with this shape:\n{"full_text": string, "confidence": number 0..1, "lines": [{"text": string, "type": string, "qty": number}]}\n${hint}\nInclude a numeric qty when written (default 1). Do not invent items. If the image is unreadable, return {"full_text":"","confidence":0,"lines":[]}.`;
+}
+
+function contentToString(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    return value.map((part) => typeof part === 'object' && part !== null && 'text' in part ? String((part as { text?: unknown }).text ?? '') : '').join('');
+  }
+  return '';
 }
 
 function parseJson(value: unknown): OcrResult | null {

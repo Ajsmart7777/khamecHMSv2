@@ -177,6 +177,12 @@ export function AdmittedSnapDialog({
 
       if (error) { toast.error(error.message); return; }
 
+      // OCR is server-side and non-blocking: the order is sent immediately while
+      // the billing panel polls for the extracted lines when the job completes.
+      if (path && snapId) {
+        void supabase.functions.invoke('snap-ocr', { body: { snap_id: snapId } });
+      }
+
       // Update patient status to ensure visibility in the target station's queue (Lab/Pharmacy)
       // Admissions are 'active', but station-level queues often filter by patient.status
       if (target === 'lab') {

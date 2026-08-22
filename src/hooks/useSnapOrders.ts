@@ -125,10 +125,10 @@ export function useSnapOrders(filter: {
   return { orders, loading, refresh };
 }
 
-export async function saveSnapOcr(id: string, ocrText: string, confidence: number, matched: MatchedItem[]) {
+export async function saveSnapMatchedItems(id: string, matched: MatchedItem[]) {
   const { error } = await supabase
     .from('snap_orders')
-    .update({ ocr_text: ocrText, ocr_confidence: confidence, matched_items: matched as unknown as Json })
+    .update({ matched_items: matched as unknown as Json })
     .eq('id', id);
   if (error) toast.error(error.message);
 }

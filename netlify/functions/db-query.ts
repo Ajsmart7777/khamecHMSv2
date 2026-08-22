@@ -228,6 +228,8 @@ export const handler: Handler = async (event) => {
         calculate_payroll_deductions: ['uuid', 'date', 'date'],
         check_archive_eligibility: ['uuid[]'],
         confirm_archive_download: ['text'],
+        deactivate_staff_for_migration: ['uuid', 'text'],
+        convert_staff_linked_patient_to_normal: ['uuid'],
       };
       const casts = rpcCastSignatures[rpc] || [];
       const paramPlaceholders = paramKeys.map((_, idx) => `$${idx + 1}${casts[idx] ? `::${casts[idx]}` : ''}`).join(', ');
@@ -251,6 +253,7 @@ export const handler: Handler = async (event) => {
         'record_archive_storage_measurement',
         'get_database_size',
         'get_staff_directory',
+        'get_staff_patient_migration_queue',
       ]);
       const query = setReturningRpcs.has(rpc)
         ? `SELECT * FROM public.${rpc}(${paramPlaceholders})`

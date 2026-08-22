@@ -135,7 +135,7 @@ export interface Staff {
   department: string;
   salary: number;
   hireDate: string;
-  status: 'active' | 'inactive' | 'on_leave';
+  status: 'active' | 'inactive' | 'on_leave' | 'deleted';
   bankName?: string | null;
   accountNumber?: string | null;
   paymentMethod?: string;

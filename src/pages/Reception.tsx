@@ -83,6 +83,7 @@ import { SnapToCard } from '@/components/visit/SnapToCard';
 import { useActiveVisit } from '@/hooks/useVisits';
 import { EligibilityRequestButton } from '@/components/reception/EligibilityRequestButton';
 import { PreRegistrationVerificationPanel } from '@/components/reception/PreRegistrationVerificationPanel';
+import { StaffMigrationQueue } from '@/components/reception/StaffMigrationQueue';
 import { useEligibilityVerifications, type EligibilityVerification } from '@/hooks/useEligibilityVerifications';
 import { useInsuranceTemplates, TEMPLATE_LABELS } from '@/hooks/useInsuranceTemplates';
 import { DynamicMemberIdForm } from '@/components/insurance/DynamicMemberIdForm';
@@ -248,6 +249,7 @@ const Reception = () => {
           />
         </DialogContent>
       </Dialog>
+      <StaffMigrationQueue />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Panel - Patient List */}
         <div className="lg:col-span-1">
@@ -910,6 +912,7 @@ function NewPatientForm({
       allergies: [],
       status: 'registered',
       account_type: formData.account_type,
+      staff_link_id: isStaff ? formData.staff_id : null,
       corporate_id: isSponsor ? formData.corporate_id : null,
       insurance_provider: isInsurance ? (resolvedProviderName || formData.insurance_provider.trim()) : null,
       insurance_plan: isInsurance ? (formData.insurance_plan || memberData.plan || memberData.plan_tier || null) : null,

@@ -18,8 +18,10 @@ export const handler: Handler = async (event) => {
     const res = await client.query(
       `SELECT u.id, u.email, u.password,
               (SELECT ur.role::text FROM public.user_roles ur
-               WHERE ur.user_id = u.id ORDER BY ur.role::text LIMIT 1) AS role
+               WHERE ur.user_id = u.id ORDER BY ur.role::text LIMIT 1) AS role,
+              s.status::text AS staff_status
        FROM public.auth_users u
+       LEFT JOIN public.staff s ON s.auth_user_id = u.id
        WHERE u.email = $1
        LIMIT 1`,
       [email]
@@ -27,7 +29,7 @@ export const handler: Handler = async (event) => {
     console.log('Query result rows:', res.rows.length);
 
     const user = res.rows[0];
-    if (user && user.password === password) {
+    if (user && user.password === password && user.staff_status !== 'deleted') {
       // In a real app, we would generate a JWT here
       await client.end();
       return {

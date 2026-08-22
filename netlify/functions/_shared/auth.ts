@@ -3,6 +3,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { BetterAuthVanillaAdapter } from '@neondatabase/neon-js';
 import { createAuthClient } from '@neondatabase/neon-js/auth';
 import { verifySessionToken } from './session.js';
+import { getCrdbPool } from './crdb.js';
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 
@@ -25,7 +26,24 @@ export async function verifyUser(request: Request): Promise<{ id: string; token:
   // format when present, then fall back to Neon JWT verification for any
   // environment that still provides Neon Auth configuration.
   const localUserId = verifySessionToken(token);
-  if (localUserId) return { id: localUserId, token };
+  if (localUserId) {
+    const client = await getCrdbPool().connect();
+    try {
+      const result = await client.query(
+        `SELECT u.id, s.status::text AS staff_status
+         FROM public.auth_users u
+         LEFT JOIN public.staff s ON s.auth_user_id = u.id
+         WHERE u.id = $1::uuid
+         LIMIT 1`,
+        [localUserId],
+      );
+      const user = result.rows[0];
+      if (!user || user.staff_status === 'deleted') return null;
+      return { id: localUserId, token };
+    } finally {
+      client.release();
+    }
+  }
 
   const jwksUrl = process.env.NEON_AUTH_JWKS_URL;
   if (!jwksUrl) return null;

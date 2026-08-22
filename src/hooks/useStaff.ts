@@ -15,6 +15,9 @@ interface DbStaff {
   salary: number;
   hire_date: string;
   status: string;
+  deleted_at?: string | null;
+  deleted_by?: string | null;
+  deletion_reason?: string | null;
   bank_name?: string | null;
   account_number?: string | null;
   payment_method?: string;
@@ -36,7 +39,7 @@ const mapDbToStaff = (db: DbStaff): Staff => ({
   department: db.department,
   salary: Number(db.salary),
   hireDate: db.hire_date,
-  status: db.status as 'active' | 'inactive' | 'on_leave',
+  status: db.status as 'active' | 'inactive' | 'on_leave' | 'deleted',
   bankName: db.bank_name || null,
   accountNumber: db.account_number || null,
   paymentMethod: db.payment_method || 'cash',
@@ -152,23 +155,35 @@ export function useStaff() {
   };
 
   const deleteStaff = async (id: string): Promise<boolean> => {
-    const { error: deleteError } = await supabase
-      .from('staff')
-      .delete()
-      .eq('id', id);
+    const target = staff.find((member) => member.id === id);
+    if (!target || target.status === 'deleted') return false;
+    const confirmed = window.confirm(`Deactivate ${target.firstName} ${target.lastName}? Linked Staff and Staff Family patients will be preserved and placed in Reception migration queue.`);
+    if (!confirmed) return false;
+
+    const { data, error: deleteError } = await supabase.rpc('deactivate_staff_for_migration', {
+      _staff_id: id,
+      _reason: 'Staff account deactivated by administrator',
+    });
 
     if (deleteError) {
-      console.error('Error deleting staff:', deleteError);
-      toast({ 
-        title: "Error", 
-        description: deleteError.message, 
-        variant: "destructive" 
+      console.error('Error deactivating staff:', deleteError);
+      toast({
+        title: "Error",
+        description: deleteError.message,
+        variant: "destructive",
       });
       return false;
     }
 
-    setStaff(prev => prev.filter(s => s.id !== id));
-    toast({ title: "Success", description: "Staff member deleted." });
+    const result = (data && typeof data === 'object' && 'data' in data ? (data as { data: Record<string, unknown> }).data : data) as Record<string, unknown> | null;
+    const staffPatients = Number(result?.staff_patient_count ?? 0);
+    const familyPatients = Number(result?.family_patient_count ?? 0);
+    setStaff(prev => prev.map(s => s.id === id ? { ...s, status: 'deleted' } : s));
+    toast({
+      title: "Staff deactivated safely",
+      description: `${staffPatients + familyPatients} linked patient record(s) now require Reception migration. Historical data was preserved.`,
+    });
+    window.dispatchEvent(new CustomEvent('staff-data-changed'));
     return true;
   };
 

@@ -538,12 +538,12 @@ export function PatientArchiveManager() {
 
       const measurementResult = await rpc('record_archive_storage_measurement', { _archive_reference: reference });
       if (measurementResult.error) throw new Error(measurementResult.error.message ?? 'Archive storage measurement could not be recorded');
-      const measurements = (measurementResult.data ?? []) as Array<{
+      const measurements = asRows<{
         patient_id: string;
         r2_object_bytes: number | string;
         database_payload_bytes: number | string;
         database_rows_cleared: Record<string, number>;
-      }>;
+      }>(measurementResult.data, 'patient_id');
       const measuredRows = measurements.reduce<Record<string, number>>((counts, measurement) => {
         Object.entries(measurement.database_rows_cleared ?? {}).forEach(([key, value]) => {
           counts[key] = asNumber(counts[key]) + asNumber(value);

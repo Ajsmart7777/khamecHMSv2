@@ -247,6 +247,7 @@ export const handler: Handler = async (event) => {
         'get_pharmacy_inventory',
         'get_pending_store_transfers',
         'check_archive_eligibility',
+        'record_archive_storage_measurement',
         'get_database_size',
       ]);
       const query = setReturningRpcs.has(rpc)

@@ -26,6 +26,8 @@ import { useAdmissionPerms } from '@/lib/admissionPermissions';
 // import { LabResultInbox } from '@/components/doctor/LabResultInbox';
 import { NurseTreatmentInbox } from '@/components/nurse/NurseTreatmentInbox';
 import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
+import { EmergencyEpisodeDialog } from '@/components/visit/EmergencyEpisodeDialog';
+import { EmergencyEpisodeQueue } from '@/components/nurse/EmergencyEpisodeQueue';
 import { AwaitingRoomPanel } from '@/components/nurse/AwaitingRoomPanel';
 import { QuickDischargeButton } from '@/components/patient/QuickDischargeButton';
 import { BedDouble } from 'lucide-react';
@@ -34,6 +36,7 @@ const NurseStation = () => {
   const { patients, loading, refreshPatients, updatePatientStatus, getPatientsByStatus } = usePatients();
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [admitOpen, setAdmitOpen] = useState(false);
+  const [emergencyOpen, setEmergencyOpen] = useState(false);
   const [locallyForwardedPatientIds, setLocallyForwardedPatientIds] = useState<Set<string>>(new Set());
   const canAct = useAdmissionPerms();
   
@@ -108,6 +111,11 @@ const NurseStation = () => {
         <Badge variant="nurse" className="ml-auto">{nurseQueue.length} in queue</Badge>
       </div>
 
+      <EmergencyEpisodeQueue
+        patients={patients}
+        onResume={(patientId) => { setSelectedPatientId(patientId); setEmergencyOpen(true); }}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
         <AwaitingRoomPanel />
         {/* <LabResultInbox /> */}
@@ -171,6 +179,9 @@ const NurseStation = () => {
             <div className="space-y-3">
               <UniversalPatientHeader patient={selectedPatient} />
               <div className="flex flex-wrap justify-end gap-2">
+                <Button size="sm" variant="outline" className="h-9 border-amber-300 text-amber-700" onClick={() => setEmergencyOpen(true)}>
+                  <Activity className="h-4 w-4 mr-1.5" /> Emergency Care
+                </Button>
                   <SnapClinicalOrder
                     patientId={selectedPatient.id}
                     sourceStation="nurse"
@@ -222,6 +233,16 @@ const NurseStation = () => {
           )}
         </div>
       </div>
+
+      {selectedPatient && (
+        <EmergencyEpisodeDialog
+          open={emergencyOpen}
+          onOpenChange={setEmergencyOpen}
+          patientId={selectedPatient.id}
+          patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
+          onSaved={refreshPatients}
+        />
+      )}
 
       {selectedPatient && (
         <AdmissionCaptureDialog

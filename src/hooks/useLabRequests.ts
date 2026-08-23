@@ -10,7 +10,11 @@ export interface LabRequest {
   request_number: string;
   tests: string[];
   diagnosis: string | null;
-  status: 'pending' | 'in_progress' | 'completed';
+  status: 'pending' | 'in_progress' | 'completed' | 'emergency_authorized' | 'emergency_in_progress';
+  emergency_episode_id?: string | null;
+  emergency_authorized_at?: string | null;
+  emergency_authorized_by?: string | null;
+  emergency_result_path?: string | null;
   requested_by: string;
   requested_at: string;
   completed_at: string | null;

@@ -230,6 +230,11 @@ export const handler: Handler = async (event) => {
         confirm_archive_download: ['text'],
         deactivate_staff_for_migration: ['uuid', 'text'],
         convert_staff_linked_patient_to_normal: ['uuid'],
+        start_emergency_episode: ['uuid', 'uuid', 'uuid', 'text'],
+        record_emergency_medication: ['uuid', 'uuid', 'text', 'text', 'text', 'int8', 'numeric', 'boolean', 'text'],
+        record_emergency_lab_request: ['uuid', 'text[]', 'text', 'numeric', 'text'],
+        complete_emergency_lab_request: ['uuid', 'jsonb', 'text'],
+        reconcile_emergency_episode: ['uuid', 'text'],
       };
       const casts = rpcCastSignatures[rpc] || [];
       const paramPlaceholders = paramKeys.map((_, idx) => `$${idx + 1}${casts[idx] ? `::${casts[idx]}` : ''}`).join(', ');

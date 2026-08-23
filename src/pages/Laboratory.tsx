@@ -19,6 +19,7 @@ import {
 import { toast } from 'sonner';
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { LabSnapQueue } from '@/components/lab/LabSnapQueue';
+import { EmergencyLabQueue } from '@/components/lab/EmergencyLabQueue';
 import {
   Dialog,
   DialogContent,
@@ -185,6 +186,14 @@ const Laboratory = () => {
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
       </div>
+
+      <EmergencyLabQueue
+        requests={labRequests}
+        patients={patients}
+        updateLabRequest={updateLabRequest}
+        refreshLabRequests={refreshLabRequests}
+        updatePatientStatus={updatePatientStatus}
+      />
 
       <div className="mb-6">
         <LabSnapQueue />

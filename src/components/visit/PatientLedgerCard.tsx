@@ -60,7 +60,7 @@ const naira = (n: number | null | undefined) =>
 // ---------- classification & deltas ----------
 type SnapSub =
   | 'rx' | 'lab_request' | 'lab_result' | 'dispense'
-  | 'treatment' | 'vitals_photo' | 'other_snap';
+  | 'treatment' | 'emergency_episode' | 'vitals_photo' | 'other_snap';
 
 const SNAP_LABEL: Record<string, string> = {
   rx: 'Prescription (Rx)',
@@ -68,6 +68,7 @@ const SNAP_LABEL: Record<string, string> = {
   lab_result: 'Lab Result',
   dispense: 'Dispensed',
   treatment: 'Treatment Order',
+  emergency_episode: 'Emergency Episode',
   vitals_photo: 'Vitals Snap',
   other_snap: 'Snap',
   card_photo: 'Card Photo',
@@ -229,7 +230,7 @@ type LinkedOrderGroup = {
   rows: LedgerRow[];
 };
 
-const ORDER_ROW_SUBKINDS = new Set(['rx', 'lab_request', 'lab_result', 'dispense']);
+const ORDER_ROW_SUBKINDS = new Set(['rx', 'lab_request', 'lab_result', 'dispense', 'emergency_episode']);
 
 function linkedOrderRole(row: LedgerRow): string {
   const source = row.data?.source_role ?? row.station;
@@ -243,6 +244,13 @@ function linkedOrderText(row: LedgerRow): string {
   }
   if (row.kind === 'snap' && snap.ocr_text?.startsWith('LINKED_LAB_REQUEST:')) {
     return `lab:${snap.ocr_text.slice('LINKED_LAB_REQUEST:'.length)}`;
+  }
+  if (row.kind === 'snap' && snap.ocr_text?.startsWith('EMERGENCY_EPISODE:')) {
+    return `emergency:${snap.ocr_text.slice('EMERGENCY_EPISODE:'.length)}`;
+  }
+  if (row.kind === 'snap' && snap.note?.startsWith('Emergency Episode ')) {
+    const match = String(snap.note).match(/Emergency Episode ([0-9a-f-]{36})/i);
+    if (match) return `emergency:${match[1]}`;
   }
   return '';
 }
@@ -311,7 +319,9 @@ function buildLinkedOrderGroups(rows: LedgerRow[]): { groups: LinkedOrderGroup[]
 
   groups.forEach(group => {
     group.rows = group.rows.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
-    group.parent = group.rows.find(row => row.subkind === 'rx' || row.subkind === 'lab_request') ?? group.rows[0];
+    group.parent = group.rows.find(row => row.subkind === 'emergency_episode')
+      ?? group.rows.find(row => row.subkind === 'rx' || row.subkind === 'lab_request')
+      ?? group.rows[0];
   });
 
   return {
@@ -330,7 +340,9 @@ function LinkedOrderGroupView({
   patient: Patient;
 }) {
   const parent = group.parent;
-  const orderType = parent.subkind === 'lab_request' || parent.data?.target_station === 'lab' ? 'Laboratory order' : 'Pharmacy order';
+  const orderType = parent.subkind === 'emergency_episode'
+    ? 'Emergency medication + laboratory episode'
+    : parent.subkind === 'lab_request' || parent.data?.target_station === 'lab' ? 'Laboratory order' : 'Pharmacy order';
   const source = linkedOrderRole(parent);
   return (
     <div className="mx-3 my-3 rounded-lg border-2 border-primary/20 bg-background overflow-hidden shadow-sm">
@@ -459,7 +471,7 @@ export function PatientLedgerCard({
     const visitIdForLedger = (visitId: string | null | undefined) =>
       visitId && visitIds.includes(visitId) ? visitId : fallbackVisitId;
 
-    const [vt, att, snaps, invs, adms, labReqs, prescriptions, balanceTxs] = await Promise.all([
+    const [vt, att, snaps, invs, adms, labReqs, prescriptions, balanceTxs, emergencyEpisodes, emergencyItems] = await Promise.all([
       visitIds.length
         ? supabase.from('vitals').select('*').in('visit_id', visitIds)
         : Promise.resolve({ data: [] as any[] }),
@@ -485,6 +497,8 @@ export function PatientLedgerCard({
       // Wallet/debt/credit movements are separate from the cumulative invoice paid_amount.
       // Load them so every financial movement is visible in the patient story.
       supabase.from('balance_transactions').select('*').eq('patient_id', patient.id),
+      supabase.from('emergency_episodes').select('*').eq('patient_id', patient.id),
+      supabase.from('emergency_episode_items').select('*'),
     ]);
 
     // The gateway intentionally supports flat SQL projections only. Recreate
@@ -577,6 +591,82 @@ export function PatientLedgerCard({
           station: 'pharmacy', title: 'Dispensed', data: s, subkind: 'dispense',
         });
       }
+    });
+
+    const emergencyEpisodeRows = (emergencyEpisodes.data ?? []) as any[];
+    const emergencyItemRows = (emergencyItems.data ?? []) as any[];
+    emergencyEpisodeRows.forEach((episode: any) => {
+      const ledgerVisitId = visitIdForLedger(episode.visit_id);
+      const episodeKey = `order:emergency:${episode.id}`;
+      const episodeItems = emergencyItemRows.filter((item: any) => String(item.episode_id) === String(episode.id));
+      push(ledgerVisitId, {
+        id: `emergency-episode-${episode.id}`,
+        visitId: ledgerVisitId ?? '',
+        at: episode.created_at,
+        kind: 'snap',
+        station: 'nurse',
+        title: 'Emergency Episode',
+        data: {
+          id: episode.id,
+          patient_id: episode.patient_id,
+          visit_id: ledgerVisitId,
+          order_type: 'treatment',
+          target_station: 'doctor',
+          source_role: 'nurse',
+          order_parent_id: episodeKey,
+          ocr_text: `EMERGENCY_EPISODE:${episode.id}`,
+          note: episode.notes || 'Urgent care recorded before billing',
+          status: episode.status,
+          matched_items: episodeItems.map((item: any) => ({ name: item.description, qty: item.quantity, unit_price: Number(item.unit_price || 0), category: item.item_type })),
+        },
+        subkind: 'emergency_episode',
+      });
+      emergencyItemRows.filter((item: any) => String(item.episode_id) === String(episode.id)).forEach((item: any) => {
+        const itemVisitId = ledgerVisitId;
+        const isLab = item.item_type === 'lab';
+        const itemStatus = String(item.status || '');
+        const itemTitle = isLab
+          ? `${item.description} · ${itemStatus === 'completed' ? 'Result completed' : 'Emergency lab authorized'}`
+          : `${item.description}${item.strength ? ` ${item.strength}` : ''} · ${item.administered_now ? 'Given now' : 'Pending pharmacy'}`;
+        push(itemVisitId, {
+          id: `emergency-item-${item.id}`,
+          visitId: itemVisitId ?? '',
+          at: item.administered_at ?? item.created_at,
+          kind: 'snap',
+          station: isLab ? 'lab' : 'nurse',
+          title: itemTitle,
+          data: {
+            id: item.id,
+            patient_id: episode.patient_id,
+            visit_id: itemVisitId,
+            order_parent_id: episodeKey,
+            order_type: isLab ? 'lab' : 'prescription',
+            target_station: isLab ? 'lab' : 'pharmacy',
+            source_role: 'nurse',
+            note: [item.route ? `Route: ${item.route}` : '', item.notes || '', item.administered_now ? 'Administered during emergency; do not re-dispense.' : 'Requires pharmacy dispensing after payment.'].filter(Boolean).join(' · '),
+            status: itemStatus,
+            matched_items: [{ name: item.description, qty: item.quantity, unit_price: Number(item.unit_price || 0), category: isLab ? 'lab' : 'drug' }],
+          },
+          subkind: isLab ? 'lab_request' : 'rx',
+        });
+        if (isLab && item.lab_request_id) {
+          const lab = (labReqs.data ?? []).find((candidate: any) => String(candidate.id) === String(item.lab_request_id));
+          if (lab?.status === 'completed' && lab.results != null) {
+            const resultText = typeof lab.results === 'string' ? lab.results : JSON.stringify(lab.results, null, 2);
+            push(itemVisitId, {
+              id: `emergency-lab-result-${item.id}`,
+              visitId: itemVisitId ?? '',
+              at: lab.completed_at ?? lab.updated_at ?? item.updated_at ?? item.created_at,
+              kind: 'snap', station: 'lab', title: 'Emergency Lab Result',
+              data: { id: `emergency-lab-result-${item.id}`, patient_id: episode.patient_id, visit_id: itemVisitId, order_parent_id: episodeKey, order_type: 'lab_result', target_station: 'doctor', source_role: 'lab_tech', note: resultText, result_text: resultText, status: 'returned', matched_items: [] },
+              subkind: 'lab_result',
+            });
+          }
+        }
+      });
+      const invoice = invoicesWithItems.find((candidate: any) => String(candidate.id) === String(episode.invoice_id));
+      if (invoice?.id) invoiceIdToKey.set(String(invoice.id), episodeKey);
+      linkedSourceToKey.set(`emergency:${episode.id}`, episodeKey);
     });
 
     // Typed Pharmacy orders are written to prescriptions and normally also to
@@ -856,6 +946,8 @@ export function PatientLedgerCard({
       .on('postgres_changes', { event: '*', schema: 'public', table: 'visit_attachments', filter: patientFilter }, bump)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_items' }, () => bump())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'balance_transactions', filter: patientFilter }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'emergency_episodes', filter: patientFilter }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'emergency_episode_items' }, bump)
       .subscribe();
 
     // CockroachDB uses a no-op realtime adapter. Poll while the card is open so

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAdmissions } from '@/hooks/useAdmissions';
 import { usePatients } from '@/contexts/PatientContext';
 import { AdmittedSnapDialog } from './AdmittedSnapDialog';
+import { EmergencyEpisodeDialog } from './EmergencyEpisodeDialog';
 import { SnapToCard } from './SnapToCard';
 import { AdmissionSnapDialog } from './AdmissionSnapDialog';
 
@@ -42,6 +43,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
     accountType?: string | null; plan?: string | null;
   } | null>(null);
   const [dischargeFor, setDischargeFor] = useState<{ admissionId: string; patientId: string; name: string; balance: number } | null>(null);
+  const [emergencyFor, setEmergencyFor] = useState<{ patientId: string; patientName: string; visitId: string | null; admissionId: string } | null>(null);
   const [deathFor, setDeathFor] = useState<{ admissionId: string; name: string } | null>(null);
 
   
@@ -178,6 +180,15 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                     <Button
                       size="sm"
                       variant="outline"
+                      onClick={() => setEmergencyFor({ patientId: a.patient_id, patientName: name, visitId: a.visit_id ?? null, admissionId: a.id })}
+                    >
+                      <HeartPulse className="h-3.5 w-3.5 mr-1.5 text-amber-600" /> Emergency Care
+                    </Button>
+                  )}
+                  {!deathReported && can('admittedSnap') && (
+                    <Button
+                      size="sm"
+                      variant="outline"
                       onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'snap', orderType: 'prescription', accountType: p?.account_type, plan: p?.insurance_plan })}
                     >
                       <Camera className="h-3.5 w-3.5 mr-1.5" /> Snap to Pharmacy
@@ -267,6 +278,18 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
             );
           })}
         </div>
+      )}
+
+      {emergencyFor && (
+        <EmergencyEpisodeDialog
+          open
+          onOpenChange={(o) => !o && setEmergencyFor(null)}
+          patientId={emergencyFor.patientId}
+          patientName={emergencyFor.patientName}
+          visitId={emergencyFor.visitId}
+          admissionId={emergencyFor.admissionId}
+          onSaved={refresh}
+        />
       )}
 
       {orderFor && (

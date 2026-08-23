@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export type PricelistCategory =
@@ -17,61 +17,124 @@ export interface PricelistItem {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  search_text?: string | null;
+}
+
+type PricelistListener = (items: PricelistItem[]) => void;
+
+const CACHE_TTL_MS = 30_000;
+let cachedPricelist: { at: number; items: PricelistItem[] } | null = null;
+let inFlightLoad: Promise<PricelistItem[]> | null = null;
+const listeners = new Set<PricelistListener>();
+
+function normalizeItem(row: any): PricelistItem {
+  return {
+    ...row,
+    pack_qty: Number(row.pack_qty ?? 1),
+    price: Number(row.price ?? 0),
+    active: row.active !== false,
+  } as PricelistItem;
+}
+
+/** Normalizes case, punctuation, repeated whitespace, and accents for reliable search. */
+export function normalizePricelistText(value: unknown): string {
+  return String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function publish(items: PricelistItem[]) {
+  cachedPricelist = { at: Date.now(), items };
+  listeners.forEach(listener => listener(items));
+}
+
+async function fetchPricelist(force = false): Promise<PricelistItem[]> {
+  if (!force && cachedPricelist && Date.now() - cachedPricelist.at < CACHE_TTL_MS) {
+    return cachedPricelist.items;
+  }
+  if (inFlightLoad) return inFlightLoad;
+
+  inFlightLoad = (async () => {
+    const { data, error } = await supabase
+      .from('pricelist')
+      .select('id,name,size,pack_qty,price,category,search_text,active,notes,created_at,updated_at')
+      .order('name');
+    if (error) throw new Error(error.message || 'Failed to load pricelist');
+    const items = (data ?? []).map(normalizeItem);
+    publish(items);
+    return items;
+  })();
+
+  try {
+    return await inFlightLoad;
+  } finally {
+    inFlightLoad = null;
+  }
 }
 
 export function usePricelist() {
-  const [items, setItems] = useState<PricelistItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<PricelistItem[]>(() => cachedPricelist?.items ?? []);
+  const [loading, setLoading] = useState(() => !cachedPricelist);
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('pricelist')
-      .select('*')
-      .order('category')
-      .order('name');
-    setLoading(false);
-    if (error) {
-      toast.error('Failed to load pricelist');
-      return;
+    try {
+      const next = await fetchPricelist(true);
+      setItems(next);
+    } catch (error: any) {
+      toast.error('Failed to load pricelist', { description: error?.message });
+    } finally {
+      setLoading(false);
     }
-    setItems((data ?? []) as PricelistItem[]);
   }, []);
 
-  useEffect(() => { refresh(); }, [refresh]);
-
   useEffect(() => {
-    const ch = createRealtimeChannel('pricelist-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pricelist' }, () => refresh())
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    const listener: PricelistListener = next => setItems(next);
+    listeners.add(listener);
+    void (cachedPricelist ? fetchPricelist(false) : refresh()).then(next => {
+      if (next) setItems(next);
+    }).catch(() => undefined);
+
+    // The Cockroach compatibility client has no server-pushed realtime events.
+    // Polling keeps separate staff tablets current; local mutations publish
+    // immediately through the shared listener set.
+    const poll = window.setInterval(() => { void refresh(); }, CACHE_TTL_MS);
+    return () => {
+      listeners.delete(listener);
+      window.clearInterval(poll);
+    };
   }, [refresh]);
 
   const upsertItem = async (row: Partial<PricelistItem> & { name: string; price: number; category: PricelistCategory }) => {
     const payload: any = {
       name: row.name.trim(),
       size: row.size?.trim() || null,
-      pack_qty: row.pack_qty ?? 1,
-      price: row.price,
+      pack_qty: Math.max(1, Number(row.pack_qty ?? 1)),
+      price: Number(row.price),
       category: row.category,
       active: row.active ?? true,
-      notes: row.notes ?? null,
+      notes: row.notes?.trim() || null,
     };
+    let error: any = null;
     if (row.id) {
-      const { error } = await supabase.from('pricelist').update(payload).eq('id', row.id);
-      if (error) { toast.error(error.message); return false; }
-      toast.success('Item updated');
+      ({ error } = await supabase.from('pricelist').update(payload).eq('id', row.id));
     } else {
-      const { error } = await supabase.from('pricelist').insert(payload);
-      if (error) { toast.error(error.message); return false; }
-      toast.success('Item added');
+      ({ error } = await supabase.from('pricelist').insert(payload));
     }
+    if (error) { toast.error(error.message); return false; }
+    await refresh();
+    toast.success(row.id ? 'Item updated' : 'Item added');
     return true;
   };
 
   const deleteItem = async (id: string) => {
     const { error } = await supabase.from('pricelist').delete().eq('id', id);
     if (error) { toast.error(error.message); return false; }
+    await refresh();
     toast.success('Item deleted');
     return true;
   };
@@ -79,74 +142,70 @@ export function usePricelist() {
   return { items, loading, refresh, upsertItem, deleteItem };
 }
 
-/** Fuzzy-match one query line against the pricelist. Returns top-N by trigram similarity. */
-let _cachedAll: { at: number; items: PricelistItem[] } | null = null;
-async function loadAllActive(): Promise<PricelistItem[]> {
-  if (_cachedAll && Date.now() - _cachedAll.at < 60_000) return _cachedAll.items;
-  const { data, error } = await supabase.from('pricelist').select('*').eq('active', true);
-  if (error || !data) return _cachedAll?.items ?? [];
-  _cachedAll = { at: Date.now(), items: data as PricelistItem[] };
-  return _cachedAll.items;
-}
-
-// Levenshtein distance (small strings)
+/** Levenshtein distance for short search tokens. */
 function lev(a: string, b: string): number {
   if (a === b) return 0;
   if (!a.length) return b.length;
   if (!b.length) return a.length;
-  const m = a.length, n = b.length;
-  let prev = new Array(n + 1);
-  let curr = new Array(n + 1);
-  for (let j = 0; j <= n; j++) prev[j] = j;
-  for (let i = 1; i <= m; i++) {
+  let prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  let curr = new Array<number>(b.length + 1);
+  for (let i = 1; i <= a.length; i++) {
     curr[0] = i;
-    for (let j = 1; j <= n; j++) {
-      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
       curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
     }
     [prev, curr] = [curr, prev];
   }
-  return prev[n];
+  return prev[b.length];
 }
 
-/** Best token-vs-token fuzzy score: 0..1 where 1 is exact. Tolerates typos & substrings. */
-function fuzzyScore(query: string, target: string): number {
-  const q = query.toLowerCase().trim();
-  const t = target.toLowerCase();
-  if (!q || !t) return 0;
-  if (t.includes(q)) return 1 - (t.length - q.length) / (t.length + 10);
-  const qTokens = q.split(/\s+/).filter(Boolean);
-  const tTokens = t.split(/[\s\-\/,()]+/).filter(Boolean);
-  let total = 0;
-  for (const qt of qTokens) {
-    let best = 0;
-    for (const tt of tTokens) {
-      if (tt.startsWith(qt)) { best = Math.max(best, 0.95); continue; }
-      if (tt.includes(qt)) { best = Math.max(best, 0.85); continue; }
-      // Levenshtein against prefix of tt matching qt length (+2 slack)
-      const slice = tt.slice(0, Math.min(tt.length, qt.length + 2));
-      const d = lev(qt, slice);
-      const maxLen = Math.max(qt.length, slice.length);
-      const sim = maxLen === 0 ? 0 : 1 - d / maxLen;
-      // Only count if reasonably close (allow ~1 edit per 3 chars)
-      const allowed = Math.max(1, Math.floor(qt.length / 3));
-      if (d <= allowed) best = Math.max(best, sim * 0.9);
+function tokenScore(queryToken: string, targetTokens: string[]): number {
+  let best = 0;
+  for (const targetToken of targetTokens) {
+    if (targetToken === queryToken) best = Math.max(best, 1);
+    else if (targetToken.startsWith(queryToken)) best = Math.max(best, 0.95);
+    else if (targetToken.includes(queryToken)) best = Math.max(best, 0.85);
+    else if (queryToken.length >= 3) {
+      const slice = targetToken.slice(0, Math.min(targetToken.length, queryToken.length + 2));
+      const distance = lev(queryToken, slice);
+      const allowed = Math.max(1, Math.floor(queryToken.length / 3));
+      if (distance <= allowed) best = Math.max(best, (1 - distance / Math.max(queryToken.length, slice.length)) * 0.9);
     }
-    total += best;
   }
-  return total / Math.max(1, qTokens.length);
+  return best;
 }
 
-export async function fuzzyMatchPricelist(query: string, limit = 5): Promise<PricelistItem[]> {
-  const q = query.trim().toLowerCase();
-  if (q.length < 1) return [];
-  const all = await loadAllActive();
-  const scored = all.map(it => {
-    const hay = (it.name + ' ' + (it.size ?? '')).trim();
-    const score = fuzzyScore(q, hay);
-    return { it, score };
+/**
+ * Search a supplied Pricelist collection. No arbitrary first-N truncation is
+ * applied; callers may pass a limit only when they intentionally want one.
+ */
+export function searchPricelistItems(items: PricelistItem[], query: string, limit?: number): PricelistItem[] {
+  const normalizedQuery = normalizePricelistText(query);
+  if (!normalizedQuery) return [];
+
+  const queryTokens = normalizedQuery.split(' ').filter(Boolean);
+  const scored = items.filter(item => item.active !== false).map(item => {
+    const haystack = normalizePricelistText([
+      item.name,
+      item.size,
+      item.category,
+      item.notes,
+      item.search_text,
+    ].filter(Boolean).join(' '));
+    const targetTokens = haystack.split(' ').filter(Boolean);
+    const score = haystack.includes(normalizedQuery)
+      ? 1
+      : queryTokens.reduce((sum, token) => sum + tokenScore(token, targetTokens), 0) / queryTokens.length;
+    return { item, score };
   });
-  scored.sort((a, b) => b.score - a.score);
-  // Keep only reasonably-similar results (typo-tolerant threshold)
-  return scored.filter(s => s.score >= 0.45).slice(0, limit).map(s => s.it);
+
+  scored.sort((a, b) => b.score - a.score || a.item.name.localeCompare(b.item.name) || String(a.item.size ?? '').localeCompare(String(b.item.size ?? '')));
+  const matches = scored.filter(({ score }) => score >= 0.45).map(({ item }) => item);
+  return limit === undefined ? matches : matches.slice(0, limit);
+}
+
+export async function fuzzyMatchPricelist(query: string, limit?: number): Promise<PricelistItem[]> {
+  const all = await fetchPricelist(false);
+  return searchPricelistItems(all, query, limit);
 }

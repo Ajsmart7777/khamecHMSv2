@@ -148,14 +148,14 @@ function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
     if (q.length === 0) { setManualMatches([]); return; }
     let cancelled = false;
     const t = setTimeout(async () => {
-      const m = await fuzzyMatchPricelist(q, 8);
+      const m = await fuzzyMatchPricelist(q);
       if (!cancelled) { setManualMatches(m); setActiveIdx(0); }
     }, 150);
     return () => { cancelled = true; clearTimeout(t); };
   }, [manualQuery]);
 
   const doManualSearch = async () => {
-    const m = await fuzzyMatchPricelist(manualQuery, 6);
+    const m = await fuzzyMatchPricelist(manualQuery);
     setManualMatches(m);
     if (m.length === 0) toast.error('No matches — add via Pricelist Manager');
   };
@@ -464,7 +464,7 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
       const clean = query.trim();
       if (!clean) return null;
       return window.setTimeout(async () => {
-        const result = await fuzzyMatchPricelist(clean, 8);
+        const result = await fuzzyMatchPricelist(clean);
         if (!cancelled) setMatches(prev => ({ ...prev, [index]: result }));
       }, 150);
     }).filter(Boolean) as number[];

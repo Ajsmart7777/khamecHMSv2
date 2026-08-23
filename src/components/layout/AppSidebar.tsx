@@ -20,7 +20,8 @@ import {
   Settings,
   Bell,
   Download,
-  FileText
+  FileText,
+  DollarSign
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,7 @@ const allMenuItems = [
   { id: 'admitted', label: 'Admitted Patients', icon: BedDouble, path: '/admitted-patients', color: 'text-module-nurse', roles: ['doctor1', 'doctor2', 'nurse', 'admin'] },
   { id: 'lab', label: 'Laboratory', icon: FlaskConical, path: '/lab', color: 'text-module-lab', roles: ['lab_tech', 'admin'] },
   { id: 'billing', label: 'Billing', icon: Receipt, path: '/billing', color: 'text-module-billing', roles: ['billing', 'admin'] },
+  { id: 'billing-pricelist', label: 'Pricelist', icon: DollarSign, path: '/billing/pricelist', color: 'text-module-account', roles: ['billing', 'admin'] },
   { id: 'cashier', label: 'Cashier', icon: Receipt, path: '/cashier', color: 'text-module-billing', roles: ['receptionist', 'cashier', 'admin'] },
   { id: 'pharmacy', label: 'Pharmacy', icon: Pill, path: '/pharmacy', color: 'text-module-pharmacy', roles: ['pharmacist', 'admin'] },
   { id: 'store', label: 'Store', icon: Package, path: '/store', color: 'text-primary', roles: ['store', 'admin'] },

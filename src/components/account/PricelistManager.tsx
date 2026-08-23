@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { usePricelist, PricelistItem, PricelistCategory } from '@/hooks/usePricelist';
+import { usePricelist, PricelistItem, PricelistCategory, normalizePricelistText } from '@/hooks/usePricelist';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -77,11 +77,12 @@ export function PricelistManager() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return items.filter(i =>
-      (categoryFilter === 'all' || i.category === categoryFilter) &&
-      (q.length === 0 || i.name.toLowerCase().includes(q) || (i.size ?? '').toLowerCase().includes(q))
-    );
+    const q = normalizePricelistText(query);
+    return items.filter(i => {
+      const searchable = normalizePricelistText([i.name, i.size, i.category, i.notes].filter(Boolean).join(' '));
+      return (categoryFilter === 'all' || i.category === categoryFilter) &&
+        (q.length === 0 || searchable.includes(q));
+    });
   }, [items, query, categoryFilter]);
 
   const openNew = () => { setEditing(null); setOpen(true); };

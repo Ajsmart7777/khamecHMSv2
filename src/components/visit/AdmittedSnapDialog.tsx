@@ -387,7 +387,7 @@ export function AdmittedSnapDialog({
                       <CommandList>
                         <CommandEmpty>No items found.</CommandEmpty>
                         <CommandGroup>
-                          {filteredPricelist.slice(0, 200).map((item: any) => (
+                          {filteredPricelist.map((item: any) => (
                             <CommandItem key={item.id} value={`${item.name} ${item.size ?? ''}`} onSelect={() => addLine(item)}>
                               <div className="flex items-center justify-between w-full gap-2">
                                 <span className="truncate">{item.name} {item.size && <span className="text-muted-foreground">· {item.size}</span>}</span>

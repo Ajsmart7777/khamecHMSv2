@@ -18,6 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { QuickDischargeButton } from '@/components/patient/QuickDischargeButton';
 import { EmergencyEpisodePatientPanel } from '@/components/visit/EmergencyEpisodePatientPanel';
+import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
 
 const Doctor = () => {
   const { patients, loading, refreshPatients, getPatientsByStatus } = usePatients();
@@ -133,7 +134,11 @@ const Doctor = () => {
                 </Button>
               </div>
 
-              <EmergencyEpisodePatientPanel patient={selectedPatient} onEpisodeChange={setOpenEmergencyEpisodeId} />
+              <EmergencyEpisodePatientPanel
+                patient={selectedPatient}
+                onEpisodeChange={setOpenEmergencyEpisodeId}
+                onRequestAdmission={() => setAdmitOpen(true)}
+              />
 
               <div className="bg-card rounded-xl border border-border p-6 text-center space-y-3">
                 <div className="mx-auto w-12 h-12 rounded-full bg-module-doctor/10 flex items-center justify-center">
@@ -152,7 +157,6 @@ const Doctor = () => {
                   sourceStation="doctor"
                   defaultOrderType="prescription"
                   defaultTarget="pharmacy"
-                  emergencyEpisodeId={openEmergencyEpisodeId}
                   label="Snap → Pharmacy"
                   variant="default"
                   className="w-full"
@@ -162,7 +166,6 @@ const Doctor = () => {
                   sourceStation="doctor"
                   defaultOrderType="lab"
                   defaultTarget="lab"
-                  emergencyEpisodeId={openEmergencyEpisodeId}
                   label="Snap → Lab"
                   variant="default"
                   className="w-full"
@@ -172,7 +175,6 @@ const Doctor = () => {
                   sourceStation="doctor"
                   defaultOrderType="treatment"
                   defaultTarget="nurse"
-                  emergencyEpisodeId={openEmergencyEpisodeId}
                   label="Snap → Nurse"
                   variant="outline"
                   className="w-full"
@@ -231,6 +233,10 @@ const Doctor = () => {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mt-6">
+        <AdmittedPatientsPanel sourceStation="doctor" title="Admitted Patients — Emergency Continuation" />
       </div>
 
       {selectedPatient && selectedPatient.id && (

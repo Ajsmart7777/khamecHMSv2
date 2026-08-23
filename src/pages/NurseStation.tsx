@@ -240,6 +240,8 @@ const NurseStation = () => {
           onOpenChange={setEmergencyOpen}
           patientId={selectedPatient.id}
           patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
+          canAdmit={canAct('admit')}
+          onRequestAdmission={() => { setEmergencyOpen(false); setAdmitOpen(true); }}
           onSaved={refreshPatients}
         />
       )}

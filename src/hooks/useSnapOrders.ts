@@ -17,6 +17,9 @@ export interface MatchedItem {
   category: string;
   unit_price: number;
   qty: number;
+  emergency_episode_item_id?: string;
+  source_snap_id?: string | null;
+  needs_pricelist_match?: boolean;
 }
 
 export interface SnapOrder {
@@ -34,6 +37,8 @@ export interface SnapOrder {
   matched_items: MatchedItem[];
   status: SnapStatus;
   invoice_id: string | null;
+  emergency_episode_id?: string | null;
+  intent?: string | null;
   created_by: string | null;
   billed_by: string | null;
   billed_at: string | null;

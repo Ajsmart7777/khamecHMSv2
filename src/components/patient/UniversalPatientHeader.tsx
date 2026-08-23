@@ -103,7 +103,7 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
         .from('snap_orders')
         .select('id')
         .eq('patient_id', patient.id)
-        .eq('order_type', 'lab_result')
+        .in('order_type', ['lab', 'lab_result'])
         .eq('status', 'returned');
       if (active) setNewLabResultsCount(data?.length || 0);
     };

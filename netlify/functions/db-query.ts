@@ -238,6 +238,7 @@ export const handler: Handler = async (event) => {
         create_emergency_prescription_from_typed: ['uuid', 'uuid', 'uuid', 'text', 'text', 'jsonb'],
         create_emergency_lab_from_typed: ['uuid', 'uuid', 'uuid', 'text', 'text[]'],
         record_emergency_admitted_order: ['uuid', 'text', 'text', 'text', 'text', 'jsonb'],
+        complete_emergency_billing_draft: ['uuid', 'jsonb', 'text'],
       };
       const casts = rpcCastSignatures[rpc] || [];
       const paramPlaceholders = paramKeys.map((_, idx) => `$${idx + 1}${casts[idx] ? `::${casts[idx]}` : ''}`).join(', ');

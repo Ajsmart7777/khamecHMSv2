@@ -1,13 +1,11 @@
-import { useMemo, useState } from 'react';
-import { AlertTriangle, Beaker, CheckCircle2, Loader2, Pill, Plus, Receipt, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, Beaker, CheckCircle2, Clock, Loader2, Pill, Plus, Receipt, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { usePricelist } from '@/hooks/usePricelist';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -16,63 +14,72 @@ interface Props {
   patientName: string;
   visitId?: string | null;
   admissionId?: string | null;
+  allowMedicine?: boolean;
+  canAdmit?: boolean;
+  onRequestAdmission?: () => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
 }
 
-type MedicationDraft = {
+type Entry = { id: string; text: string };
+type SavedItem = {
   id: string;
-  pricelistId: string;
+  item_type: 'medication' | 'lab';
   description: string;
-  strength: string;
-  route: string;
-  quantity: number;
-  notes: string;
-  medicineSearch: string;
-  administeredNow: boolean;
+  quantity?: number;
+  status: string;
+  administered_now?: boolean;
+  created_at?: string;
 };
 
-type LabDraft = { id: string; tests: string; diagnosis: string; total: string; notes: string };
+const newEntry = (): Entry => ({ id: crypto.randomUUID(), text: '' });
 
-const emptyMedication = (): MedicationDraft => ({
-  id: crypto.randomUUID(), pricelistId: '', description: '', strength: '', route: '', quantity: 1, notes: '', medicineSearch: '', administeredNow: true,
-});
-const emptyLab = (): LabDraft => ({ id: crypto.randomUUID(), tests: '', diagnosis: '', total: '', notes: '' });
-const fmt = (n: number) => `₦${Number(n || 0).toLocaleString()}`;
-
-export function EmergencyEpisodeDialog({ patientId, patientName, visitId = null, admissionId = null, open, onOpenChange, onSaved }: Props) {
-  const { items: pricelist, loading: pricelistLoading } = usePricelist();
+export function EmergencyEpisodeDialog({ patientId, patientName, visitId = null, admissionId = null, allowMedicine = true, canAdmit = false, onRequestAdmission, open, onOpenChange, onSaved }: Props) {
   const [episodeId, setEpisodeId] = useState<string | null>(null);
-  const [medications, setMedications] = useState<MedicationDraft[]>([emptyMedication()]);
-  const [labs, setLabs] = useState<LabDraft[]>([emptyLab()]);
   const [episodeNote, setEpisodeNote] = useState('');
-  const [billingNote, setBillingNote] = useState('');
+  const [medicine, setMedicine] = useState<Entry>(newEntry());
+  const [lab, setLab] = useState<Entry>(newEntry());
+  const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
   const [busy, setBusy] = useState(false);
-  const [reconciled, setReconciled] = useState<{ invoice_id?: string; total?: number } | null>(null);
+  const [finalized, setFinalized] = useState<{ draft_id?: string } | null>(null);
 
-  const medicationPricelist = useMemo(() => pricelist.filter((item: any) => {
-    const category = String(item.category ?? '').toLowerCase();
-    return item.active !== false && (category.startsWith('drug') || category === 'consumable');
-  }), [pricelist]);
-
-  const filterMedicationPricelist = (query: string) => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return medicationPricelist;
-    return medicationPricelist.filter((item: any) => [item.name, item.size, item.category, item.price]
-      .some(value => String(value ?? '').toLowerCase().includes(normalized)));
-  };
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const loadOpenEpisode = async () => {
+      const { data, error } = await supabase
+        .from('emergency_episodes')
+        .select('id, notes')
+        .eq('patient_id', patientId)
+        .eq('status', 'open')
+        .order('created_at', { ascending: false })
+        .limit(1);
+      if (cancelled || error || !data?.[0]) return;
+      const current = data[0] as any;
+      setEpisodeId(String(current.id));
+      setEpisodeNote(current.notes || '');
+      const { data: itemRows } = await supabase
+        .from('emergency_episode_items')
+        .select('id, item_type, description, quantity, status, administered_now, created_at')
+        .eq('episode_id', current.id)
+        .neq('status', 'cancelled')
+        .order('created_at', { ascending: true });
+      if (!cancelled) setSavedItems((itemRows ?? []) as SavedItem[]);
+    };
+    void loadOpenEpisode();
+    return () => { cancelled = true; };
+  }, [open, patientId]);
 
   const reset = () => {
     setEpisodeId(null);
-    setMedications([emptyMedication()]);
-    setLabs([emptyLab()]);
     setEpisodeNote('');
-    setBillingNote('');
-    setReconciled(null);
+    setMedicine(newEntry());
+    setLab(newEntry());
+    setSavedItems([]);
+    setFinalized(null);
     setBusy(false);
   };
-
   const close = () => { if (!busy) { reset(); onOpenChange(false); } };
 
   const ensureEpisode = async () => {
@@ -89,77 +96,71 @@ export function EmergencyEpisodeDialog({ patientId, patientName, visitId = null,
     return id;
   };
 
-  const updateMedication = (id: string, patch: Partial<MedicationDraft>) =>
-    setMedications(prev => prev.map(item => item.id === id ? { ...item, ...patch } : item));
-  const updateLab = (id: string, patch: Partial<LabDraft>) =>
-    setLabs(prev => prev.map(item => item.id === id ? { ...item, ...patch } : item));
-
-  const saveMedication = async (draft: MedicationDraft) => {
-    if (!draft.pricelistId && !draft.description.trim()) {
-      toast.error('Select a medicine or enter its description'); return;
-    }
-    if (!draft.strength.trim() || !draft.route.trim()) {
-      toast.error('Enter the medicine strength and route'); return;
-    }
+  const saveMedicine = async () => {
+    const text = medicine.text.trim();
+    if (!text) { toast.error('Write the emergency medicine details first'); return; }
     setBusy(true);
     try {
       const id = await ensureEpisode();
-      const selected = medicationPricelist.find((item: any) => item.id === draft.pricelistId);
-      const { error } = await (supabase.rpc as any)('record_emergency_medication', {
+      const { data, error } = await (supabase.rpc as any)('record_emergency_medication', {
         _episode_id: id,
-        _pricelist_id: draft.pricelistId || null,
-        _description: draft.description.trim() || selected?.name || null,
-        _strength: draft.strength.trim(),
-        _route: draft.route.trim(),
-        _quantity: draft.quantity,
-        _unit_price: draft.pricelistId ? null : 0,
-        _administered_now: draft.administeredNow,
-        _notes: draft.notes.trim() || null,
+        _pricelist_id: null,
+        _description: text,
+        _strength: null,
+        _route: null,
+        _quantity: 1,
+        _unit_price: 0,
+        _administered_now: true,
+        _notes: 'Plain-text emergency medicine received/administered before billing.',
       });
       if (error) throw error;
-      setMedications(prev => [...prev.filter(item => item.id !== draft.id), emptyMedication()]);
-      toast.success(draft.administeredNow ? 'Emergency medication recorded' : 'Medicine added for pharmacy later', { description: draft.administeredNow ? 'Given now — will be billed during reconciliation and not re-dispensed.' : 'Will be billed and released to Pharmacy after payment.' });
-    } catch (error: any) {
-      toast.error(error?.message || 'Could not record emergency medication');
-    } finally { setBusy(false); }
+      setSavedItems(prev => [...prev, { id: String(data), item_type: 'medication', description: text, quantity: 1, status: 'given_now', administered_now: true, created_at: new Date().toISOString() }]);
+      setMedicine(newEntry());
+      toast.success('Emergency medicine saved', { description: 'It has been recorded and will be matched to the pricelist in Billing later.' });
+      onSaved?.();
+    } catch (error: any) { toast.error(error?.message || 'Could not save emergency medicine'); }
+    finally { setBusy(false); }
   };
 
-  const saveLab = async (draft: LabDraft) => {
-    const tests = draft.tests.split(/[\n,]+/).map(test => test.trim()).filter(Boolean);
-    if (!tests.length) { toast.error('Enter at least one laboratory test'); return; }
+  const saveLab = async () => {
+    const text = lab.text.trim();
+    if (!text) { toast.error('Write the emergency laboratory test first'); return; }
     setBusy(true);
     try {
       const id = await ensureEpisode();
-      const { error } = await (supabase.rpc as any)('record_emergency_lab_request', {
+      const { data, error } = await (supabase.rpc as any)('record_emergency_lab_request', {
         _episode_id: id,
-        _tests: tests,
-        _diagnosis: draft.diagnosis.trim() || null,
-        _total: draft.total.trim() ? Number(draft.total) : 0,
-        _notes: draft.notes.trim() || null,
+        _tests: [text],
+        _diagnosis: null,
+        _total: 0,
+        _notes: 'Plain-text emergency laboratory request; authorized before billing.',
       });
       if (error) throw error;
-      setLabs(prev => [...prev.filter(item => item.id !== draft.id), emptyLab()]);
-      toast.success('Emergency lab request sent', { description: 'Lab may perform now — billing remains pending.' });
-    } catch (error: any) {
-      toast.error(error?.message || 'Could not record emergency lab request');
-    } finally { setBusy(false); }
+      setSavedItems(prev => [...prev, { id: crypto.randomUUID(), item_type: 'lab', description: text, quantity: 1, status: 'authorized', administered_now: false, created_at: new Date().toISOString() }]);
+      setLab(newEntry());
+      toast.success('Emergency lab request sent to Lab', { description: 'Lab can perform it immediately; billing remains pending.' });
+      onSaved?.();
+      void id;
+    } catch (error: any) { toast.error(error?.message || 'Could not send emergency lab request'); }
+    finally { setBusy(false); }
   };
 
-  const reconcile = async () => {
-    if (!episodeId) { toast.error('Record at least one emergency medication or lab request first'); return; }
+  const finalize = async () => {
+    if (!episodeId) { toast.error('Save at least one emergency medicine or laboratory test first'); return; }
+    if (savedItems.length === 0) { toast.error('Save at least one emergency item first'); return; }
     setBusy(true);
     try {
       const { data, error } = await (supabase.rpc as any)('reconcile_emergency_episode', {
         _episode_id: episodeId,
-        _billing_note: billingNote.trim() || null,
+        _billing_note: 'Emergency Episode billing draft' + (episodeNote.trim() ? ` — ${episodeNote.trim()}` : ''),
       });
       if (error) throw error;
-      setReconciled(data || {});
-      toast.success('Emergency episode sent to Billing', { description: 'One invoice was created for the emergency episode.' });
+      const result = (data || {}) as any;
+      setFinalized({ draft_id: result.billing_draft_id || result.draft_id });
+      toast.success('Emergency Episode finalized to Billing draft', { description: 'Billing will match each text line to the pricelist before creating one invoice.' });
       onSaved?.();
-    } catch (error: any) {
-      toast.error(error?.message || 'Could not reconcile emergency episode');
-    } finally { setBusy(false); }
+    } catch (error: any) { toast.error(error?.message || 'Could not finalize Emergency Episode'); }
+    finally { setBusy(false); }
   };
 
   return (
@@ -170,58 +171,36 @@ export function EmergencyEpisodeDialog({ patientId, patientName, visitId = null,
         </DialogHeader>
 
         <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 p-3 text-sm">
-          <p className="font-semibold text-amber-900 dark:text-amber-200">Give/document urgent care now. Billing comes later.</p>
-          <p className="text-xs text-amber-800/80 dark:text-amber-200/80 mt-1">Medication recorded here is marked administered and will not be sent for re-dispensing. Lab work is authorized for immediate processing while its invoice remains billing-pending.</p>
+          <p className="font-semibold text-amber-900 dark:text-amber-200">Record urgent care now. Do not wait for payment.</p>
+          <p className="text-xs text-amber-800/80 dark:text-amber-200/80 mt-1">Write what was received or requested in plain text. Medicines are treated as already received/administered and will not be sent to Pharmacy again. Lab requests go to Lab immediately while payment remains pending.</p>
         </div>
 
         <div className="space-y-2">
           <Label>Emergency summary (optional)</Label>
-          <Textarea value={episodeNote} onChange={e => setEpisodeNote(e.target.value)} placeholder="Brief emergency reason or stabilization note…" rows={2} disabled={!!episodeId || busy} />
+          <Textarea value={episodeNote} onChange={e => setEpisodeNote(e.target.value)} placeholder="Brief emergency reason or stabilization note…" rows={2} disabled={!!episodeId || busy || !!finalized} />
         </div>
 
-        <section className="rounded-xl border p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2"><Pill className="h-4 w-4 text-module-pharmacy" /><h3 className="font-semibold text-sm">Medication given now</h3><Badge variant="outline">{medications.length}</Badge></div>
-            <Button type="button" size="sm" variant="outline" onClick={() => setMedications(prev => [...prev, emptyMedication()])} disabled={busy}><Plus className="h-3.5 w-3.5 mr-1" /> Add medicine</Button>
-          </div>
-          {medications.map((draft) => (
-            <div key={draft.id} className="rounded-lg border bg-muted/20 p-3 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs">Medicine from pricelist</Label>
-                  <Input value={draft.medicineSearch} onChange={e => updateMedication(draft.id, { medicineSearch: e.target.value, pricelistId: '' })} placeholder="Search medicine quickly…" disabled={busy || pricelistLoading} />
-                  <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={draft.pricelistId} onChange={e => { const selected = medicationPricelist.find((item: any) => item.id === e.target.value); updateMedication(draft.id, { pricelistId: e.target.value, description: '', medicineSearch: selected?.name || draft.medicineSearch }); }} disabled={busy || pricelistLoading}>
-                    <option value="">{pricelistLoading ? 'Loading pricelist…' : draft.medicineSearch ? `Select from ${filterMedicationPricelist(draft.medicineSearch).length} matching medicine(s)…` : 'Select medicine…'}</option>
-                    {filterMedicationPricelist(draft.medicineSearch).map((item: any) => <option key={item.id} value={item.id}>{item.name}{item.size ? ` · ${item.size}` : ''} — {fmt(item.price)}</option>)}
-                  </select>
-                  {!pricelistLoading && draft.medicineSearch && filterMedicationPricelist(draft.medicineSearch).length === 0 && <p className="text-[11px] text-muted-foreground">No matching pricelist medicine. You can use the description field instead.</p>}
-                </div>
-                <div className="space-y-1"><Label className="text-xs">Or description (if not listed)</Label><Input value={draft.description} onChange={e => updateMedication(draft.id, { description: e.target.value, pricelistId: '', medicineSearch: '' })} placeholder="e.g. IV Aminophylline" disabled={busy} /></div>
-                <div className="space-y-1"><Label className="text-xs">Strength *</Label><Input value={draft.strength} onChange={e => updateMedication(draft.id, { strength: e.target.value })} placeholder="250 mg" disabled={busy} /></div>
-                <div className="space-y-1"><Label className="text-xs">Route *</Label><Input value={draft.route} onChange={e => updateMedication(draft.id, { route: e.target.value })} placeholder="IV / IM / oral" disabled={busy} /></div>
-                <div className="space-y-1"><Label className="text-xs">Quantity</Label><Input type="number" min={1} value={draft.quantity} onChange={e => updateMedication(draft.id, { quantity: Math.max(1, Number(e.target.value) || 1) })} disabled={busy} /></div>
-                <div className="space-y-1"><Label className="text-xs">Note (optional)</Label><Input value={draft.notes} onChange={e => updateMedication(draft.id, { notes: e.target.value })} placeholder="Emergency administration note" disabled={busy} /></div>
-                <label className="md:col-span-2 flex items-start gap-2 rounded-md border bg-background p-2 text-xs"><Checkbox checked={draft.administeredNow} onCheckedChange={value => updateMedication(draft.id, { administeredNow: Boolean(value) })} disabled={busy} /><span><span className="font-medium">Already administered now</span><span className="block text-muted-foreground">Leave checked for emergency medicines already given. Untick for a medicine that should wait for Cashier payment and Pharmacy dispensing.</span></span></label>
-              </div>
-              <div className="flex justify-end gap-2"><Button type="button" variant="ghost" size="sm" onClick={() => setMedications(prev => prev.filter(item => item.id !== draft.id))} disabled={busy || medications.length === 1}><Trash2 className="h-3.5 w-3.5 mr-1" /> Remove</Button><Button type="button" size="sm" onClick={() => saveMedication(draft)} disabled={busy}><CheckCircle2 className="h-3.5 w-3.5 mr-1" /> {draft.administeredNow ? 'Record as given' : 'Add for pharmacy later'}</Button></div>
-            </div>
-          ))}
-        </section>
+        {allowMedicine && <section className="rounded-xl border p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><Pill className="h-4 w-4 text-module-pharmacy" /><h3 className="font-semibold text-sm">Emergency medicine</h3><Badge variant="outline">Plain text</Badge></div><Button type="button" size="sm" variant="outline" onClick={() => setMedicine(newEntry())} disabled={busy || !!finalized}><Plus className="h-3.5 w-3.5 mr-1" /> New line</Button></div>
+          <Textarea value={medicine.text} onChange={e => setMedicine(prev => ({ ...prev, text: e.target.value }))} placeholder="Write the complete medicine details, e.g. IV Aminophylline 250mg stat — 1 ampoule given" rows={3} disabled={busy || !!finalized} />
+          <div className="flex justify-end"><Button type="button" onClick={saveMedicine} disabled={busy || !!finalized || !medicine.text.trim()}><CheckCircle2 className="h-4 w-4 mr-2" /> Save medicine</Button></div>
+        </section>}
 
         <section className="rounded-xl border p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><Beaker className="h-4 w-4 text-module-laboratory" /><h3 className="font-semibold text-sm">Emergency laboratory request</h3><Badge variant="outline">{labs.length}</Badge></div><Button type="button" size="sm" variant="outline" onClick={() => setLabs(prev => [...prev, emptyLab()])} disabled={busy}><Plus className="h-3.5 w-3.5 mr-1" /> Add lab request</Button></div>
-          {labs.map(draft => (
-            <div key={draft.id} className="rounded-lg border bg-muted/20 p-3 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3"><div className="space-y-1 md:col-span-2"><Label className="text-xs">Tests * (comma or new line separated)</Label><Textarea value={draft.tests} onChange={e => updateLab(draft.id, { tests: e.target.value })} placeholder="FBC, electrolytes, malaria test" rows={2} disabled={busy} /></div><div className="space-y-1"><Label className="text-xs">Diagnosis/context</Label><Input value={draft.diagnosis} onChange={e => updateLab(draft.id, { diagnosis: e.target.value })} placeholder="Optional clinical context" disabled={busy} /></div><div className="space-y-1"><Label className="text-xs">Estimated lab total (optional)</Label><Input type="number" min={0} value={draft.total} onChange={e => updateLab(draft.id, { total: e.target.value })} placeholder="0" disabled={busy} /></div><div className="space-y-1 md:col-span-2"><Label className="text-xs">Note (optional)</Label><Input value={draft.notes} onChange={e => updateLab(draft.id, { notes: e.target.value })} placeholder="Emergency lab note" disabled={busy} /></div></div>
-              <div className="flex justify-end gap-2"><Button type="button" variant="ghost" size="sm" onClick={() => setLabs(prev => prev.filter(item => item.id !== draft.id))} disabled={busy || labs.length === 1}><Trash2 className="h-3.5 w-3.5 mr-1" /> Remove</Button><Button type="button" size="sm" onClick={() => saveLab(draft)} disabled={busy}><Beaker className="h-3.5 w-3.5 mr-1" /> Authorize lab now</Button></div>
-            </div>
-          ))}
+          <div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2"><Beaker className="h-4 w-4 text-module-laboratory" /><h3 className="font-semibold text-sm">Emergency laboratory test</h3><Badge variant="outline">Plain text</Badge></div><Button type="button" size="sm" variant="outline" onClick={() => setLab(newEntry())} disabled={busy || !!finalized}><Plus className="h-3.5 w-3.5 mr-1" /> New line</Button></div>
+          <Textarea value={lab.text} onChange={e => setLab(prev => ({ ...prev, text: e.target.value }))} placeholder="Write the test required, e.g. FBC and electrolytes" rows={3} disabled={busy || !!finalized} />
+          <div className="flex justify-end"><Button type="button" onClick={saveLab} disabled={busy || !!finalized || !lab.text.trim()}><Send className="h-4 w-4 mr-2" /> Send to Lab</Button></div>
         </section>
 
-        {episodeId && !reconciled && <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2"><div className="flex items-center gap-2 text-sm font-semibold"><Receipt className="h-4 w-4" /> Episode is open</div><p className="text-xs text-muted-foreground">Add any further emergency medicine or lab request, then reconcile all recorded items into one invoice.</p><Label className="text-xs">Billing note (optional)</Label><Input value={billingNote} onChange={e => setBillingNote(e.target.value)} placeholder="Emergency episode billing note" disabled={busy} /></div>}
-        {reconciled && <div className="rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20 p-3 text-sm"><p className="font-semibold text-emerald-800 dark:text-emerald-200">Sent to Billing</p><p className="text-xs mt-1">Invoice: <span className="font-mono">{reconciled.invoice_id}</span> · Total: {fmt(Number(reconciled.total || 0))}</p></div>}
+        <section className="rounded-xl border bg-muted/20 p-4 space-y-2">
+          <div className="flex items-center justify-between"><h3 className="font-semibold text-sm">Saved items in this episode</h3><Badge variant="outline">{savedItems.length}</Badge></div>
+          {savedItems.length === 0 ? <p className="text-xs text-muted-foreground">Saved medicine and laboratory lines will appear here in the order they were added.</p> : <div className="space-y-2">{savedItems.map((item, index) => <div key={item.id} className="flex items-start gap-2 rounded-md border bg-background p-2 text-xs"><span className="font-mono text-muted-foreground w-5">{index + 1}.</span>{item.item_type === 'lab' ? <Beaker className="h-3.5 w-3.5 mt-0.5 text-module-laboratory" /> : <Pill className="h-3.5 w-3.5 mt-0.5 text-module-pharmacy" />}<div className="min-w-0 flex-1"><p className="font-medium whitespace-pre-wrap break-words">{item.description}</p><p className="text-muted-foreground mt-0.5 capitalize">{item.item_type} · {item.status.replaceAll('_', ' ')}</p></div></div>)}</div>}
+        </section>
 
-        <DialogFooter className="gap-2"><Button variant="ghost" onClick={close} disabled={busy}>{reconciled ? 'Close' : 'Save for later'}</Button>{episodeId && !reconciled && <Button onClick={reconcile} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Receipt className="h-4 w-4 mr-2" />}Reconcile & Send to Billing</Button>}</DialogFooter>
+        {episodeId && !finalized && <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs"><div className="flex items-center gap-2 font-semibold"><Clock className="h-4 w-4" /> Episode saved and still open</div><p className="mt-1 text-muted-foreground">You may Save for later, refer the patient to Doctor 1 or Doctor 2, or Finalize when urgent care is complete. Finalize locks the episode and sends a billing draft to Billing.</p></div>}
+        {finalized && <div className="rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20 p-3 text-sm"><p className="font-semibold text-emerald-800 dark:text-emerald-200">Sent to Billing as a draft</p><p className="text-xs mt-1">Billing will match each plain-text line to the Pricelist and generate one invoice. The episode is now locked.</p>{finalized.draft_id && <p className="text-[11px] font-mono mt-1">Draft: {finalized.draft_id}</p>}</div>}
+
+        <DialogFooter className="gap-2"><Button variant="ghost" onClick={close} disabled={busy}>{finalized ? 'Close' : 'Save for later'}</Button>{canAdmit && !finalized && onRequestAdmission && <Button variant="secondary" onClick={onRequestAdmission} disabled={busy}><Plus className="h-4 w-4 mr-2" /> Admit patient</Button>}{episodeId && !finalized && <Button onClick={finalize} disabled={busy || savedItems.length === 0}>{busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Receipt className="h-4 w-4 mr-2" />} Finalize → Billing draft</Button>}</DialogFooter>
       </DialogContent>
     </Dialog>
   );

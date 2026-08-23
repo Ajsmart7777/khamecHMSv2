@@ -9,10 +9,12 @@ import { Badge } from '@/components/ui/badge';
 interface Props {
   patient: Patient;
   onEpisodeChange?: (episodeId: string | null) => void;
+  onRequestAdmission?: () => void;
 }
 
 type Episode = {
   id: string;
+  admission_id?: string | null;
   created_at: string;
   notes?: string | null;
 };
@@ -34,12 +36,9 @@ type EpisodeItem = {
 type LabRequest = {
   id: string;
   status: string;
-  results?: unknown;
 };
 
-const fmt = (value: number) => `₦${Number(value || 0).toLocaleString()}`;
-
-export function EmergencyEpisodePatientPanel({ patient, onEpisodeChange }: Props) {
+export function EmergencyEpisodePatientPanel({ patient, onEpisodeChange, onRequestAdmission }: Props) {
   const [episode, setEpisode] = useState<Episode | null>(null);
   const [items, setItems] = useState<EpisodeItem[]>([]);
   const [labs, setLabs] = useState<LabRequest[]>([]);
@@ -51,7 +50,7 @@ export function EmergencyEpisodePatientPanel({ patient, onEpisodeChange }: Props
     try {
       const { data: episodes, error } = await supabase
         .from('emergency_episodes')
-        .select('id, created_at, notes')
+        .select('id, admission_id, created_at, notes')
         .eq('patient_id', patient.id)
         .eq('status', 'open')
         .order('created_at', { ascending: false })
@@ -68,7 +67,7 @@ export function EmergencyEpisodePatientPanel({ patient, onEpisodeChange }: Props
 
       const [itemsResult, labsResult] = await Promise.all([
         supabase.from('emergency_episode_items').select('*').eq('episode_id', current.id).neq('status', 'cancelled').order('created_at', { ascending: true }),
-        supabase.from('lab_requests').select('id, status, results').eq('emergency_episode_id', current.id).order('created_at', { ascending: true }),
+        supabase.from('lab_requests').select('id, status').eq('emergency_episode_id', current.id).order('created_at', { ascending: true }),
       ]);
       if (itemsResult.error) throw itemsResult.error;
       if (labsResult.error) throw labsResult.error;
@@ -106,10 +105,11 @@ export function EmergencyEpisodePatientPanel({ patient, onEpisodeChange }: Props
         <h3 className="font-semibold text-sm">Emergency Episode</h3>
         <Badge variant="warning" className="text-[10px]">Open · before billing</Badge>
         <Button size="sm" className="ml-auto" onClick={() => setDialogOpen(true)}>Continue Emergency Care</Button>
+        {onRequestAdmission && !['admitted', 'in_ward', 'ready_for_discharge'].includes(String(patient.status)) && <Button size="sm" variant="secondary" onClick={onRequestAdmission}>Admit under episode</Button>}
       </div>
-      <p className="text-xs text-muted-foreground">
-        Started {new Date(episode.created_at).toLocaleString()}. These emergency items remain unbilled until the episode is finalized or handled at discharge.
-      </p>
+        <p className="text-xs text-muted-foreground">
+          Started {new Date(episode.created_at).toLocaleString()}. These plain-text emergency items remain unbilled until the episode is finalized or handled at discharge.
+        </p>
       {episode.notes && <p className="text-xs rounded-md border bg-background/70 p-2"><strong>Emergency note:</strong> {episode.notes}</p>}
 
       <div className="grid grid-cols-2 gap-2 text-xs">
@@ -120,7 +120,6 @@ export function EmergencyEpisodePatientPanel({ patient, onEpisodeChange }: Props
       <div className="space-y-2">
         {items.map(item => {
           const lab = item.lab_request_id ? labs.find(request => request.id === item.lab_request_id) : null;
-          const result = lab?.results as any;
           return (
             <div key={item.id} className="rounded-lg border bg-background/80 p-2.5 text-xs">
               <div className="flex items-start gap-2">
@@ -132,10 +131,10 @@ export function EmergencyEpisodePatientPanel({ patient, onEpisodeChange }: Props
                     {item.item_type === 'medication' && <Badge variant={item.administered_now ? 'success' : 'warning'} className="text-[10px]">{item.administered_now ? 'Given now' : 'Pharmacy later'}</Badge>}
                   </div>
                   <p className="text-muted-foreground mt-0.5">
-                    {item.item_type === 'medication' ? `${item.strength || '—'} · ${item.route || '—'} · quantity ${item.quantity} · ${fmt(Number(item.unit_price) * Number(item.quantity))}` : 'Authorized lab work — not financially paid'}
+                    {item.item_type === 'medication' ? 'Recorded as emergency care; Billing will match the plain-text line to the Pricelist.' : 'Authorized lab work — not financially paid'}
                   </p>
-                  {item.item_type === 'lab' && lab?.status === 'completed' && result?.value && (
-                    <div className="mt-2 rounded-md border border-emerald-300/60 bg-emerald-50/60 p-2"><CheckCircle2 className="h-3.5 w-3.5 inline mr-1 text-emerald-700" /><strong>Result:</strong> {String(result.value)}{result.interpretation ? ` · ${String(result.interpretation)}` : ''}</div>
+                  {item.item_type === 'lab' && lab?.status === 'completed' && (
+                    <div className="mt-2 rounded-md border border-emerald-300/60 bg-emerald-50/60 p-2"><CheckCircle2 className="h-3.5 w-3.5 inline mr-1 text-emerald-700" /><strong>Result returned.</strong> See Patient Header → Lab Results for the full result.</div>
                   )}
                   {item.item_type === 'lab' && lab?.status !== 'completed' && <p className="mt-1 text-amber-700"><Clock className="h-3.5 w-3.5 inline mr-1" />Awaiting laboratory result</p>}
                 </div>
@@ -155,6 +154,10 @@ export function EmergencyEpisodePatientPanel({ patient, onEpisodeChange }: Props
         onOpenChange={setDialogOpen}
         patientId={patient.id}
         patientName={`${patient.first_name} ${patient.last_name}`}
+        admissionId={episode.admission_id ?? null}
+        allowMedicine={['admitted', 'in_ward', 'ready_for_discharge'].includes(String(patient.status))}
+        canAdmit={Boolean(onRequestAdmission) && !['admitted', 'in_ward', 'ready_for_discharge'].includes(String(patient.status))}
+        onRequestAdmission={onRequestAdmission}
         onSaved={load}
       />
     </section>

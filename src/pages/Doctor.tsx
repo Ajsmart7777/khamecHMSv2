@@ -17,6 +17,8 @@ import { PatientHistoryDialog } from '@/components/doctor/PatientHistoryDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { QuickDischargeButton } from '@/components/patient/QuickDischargeButton';
+import { EmergencyEpisodeDialog } from '@/components/visit/EmergencyEpisodeDialog';
+import { EmergencyEpisodeQueue } from '@/components/nurse/EmergencyEpisodeQueue';
 
 const Doctor = () => {
   const { patients, loading, refreshPatients, getPatientsByStatus } = usePatients();
@@ -27,6 +29,7 @@ const Doctor = () => {
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);
+  const [emergencyOpen, setEmergencyOpen] = useState(false);
   const canAct = useAdmissionPerms();
   const myDoctorKey: 'doctor1' | 'doctor2' | null =
     role === 'doctor1' ? 'doctor1'
@@ -55,6 +58,12 @@ const Doctor = () => {
 
   return (
     <MainLayout title="Doctor's Console" subtitle="Snap the paper card and route the patient">
+      <EmergencyEpisodeQueue
+        patients={patients}
+        doctorRole={myDoctorKey}
+        onResume={(patientId) => { setSelectedPatientId(patientId); setEmergencyOpen(true); }}
+      />
+
       <div className="flex items-center gap-2 mb-4">
         <div className="flex items-center gap-1.5 text-xs text-success">
           <Wifi className="h-3.5 w-3.5 animate-pulse" />
@@ -123,10 +132,13 @@ const Doctor = () => {
             <div className="space-y-4 animate-fade-in">
               <UniversalPatientHeader patient={selectedPatient} />
 
-              <div className="flex justify-end">
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
                   <FileText className="h-4 w-4 mr-2" />
                   View History
+                </Button>
+                <Button variant="outline" size="sm" className="border-amber-300 text-amber-700" onClick={() => setEmergencyOpen(true)}>
+                  Continue Emergency Care
                 </Button>
               </div>
 
@@ -230,6 +242,16 @@ const Doctor = () => {
           open={historyOpen}
           onOpenChange={setHistoryOpen}
           patient={selectedPatient}
+        />
+      )}
+
+      {selectedPatient && (
+        <EmergencyEpisodeDialog
+          open={emergencyOpen}
+          onOpenChange={setEmergencyOpen}
+          patientId={selectedPatient.id}
+          patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
+          onSaved={refreshPatients}
         />
       )}
 

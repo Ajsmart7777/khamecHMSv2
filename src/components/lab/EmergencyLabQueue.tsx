@@ -70,9 +70,12 @@ export function EmergencyLabQueue({ requests, patients, updateLabRequest, refres
     if (!patient) return;
     setBusy(true);
     try {
-      const ok = await updatePatientStatus(patient.id, 'with_doctor');
-      if (!ok) throw new Error('Could not route patient to doctor');
-      toast.success('Emergency results sent to doctor');
+      const wardStatus = ['admitted', 'in_ward', 'ready_for_discharge'].includes(String(patient.status));
+      if (!wardStatus) {
+        const ok = await updatePatientStatus(patient.id, 'with_doctor');
+        if (!ok) throw new Error('Could not route patient to doctor');
+      }
+      toast.success('Emergency results sent to doctor', { description: wardStatus ? 'Ward location preserved; doctor can review the linked result.' : 'Patient is now with Doctor.' });
     } catch (error: any) { toast.error(error?.message || 'Could not route results'); }
     finally { setBusy(false); }
   };

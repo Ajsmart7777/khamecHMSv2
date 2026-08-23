@@ -17,8 +17,7 @@ import { PatientHistoryDialog } from '@/components/doctor/PatientHistoryDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { QuickDischargeButton } from '@/components/patient/QuickDischargeButton';
-import { EmergencyEpisodeDialog } from '@/components/visit/EmergencyEpisodeDialog';
-import { EmergencyEpisodeQueue } from '@/components/nurse/EmergencyEpisodeQueue';
+import { EmergencyEpisodePatientPanel } from '@/components/visit/EmergencyEpisodePatientPanel';
 
 const Doctor = () => {
   const { patients, loading, refreshPatients, getPatientsByStatus } = usePatients();
@@ -29,8 +28,9 @@ const Doctor = () => {
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [admitOpen, setAdmitOpen] = useState(false);
-  const [emergencyOpen, setEmergencyOpen] = useState(false);
+  const [openEmergencyEpisodeId, setOpenEmergencyEpisodeId] = useState<string | null>(null);
   const canAct = useAdmissionPerms();
+  useEffect(() => { setOpenEmergencyEpisodeId(null); }, [selectedPatientId]);
   const myDoctorKey: 'doctor1' | 'doctor2' | null =
     role === 'doctor1' ? 'doctor1'
     : role === 'doctor2' ? 'doctor2'
@@ -58,12 +58,6 @@ const Doctor = () => {
 
   return (
     <MainLayout title="Doctor's Console" subtitle="Snap the paper card and route the patient">
-      <EmergencyEpisodeQueue
-        patients={patients}
-        doctorRole={myDoctorKey}
-        onResume={(patientId) => { setSelectedPatientId(patientId); setEmergencyOpen(true); }}
-      />
-
       <div className="flex items-center gap-2 mb-4">
         <div className="flex items-center gap-1.5 text-xs text-success">
           <Wifi className="h-3.5 w-3.5 animate-pulse" />
@@ -137,10 +131,9 @@ const Doctor = () => {
                   <FileText className="h-4 w-4 mr-2" />
                   View History
                 </Button>
-                <Button variant="outline" size="sm" className="border-amber-300 text-amber-700" onClick={() => setEmergencyOpen(true)}>
-                  Continue Emergency Care
-                </Button>
               </div>
+
+              <EmergencyEpisodePatientPanel patient={selectedPatient} onEpisodeChange={setOpenEmergencyEpisodeId} />
 
               <div className="bg-card rounded-xl border border-border p-6 text-center space-y-3">
                 <div className="mx-auto w-12 h-12 rounded-full bg-module-doctor/10 flex items-center justify-center">
@@ -159,6 +152,7 @@ const Doctor = () => {
                   sourceStation="doctor"
                   defaultOrderType="prescription"
                   defaultTarget="pharmacy"
+                  emergencyEpisodeId={openEmergencyEpisodeId}
                   label="Snap → Pharmacy"
                   variant="default"
                   className="w-full"
@@ -168,6 +162,7 @@ const Doctor = () => {
                   sourceStation="doctor"
                   defaultOrderType="lab"
                   defaultTarget="lab"
+                  emergencyEpisodeId={openEmergencyEpisodeId}
                   label="Snap → Lab"
                   variant="default"
                   className="w-full"
@@ -177,6 +172,7 @@ const Doctor = () => {
                   sourceStation="doctor"
                   defaultOrderType="treatment"
                   defaultTarget="nurse"
+                  emergencyEpisodeId={openEmergencyEpisodeId}
                   label="Snap → Nurse"
                   variant="outline"
                   className="w-full"
@@ -242,16 +238,6 @@ const Doctor = () => {
           open={historyOpen}
           onOpenChange={setHistoryOpen}
           patient={selectedPatient}
-        />
-      )}
-
-      {selectedPatient && (
-        <EmergencyEpisodeDialog
-          open={emergencyOpen}
-          onOpenChange={setEmergencyOpen}
-          patientId={selectedPatient.id}
-          patientName={`${selectedPatient.first_name} ${selectedPatient.last_name}`}
-          onSaved={refreshPatients}
         />
       )}
 

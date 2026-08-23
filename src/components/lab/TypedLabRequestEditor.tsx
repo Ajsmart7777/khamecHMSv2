@@ -11,6 +11,7 @@ import { openOrResumeVisit } from '@/hooks/useVisits';
 interface TypedLabRequestEditorProps {
   patientId: string;
   visitId: string | null;
+  emergencyEpisodeId?: string | null;
   onSuccess?: (labRequestId: string) => void;
   onCancel?: () => void;
 }
@@ -18,6 +19,7 @@ interface TypedLabRequestEditorProps {
 export function TypedLabRequestEditor({
   patientId,
   visitId,
+  emergencyEpisodeId = null,
   onSuccess,
   onCancel
 }: TypedLabRequestEditorProps) {
@@ -43,11 +45,12 @@ export function TypedLabRequestEditor({
       const id = await createLabRequestFromTyped({
         patientId,
         visitId: effectiveVisitId,
+        emergencyEpisodeId,
         diagnosis: diagnosis.trim() || undefined,
         tests: [text.trim()] // Store the whole block as one "test" item
       });
       setSubmitted(true);
-      toast.success('Lab request created — patient moved to Billing');
+      toast.success(emergencyEpisodeId ? 'Emergency lab request recorded — billing deferred' : 'Lab request created — patient moved to Billing');
       onSuccess?.(id);
     } catch (err: any) {
       submitLockRef.current = false;
@@ -93,7 +96,7 @@ export function TypedLabRequestEditor({
         )}
         <Button onClick={handleSubmit} disabled={loading || submitted} className="min-w-[120px]">
           {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Beaker className="h-4 w-4 mr-2" />}
-          {submitted ? 'Lab Order Sent' : 'Submit Lab Order'}
+          {submitted ? 'Lab Order Recorded' : emergencyEpisodeId ? 'Record Under Emergency Episode' : 'Submit Lab Order'}
         </Button>
       </div>
     </div>

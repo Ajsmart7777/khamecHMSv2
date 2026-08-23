@@ -40,10 +40,12 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
     id: string; name: string; balance: number;
     mode: 'items' | 'snap';
     orderType: 'prescription' | 'lab' | 'treatment';
+    emergencyEpisodeId?: string | null;
     accountType?: string | null; plan?: string | null;
   } | null>(null);
   const [dischargeFor, setDischargeFor] = useState<{ admissionId: string; patientId: string; name: string; balance: number } | null>(null);
   const [emergencyFor, setEmergencyFor] = useState<{ patientId: string; patientName: string; visitId: string | null; admissionId: string } | null>(null);
+  const [openEmergencyEpisodes, setOpenEmergencyEpisodes] = useState<Record<string, string>>({});
   const [deathFor, setDeathFor] = useState<{ admissionId: string; name: string } | null>(null);
 
   
@@ -53,6 +55,20 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
   const can = useAdmissionPerms();
   const { user } = useAuth();
   const userId = user?.id;
+
+  useEffect(() => {
+    let active = true;
+    const loadEmergencyEpisodes = async () => {
+      const { data } = await supabase.from('emergency_episodes').select('id, patient_id').eq('status', 'open');
+      if (!active) return;
+      const next: Record<string, string> = {};
+      (data ?? []).forEach((row: any) => { if (row.patient_id && row.id) next[row.patient_id] = row.id; });
+      setOpenEmergencyEpisodes(next);
+    };
+    void loadEmergencyEpisodes();
+    const timer = window.setInterval(() => void loadEmergencyEpisodes(), 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
 
   // New (un-archived) lab result photos per admitted patient
   const [newResults, setNewResults] = useState<Record<string, number>>({});
@@ -189,7 +205,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'snap', orderType: 'prescription', accountType: p?.account_type, plan: p?.insurance_plan })}
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'snap', orderType: 'prescription', emergencyEpisodeId: openEmergencyEpisodes[a.patient_id] ?? null, accountType: p?.account_type, plan: p?.insurance_plan })}
                     >
                       <Camera className="h-3.5 w-3.5 mr-1.5" /> Snap to Pharmacy
                     </Button>
@@ -198,7 +214,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'snap', orderType: 'lab', accountType: p?.account_type, plan: p?.insurance_plan })}
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'snap', orderType: 'lab', emergencyEpisodeId: openEmergencyEpisodes[a.patient_id] ?? null, accountType: p?.account_type, plan: p?.insurance_plan })}
                     >
                       <Camera className="h-3.5 w-3.5 mr-1.5" /> Snap to Lab
                     </Button>
@@ -206,7 +222,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                   {!deathReported && can('admittedSnap') && (
                     <Button
                       size="sm"
-                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'prescription', accountType: p?.account_type, plan: p?.insurance_plan })}
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'prescription', emergencyEpisodeId: openEmergencyEpisodes[a.patient_id] ?? null, accountType: p?.account_type, plan: p?.insurance_plan })}
                     >
                       <FileText className="h-3.5 w-3.5 mr-1.5" /> Type to Pharmacy
                     </Button>
@@ -214,7 +230,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
                   {!deathReported && can('admittedSnap') && (
                     <Button
                       size="sm"
-                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'lab', accountType: p?.account_type, plan: p?.insurance_plan })}
+                      onClick={() => setOrderFor({ id: a.patient_id, name, balance: bal, mode: 'items', orderType: 'lab', emergencyEpisodeId: openEmergencyEpisodes[a.patient_id] ?? null, accountType: p?.account_type, plan: p?.insurance_plan })}
                     >
                       <FileText className="h-3.5 w-3.5 mr-1.5" /> Type to Lab
                     </Button>
@@ -300,6 +316,7 @@ export function AdmittedPatientsPanel({ sourceStation, title = 'Admitted Patient
           patientName={orderFor.name}
           patientBalance={orderFor.balance}
           sourceStation={sourceStation}
+          emergencyEpisodeId={orderFor.emergencyEpisodeId}
           mode={orderFor.mode}
           orderType={orderFor.orderType}
           accountType={orderFor.accountType}

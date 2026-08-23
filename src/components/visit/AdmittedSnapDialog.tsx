@@ -55,11 +55,12 @@ interface Props {
   orderType?: OrderType;
   accountType?: string | null;
   insurancePlan?: string | null;
+  emergencyEpisodeId?: string | null;
 }
 
 export function AdmittedSnapDialog({
   patientId, patientName, patientBalance, sourceStation, open, onOpenChange, onCreated,
-  mode, orderType: fixedOrderType, accountType, insurancePlan,
+  mode, orderType: fixedOrderType, accountType, insurancePlan, emergencyEpisodeId = null,
 }: Props) {
   const { items: pricelist, loading } = usePricelist();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -150,7 +151,7 @@ export function AdmittedSnapDialog({
       toast.error(orderType === 'lab' ? 'Add at least one lab test' : 'Add at least one item from the pricelist');
       return;
     }
-    if (insufficient && !allowDebt) {
+    if (!emergencyEpisodeId && insufficient && !allowDebt) {
       toast.error('Insufficient balance');
       return;
     }
@@ -163,24 +164,41 @@ export function AdmittedSnapDialog({
         await uploadFile('visit-cards', path, file, file.type || 'image/jpeg');
       }
 
-      const { data: snapId, error } = await supabase.rpc('create_admitted_snap', {
-        _patient_id: patientId,
-        _order_type: orderType,
-        _target_station: target,
-        _photo_path: path as any,
-        _note: note.trim() || null,
-        _items: lines as any,
-        _total: total,
-        _allow_debt: allowDebt,
-        _debt_reason: allowDebt ? debtReason.trim() : null,
-      });
+      const { data: snapId, error } = emergencyEpisodeId
+        ? await supabase.rpc('record_emergency_admitted_order', {
+            _episode_id: emergencyEpisodeId,
+            _order_type: orderType,
+            _target_station: target,
+            _photo_path: path as any,
+            _note: note.trim() || null,
+            _items: lines as any,
+          })
+        : await supabase.rpc('create_admitted_snap', {
+            _patient_id: patientId,
+            _order_type: orderType,
+            _target_station: target,
+            _photo_path: path as any,
+            _note: note.trim() || null,
+            _items: lines as any,
+            _total: total,
+            _allow_debt: allowDebt,
+            _debt_reason: allowDebt ? debtReason.trim() : null,
+          });
 
       if (error) { toast.error(error.message); return; }
 
-      // OCR is server-side and non-blocking: the order is sent immediately while
-      // the billing panel polls for the extracted lines when the job completes.
-      if (path && snapId) {
+      // Emergency snaps are already recorded under the episode and must not
+      // enter ordinary Billing or change the patient's location status.
+      if (path && snapId && !emergencyEpisodeId) {
         void supabase.functions.invoke('snap-ocr', { body: { snap_id: snapId } });
+      }
+
+      if (emergencyEpisodeId) {
+        toast.success(orderType === 'lab' ? 'Emergency lab snap recorded — billing deferred' : 'Emergency prescription snap recorded — billing deferred');
+        onCreated?.();
+        reset();
+        onOpenChange(false);
+        return;
       }
 
       // Update patient status to ensure visibility in the target station's queue (Lab/Pharmacy)
@@ -213,7 +231,7 @@ export function AdmittedSnapDialog({
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between pr-8">
-            <span>{heading} · {patientName}</span>
+            <span>{emergencyEpisodeId ? `Emergency Episode · ${heading}` : heading} · {patientName}</span>
           </DialogTitle>
         </DialogHeader>
 
@@ -230,9 +248,12 @@ export function AdmittedSnapDialog({
           )}
 
           <TabsContent value="snap" className="space-y-4">
-            <div className={`p-3 rounded-lg border flex items-center gap-2 ${insufficient ? 'bg-amber-50 border-amber-300 dark:bg-amber-950/20' : 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/20'}`}>
+            <div className={`p-3 rounded-lg border flex items-center gap-2 ${emergencyEpisodeId ? 'bg-amber-50 border-amber-300 dark:bg-amber-950/20' : insufficient ? 'bg-amber-50 border-amber-300 dark:bg-amber-950/20' : 'bg-emerald-50 border-emerald-300 dark:bg-emerald-950/20'}`}>
+              {emergencyEpisodeId ? (
+                <div className="text-sm"><p className="font-medium">Emergency Episode · billing deferred</p><p className="text-xs text-muted-foreground">This order stays linked to the open episode and will not deduct the wallet or enter ordinary Billing now.</p></div>
+              ) : null}
               <Wallet className="h-4 w-4" />
-              <div className="text-sm flex-1">
+              {!emergencyEpisodeId && <div className="text-sm flex-1">
                 <p className="font-medium">
                   {walletPatient ? `Balance: ${fmt(patientBalance)}` : 'Sponsored account — no wallet'}
                   <span className="ml-2 text-xs font-normal text-muted-foreground">
@@ -246,7 +267,7 @@ export function AdmittedSnapDialog({
                     Order {fmt(total)} → patient {fmt(patientShare)}{covered > 0 ? ` · sponsor ${fmt(covered)}` : ''}
                   </p>
                 )}
-              </div>
+              </div>}
             </div>
 
             <div className="space-y-2">
@@ -360,7 +381,7 @@ export function AdmittedSnapDialog({
               <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. bedside, urgent" />
             </div>
 
-            {insufficient && (
+            {!emergencyEpisodeId && insufficient && (
               <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/20 space-y-2">
                 <label className="flex items-start gap-2 cursor-pointer">
                   <Checkbox checked={allowDebt} onCheckedChange={(v) => setAllowDebt(!!v)} className="mt-0.5" />
@@ -382,7 +403,7 @@ export function AdmittedSnapDialog({
               <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
               <Button onClick={submit} disabled={busy}>
                 <Send className="h-4 w-4 mr-2" />
-                {busy ? 'Sending…' : `Send to ${target}`}
+                {busy ? 'Recording…' : emergencyEpisodeId ? 'Record under Emergency Episode' : `Send to ${target}`}
               </Button>
             </DialogFooter>
           </TabsContent>
@@ -413,6 +434,7 @@ export function AdmittedSnapDialog({
                   <TypedLabRequestEditor 
                     patientId={patientId}
                     visitId={null}
+                    emergencyEpisodeId={emergencyEpisodeId}
                     onSuccess={() => {
                       toast.success('Lab order sent to Billing');
                       onCreated?.();
@@ -423,6 +445,7 @@ export function AdmittedSnapDialog({
                   <TypedPrescriptionEditor 
                     patientId={patientId}
                     visitId={null}
+                    emergencyEpisodeId={emergencyEpisodeId}
                     onSuccess={() => {
                       toast.success('Prescription sent to Billing');
                       onCreated?.();

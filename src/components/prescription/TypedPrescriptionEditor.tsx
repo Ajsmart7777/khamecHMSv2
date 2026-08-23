@@ -11,6 +11,7 @@ import { openOrResumeVisit } from '@/hooks/useVisits';
 interface TypedPrescriptionEditorProps {
   patientId: string;
   visitId: string | null;
+  emergencyEpisodeId?: string | null;
   onSuccess?: (prescriptionId: string) => void;
   onCancel?: () => void;
 }
@@ -18,6 +19,7 @@ interface TypedPrescriptionEditorProps {
 export function TypedPrescriptionEditor({
   patientId,
   visitId,
+  emergencyEpisodeId = null,
   onSuccess,
   onCancel
 }: TypedPrescriptionEditorProps) {
@@ -46,6 +48,7 @@ export function TypedPrescriptionEditor({
       const id = await createPrescriptionFromTyped({
         patientId,
         visitId: effectiveVisitId,
+        emergencyEpisodeId,
         diagnosis,
         notes: text.trim(),
         items: [{
@@ -57,7 +60,7 @@ export function TypedPrescriptionEditor({
         }]
       });
       setSubmitted(true);
-      toast.success('Prescription created');
+      toast.success(emergencyEpisodeId ? 'Emergency prescription recorded — billing deferred' : 'Prescription created');
       onSuccess?.(id);
     } catch (err: any) {
       submitLockRef.current = false;
@@ -103,7 +106,7 @@ export function TypedPrescriptionEditor({
         )}
         <Button onClick={handleSubmit} disabled={loading || submitted} className="min-w-[120px]">
           {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Pill className="h-4 w-4 mr-2" />}
-          {submitted ? 'Prescription Sent' : 'Submit Prescription'}
+          {submitted ? 'Prescription Recorded' : emergencyEpisodeId ? 'Record Under Emergency Episode' : 'Submit Prescription'}
         </Button>
       </div>
     </div>

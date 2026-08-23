@@ -235,6 +235,9 @@ export const handler: Handler = async (event) => {
         record_emergency_lab_request: ['uuid', 'text[]', 'text', 'numeric', 'text'],
         complete_emergency_lab_request: ['uuid', 'jsonb', 'text'],
         reconcile_emergency_episode: ['uuid', 'text'],
+        create_emergency_prescription_from_typed: ['uuid', 'uuid', 'uuid', 'text', 'text', 'jsonb'],
+        create_emergency_lab_from_typed: ['uuid', 'uuid', 'uuid', 'text', 'text[]'],
+        record_emergency_admitted_order: ['uuid', 'text', 'text', 'text', 'text', 'jsonb'],
       };
       const casts = rpcCastSignatures[rpc] || [];
       const paramPlaceholders = paramKeys.map((_, idx) => `$${idx + 1}${casts[idx] ? `::${casts[idx]}` : ''}`).join(', ');

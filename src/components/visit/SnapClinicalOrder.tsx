@@ -40,6 +40,7 @@ interface Props {
   size?: 'sm' | 'default' | 'lg';
   className?: string;
   label?: string;
+  emergencyEpisodeId?: string | null;
   onSent?: () => void;
 }
 
@@ -52,6 +53,7 @@ export function SnapClinicalOrder({
   size = 'default',
   className,
   label = 'Snap & Send to Billing',
+  emergencyEpisodeId = null,
   onSent,
 }: Props) {
   const { role } = useAuth();
@@ -148,6 +150,22 @@ export function SnapClinicalOrder({
         label: `${orderType} → ${target}`,
         station: sourceStation,
       }).catch(() => null);
+
+      if (emergencyEpisodeId) {
+        const { data, error } = await (supabase.rpc as any)('record_emergency_admitted_order', {
+          _episode_id: emergencyEpisodeId,
+          _order_type: orderType === 'treatment' ? 'prescription' : orderType,
+          _target_station: target,
+          _photo_path: path,
+          _note: note.trim() || null,
+          _items: [],
+        });
+        if (error) throw error;
+        toast.success(orderType === 'lab' ? 'Emergency lab snap recorded — billing deferred' : 'Emergency prescription snap recorded — billing deferred');
+        close();
+        onSent?.();
+        return;
+      }
 
       const snap = await createSnapOrder({
         patientId,
@@ -247,6 +265,7 @@ export function SnapClinicalOrder({
         <TabsContent value="type" className="mt-0 pt-1 space-y-2">
           {defaultOrderType === 'prescription' && (
             <div className="border rounded-xl p-4 bg-card shadow-sm">
+              {emergencyEpisodeId && <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">Emergency Episode active: this prescription stays linked and unbilled until finalization.</p>}
               <div className="flex items-center gap-2 mb-4 border-b pb-2">
                 <Pill className="h-4 w-4 text-module-pharmacy" />
                 <h4 className="font-semibold text-sm">Type Prescription</h4>
@@ -254,6 +273,7 @@ export function SnapClinicalOrder({
               <TypedPrescriptionEditor 
                 patientId={patientId}
                 visitId={visit?.id || null}
+                emergencyEpisodeId={emergencyEpisodeId}
                 onSuccess={() => { onSent?.(); close(); }}
                 onCancel={() => setMode('snap')}
               />
@@ -261,6 +281,7 @@ export function SnapClinicalOrder({
           )}
           {defaultOrderType === 'lab' && (
             <div className="border rounded-xl p-4 bg-card shadow-sm">
+              {emergencyEpisodeId && <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">Emergency Episode active: this lab request may be performed now and remains unbilled until finalization.</p>}
               <div className="flex items-center gap-2 mb-4 border-b pb-2">
                 <Beaker className="h-4 w-4 text-module-laboratory" />
                 <h4 className="font-semibold text-sm">Type Lab Order</h4>
@@ -268,6 +289,7 @@ export function SnapClinicalOrder({
               <TypedLabRequestEditor 
                 patientId={patientId}
                 visitId={visit?.id || null}
+                emergencyEpisodeId={emergencyEpisodeId}
                 onSuccess={() => { onSent?.(); close(); }}
                 onCancel={() => setMode('snap')}
               />

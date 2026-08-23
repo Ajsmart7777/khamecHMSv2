@@ -171,7 +171,10 @@ export function DischargeDialog({
         onOpenChange(false);
       } else if (msg.includes('PENDING_WORKFLOW:')) {
         const detail = msg.split('PENDING_WORKFLOW:')[1]?.trim() || 'Complete all pending Billing, Laboratory, and Pharmacy work first.';
-        toast.error('Complete pending work first', { description: detail });
+        const emergencyDetail = detail.toLowerCase().includes('emergency_episode')
+          ? 'Finalize the open Emergency Episode first. Its deferred medicines and laboratory work must be added to billing before discharge settlement.'
+          : detail;
+        toast.error('Complete pending work first', { description: emergencyDetail });
         onDischarged?.();
       } else if (msg.includes('PAYMENT_REQUIRED:')) {
         toast.error('Payment is required first', { description: 'The related order must be processed by Billing before discharge settlement.' });

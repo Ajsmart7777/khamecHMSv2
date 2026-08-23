@@ -245,6 +245,9 @@ function linkedOrderText(row: LedgerRow): string {
   if (row.kind === 'snap' && snap.ocr_text?.startsWith('LINKED_LAB_REQUEST:')) {
     return `lab:${snap.ocr_text.slice('LINKED_LAB_REQUEST:'.length)}`;
   }
+  if (row.kind === 'snap' && snap.emergency_episode_id) {
+    return `emergency:${snap.emergency_episode_id}`;
+  }
   if (row.kind === 'snap' && snap.ocr_text?.startsWith('EMERGENCY_EPISODE:')) {
     return `emergency:${snap.ocr_text.slice('EMERGENCY_EPISODE:'.length)}`;
   }
@@ -283,7 +286,9 @@ function buildLinkedOrderGroups(rows: LedgerRow[]): { groups: LinkedOrderGroup[]
   rows.forEach(row => {
     if (row.kind !== 'snap' || !ORDER_ROW_SUBKINDS.has(String(row.subkind))) return;
     const snap = row.data ?? {};
-    const key = `order:${String(snap.parent_snap_id || snap.order_parent_id || snap.id || row.id)}`;
+    const key = snap.emergency_episode_id
+      ? `order:emergency:${snap.emergency_episode_id}`
+      : `order:${String(snap.parent_snap_id || snap.order_parent_id || snap.id || row.id)}`;
     ensureGroup(key, row);
     if (snap.invoice_id) invoiceIdToKey.set(String(snap.invoice_id), key);
     const sourceLink = linkedOrderText(row);

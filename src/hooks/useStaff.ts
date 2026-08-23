@@ -22,6 +22,7 @@ interface DbStaff {
   account_number?: string | null;
   payment_method?: string;
   designation?: string | null;
+  qualification?: string | null;
   staff_id_number?: string | null;
   is_system_user?: boolean;
   family_deduction_consent?: boolean;
@@ -44,6 +45,7 @@ const mapDbToStaff = (db: DbStaff): Staff => ({
   accountNumber: db.account_number || null,
   paymentMethod: db.payment_method || 'cash',
   designation: db.designation || null,
+  qualification: db.qualification || null,
   staffIdNumber: db.staff_id_number || null,
   isSystemUser: !!db.is_system_user,
   familyDeductionConsent: !!db.family_deduction_consent,
@@ -65,6 +67,7 @@ const mapStaffToDb = (staff: Omit<Staff, 'id'>) => ({
   account_number: staff.accountNumber ?? null,
   payment_method: staff.paymentMethod ?? 'cash',
   designation: staff.designation ?? null,
+  qualification: staff.qualification ?? null,
   staff_id_number: staff.staffIdNumber ?? null,
   is_system_user: !!staff.isSystemUser,
   family_deduction_consent: !!staff.familyDeductionConsent,

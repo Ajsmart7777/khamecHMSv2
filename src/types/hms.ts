@@ -140,6 +140,7 @@ export interface Staff {
   accountNumber?: string | null;
   paymentMethod?: string;
   designation?: string | null;
+  qualification?: string | null;
   staffIdNumber?: string | null;
   isSystemUser?: boolean;
   familyDeductionConsent?: boolean;

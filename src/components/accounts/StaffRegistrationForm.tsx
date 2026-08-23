@@ -37,9 +37,46 @@ const SYSTEM_ROLES: { value: string; label: string }[] = [
   { value: 'admin', label: 'Admin' },
 ];
 
-const DEPARTMENTS = [
-  'General', 'Outpatient', 'Inpatient', 'Emergency', 'Laboratory',
-  'Pharmacy', 'Radiology', 'Administration', 'Finance', 'Nursing',
+const DESIGNATIONS = [
+  'Manager',
+  'Asst. Manager',
+  'Medical Officer',
+  'Cashier',
+  'Auditor',
+  'Driver',
+  'Cleaner',
+  'HOD. Account',
+  'Asst. HOD Accountant',
+  'Revenue Accountant',
+  'Receptionist',
+  'Expenditure Accountant',
+  'Asst. Exp. Accountant',
+  'Chief Medical Officer',
+  'Nurse',
+  'Substaff',
+  'Security',
+  'Immunization',
+  'Pharmacy',
+  'Lab Technician',
+  'Lab Scientist',
+];
+
+const QUALIFICATIONS = [
+  'BSc',
+  'MSc',
+  'MBBS',
+  'NCE',
+  'ND',
+  'HND',
+  'RN',
+  'RM',
+  'RN/RM',
+  'B.Pharm',
+  'Pharm.D',
+  'MLS',
+  'SSCE',
+  'Diploma',
+  'Other',
 ];
 
 interface FlutterwaveBank {
@@ -87,6 +124,7 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
   const [form, setForm] = useState({
     staffId: '',
     designation: '',
+    qualification: '',
     fullName: '',
     email: '',
     phone: '',
@@ -109,6 +147,7 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
     setForm({
       staffId: '',
       designation: '',
+      qualification: '',
       fullName: '',
       email: '',
       phone: '',
@@ -197,6 +236,7 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
       accountNumber: form.accountNumber || null,
       paymentMethod: form.bankName ? 'bank' : 'cash',
       designation: form.designation || null,
+      qualification: form.qualification || null,
       staffIdNumber: form.staffIdNumber || null,
       isSystemUser: form.isSystemUser,
       familyDeductionConsent: form.familyDeductionConsent,
@@ -233,14 +273,34 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
               </div>
               <div className="space-y-2">
                 <Label>Designation <span className="text-destructive">*</span></Label>
-                <Input value={form.designation} onChange={e => setForm(f => ({ ...f, designation: e.target.value }))} placeholder="e.g., Nurse, Doctor" required />
+                <Select value={form.designation} onValueChange={v => setForm(f => ({ ...f, designation: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select designation" /></SelectTrigger>
+                  <SelectContent>
+                    {DESIGNATIONS.map(designation => (
+                      <SelectItem key={designation} value={designation}>{designation}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            {/* Row 2: Full Name */}
-            <div className="space-y-2">
-              <Label>Full Name <span className="text-destructive">*</span></Label>
-              <Input value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} placeholder="Enter full name" required />
+            {/* Row 2: Full Name + Qualification */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Full Name <span className="text-destructive">*</span></Label>
+                <Input value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} placeholder="Enter full name" required />
+              </div>
+              <div className="space-y-2">
+                <Label>Qualification</Label>
+                <Select value={form.qualification} onValueChange={v => setForm(f => ({ ...f, qualification: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select qualification" /></SelectTrigger>
+                  <SelectContent>
+                    {QUALIFICATIONS.map(qualification => (
+                      <SelectItem key={qualification} value={qualification}>{qualification}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Row 3: Email + Phone */}
@@ -267,8 +327,8 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
               <Switch checked={form.isSystemUser} onCheckedChange={v => setForm(f => ({ ...f, isSystemUser: v, role: v ? f.role : '' }))} />
             </div>
 
-            {/* Row 4: Role + Department (Role only when system user) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Row 4: System Role (Role only when system user) */}
+            <div>
               {form.isSystemUser ? (
                 <div className="space-y-2">
                   <Label>System Role <span className="text-destructive">*</span></Label>
@@ -287,17 +347,6 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                   <Input value="Non-system staff" disabled />
                 </div>
               )}
-              <div className="space-y-2">
-                <Label>Department</Label>
-                <Select value={form.department} onValueChange={v => setForm(f => ({ ...f, department: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {DEPARTMENTS.map(d => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
 
             {/* Password (system users only) */}
@@ -445,7 +494,7 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                     <TableHead>Name</TableHead>
                     <TableHead className="hidden md:table-cell">Designation</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead className="hidden lg:table-cell">Department</TableHead>
+                    <TableHead className="hidden lg:table-cell">Qualification</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="w-16">Actions</TableHead>
                   </TableRow>
@@ -459,7 +508,7 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                       <TableCell>
                         <Badge variant="outline" className="text-xs capitalize">{s.role}</Badge>
                       </TableCell>
-                      <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">{s.department}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">{s.qualification || '—'}</TableCell>
                       <TableCell>
                         <Badge variant={s.status === 'active' ? 'success' : 'warning'}>
                           {s.status === 'deleted' ? 'Deleted / preserved' : s.status}

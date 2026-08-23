@@ -206,6 +206,10 @@ export function searchPricelistItems(items: PricelistItem[], query: string, limi
 }
 
 export async function fuzzyMatchPricelist(query: string, limit?: number): Promise<PricelistItem[]> {
-  const all = await fetchPricelist(false);
-  return searchPricelistItems(all, query, limit);
+  try {
+    const all = await fetchPricelist(false);
+    return searchPricelistItems(all, query, limit);
+  } catch {
+    return [];
+  }
 }

@@ -29,13 +29,14 @@ type MedicationDraft = {
   route: string;
   quantity: number;
   notes: string;
+  medicineSearch: string;
   administeredNow: boolean;
 };
 
 type LabDraft = { id: string; tests: string; diagnosis: string; total: string; notes: string };
 
 const emptyMedication = (): MedicationDraft => ({
-  id: crypto.randomUUID(), pricelistId: '', description: '', strength: '', route: '', quantity: 1, notes: '', administeredNow: true,
+  id: crypto.randomUUID(), pricelistId: '', description: '', strength: '', route: '', quantity: 1, notes: '', medicineSearch: '', administeredNow: true,
 });
 const emptyLab = (): LabDraft => ({ id: crypto.randomUUID(), tests: '', diagnosis: '', total: '', notes: '' });
 const fmt = (n: number) => `₦${Number(n || 0).toLocaleString()}`;
@@ -54,6 +55,13 @@ export function EmergencyEpisodeDialog({ patientId, patientName, visitId = null,
     const category = String(item.category ?? '').toLowerCase();
     return item.active !== false && (category.startsWith('drug') || category === 'consumable');
   }), [pricelist]);
+
+  const filterMedicationPricelist = (query: string) => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return medicationPricelist;
+    return medicationPricelist.filter((item: any) => [item.name, item.size, item.category, item.price]
+      .some(value => String(value ?? '').toLowerCase().includes(normalized)));
+  };
 
   const reset = () => {
     setEpisodeId(null);
@@ -179,8 +187,16 @@ export function EmergencyEpisodeDialog({ patientId, patientName, visitId = null,
           {medications.map((draft) => (
             <div key={draft.id} className="rounded-lg border bg-muted/20 p-3 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="space-y-1"><Label className="text-xs">Medicine from pricelist</Label><select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={draft.pricelistId} onChange={e => updateMedication(draft.id, { pricelistId: e.target.value, description: '' })} disabled={busy || pricelistLoading}><option value="">Select medicine…</option>{medicationPricelist.map((item: any) => <option key={item.id} value={item.id}>{item.name}{item.size ? ` · ${item.size}` : ''} — {fmt(item.price)}</option>)}</select></div>
-                <div className="space-y-1"><Label className="text-xs">Or description (if not listed)</Label><Input value={draft.description} onChange={e => updateMedication(draft.id, { description: e.target.value, pricelistId: '' })} placeholder="e.g. IV Aminophylline" disabled={busy} /></div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Medicine from pricelist</Label>
+                  <Input value={draft.medicineSearch} onChange={e => updateMedication(draft.id, { medicineSearch: e.target.value, pricelistId: '' })} placeholder="Search medicine quickly…" disabled={busy || pricelistLoading} />
+                  <select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={draft.pricelistId} onChange={e => { const selected = medicationPricelist.find((item: any) => item.id === e.target.value); updateMedication(draft.id, { pricelistId: e.target.value, description: '', medicineSearch: selected?.name || draft.medicineSearch }); }} disabled={busy || pricelistLoading}>
+                    <option value="">{pricelistLoading ? 'Loading pricelist…' : draft.medicineSearch ? `Select from ${filterMedicationPricelist(draft.medicineSearch).length} matching medicine(s)…` : 'Select medicine…'}</option>
+                    {filterMedicationPricelist(draft.medicineSearch).map((item: any) => <option key={item.id} value={item.id}>{item.name}{item.size ? ` · ${item.size}` : ''} — {fmt(item.price)}</option>)}
+                  </select>
+                  {!pricelistLoading && draft.medicineSearch && filterMedicationPricelist(draft.medicineSearch).length === 0 && <p className="text-[11px] text-muted-foreground">No matching pricelist medicine. You can use the description field instead.</p>}
+                </div>
+                <div className="space-y-1"><Label className="text-xs">Or description (if not listed)</Label><Input value={draft.description} onChange={e => updateMedication(draft.id, { description: e.target.value, pricelistId: '', medicineSearch: '' })} placeholder="e.g. IV Aminophylline" disabled={busy} /></div>
                 <div className="space-y-1"><Label className="text-xs">Strength *</Label><Input value={draft.strength} onChange={e => updateMedication(draft.id, { strength: e.target.value })} placeholder="250 mg" disabled={busy} /></div>
                 <div className="space-y-1"><Label className="text-xs">Route *</Label><Input value={draft.route} onChange={e => updateMedication(draft.id, { route: e.target.value })} placeholder="IV / IM / oral" disabled={busy} /></div>
                 <div className="space-y-1"><Label className="text-xs">Quantity</Label><Input type="number" min={1} value={draft.quantity} onChange={e => updateMedication(draft.id, { quantity: Math.max(1, Number(e.target.value) || 1) })} disabled={busy} /></div>

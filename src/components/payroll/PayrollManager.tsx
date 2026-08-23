@@ -1,41 +1,23 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Lock, Unlock, Users, Loader2, Trash2, Columns, Info, RefreshCw } from 'lucide-react';
+import { Plus, Lock, Unlock, Users, Loader2, Pencil } from 'lucide-react';
 import { PayrollPeriod, PayrollEntry } from '@/hooks/usePayroll';
 import { toast } from '@/hooks/use-toast';
-import { MedicalDeductionDetails } from './MedicalDeductionDetails';
-
+import {
+  calculatePayrollTotals,
+  DEFAULT_PAYROLL_LABELS,
+  PAYROLL_COLUMNS,
+  PAYROLL_ALLOWANCE_KEYS,
+  PAYROLL_DEDUCTION_KEYS,
+  type PayrollColumnDefinition,
+} from '@/lib/payroll';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-const DEFAULT_ALLOWANCE_KEYS = [
-  { key: 'first_appointment', label: '1st App' },
-  { key: 'sl', label: 'SL' },
-  { key: 'housing', label: 'House' },
-  { key: 'transport', label: 'Transport' },
-  { key: 'la', label: 'LA' },
-  { key: 'dh', label: 'DH' },
-  { key: 'call', label: 'Call' },
-  { key: 'responsibility', label: 'Resp' },
-  { key: 'ot', label: 'OT' },
-  { key: 'leave', label: 'Leave' },
-  { key: 'extra', label: 'Extra' },
-  { key: 'no', label: 'No.' },
-  { key: 'hours', label: 'Hours' },
-];
-
-const DEFAULT_DEDUCTION_KEYS = [
-  { key: 'paye', label: 'PAYE' },
-  { key: 'pension', label: 'Pension' },
-  { key: 'loan', label: 'Loan' },
-  { key: 'contribution', label: 'Contri.' },
-  { key: 'family_medical', label: 'Family Med' },
-];
 
 interface Props {
   periods: PayrollPeriod[];
@@ -44,59 +26,50 @@ interface Props {
   entries: PayrollEntry[];
   entriesLoading: boolean;
   onCreatePeriod: (month: number, year: number) => Promise<PayrollPeriod | null>;
+  onUpdatePeriodLabels: (id: string, labels: Record<string, string>) => Promise<boolean>;
   onLockPeriod: (id: string) => Promise<boolean>;
   onUnlockPeriod: (id: string) => Promise<boolean>;
   onAddAllStaff: () => Promise<void>;
   onUpdateEntry: (id: string, updates: Partial<PayrollEntry>) => Promise<boolean>;
-  onRemoveEntry: (id: string) => Promise<boolean>;
-  onRecalculate?: () => Promise<void>;
 }
 
-
-interface CustomColumn {
-  key: string;
-  label: string;
-  type: 'allowance' | 'deduction';
-}
+const formatAmount = (value: number) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
 export function PayrollManager({
   periods, selectedPeriod, onSelectPeriod, entries, entriesLoading,
-  onCreatePeriod, onLockPeriod, onUnlockPeriod, onAddAllStaff, onUpdateEntry, onRemoveEntry, onRecalculate
+  onCreatePeriod, onUpdatePeriodLabels, onLockPeriod, onUnlockPeriod,
+  onAddAllStaff, onUpdateEntry,
 }: Props) {
-
   const [newPeriodDialog, setNewPeriodDialog] = useState(false);
   const [newMonth, setNewMonth] = useState(new Date().getMonth() + 1);
   const [newYear, setNewYear] = useState(new Date().getFullYear());
   const [creating, setCreating] = useState(false);
   const [addingAll, setAddingAll] = useState(false);
   const [locking, setLocking] = useState(false);
-  const [addColumnDialog, setAddColumnDialog] = useState(false);
-  const [newColLabel, setNewColLabel] = useState('');
-  const [newColType, setNewColType] = useState<'allowance' | 'deduction'>('allowance');
-  const [recalculating, setRecalculating] = useState(false);
-  const [customColumns, setCustomColumns] = useState<CustomColumn[]>([]);
-
+  const [renaming, setRenaming] = useState<PayrollColumnDefinition | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [savingRename, setSavingRename] = useState(false);
   const [editingCell, setEditingCell] = useState<{ entryId: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
-  const [medicalDetailsOpen, setMedicalDetailsOpen] = useState(false);
-  const [selectedMedicalEntry, setSelectedMedicalEntry] = useState<{ staffId: string; staffName: string } | null>(null);
-
+  const longPressTimer = useRef<number | null>(null);
+  const [columnLabels, setColumnLabels] = useState<Record<string, string>>({ ...DEFAULT_PAYROLL_LABELS });
 
   const isDraft = selectedPeriod?.status === 'draft';
 
-  const allAllowanceKeys = [...DEFAULT_ALLOWANCE_KEYS, ...customColumns.filter(c => c.type === 'allowance')];
-  const allDeductionKeys = [...DEFAULT_DEDUCTION_KEYS, ...customColumns.filter(c => c.type === 'deduction')];
+  useEffect(() => {
+    setColumnLabels({ ...DEFAULT_PAYROLL_LABELS, ...(selectedPeriod?.column_labels || {}) });
+  }, [selectedPeriod]);
 
-  const totalGross = entries.reduce((s, e) => s + e.gross_pay, 0);
-  const totalDeductions = entries.reduce((s, e) => s + e.total_deductions, 0);
-  const totalNet = entries.reduce((s, e) => s + e.net_pay, 0);
+  const totalGross = entries.reduce((sum, entry) => sum + entry.gross_pay, 0);
+  const totalDeductions = entries.reduce((sum, entry) => sum + entry.total_deductions, 0);
+  const totalNet = entries.reduce((sum, entry) => sum + entry.net_pay, 0);
 
   const handleCreate = async () => {
     setCreating(true);
-    const p = await onCreatePeriod(newMonth, newYear);
+    const period = await onCreatePeriod(newMonth, newYear);
     setCreating(false);
-    if (p) {
-      onSelectPeriod(p);
+    if (period) {
+      onSelectPeriod(period);
       setNewPeriodDialog(false);
     }
   };
@@ -127,134 +100,123 @@ export function PayrollManager({
     setAddingAll(false);
   };
 
-  const handleRecalculate = async () => {
-    if (!onRecalculate) return;
-    setRecalculating(true);
-    await onRecalculate();
-    setRecalculating(false);
+  const beginRename = (column: PayrollColumnDefinition) => {
+    if (!isDraft || !selectedPeriod) return;
+    setRenaming(column);
+    setRenameValue(columnLabels[column.key] || column.label);
   };
 
-  const handleAddColumn = () => {
-
-    if (!newColLabel.trim()) return;
-    const key = newColLabel.trim().toLowerCase().replace(/\s+/g, '_');
-    if ([...allAllowanceKeys, ...allDeductionKeys].some(c => c.key === key)) {
-      toast({ title: 'Error', description: 'Column already exists.', variant: 'destructive' });
-      return;
+  const saveRename = async () => {
+    if (!renaming || !selectedPeriod || !renameValue.trim()) return;
+    const nextLabels = { ...columnLabels, [renaming.key]: renameValue.trim() };
+    setSavingRename(true);
+    const saved = await onUpdatePeriodLabels(selectedPeriod.id, nextLabels);
+    setSavingRename(false);
+    if (saved) {
+      setColumnLabels(nextLabels);
+      setRenaming(null);
     }
-    setCustomColumns(prev => [...prev, { key, label: newColLabel.trim(), type: newColType }]);
-    setNewColLabel('');
-    setAddColumnDialog(false);
+  };
+
+  const handleHeaderPointerDown = (column: PayrollColumnDefinition) => {
+    if (!isDraft) return;
+    if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = window.setTimeout(() => beginRename(column), 550);
+  };
+
+  const clearLongPress = () => {
+    if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
   };
 
   const startEdit = (entryId: string, field: string, currentValue: number) => {
     if (!isDraft) return;
     setEditingCell({ entryId, field });
-    setEditValue(String(currentValue));
+    setEditValue(String(currentValue || 0));
   };
 
   const commitEdit = async (entry: PayrollEntry) => {
     if (!editingCell) return;
-    const val = Number(editValue) || 0;
+    const value = Number(editValue.replace(/,/g, ''));
+    const amount = Number.isFinite(value) && value >= 0 ? value : 0;
     const { field } = editingCell;
+    const nextAllowances = { ...entry.allowances };
+    const nextDeductions = { ...entry.deductions };
+    let nextBasic = entry.basic_salary;
 
-    let newAllowances = { ...entry.allowances };
-    let newDeductions = { ...entry.deductions };
-    let newBasic = entry.basic_salary;
-
-    if (field === 'basic_salary') {
-      newBasic = val;
-    } else if (allAllowanceKeys.some(a => a.key === field)) {
-      newAllowances = { ...newAllowances, [field]: val };
-    } else if (allDeductionKeys.some(d => d.key === field)) {
-      newDeductions = { ...newDeductions, [field]: val };
-    }
+    if (field === 'basic_salary') nextBasic = amount;
+    else if (PAYROLL_ALLOWANCE_KEYS.includes(field)) nextAllowances[field] = amount;
+    else if (PAYROLL_DEDUCTION_KEYS.includes(field)) nextDeductions[field] = amount;
 
     setEditingCell(null);
     await onUpdateEntry(entry.id, {
-      basic_salary: newBasic,
-      allowances: newAllowances,
-      deductions: newDeductions,
+      basic_salary: nextBasic,
+      allowances: nextAllowances,
+      deductions: nextDeductions,
     });
   };
 
   const renderEditableCell = (entry: PayrollEntry, field: string, value: number) => {
-    const isEditing = editingCell?.entryId === entry.id && editingCell?.field === field;
+    const isEditing = editingCell?.entryId === entry.id && editingCell.field === field;
     if (isEditing) {
       return (
         <Input
           type="number"
+          min={0}
           value={editValue}
-          onChange={e => setEditValue(e.target.value)}
-          onBlur={() => commitEdit(entry)}
-          onKeyDown={e => { if (e.key === 'Enter') commitEdit(entry); if (e.key === 'Escape') setEditingCell(null); }}
-          className="h-7 w-20 text-xs p-1"
+          onChange={event => setEditValue(event.target.value)}
+          onBlur={() => void commitEdit(entry)}
+          onKeyDown={event => {
+            if (event.key === 'Enter') void commitEdit(entry);
+            if (event.key === 'Escape') setEditingCell(null);
+          }}
+          className="h-7 w-24 text-xs p-1 text-right"
           autoFocus
         />
       );
     }
-    if (field === 'family_medical') {
-      return (
-        <div className="flex items-center justify-center gap-1 group">
-          <span
-            className={isDraft ? 'cursor-pointer hover:bg-accent/50 px-1 py-0.5 rounded text-xs' : 'text-xs'}
-            onClick={() => startEdit(entry.id, field, value)}
-          >
-            {value.toLocaleString()}
-          </span>
-          {value > 0 && (
-            <button
-              onClick={() => {
-                setSelectedMedicalEntry({ staffId: entry.staff_id, staffName: entry.staff_name || 'Staff' });
-                setMedicalDetailsOpen(true);
-              }}
-              className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 hover:bg-muted rounded"
-              title="View bill details"
-            >
-              <Info className="h-3 w-3 text-primary" />
-            </button>
-          )}
-        </div>
-      );
-    }
-
     return (
-      <span
-        className={isDraft ? 'cursor-pointer hover:bg-accent/50 px-1 py-0.5 rounded text-xs' : 'text-xs'}
+      <button
+        type="button"
+        className={isDraft ? 'min-w-16 cursor-pointer rounded px-1 py-0.5 text-right text-xs hover:bg-accent/60' : 'min-w-16 text-right text-xs'}
         onClick={() => startEdit(entry.id, field, value)}
+        disabled={!isDraft}
+        title={isDraft ? 'Click to edit' : 'Locked payroll'}
       >
-        {value.toLocaleString()}
-      </span>
+        {formatAmount(value)}
+      </button>
     );
-
   };
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case 'paid': return 'success' as const;
-      case 'processing': return 'warning' as const;
-      default: return 'outline' as const;
-    }
+  const renderColumnCell = (entry: PayrollEntry, column: PayrollColumnDefinition) => {
+    if (column.key === 'id') return entry.staff_employee_id || '—';
+    if (column.key === 'staff_name') return entry.staff_name || 'Unknown Staff';
+    if (column.key === 'designation') return entry.staff_designation || '—';
+    if (column.key === 'basic_salary') return renderEditableCell(entry, column.key, entry.basic_salary);
+    if (column.key === 'gross_pay') return <span className="font-semibold">{formatAmount(entry.gross_pay)}</span>;
+    if (column.key === 'total_deductions') return <span className="font-semibold text-destructive">{formatAmount(entry.total_deductions)}</span>;
+    if (column.key === 'net_pay') return <span className="font-bold">{formatAmount(entry.net_pay)}</span>;
+    const value = column.kind === 'deduction'
+      ? Number(entry.deductions[column.key]) || 0
+      : Number(entry.allowances[column.key]) || 0;
+    return renderEditableCell(entry, column.key, value);
   };
 
   return (
     <div className="space-y-4">
-      {/* Period Selector */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
         <Select
           value={selectedPeriod?.id || ''}
-          onValueChange={v => {
-            const p = periods.find(pp => pp.id === v);
-            if (p) onSelectPeriod(p);
+          onValueChange={value => {
+            const period = periods.find(candidate => candidate.id === value);
+            if (period) onSelectPeriod(period);
           }}
         >
-          <SelectTrigger className="w-full sm:w-64">
-            <SelectValue placeholder="Select payroll period" />
-          </SelectTrigger>
+          <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="Select payroll period" /></SelectTrigger>
           <SelectContent>
-            {periods.map(p => (
-              <SelectItem key={p.id} value={p.id}>
-                {MONTHS[p.month - 1]} {p.year} ({p.status})
+            {periods.map(period => (
+              <SelectItem key={period.id} value={period.id}>
+                {MONTHS[period.month - 1]} {period.year} ({period.status})
               </SelectItem>
             ))}
           </SelectContent>
@@ -266,155 +228,96 @@ export function PayrollManager({
           </Badge>
         )}
 
-        <div className="flex gap-2 ml-auto flex-wrap">
+        <div className="ml-auto flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => setNewPeriodDialog(true)}>
-            <Plus className="h-4 w-4 mr-1" /> New Period
+            <Plus className="mr-1 h-4 w-4" /> New Period
           </Button>
           {isDraft && (
-            <>
-              <Button variant="outline" size="sm" onClick={handleAddAll} disabled={addingAll}>
-                {addingAll ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Users className="h-4 w-4 mr-1" />}
-                Add All Staff
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleRecalculate} disabled={recalculating || !onRecalculate}>
-                {recalculating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
-                Recalculate
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => setAddColumnDialog(true)}>
-
-                <Columns className="h-4 w-4 mr-1" /> Add Column
-              </Button>
-              <Button variant="destructive" size="sm" onClick={handleLock} disabled={locking}>
-                {locking ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Lock className="h-4 w-4 mr-1" />}
-                Lock Payroll
-              </Button>
-            </>
+            <Button variant="outline" size="sm" onClick={() => void handleAddAll()} disabled={addingAll}>
+              {addingAll ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Users className="mr-1 h-4 w-4" />}
+              Add All Staff
+            </Button>
+          )}
+          {isDraft && (
+            <Button variant="destructive" size="sm" onClick={() => void handleLock()} disabled={locking}>
+              {locking ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Lock className="mr-1 h-4 w-4" />}
+              Lock Payroll
+            </Button>
           )}
           {selectedPeriod?.status === 'locked' && (
-            <Button variant="outline" size="sm" onClick={handleUnlock} disabled={locking}>
-              {locking ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Unlock className="h-4 w-4 mr-1" />}
+            <Button variant="outline" size="sm" onClick={() => void handleUnlock()} disabled={locking}>
+              {locking ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Unlock className="mr-1 h-4 w-4" />}
               Unlock Payroll
             </Button>
           )}
         </div>
       </div>
 
-      {/* Summary Cards */}
       {selectedPeriod && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-card border border-border rounded-xl p-4">
-            <p className="text-sm text-muted-foreground">Total Gross</p>
-            <p className="text-2xl font-bold">₦{totalGross.toLocaleString()}</p>
+        <div className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+          <Pencil className="mr-1 inline h-3 w-3" /> Click any amount to edit. Right-click a column heading on computer, or hold it briefly on a tablet, to rename it.
+        </div>
+      )}
+
+      {selectedPeriod && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <p className="text-sm text-muted-foreground">Total Gross Pay</p>
+            <p className="text-2xl font-bold">₦{formatAmount(totalGross)}</p>
           </div>
-          <div className="bg-card border border-border rounded-xl p-4">
+          <div className="rounded-xl border border-border bg-card p-4">
             <p className="text-sm text-muted-foreground">Total Deductions</p>
-            <p className="text-2xl font-bold text-destructive">₦{totalDeductions.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-destructive">₦{formatAmount(totalDeductions)}</p>
           </div>
-          <div className="bg-card border border-border rounded-xl p-4">
+          <div className="rounded-xl border border-border bg-card p-4">
             <p className="text-sm text-muted-foreground">Total Net Pay</p>
-            <p className="text-2xl font-bold text-success">₦{totalNet.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-success">₦{formatAmount(totalNet)}</p>
           </div>
         </div>
       )}
 
-      {/* Payroll Table */}
       {selectedPeriod && (
         entriesLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
         ) : (
-          <div className="border border-border rounded-xl overflow-hidden">
+          <div className="overflow-hidden rounded-xl border border-border">
             <div className="overflow-x-auto">
               <Table className="text-xs">
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead className="text-[10px] font-bold whitespace-nowrap sticky left-0 bg-muted/50 z-10">STAFF ID#</TableHead>
-                    <TableHead className="text-[10px] font-bold whitespace-nowrap sticky left-[80px] bg-muted/50 z-10">STAFF NAME</TableHead>
-                    <TableHead className="text-[10px] font-bold whitespace-nowrap">DESIGNATION</TableHead>
-                    {/* Allowance columns */}
-                    {allAllowanceKeys.map(col => (
-                      <TableHead key={col.key} className="text-[10px] font-bold whitespace-nowrap text-center">
-                        {col.label.toUpperCase()} ↕
+                    {PAYROLL_COLUMNS.map(column => (
+                      <TableHead
+                        key={column.key}
+                        className={`whitespace-nowrap text-[10px] font-bold ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-muted/50' : ''} ${column.key === 'id' ? 'left-0' : column.key === 'staff_name' ? 'left-[80px]' : ''}`}
+                        onContextMenu={event => { event.preventDefault(); beginRename(column); }}
+                        onPointerDown={() => handleHeaderPointerDown(column)}
+                        onPointerUp={clearLongPress}
+                        onPointerLeave={clearLongPress}
+                        onPointerCancel={clearLongPress}
+                        title={isDraft ? 'Right-click or hold to rename' : undefined}
+                      >
+                        {columnLabels[column.key] || column.label}
                       </TableHead>
                     ))}
-                    <TableHead className="text-[10px] font-bold whitespace-nowrap">BASIC ↕</TableHead>
-                    <TableHead className="text-[10px] font-bold whitespace-nowrap bg-primary/10">GROSS PAY</TableHead>
-                    {/* Deduction columns */}
-                    {allDeductionKeys.map(col => (
-                      <TableHead key={col.key} className="text-[10px] font-bold whitespace-nowrap text-center text-destructive">
-                        {col.label.toUpperCase()} ↕
-                      </TableHead>
-                    ))}
-                    <TableHead className="text-[10px] font-bold whitespace-nowrap text-destructive">TOTAL DEDUCTIONS</TableHead>
-                    <TableHead className="text-[10px] font-bold whitespace-nowrap">ADVICE</TableHead>
-                    <TableHead className="text-[10px] font-bold whitespace-nowrap bg-primary/10">NET PAY</TableHead>
-                    <TableHead className="text-[10px] font-bold whitespace-nowrap">STATUS</TableHead>
-                    {isDraft && <TableHead className="text-[10px] font-bold whitespace-nowrap">ACTIONS</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {entries.map((entry) => {
-                    const totalAllowances = allAllowanceKeys.reduce((s, col) => s + (Number(entry.allowances[col.key]) || 0), 0);
-                    return (
-                      <TableRow key={entry.id} className="hover:bg-muted/30">
-                        <TableCell className="font-mono text-[11px] whitespace-nowrap sticky left-0 bg-background z-10">
-                          {entry.staff_employee_id}
+                  {entries.map(entry => (
+                    <TableRow key={entry.id} className="hover:bg-muted/30">
+                      {PAYROLL_COLUMNS.map(column => (
+                        <TableCell
+                          key={column.key}
+                          className={`whitespace-nowrap ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-background' : ''} ${column.key === 'id' ? 'left-0 font-mono text-[11px]' : column.key === 'staff_name' ? 'left-[80px] font-medium text-[11px]' : ''} ${['gross_pay', 'total_deductions', 'net_pay'].includes(column.key) ? 'bg-primary/5' : ''}`}
+                        >
+                          {renderColumnCell(entry, column)}
                         </TableCell>
-                        <TableCell className="font-medium text-[11px] whitespace-nowrap sticky left-[80px] bg-background z-10">
-                          {entry.staff_name}
-                        </TableCell>
-                        <TableCell className="text-[11px] whitespace-nowrap text-muted-foreground">
-                          {entry.staff_designation || '-'}
-                        </TableCell>
-                        {/* Allowance values */}
-                        {allAllowanceKeys.map(col => (
-                          <TableCell key={col.key} className="text-center">
-                            {renderEditableCell(entry, col.key, Number(entry.allowances[col.key]) || 0)}
-                          </TableCell>
-                        ))}
-                        {/* Basic */}
-                        <TableCell>
-                          {renderEditableCell(entry, 'basic_salary', entry.basic_salary)}
-                        </TableCell>
-                        {/* Gross */}
-                        <TableCell className="font-semibold bg-primary/5 text-[11px]">
-                          {entry.gross_pay.toLocaleString()}
-                        </TableCell>
-                        {/* Deduction values */}
-                        {allDeductionKeys.map(col => (
-                          <TableCell key={col.key} className="text-center">
-                            {renderEditableCell(entry, col.key, Number(entry.deductions[col.key]) || 0)}
-                          </TableCell>
-                        ))}
-                        {/* Total Deductions */}
-                        <TableCell className="text-destructive text-[11px] font-medium">
-                          {entry.total_deductions.toLocaleString()}
-                        </TableCell>
-                        {/* Advice (placeholder) */}
-                        <TableCell className="text-[11px]">0</TableCell>
-                        {/* Net Pay */}
-                        <TableCell className="font-bold bg-primary/5 text-[11px]">
-                          {entry.net_pay.toLocaleString()}
-                        </TableCell>
-                        {/* Status */}
-                        <TableCell>
-                          <Badge variant={getStatusVariant(entry.status)} className="text-[10px]">
-                            {entry.status.charAt(0).toUpperCase() + entry.status.slice(1)}
-                          </Badge>
-                        </TableCell>
-                        {isDraft && (
-                          <TableCell>
-                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onRemoveEntry(entry.id)}>
-                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                            </Button>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    );
-                  })}
+                      ))}
+                    </TableRow>
+                  ))}
                   {entries.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={6 + allAllowanceKeys.length + allDeductionKeys.length + 5} className="text-center text-muted-foreground py-8">
-                        No entries. Click "Add All Staff" to populate.
+                      <TableCell colSpan={PAYROLL_COLUMNS.length} className="py-8 text-center text-muted-foreground">
+                        No entries. Click “Add All Staff” to populate this period.
                       </TableCell>
                     </TableRow>
                   )}
@@ -425,76 +328,39 @@ export function PayrollManager({
         )
       )}
 
-      <MedicalDeductionDetails
-        open={medicalDetailsOpen}
-        onOpenChange={setMedicalDetailsOpen}
-        staffId={selectedMedicalEntry?.staffId || null}
-        staffName={selectedMedicalEntry?.staffName || ''}
-        month={selectedPeriod?.month || null}
-        year={selectedPeriod?.year || null}
-      />
+      {!selectedPeriod && <div className="py-12 text-center text-muted-foreground">Select or create a payroll period to get started.</div>}
 
-      {!selectedPeriod && (
-
-        <div className="text-center py-12 text-muted-foreground">
-          Select or create a payroll period to get started.
-        </div>
-      )}
-
-      {/* New Period Dialog */}
       <Dialog open={newPeriodDialog} onOpenChange={setNewPeriodDialog}>
         <DialogContent>
           <DialogHeader><DialogTitle>Create New Payroll Period</DialogTitle></DialogHeader>
           <div className="grid grid-cols-2 gap-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Month</label>
-              <Select value={String(newMonth)} onValueChange={v => setNewMonth(Number(v))}>
+              <Select value={String(newMonth)} onValueChange={value => setNewMonth(Number(value))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {MONTHS.map((m, i) => (
-                    <SelectItem key={i} value={String(i + 1)}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
+                <SelectContent>{MONTHS.map((month, index) => <SelectItem key={month} value={String(index + 1)}>{month}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Year</label>
-              <Input type="number" value={newYear} onChange={e => setNewYear(Number(e.target.value))} />
+              <Input type="number" value={newYear} onChange={event => setNewYear(Number(event.target.value))} />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewPeriodDialog(false)}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={creating}>
-              {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Create
-            </Button>
+            <Button onClick={() => void handleCreate()} disabled={creating}>{creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Create</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Add Column Dialog */}
-      <Dialog open={addColumnDialog} onOpenChange={setAddColumnDialog}>
+      <Dialog open={Boolean(renaming)} onOpenChange={open => { if (!open) setRenaming(null); }}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Add Custom Column</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Column Name</label>
-              <Input value={newColLabel} onChange={e => setNewColLabel(e.target.value)} placeholder="e.g. Hazard Pay" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Type</label>
-              <Select value={newColType} onValueChange={v => setNewColType(v as 'allowance' | 'deduction')}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="allowance">Allowance (adds to gross)</SelectItem>
-                  <SelectItem value="deduction">Deduction (subtracts from gross)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <DialogHeader><DialogTitle>Rename payroll column</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">This name is saved for this payroll period and copied to the next month.</p>
+          <Input value={renameValue} onChange={event => setRenameValue(event.target.value)} autoFocus onKeyDown={event => { if (event.key === 'Enter') void saveRename(); }} />
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddColumnDialog(false)}>Cancel</Button>
-            <Button onClick={handleAddColumn}>Add Column</Button>
+            <Button variant="outline" onClick={() => setRenaming(null)}>Cancel</Button>
+            <Button onClick={() => void saveRename()} disabled={savingRename || !renameValue.trim()}>{savingRename && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save name</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

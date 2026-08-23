@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import {
+  calculatePayrollTotals,
+  canonicalizePayrollValues,
+  preserveNonGridDeductions,
+  DEFAULT_PAYROLL_LABELS,
+  type PayrollValueMap,
+} from '@/lib/payroll';
 
 export interface PayrollPeriod {
   id: string;
@@ -9,6 +16,8 @@ export interface PayrollPeriod {
   status: 'draft' | 'locked' | 'paid';
   created_by: string | null;
   created_at: string;
+  column_labels?: Record<string, string> | null;
+  archived_at?: string | null;
 }
 
 export interface PayrollEntry {
@@ -18,7 +27,7 @@ export interface PayrollEntry {
   basic_salary: number;
   allowances: Record<string, number>;
   gross_pay: number;
-  deductions: Record<string, number>;
+  deductions: PayrollValueMap;
   total_deductions: number;
   net_pay: number;
   status: string;
@@ -75,9 +84,15 @@ export function usePayrollPeriods() {
   useEffect(() => { fetch(); }, [fetch]);
 
   const createPeriod = async (month: number, year: number) => {
+    const previous = periods
+      .filter(period => period.year * 100 + period.month < year * 100 + month)
+      .sort((a, b) => (b.year * 100 + b.month) - (a.year * 100 + a.month))[0];
+    const columnLabels = previous?.column_labels && Object.keys(previous.column_labels).length > 0
+      ? previous.column_labels
+      : DEFAULT_PAYROLL_LABELS;
     const { data, error } = await supabase
       .from('payroll_periods')
-      .insert({ month, year, status: 'draft' })
+      .insert({ month, year, status: 'draft', column_labels: columnLabels })
       .select()
       .single();
 
@@ -88,6 +103,20 @@ export function usePayrollPeriods() {
     setPeriods(prev => [data as PayrollPeriod, ...prev]);
     toast({ title: 'Success', description: 'Payroll period created.' });
     return data as PayrollPeriod;
+  };
+
+  const updatePeriodLabels = async (id: string, labels: Record<string, string>) => {
+    const { error } = await supabase
+      .from('payroll_periods')
+      .update({ column_labels: labels })
+      .eq('id', id);
+    if (error) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      return false;
+    }
+    setPeriods(prev => prev.map(period => period.id === id ? { ...period, column_labels: labels } : period));
+    toast({ title: 'Success', description: 'Payroll column name saved.' });
+    return true;
   };
 
   const lockPeriod = async (id: string) => {
@@ -131,7 +160,7 @@ export function usePayrollPeriods() {
     return true;
   };
 
-  return { periods, loading, createPeriod, lockPeriod, unlockPeriod, markPaid, refetch: fetch };
+  return { periods, loading, createPeriod, updatePeriodLabels, lockPeriod, unlockPeriod, markPaid, refetch: fetch };
 }
 
 export function usePayrollEntries(periodId: string | null, periods: PayrollPeriod[] = []) {
@@ -139,21 +168,31 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
   const [loading, setLoading] = useState(false);
   const addingAllStaffRef = useRef(false);
 
-  const mapEntry = useCallback((entry: Record<string, unknown>, staff: Record<string, unknown> = {}) => ({
-    ...entry,
-    staff_name: [staff.first_name, staff.last_name].filter(Boolean).join(' ') || 'Unknown Staff',
-    staff_employee_id: staff.employee_id as string,
-    staff_designation: staff.designation as string,
-    staff_bank_name: staff.bank_name as string,
-    staff_account_number: staff.account_number as string,
-    staff_payment_method: staff.payment_method as string,
-    basic_salary: Number(entry.basic_salary ?? 0),
-    gross_pay: Number(entry.gross_pay ?? 0),
-    total_deductions: Number(entry.total_deductions ?? 0),
-    net_pay: Number(entry.net_pay ?? 0),
-    allowances: (entry.allowances || {}) as Record<string, number>,
-    deductions: (entry.deductions || {}) as Record<string, number>,
-  } as PayrollEntry), []);
+  const mapEntry = useCallback((entry: Record<string, unknown>, staff: Record<string, unknown> = {}) => {
+    const basicSalary = Number(entry.basic_salary ?? 0);
+    const sourceDeductions = (entry.deductions || {}) as PayrollValueMap;
+    const totals = calculatePayrollTotals(
+      basicSalary,
+      (entry.allowances || {}) as PayrollValueMap,
+      sourceDeductions,
+    );
+    const reportDeductions = preserveNonGridDeductions(sourceDeductions, totals.deductions);
+    return {
+      ...entry,
+      staff_name: [staff.first_name, staff.last_name].filter(Boolean).join(' ') || 'Unknown Staff',
+      staff_employee_id: staff.employee_id as string,
+      staff_designation: staff.designation as string,
+      staff_bank_name: staff.bank_name as string,
+      staff_account_number: staff.account_number as string,
+      staff_payment_method: staff.payment_method as string,
+      basic_salary: basicSalary,
+      gross_pay: totals.grossPay,
+      total_deductions: totals.totalDeductions,
+      net_pay: totals.netPay,
+      allowances: totals.allowances,
+      deductions: reportDeductions,
+    } as PayrollEntry;
+  }, []);
 
   const fetch = useCallback(async () => {
     if (!periodId) { setEntries([]); return; }
@@ -192,9 +231,7 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
 
   const addEntry = async (staffId: string, basicSalary: number, allowances: Record<string, number> = {}, deductions: Record<string, number> = {}) => {
     if (!periodId) return null;
-    const grossPay = basicSalary + Object.values(allowances).reduce((a, b) => a + b, 0);
-    const totalDeductions = Object.values(deductions).reduce((a, b) => a + b, 0);
-    const netPay = grossPay - totalDeductions;
+    const totals = calculatePayrollTotals(basicSalary, allowances, deductions);
 
     const { data, error } = await supabase
       .from('payroll_entries')
@@ -202,11 +239,11 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
         payroll_period_id: periodId,
         staff_id: staffId,
         basic_salary: basicSalary,
-        allowances,
-        gross_pay: grossPay,
-        deductions,
-        total_deductions: totalDeductions,
-        net_pay: netPay,
+        allowances: totals.allowances,
+        gross_pay: totals.grossPay,
+        deductions: totals.deductions,
+        total_deductions: totals.totalDeductions,
+        net_pay: totals.netPay,
         status: 'pending',
       })
       .select('*')
@@ -246,17 +283,43 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
       return;
     }
 
+    const currentPeriod = periods.find(period => period.id === periodId);
+    const previousPeriod = periods
+      .filter(period => currentPeriod && (period.year * 100 + period.month) < (currentPeriod.year * 100 + currentPeriod.month))
+      .sort((a, b) => (b.year * 100 + b.month) - (a.year * 100 + a.month))[0];
+    const previousRows = previousPeriod
+      ? await supabase
+        .from('payroll_entries')
+        .select('staff_id,basic_salary,allowances,deductions')
+        .eq('payroll_period_id', previousPeriod.id)
+        .in('staff_id', newStaff.map(staff => staff.id))
+      : { data: [], error: null };
+    if (previousRows.error) {
+      addingAllStaffRef.current = false;
+      toast({ title: 'Error', description: 'Could not copy the previous payroll values.', variant: 'destructive' });
+      return;
+    }
+    const previousByStaff = new Map((previousRows.data || []).map((row: Record<string, unknown>) => [
+      String(row.staff_id), row,
+    ]));
+
     const rows = newStaff.map(s => {
-      const basicSalary = Number(s.salary) || 0;
+      const previous = previousByStaff.get(String(s.id));
+      const basicSalary = Number(previous?.basic_salary ?? s.salary) || 0;
+      const totals = calculatePayrollTotals(
+        basicSalary,
+        (previous?.allowances || {}) as PayrollValueMap,
+        (previous?.deductions || {}) as PayrollValueMap,
+      );
       return {
         payroll_period_id: periodId,
         staff_id: s.id,
         basic_salary: basicSalary,
-        allowances: {},
-        gross_pay: basicSalary,
-        deductions: {},
-        total_deductions: 0,
-        net_pay: basicSalary,
+        allowances: totals.allowances,
+        gross_pay: totals.grossPay,
+        deductions: preserveNonGridDeductions((previous?.deductions || {}) as PayrollValueMap, totals.deductions),
+        total_deductions: totals.totalDeductions,
+        net_pay: totals.netPay,
         status: 'pending',
       };
     });
@@ -283,19 +346,18 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
     const allowances = updates.allowances || {};
     const deductions = updates.deductions || {};
     const basicSalary = updates.basic_salary ?? 0;
-    const grossPay = basicSalary + Object.values(allowances).reduce((a, b) => a + b, 0);
-    const totalDeductions = Object.values(deductions).reduce((a, b) => a + b, 0);
-    const netPay = grossPay - totalDeductions;
+    const totals = calculatePayrollTotals(basicSalary, allowances, deductions);
+    const persistedDeductions = preserveNonGridDeductions(deductions, totals.deductions);
 
     const { error } = await supabase
       .from('payroll_entries')
       .update({
         basic_salary: basicSalary,
-        allowances,
-        gross_pay: grossPay,
-        deductions,
-        total_deductions: totalDeductions,
-        net_pay: netPay,
+        allowances: totals.allowances,
+        gross_pay: totals.grossPay,
+        deductions: persistedDeductions,
+        total_deductions: totals.totalDeductions,
+        net_pay: totals.netPay,
       })
       .eq('id', id);
 
@@ -307,11 +369,11 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
     setEntries(prev => prev.map(entry => entry.id === id ? {
       ...entry,
       basic_salary: basicSalary,
-      allowances,
-      gross_pay: grossPay,
-      deductions,
-      total_deductions: totalDeductions,
-      net_pay: netPay,
+      allowances: totals.allowances,
+      gross_pay: totals.grossPay,
+      deductions: persistedDeductions,
+      total_deductions: totals.totalDeductions,
+      net_pay: totals.netPay,
     } : entry));
     return true;
   };
@@ -326,77 +388,8 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
     return true;
   };
 
-  const recalculateDeductions = async () => {
-    if (!periodId || entries.length === 0) return;
-    setLoading(true);
 
-    const period = periods.find(p => p.id === periodId);
-    const startDate = period ? new Date(period.year, period.month - 1, 1).toISOString().split('T')[0] : null;
-    const endDate = period ? new Date(period.year, period.month, 0).toISOString().split('T')[0] : null;
-
-    if (!startDate || !endDate) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const updates = await Promise.all(entries.map(async (entry) => {
-        const { data: deductData, error: deductErr } = await supabase.rpc('calculate_payroll_deductions', {
-          _staff_id: entry.staff_id,
-          _period_start: startDate,
-          _period_end: endDate
-        });
-
-        if (deductErr) throw deductErr;
-
-        const newFamilyMed = Number(deductData) || 0;
-        const currentFamilyMed = Number(entry.deductions['family_medical']) || 0;
-
-        if (newFamilyMed !== currentFamilyMed) {
-          const newDeductions = { ...entry.deductions, family_medical: newFamilyMed };
-          const totalDeductions = Object.values(newDeductions).reduce((a, b) => a + b, 0);
-          // Only updating the stored medical value for the report; net pay is not auto-deducted here
-          // as per the requirement for accountant to fill it manually in their system.
-          
-          return {
-            id: entry.id,
-            deductions: newDeductions,
-            total_deductions: totalDeductions,
-            net_pay: entry.net_pay // Keep net pay unchanged to prevent auto-deduction
-          };
-        }
-        return null;
-      }));
-
-      const filteredUpdates = updates.filter(u => u !== null) as any[];
-
-      if (filteredUpdates.length > 0) {
-        for (const update of filteredUpdates) {
-          const { error } = await supabase
-            .from('payroll_entries')
-            .update({
-              deductions: update.deductions,
-              total_deductions: update.total_deductions,
-              net_pay: update.net_pay
-            })
-            .eq('id', update.id);
-          
-          if (error) throw error;
-        }
-        toast({ title: 'Success', description: `Recalculated medical deductions for ${filteredUpdates.length} entries.` });
-        await fetch();
-      } else {
-        toast({ title: 'Info', description: 'All deductions are already up to date.' });
-      }
-    } catch (error: any) {
-      console.error('Recalculation error:', error);
-      toast({ title: 'Error', description: error.message || 'Failed to recalculate deductions.', variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return { entries, loading, addEntry, addAllStaff, updateEntry, removeEntry, recalculateDeductions, refetch: fetch };
+  return { entries, loading, addEntry, addAllStaff, updateEntry, removeEntry, refetch: fetch };
 }
 
 

@@ -906,6 +906,7 @@ CREATE TABLE public.payroll_periods (
   created_by text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
+  column_labels jsonb NOT NULL DEFAULT '{}'::jsonb,
   UNIQUE(month, year)
 );
 

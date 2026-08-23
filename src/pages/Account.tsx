@@ -44,12 +44,12 @@ function TabHeader({ title, onRefresh }: { title: string; onRefresh: () => void 
 
 const Account = () => {
   const { staff, loading: staffLoading, addStaff, updateStaff, deleteStaff, importStaff, refetch: refetchStaff } = useStaff();
-  const { periods, loading: periodsLoading, createPeriod, lockPeriod, unlockPeriod, markPaid, refetch: refetchPeriods } = usePayrollPeriods();
+  const { periods, loading: periodsLoading, createPeriod, updatePeriodLabels, lockPeriod, unlockPeriod, markPaid, refetch: refetchPeriods } = usePayrollPeriods();
   const { refetch: refetchCorporate } = useCorporateAccounts();
   const [selectedPeriod, setSelectedPeriod] = useState<PayrollPeriod | null>(null);
 
   const periodId = selectedPeriod?.id || (periods.length > 0 ? periods[0]?.id : null);
-  const { entries, loading: entriesLoading, addEntry, addAllStaff, updateEntry, removeEntry, recalculateDeductions, refetch: refetchEntries } = usePayrollEntries(periodId, periods);
+  const { entries, loading: entriesLoading, addEntry, addAllStaff, updateEntry, refetch: refetchEntries } = usePayrollEntries(periodId, periods);
 
   // Auto-select first period
   if (!selectedPeriod && periods.length > 0) {
@@ -178,12 +178,11 @@ const Account = () => {
               if (p) await refetchPeriods();
               return p;
             }}
+            onUpdatePeriodLabels={updatePeriodLabels}
             onLockPeriod={handleLockPeriod}
             onUnlockPeriod={handleUnlockPeriod}
             onAddAllStaff={addAllStaff}
             onUpdateEntry={updateEntry}
-            onRemoveEntry={removeEntry}
-            onRecalculate={recalculateDeductions}
           />
 
         </TabsContent>

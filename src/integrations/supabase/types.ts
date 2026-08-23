@@ -1481,6 +1481,7 @@ export type Database = {
       }
       payroll_periods: {
         Row: {
+          column_labels: Json
           created_at: string
           created_by: string | null
           id: string
@@ -1490,6 +1491,7 @@ export type Database = {
           year: number
         }
         Insert: {
+          column_labels?: Json
           created_at?: string
           created_by?: string | null
           id?: string
@@ -1499,6 +1501,7 @@ export type Database = {
           year: number
         }
         Update: {
+          column_labels?: Json
           created_at?: string
           created_by?: string | null
           id?: string

@@ -75,10 +75,23 @@ export function useInsuranceTemplates() {
 
   const save = useCallback(async (next: InsuranceTemplates): Promise<boolean> => {
     try {
-      const { error } = await supabase
+      const payload = { value: next as any, updated_at: new Date().toISOString() };
+      // The Cockroach adapter intentionally exposes insert/update/delete, not
+      // Supabase's upsert builder. Update the singleton settings row first;
+      // create it only when this is the first save.
+      const { data: updated, error: updateError } = await supabase
         .from('app_settings')
-        .upsert({ key: SETTINGS_KEY, value: next as any, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-      if (error) throw error;
+        .update(payload)
+        .eq('key', SETTINGS_KEY)
+        .select('key')
+        .maybeSingle();
+      if (updateError) throw updateError;
+      if (!updated) {
+        const { error: insertError } = await supabase
+          .from('app_settings')
+          .insert({ key: SETTINGS_KEY, ...payload });
+        if (insertError) throw insertError;
+      }
       setTemplates(next);
       return true;
     } catch (err) {

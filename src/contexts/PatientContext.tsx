@@ -196,6 +196,33 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
         _owner_role: ownerRoleMap[status] ?? null,
       });
       if (rpcError) throw rpcError;
+
+      // Never assume the workflow routine's legacy patients.status mirror was
+      // persisted. Cockroach compatibility routines intentionally keep that
+      // mirror non-fatal, so verify it and repair only this patient if stale.
+      const { data: persistedPatient, error: persistedReadError } = await supabase
+        .from('patients')
+        .select('status')
+        .eq('id', patientId)
+        .maybeSingle();
+      if (persistedReadError) throw persistedReadError;
+      if (persistedPatient?.status !== status) {
+        const { error: statusRepairError } = await supabase
+          .from('patients')
+          .update({ status, last_visit: new Date().toISOString() })
+          .eq('id', patientId);
+        if (statusRepairError) throw statusRepairError;
+        const { data: confirmedPatient, error: confirmationError } = await supabase
+          .from('patients')
+          .select('status')
+          .eq('id', patientId)
+          .maybeSingle();
+        if (confirmationError) throw confirmationError;
+        if (confirmedPatient?.status !== status) {
+          throw new Error(`Patient status did not persist as ${status}`);
+        }
+      }
+
       // Touch last_visit for the header/timeline (non-fatal if it fails).
       const { error: lvErr } = await supabase
         .from('patients')

@@ -239,7 +239,13 @@ export function SnapFulfillDialog({
             const openVisit = await findOpenVisit(snap.patient_id);
             if (openVisit) await closeVisit(openVisit.id);
           }
-          await updatePatientStatus(snap.patient_id, nextStatus, { guardInpatient: true });
+          const routed = await updatePatientStatus(snap.patient_id, nextStatus, { guardInpatient: true });
+          if (!routed) {
+            // Keep the dialog open so the pharmacy officer can retry the
+            // discharge/status transition; do not report a false completion.
+            toast.error('Dispensed, but patient status could not be updated. Please retry.');
+            return;
+          }
           toast.info(`Patient routed to ${workflowStationLabel(nextStatus)}`);
         }
         onClose();

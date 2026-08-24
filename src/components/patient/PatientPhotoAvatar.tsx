@@ -4,6 +4,7 @@ import { uploadFile as putFile, getFileUrl, deleteFile } from '@/lib/storage';
 import { Patient } from '@/contexts/PatientContext';
 import { supabase } from '@/integrations/supabase/client';
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
+import { SnapCropDialog } from '@/components/visit/SnapCropDialog';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -37,14 +38,53 @@ export function PatientPhotoAvatar({
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [cropOpen, setCropOpen] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const temporaryPreviewRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     if (!photoPath) { setUrl(null); return; }
-    signedPhotoUrl(photoPath).then((u) => { if (!cancelled) setUrl(u); });
+    signedPhotoUrl(photoPath).then((u) => {
+      if (!cancelled) {
+        setUrl(u);
+        if (temporaryPreviewRef.current) {
+          URL.revokeObjectURL(temporaryPreviewRef.current);
+          temporaryPreviewRef.current = null;
+        }
+      }
+    });
     return () => { cancelled = true; };
   }, [photoPath]);
+
+  useEffect(() => () => {
+    if (temporaryPreviewRef.current) URL.revokeObjectURL(temporaryPreviewRef.current);
+  }, []);
+
+  const prepareCrop = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please choose an image file');
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      toast.error('Image too large (max 8 MB)');
+      return;
+    }
+    if (pendingUrl) URL.revokeObjectURL(pendingUrl);
+    const objectUrl = URL.createObjectURL(file);
+    setPendingFile(file);
+    setPendingUrl(objectUrl);
+    setCropOpen(true);
+  };
+
+  const cancelCrop = () => {
+    if (pendingUrl) URL.revokeObjectURL(pendingUrl);
+    setPendingFile(null);
+    setPendingUrl(null);
+    setCropOpen(false);
+  };
 
   const uploadFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
@@ -118,7 +158,7 @@ export function PatientPhotoAvatar({
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = '';
-          if (f) uploadFile(f);
+          if (f) prepareCrop(f);
         }}
       />
 
@@ -167,9 +207,28 @@ export function PatientPhotoAvatar({
         onCancel={() => setCameraOpen(false)}
         onCapture={(file) => {
           setCameraOpen(false);
-          uploadFile(file);
+          prepareCrop(file);
         }}
       />
+
+      {pendingFile && pendingUrl && (
+        <SnapCropDialog
+          open={cropOpen}
+          imageUrl={pendingUrl}
+          originalFile={pendingFile}
+          onCancel={cancelCrop}
+          onConfirm={(croppedFile, croppedUrl) => {
+            if (pendingUrl) URL.revokeObjectURL(pendingUrl);
+            setPendingFile(null);
+            setPendingUrl(null);
+            setCropOpen(false);
+            if (temporaryPreviewRef.current) URL.revokeObjectURL(temporaryPreviewRef.current);
+            temporaryPreviewRef.current = croppedUrl;
+            setUrl(croppedUrl);
+            void uploadFile(croppedFile);
+          }}
+        />
+      )}
     </>
   );
 }

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Camera, Plus, Trash2, Send, FileText } from 'lucide-react';
+import { Camera, Plus, Trash2, Send, FileText, Beaker, Pill } from 'lucide-react';
 import { SnapOcrPanel } from './SnapOcrPanel';
 import { highlightMatch } from '@/lib/highlightMatch';
 

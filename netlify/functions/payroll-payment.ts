@@ -10,6 +10,35 @@ function normalizeBankName(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+const NIGERIAN_BANK_FALLBACKS = [
+  // Flutterwave/NGN transfer code for TAJ Bank Limited. Keep this only as a
+  // defensive fallback; the live provider list remains the source of truth.
+  { code: '302', name: 'Taj Bank Limited' },
+];
+
+function normalizeNigerianBanks(raw: unknown) {
+  const source = Array.isArray(raw) ? raw : [];
+  const banks = source
+    .map((bank) => {
+      const item = bank as Record<string, unknown>;
+      return {
+        code: String(item.code ?? item.bank_code ?? item.id ?? '').trim(),
+        name: String(item.name ?? item.bank_name ?? '').trim(),
+      };
+    })
+    .filter((bank) => bank.code && bank.name);
+  const byCode = new Map<string, { code: string; name: string }>();
+  for (const bank of [...banks, ...NIGERIAN_BANK_FALLBACKS]) {
+    if (!byCode.has(bank.code)) byCode.set(bank.code, bank);
+  }
+  return [...byCode.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function getNigerianBanks() {
+  const response = await flwRequest('/v3/banks/NG');
+  return normalizeNigerianBanks(response.data);
+}
+
 async function flwRequest(path: string, method = 'GET', body?: unknown) {
   const key = process.env.FLUTTERWAVE_SECRET_KEY;
   if (!key) throw new Error('FLUTTERWAVE_SECRET_KEY not configured');
@@ -52,11 +81,11 @@ export default async (request: Request) => {
       case 'get_balance':
         return json({ balance: (await flwRequest('/v3/balances/NGN')).data });
       case 'list_banks':
-        return json({ banks: (await flwRequest('/v3/banks/NG')).data });
+        return json({ banks: await getNigerianBanks() });
       case 'resolve_bank': {
         const requestedName = String(body.bank_name ?? '').trim();
         if (!requestedName) throw new FlutterwaveBusinessError('Bank name is required');
-        const banks = (await flwRequest('/v3/banks/NG')).data;
+        const banks = await getNigerianBanks();
         const normalizedRequested = normalizeBankName(requestedName);
         const bank = (Array.isArray(banks) ? banks : []).find((candidate: Record<string, unknown>) => {
           const candidateName = String(candidate.name ?? '').trim();

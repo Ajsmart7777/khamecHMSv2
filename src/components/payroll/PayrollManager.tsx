@@ -171,7 +171,7 @@ export function PayrollManager({
             if (event.key === 'Enter') void commitEdit(entry);
             if (event.key === 'Escape') setEditingCell(null);
           }}
-          className="h-7 w-24 text-xs p-1 text-right"
+          className="h-9 w-28 px-2 text-sm text-right"
           autoFocus
         />
       );
@@ -179,7 +179,7 @@ export function PayrollManager({
     return (
       <button
         type="button"
-        className={isDraft ? 'min-w-16 cursor-pointer rounded px-1 py-0.5 text-right text-xs hover:bg-accent/60' : 'min-w-16 text-right text-xs'}
+        className={isDraft ? 'min-w-24 cursor-pointer rounded px-2 py-1 text-right text-sm hover:bg-accent/60' : 'min-w-24 px-2 py-1 text-right text-sm'}
         onClick={() => startEdit(entry.id, field, value)}
         disabled={!isDraft}
         title={isDraft ? 'Click to edit' : 'Locked payroll'}
@@ -283,13 +283,13 @@ export function PayrollManager({
         ) : (
           <div className="overflow-hidden rounded-xl border border-border">
             <div className="overflow-x-auto">
-              <Table className="min-w-[1580px] table-fixed text-xs">
+              <Table className="min-w-[2480px] table-fixed text-sm">
                 <TableHeader>
                   <TableRow className="bg-muted/50">
                     {PAYROLL_COLUMNS.map(column => (
                       <TableHead
                         key={column.key}
-                        className={`whitespace-nowrap text-[10px] font-bold ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-muted/50' : ''} ${column.key === 'id' ? 'left-0 w-24' : column.key === 'staff_name' ? 'left-[96px] w-56' : column.key === 'designation' ? 'w-48' : ''}`}
+                        className={`whitespace-normal break-words px-3 py-3 text-center text-xs leading-tight font-bold ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-muted/50' : ''} ${column.key === 'id' ? 'left-0 w-28' : column.key === 'staff_name' ? 'left-[112px] w-56' : column.key === 'designation' ? 'w-48' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-36' : column.kind === 'identity' ? 'w-40' : 'w-28'}`}
                         onContextMenu={event => { event.preventDefault(); beginRename(column); }}
                         onPointerDown={() => handleHeaderPointerDown(column)}
                         onPointerUp={clearLongPress}
@@ -300,7 +300,7 @@ export function PayrollManager({
                         {columnLabels[column.key] || column.label}
                       </TableHead>
                     ))}
-                    <TableHead className="w-12 text-[10px] font-bold">REMOVE</TableHead>
+                    <TableHead className="w-20 px-3 py-3 text-center text-xs font-bold">REMOVE</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -309,13 +309,13 @@ export function PayrollManager({
                       {PAYROLL_COLUMNS.map(column => (
                       <TableCell
                         key={column.key}
-                        className={`whitespace-nowrap ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-background' : ''} ${column.key === 'id' ? 'left-0 w-24 font-mono text-[11px]' : column.key === 'staff_name' ? 'left-[96px] w-56 whitespace-normal break-words font-medium text-[11px]' : column.key === 'designation' ? 'w-48 whitespace-normal break-words text-muted-foreground' : ''} ${['gross_pay', 'total_deductions', 'net_pay'].includes(column.key) ? 'bg-primary/5' : ''}`}
+                        className={`px-3 py-3 ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-background' : ''} ${column.key === 'id' ? 'left-0 w-28 whitespace-nowrap font-mono text-xs' : column.key === 'staff_name' ? 'left-[112px] w-56 whitespace-normal break-words font-medium text-sm' : column.key === 'designation' ? 'w-48 whitespace-normal break-words text-sm text-muted-foreground' : column.kind === 'identity' ? 'w-40 text-sm' : 'w-28 text-sm'} ${['gross_pay', 'total_deductions', 'net_pay'].includes(column.key) ? 'bg-primary/5' : ''}`}
                         >
                           {renderColumnCell(entry, column)}
                         </TableCell>
                       ))}
-                      <TableCell className="w-12">
-                        {isDraft && <Button variant="ghost" size="icon" className="h-7 w-7" title="Remove from this payroll only" onClick={() => { if (confirm(`Remove ${entry.staff_name} from this payroll period? The staff record will remain unchanged.`)) void onRemoveEntry(entry.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+                      <TableCell className="w-20 px-3 py-3">
+                        {isDraft && <Button variant="ghost" size="icon" className="h-9 w-9" title="Remove from this payroll only" onClick={() => { if (confirm(`Remove ${entry.staff_name} from this payroll period? The staff record will remain unchanged.`)) void onRemoveEntry(entry.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
                       </TableCell>
                     </TableRow>
                   ))}

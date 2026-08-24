@@ -164,6 +164,22 @@ const Billing = () => {
           });
           return;
         }
+
+        const { data: pendingEmergencyDraft, error: emergencyGateError } = await supabase
+          .from('snap_orders')
+          .select('id')
+          .eq('patient_id', selectedPatientId)
+          .eq('intent', 'emergency_billing_draft')
+          .eq('status', 'pending_billing')
+          .limit(1)
+          .maybeSingle();
+        if (emergencyGateError) throw emergencyGateError;
+        if (pendingEmergencyDraft) {
+          toast.info('Emergency Episode billing is required first', {
+            description: 'Open the Emergency Episode draft under Incoming Snaps, match every line to Pricelist, and create the invoice before Cashier.',
+          });
+          return;
+        }
       }
 
       const invoiceItemsMapped = validItems.map(item => ({

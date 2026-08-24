@@ -41,6 +41,16 @@ interface Invoice {
   invoice_items?: any[];
 }
 
+interface ClaimVisit {
+  id: string;
+  patient_id: string;
+  claim_status?: string | null;
+  claim_settled_at?: string | null;
+  opened_at: string;
+}
+
+const CLOSED_CLAIM_STATUSES = new Set(['settled', 'rejected', 'not_applicable']);
+
 
 function money(v: number) {
   return Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -55,7 +65,7 @@ export function InsuranceClaimsPanel() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [invoicesByPatient, setInvoicesByPatient] = useState<Record<string, Invoice[]>>({});
   const [openPatient, setOpenPatient] = useState<CtxPatient | null>(null);
-  const [claimVisitsByPatient, setClaimVisitsByPatient] = useState<Record<string, { claim_status?: string | null; claim_settled_at?: string | null }[]>>({});
+  const [claimVisitsByPatient, setClaimVisitsByPatient] = useState<Record<string, ClaimVisit[]>>({});
   const [settlingGroup, setSettlingGroup] = useState<string | null>(null);
   const { hasRole } = useAuth();
 
@@ -98,9 +108,17 @@ export function InsuranceClaimsPanel() {
         .gte('opened_at', periodStart.toISOString())
         .lt('opened_at', periodEnd.toISOString());
       if (visitErr) throw visitErr;
-      const claimsByPatient: Record<string, { claim_status?: string | null; claim_settled_at?: string | null }[]> = {};
-      (visitRows || []).forEach((v: any) => { (claimsByPatient[v.patient_id] ||= []).push(v); });
+      const claimsByPatient: Record<string, ClaimVisit[]> = {};
+      (visitRows || []).forEach((v: any) => { (claimsByPatient[v.patient_id] ||= []).push(v as ClaimVisit); });
       setClaimVisitsByPatient(claimsByPatient);
+
+      // A patient can have a second visit in the same month. Once the first
+      // visit is settled, its invoices belong to immutable history and must
+      // not be added to the new active card. Keep only invoices linked to an
+      // active claim visit; retain unlinked legacy invoices only when the
+      // patient has no settled claim visit in this period.
+      const claimVisitById = new Map<string, ClaimVisit>();
+      (visitRows || []).forEach((v: any) => claimVisitById.set(String(v.id), v as ClaimVisit));
       const invoiceIds = invRows.map(i => i.id);
       const { data: itemRows, error: itemErr } = invoiceIds.length
         ? await supabase
@@ -118,6 +136,14 @@ export function InsuranceClaimsPanel() {
 
       const byPatient: Record<string, Invoice[]> = {};
       invRows.forEach(i => {
+        const patientClaimVisits = claimsByPatient[i.patient_id] || [];
+        const hasSettledClaimVisit = patientClaimVisits.some(v => CLOSED_CLAIM_STATUSES.has(String(v.claim_status || 'pending')));
+        const linkedVisit = i.visit_id ? claimVisitById.get(String(i.visit_id)) : undefined;
+        const belongsToActiveCard = linkedVisit
+          ? !CLOSED_CLAIM_STATUSES.has(String(linkedVisit.claim_status || 'pending'))
+          : !hasSettledClaimVisit;
+        if (!belongsToActiveCard) return;
+
         // Exclude unavailable/refunded items from sponsor claims; refund_pending
         // and refund_requested are also not billable while awaiting Cashier action.
         const activeItems = (itemsByInvoice.get(i.id) || []).filter((it: any) =>
@@ -154,9 +180,10 @@ export function InsuranceClaimsPanel() {
       .filter(p => (invoicesByPatient[p.id]?.length || 0) > 0)
       .filter(p => {
         const claims = claimVisitsByPatient[p.id] || [];
-        // A card remains active until every matching monthly claim is settled or rejected.
-        // If legacy data has no visit claim row, keep the card visible for review.
-        return claims.length === 0 || claims.some(v => !['settled', 'rejected', 'not_applicable'].includes(String(v.claim_status || 'pending')));
+        // A card remains active only while at least one monthly claim visit is
+        // unresolved. Historical settled/rejected visits remain in the ledger
+        // but never keep an active card visible.
+        return claims.length === 0 || claims.some(v => !CLOSED_CLAIM_STATUSES.has(String(v.claim_status || 'pending')));
       });
   }, [patients, typeFilter, invoicesByPatient, claimVisitsByPatient]);
 
@@ -173,7 +200,7 @@ export function InsuranceClaimsPanel() {
 
   async function settleGroup(group: { key: string; sponsorType: InsuranceType; providerName: string | null }) {
     if (!hasRole(['claims_manager'])) return;
-    if (!window.confirm(`Mark all eligible claims for ${group.key} for ${MONTHS[month - 1]} ${year} as settled? The full patient ledger cards will remain unchanged.`)) return;
+    if (!window.confirm(`Mark all eligible claims for ${group.key} for ${MONTHS[month - 1]} ${year} as Settled? Settled cards will leave this active workspace, while their ledger history remains preserved.`)) return;
     setSettlingGroup(group.key);
     try {
       const result = await settleClaimsMonth({ sponsorType: group.sponsorType, providerName: group.providerName, year, month });
@@ -268,7 +295,7 @@ export function InsuranceClaimsPanel() {
                     {hasRole(['claims_manager']) && (
                       <Button size="sm" className="h-7 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => settleGroup(group)} disabled={settlingGroup === group.key}>
                         {settlingGroup === group.key ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CalendarCheck className="h-3 w-3 mr-1" />}
-                        Settle {MONTHS[month - 1]}
+                        Mark {MONTHS[month - 1]} as Settled
                       </Button>
                     )}
                   </div>

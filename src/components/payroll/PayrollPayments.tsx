@@ -26,6 +26,7 @@ interface Props {
 
 export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entries, onRefreshEntries }: Props) {
   const [balance, setBalance] = useState<number | null>(null);
+  const [balanceError, setBalanceError] = useState<string | null>(null);
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [payingAll, setPayingAll] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
@@ -42,11 +43,19 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
   const fetchBalance = async () => {
     setLoadingBalance(true);
     try {
+      setBalanceError(null);
       const data = await getBalance();
-      const ngn = data.balance;
-      setBalance(ngn ? (typeof ngn.available_balance === 'number' ? ngn.available_balance : Number(ngn.available_balance) || 0) : 0);
+      const raw = Array.isArray(data?.balance) ? data.balance[0] : data?.balance;
+      const value = typeof raw === 'number'
+        ? raw
+        : Number(raw?.available_balance ?? raw?.balance ?? data?.available_balance);
+      if (!Number.isFinite(value)) throw new Error('Flutterwave returned no readable NGN balance');
+      setBalance(value);
     } catch (err) {
-      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Could not fetch balance', variant: 'destructive' });
+      const message = err instanceof Error ? err.message : 'Could not fetch balance';
+      setBalance(null);
+      setBalanceError(message);
+      toast({ title: 'Flutterwave balance unavailable', description: message, variant: 'destructive' });
     }
     setLoadingBalance(false);
   };
@@ -274,6 +283,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
                 </Button>
               </div>
               <p className="text-2xl font-bold">{balance !== null ? `₦${balance.toLocaleString()}` : '—'}</p>
+              {balanceError && <p className="text-xs text-destructive mt-1">{balanceError}</p>}
             </div>
             <div className="bg-card border border-border rounded-xl p-4">
               <p className="text-sm text-muted-foreground">Bank Transfers</p>

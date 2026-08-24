@@ -78,8 +78,16 @@ export default async (request: Request) => {
 
     const body = await readJson<Record<string, unknown>>(request);
     switch (body.action) {
-      case 'get_balance':
-        return json({ balance: (await flwRequest('/v3/balances/NGN')).data });
+      case 'get_balance': {
+        const response = await flwRequest('/v3/balances/NGN');
+        const raw = Array.isArray(response.data) ? response.data[0] : response.data;
+        const record = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
+        const availableBalance = Number(record.available_balance ?? record.balance ?? 0);
+        return json({
+          balance: Number.isFinite(availableBalance) ? availableBalance : 0,
+          currency: String(record.currency ?? 'NGN'),
+        });
+      }
       case 'list_banks':
         return json({ banks: await getNigerianBanks() });
       case 'resolve_bank': {

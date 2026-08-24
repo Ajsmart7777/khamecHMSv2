@@ -60,6 +60,7 @@ export default function Store() {
     loading,
     refresh,
     registerBinCard,
+    registerManualBinCard,
     recordReceipt,
     sendToPharmacy,
   } = useInventory();
@@ -69,6 +70,11 @@ export default function Store() {
   const [searchText, setSearchText] = useState('');
   const [selectedBinCardId, setSelectedBinCardId] = useState('');
   const [registrationMedicineId, setRegistrationMedicineId] = useState('');
+  const [pricelistSearch, setPricelistSearch] = useState('');
+  const [manualMedicineName, setManualMedicineName] = useState('');
+  const [manualCategory, setManualCategory] = useState('manual');
+  const [manualSize, setManualSize] = useState('');
+  const [manualSalePrice, setManualSalePrice] = useState('');
   const [stockKind, setStockKind] = useState<ReceiptKind>('supplier_delivery');
   const [supplierName, setSupplierName] = useState('');
   const [stockLine, setStockLine] = useState<StockLine>(emptyStockLine());
@@ -100,17 +106,37 @@ export default function Store() {
     () => pricelist.filter(item => !registeredPricelistIds.has(item.id)),
     [pricelist, registeredPricelistIds],
   );
+  const filteredPricelist = useMemo(() => {
+    const query = pricelistSearch.trim().toLowerCase();
+    if (!query) return unregisteredPricelist;
+    return unregisteredPricelist.filter(item =>
+      `${item.name} ${item.size ?? ''} ${item.category ?? ''}`.toLowerCase().includes(query),
+    );
+  }, [pricelistSearch, unregisteredPricelist]);
 
   useEffect(() => {
+    let cancelled = false;
     const loadPricelist = async () => {
-      const { data, error } = await (supabase as any)
-        .from('pricelist')
-        .select('id,name,size,category,price,active')
-        .eq('active', true)
-        .order('name');
-      if (!error) setPricelist(data ?? []);
+      const pageSize = 500;
+      const rows: PricelistItem[] = [];
+      for (let from = 0; ; from += pageSize) {
+        const { data, error } = await (supabase as any)
+          .from('pricelist')
+          .select('id,name,size,category,price,active')
+          .eq('active', true)
+          .order('name')
+          .range(from, from + pageSize - 1);
+        if (error) {
+          toast.error('Could not load the complete Pricelist', { description: describeStoreError(error) });
+          return;
+        }
+        rows.push(...(data ?? []));
+        if (!data || data.length < pageSize) break;
+      }
+      if (!cancelled) setPricelist(rows);
     };
     void loadPricelist();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -132,6 +158,34 @@ export default function Store() {
       setRegistrationMedicineId('');
     } catch (error: unknown) {
       toast.error('Could not register Bin Card', { description: describeStoreError(error) });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleManualRegister = async () => {
+    const name = manualMedicineName.trim();
+    const salePrice = Number(manualSalePrice || 0);
+    if (!name) {
+      toast.error('Enter the medicine or item name.');
+      return;
+    }
+    if (!Number.isFinite(salePrice) || salePrice < 0) {
+      toast.error('Selling price must be zero or a positive amount.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await registerManualBinCard(name, manualCategory.trim() || 'manual', manualSize.trim(), String(salePrice), selectedStoreCode);
+      toast.success(`${selectedLocation?.name ?? 'Store'} manual Bin Card registered`, {
+        description: 'This item is inventory-only until it is separately added to Pricelist.',
+      });
+      setManualMedicineName('');
+      setManualCategory('manual');
+      setManualSize('');
+      setManualSalePrice('');
+    } catch (error: unknown) {
+      toast.error('Could not register manual Bin Card', { description: describeStoreError(error) });
     } finally {
       setSaving(false);
     }
@@ -247,8 +301,12 @@ export default function Store() {
 
         <TabsContent value="register" className="space-y-5">
           <section className="rounded-xl border bg-card p-5">
-            <div className="mb-4 flex items-start gap-3"><FileText className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="font-semibold">Register a Bin Card in {selectedLocation?.name ?? 'Store'}</h2><p className="text-sm text-muted-foreground">Choose the medicine from the Pricelist. No minimum level or unit setup is required.</p></div></div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end"><div className="w-full sm:max-w-xl"><Label>Medicine from Pricelist</Label><select value={registrationMedicineId} onChange={event => setRegistrationMedicineId(event.target.value)} className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select a medicine…</option>{unregisteredPricelist.map(item => <option key={item.id} value={item.id}>{item.name}{item.size ? ` — ${item.size}` : ''} ({item.category})</option>)}</select></div><Button onClick={() => void handleRegister()} disabled={saving || !registrationMedicineId}><Plus className="mr-2 h-4 w-4" />Register Bin Card</Button></div>
+            <div className="mb-4 flex items-start gap-3"><FileText className="mt-0.5 h-5 w-5 text-primary" /><div><h2 className="font-semibold">Register a Bin Card in {selectedLocation?.name ?? 'Store'}</h2><p className="text-sm text-muted-foreground">All active Pricelist items are loaded across pages. If an item is not in Pricelist, use the manual registration form below.</p><p className="mt-1 text-xs text-muted-foreground">{pricelist.length.toLocaleString()} active Pricelist items loaded; {unregisteredPricelist.length.toLocaleString()} available for this Store.</p></div></div>
+            <div className="grid gap-3 lg:grid-cols-[1fr_220px_auto] lg:items-end"><div><Label>Search active Pricelist items</Label><Input className="mt-2" value={pricelistSearch} onChange={event => setPricelistSearch(event.target.value)} placeholder="Search medicine, size, or category…" /></div><div><Label>Medicine from Pricelist</Label><select value={registrationMedicineId} onChange={event => setRegistrationMedicineId(event.target.value)} className="mt-2 h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="">Select a medicine…</option>{filteredPricelist.map(item => <option key={item.id} value={item.id}>{item.name}{item.size ? ` — ${item.size}` : ''} ({item.category})</option>)}</select></div><Button onClick={() => void handleRegister()} disabled={saving || !registrationMedicineId}><Plus className="mr-2 h-4 w-4" />Register Bin Card</Button></div>
+            <div className="my-5 border-t" />
+            <div className="mb-3"><h3 className="font-semibold">Register item manually</h3><p className="text-sm text-muted-foreground">Use this for a real store item that is not yet in Pricelist. It will be available for Store receipts, balances, and issues, but it will not be used for patient billing until added to Pricelist.</p></div>
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4"><div><Label>Medicine / item name</Label><Input className="mt-2" value={manualMedicineName} onChange={event => setManualMedicineName(event.target.value)} placeholder="e.g. Vitamin C syrup" /></div><div><Label>Category</Label><Input className="mt-2" value={manualCategory} onChange={event => setManualCategory(event.target.value)} placeholder="e.g. drug, consumable" /></div><div><Label>Size (optional)</Label><Input className="mt-2" value={manualSize} onChange={event => setManualSize(event.target.value)} placeholder="e.g. 100ml" /></div><div><Label>Selling price (optional)</Label><Input className="mt-2" type="number" min="0" step="0.01" value={manualSalePrice} onChange={event => setManualSalePrice(event.target.value)} placeholder="0" /></div></div>
+            <Button className="mt-4" variant="outline" onClick={() => void handleManualRegister()} disabled={saving || !manualMedicineName.trim()}><Plus className="mr-2 h-4 w-4" />Register Manual Bin Card</Button>
           </section>
           <Info text="The same medicine can be registered separately in Store 1 and Store 2. Each registration has its own balance and movement ledger." />
         </TabsContent>

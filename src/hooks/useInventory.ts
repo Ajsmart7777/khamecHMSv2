@@ -7,7 +7,7 @@ export type ReceiptKind = 'opening_count' | 'supplier_delivery';
 
 export interface InventoryCatalogProduct {
   product_id: string;
-  pricelist_item_id: string;
+  pricelist_item_id: string | null;
   medicine_name: string;
   category: string;
   size: string | null;
@@ -24,7 +24,7 @@ export interface StoreBinCard {
   location_id: string;
   location_code: StoreLocationCode;
   location_name: string;
-  pricelist_item_id: string;
+  pricelist_item_id: string | null;
   medicine_name: string;
   category: string;
   size: string | null;
@@ -222,6 +222,25 @@ export function useInventory() {
     return data as string;
   }, [refresh]);
 
+  const registerManualBinCard = useCallback(async (
+    medicineName: string,
+    category: string,
+    size: string,
+    salePrice: string,
+    locationCode: StoreLocationCode,
+  ) => {
+    const { data, error } = await (supabase as any).rpc('register_manual_inventory_bin_card', {
+      _medicine_name: medicineName,
+      _category: category || 'manual',
+      _size: size || null,
+      _sale_price: Number(salePrice || 0),
+      _location_code: locationCode,
+    });
+    if (error) throw error;
+    await refresh();
+    return data as string;
+  }, [refresh]);
+
   const recordReceipt = useCallback(async (
     kind: ReceiptKind,
     location: StoreLocationCode,
@@ -296,6 +315,7 @@ export function useInventory() {
     loading,
     refresh,
     registerBinCard,
+    registerManualBinCard,
     recordReceipt,
     sendToPharmacy,
     receiveTransfer,

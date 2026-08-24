@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -26,6 +27,15 @@ const NIGERIAN_BANKS = [
   'OPay', 'PalmPay', 'VFD MFB',
 ];
 
+const DESIGNATIONS = [
+  'Manager', 'Asst. Manager', 'Medical Officer', 'Cashier', 'Auditor', 'Driver', 'Cleaner',
+  'HOD. Account', 'Asst. HOD Accountant', 'Revenue Accountant', 'Receptionist', 'Expenditure Accountant',
+  'Asst. Exp. Accountant', 'Chief Medical Officer', 'Nurse', 'Substaff', 'Security', 'Immunization',
+  'Pharmacy', 'Lab Technician', 'Lab Scientist',
+];
+
+const QUALIFICATIONS = ['BSc', 'MSc', 'MBBS', 'NCE', 'ND', 'HND', 'RN', 'RM', 'RN/RM', 'B.Pharm', 'Pharm.D', 'MLS', 'SSCE', 'Diploma', 'Other'];
+
 const FLUTTERWAVE_BANK_CODES: Record<string, string> = {
   'Access Bank': '044', 'Citibank': '023', 'Ecobank': '050', 'Fidelity Bank': '070',
   'First Bank': '011', 'First City Monument Bank': '214', 'Globus Bank': '00103',
@@ -49,7 +59,9 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
   const [accountNumber, setAccountNumber] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [designation, setDesignation] = useState('');
+  const [qualification, setQualification] = useState('');
   const [saving, setSaving] = useState(false);
+  const [detailsStaff, setDetailsStaff] = useState<Staff | null>(null);
 
   const filtered = staff.filter(s =>
     `${s.firstName} ${s.lastName} ${s.employeeId}`.toLowerCase().includes(search.toLowerCase())
@@ -60,12 +72,13 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
     setBankSearch('');
     setBeneficiaryName(null);
     // We need to fetch the extra fields from DB
-    supabase.from('staff').select('bank_name, account_number, payment_method, designation').eq('id', s.id).single()
+    supabase.from('staff').select('bank_name, account_number, payment_method, designation, qualification').eq('id', s.id).single()
       .then(({ data }) => {
         setBankName(data?.bank_name || '');
         setAccountNumber(data?.account_number || '');
         setPaymentMethod(data?.payment_method || 'cash');
-        setDesignation(data?.designation || '');
+        setDesignation(data?.designation || s.designation || '');
+        setQualification(data?.qualification || s.qualification || '');
         setEditDialog(true);
       });
   };
@@ -88,6 +101,7 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
       account_number: paymentMethod === 'bank' ? accountNumber : null,
       payment_method: paymentMethod,
       designation: designation || null,
+      qualification: qualification || null,
     };
 
     const { error } = await supabase.from('staff').update(updates).eq('id', editStaff.id);
@@ -97,7 +111,7 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
       return;
     }
-    toast({ title: 'Updated', description: 'Staff bank details saved.' });
+    toast({ title: 'Staff updated', description: 'Designation, qualification, and payment details saved.' });
     setEditDialog(false);
     onRefetch();
   };
@@ -120,12 +134,12 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
         <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
       ) : (
         <div className="border border-border rounded-xl overflow-hidden">
-          <Table>
+          <Table className="min-w-[980px] table-fixed">
             <TableHeader>
               <TableRow>
-                <TableHead>Staff ID</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead className="hidden md:table-cell">Designation</TableHead>
+                <TableHead className="w-28">Staff ID</TableHead>
+                <TableHead className="w-56">Staff Name</TableHead>
+                <TableHead className="w-48">Designation</TableHead>
                 <TableHead>Payment</TableHead>
                 <TableHead className="hidden lg:table-cell">Bank</TableHead>
                 <TableHead className="hidden lg:table-cell">Account</TableHead>
@@ -135,10 +149,10 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
             </TableHeader>
             <TableBody>
               {filtered.map(s => (
-                  <TableRow key={s.id}>
-                    <TableCell className="font-mono text-xs">{s.employeeId}</TableCell>
-                    <TableCell className="font-medium">{s.firstName} {s.lastName}</TableCell>
-                    <TableCell className="hidden md:table-cell text-muted-foreground">{s.designation || s.department}</TableCell>
+                  <TableRow key={s.id} className="cursor-pointer hover:bg-muted/30" onClick={() => setDetailsStaff(s)}>
+                    <TableCell className="w-28 whitespace-nowrap font-mono text-xs">{s.employeeId}</TableCell>
+                    <TableCell className="w-56 whitespace-normal break-words font-medium">{s.firstName} {s.lastName}</TableCell>
+                    <TableCell className="w-48 whitespace-normal break-words text-muted-foreground">{s.designation || s.department || '—'}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className="text-xs capitalize">
                         {s.paymentMethod || 'cash'}
@@ -150,7 +164,7 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
                       <Badge variant={s.status === 'active' ? 'success' : 'warning'}>{s.status}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
+                      <Button variant="ghost" size="icon" onClick={(event) => { event.stopPropagation(); openEdit(s); }}>
                         <Edit2 className="h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -166,17 +180,51 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
         </div>
       )}
 
+      <Dialog open={Boolean(detailsStaff)} onOpenChange={open => { if (!open) setDetailsStaff(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Staff Information</DialogTitle></DialogHeader>
+          {detailsStaff && (
+            <div className="grid grid-cols-1 gap-3 py-2 text-sm sm:grid-cols-2">
+              <Detail label="Staff ID" value={detailsStaff.employeeId} />
+              <Detail label="Full Name" value={`${detailsStaff.firstName} ${detailsStaff.lastName}`} />
+              <Detail label="Designation" value={detailsStaff.designation || '—'} />
+              <Detail label="Qualification" value={detailsStaff.qualification || '—'} />
+              <Detail label="System Role" value={detailsStaff.role || '—'} />
+              <Detail label="Department" value={detailsStaff.department || '—'} />
+              <Detail label="Email" value={detailsStaff.email || '—'} />
+              <Detail label="Phone" value={detailsStaff.phone || '—'} />
+              <Detail label="Salary" value={`₦${Number(detailsStaff.salary || 0).toLocaleString()}`} />
+              <Detail label="Hire Date" value={detailsStaff.hireDate || '—'} />
+              <Detail label="Payment Method" value={detailsStaff.paymentMethod || 'cash'} />
+              <Detail label="Bank" value={detailsStaff.bankName || '—'} />
+              <Detail label="Account Number" value={detailsStaff.accountNumber || '—'} />
+              <Detail label="Status" value={detailsStaff.status} />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={editDialog} onOpenChange={setEditDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Edit Staff Bank Details</DialogTitle>
+            <DialogTitle>Edit Staff Details</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm font-medium">{editStaff?.firstName} {editStaff?.lastName} ({editStaff?.employeeId})</p>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Designation / Job Title</label>
-              <Input value={designation} onChange={e => setDesignation(e.target.value)} placeholder="e.g. Senior Nurse" />
+              <label className="text-sm font-medium">Designation</label>
+              <Select value={designation} onValueChange={setDesignation}>
+                <SelectTrigger><SelectValue placeholder="Select designation" /></SelectTrigger>
+                <SelectContent>{DESIGNATIONS.map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Qualification</label>
+              <Select value={qualification} onValueChange={setQualification}>
+                <SelectTrigger><SelectValue placeholder="Select qualification" /></SelectTrigger>
+                <SelectContent>{QUALIFICATIONS.map(item => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-2">
@@ -247,4 +295,8 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
       </Dialog>
     </div>
   );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return <Card className="border-border/70"><CardHeader className="pb-1 pt-3"><CardTitle className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</CardTitle></CardHeader><CardContent className="break-words pb-3 text-sm font-medium">{value}</CardContent></Card>;
 }

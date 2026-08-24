@@ -136,6 +136,12 @@ export function useStaff() {
     if (updates.salary !== undefined) dbUpdates.salary = updates.salary;
     if (updates.hireDate !== undefined) dbUpdates.hire_date = updates.hireDate;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.bankName !== undefined) dbUpdates.bank_name = updates.bankName;
+    if (updates.accountNumber !== undefined) dbUpdates.account_number = updates.accountNumber;
+    if (updates.paymentMethod !== undefined) dbUpdates.payment_method = updates.paymentMethod;
+    if (updates.designation !== undefined) dbUpdates.designation = updates.designation;
+    if (updates.qualification !== undefined) dbUpdates.qualification = updates.qualification;
+    if (updates.staffIdNumber !== undefined) dbUpdates.staff_id_number = updates.staffIdNumber;
 
     const { error: updateError } = await supabase
       .from('staff')

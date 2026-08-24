@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Lock, Unlock, Users, Loader2, Pencil } from 'lucide-react';
+import { Plus, Lock, Unlock, Users, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { PayrollPeriod, PayrollEntry } from '@/hooks/usePayroll';
 import { toast } from '@/hooks/use-toast';
 import {
@@ -31,6 +31,7 @@ interface Props {
   onUnlockPeriod: (id: string) => Promise<boolean>;
   onAddAllStaff: () => Promise<void>;
   onUpdateEntry: (id: string, updates: Partial<PayrollEntry>) => Promise<boolean>;
+  onRemoveEntry: (id: string) => Promise<boolean>;
 }
 
 const formatAmount = (value: number) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
@@ -38,7 +39,7 @@ const formatAmount = (value: number) => Number(value || 0).toLocaleString(undefi
 export function PayrollManager({
   periods, selectedPeriod, onSelectPeriod, entries, entriesLoading,
   onCreatePeriod, onUpdatePeriodLabels, onLockPeriod, onUnlockPeriod,
-  onAddAllStaff, onUpdateEntry,
+  onAddAllStaff, onUpdateEntry, onRemoveEntry,
 }: Props) {
   const [newPeriodDialog, setNewPeriodDialog] = useState(false);
   const [newMonth, setNewMonth] = useState(new Date().getMonth() + 1);
@@ -282,13 +283,13 @@ export function PayrollManager({
         ) : (
           <div className="overflow-hidden rounded-xl border border-border">
             <div className="overflow-x-auto">
-              <Table className="text-xs">
+              <Table className="min-w-[1580px] table-fixed text-xs">
                 <TableHeader>
                   <TableRow className="bg-muted/50">
                     {PAYROLL_COLUMNS.map(column => (
                       <TableHead
                         key={column.key}
-                        className={`whitespace-nowrap text-[10px] font-bold ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-muted/50' : ''} ${column.key === 'id' ? 'left-0' : column.key === 'staff_name' ? 'left-[80px]' : ''}`}
+                        className={`whitespace-nowrap text-[10px] font-bold ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-muted/50' : ''} ${column.key === 'id' ? 'left-0 w-24' : column.key === 'staff_name' ? 'left-[96px] w-56' : column.key === 'designation' ? 'w-48' : ''}`}
                         onContextMenu={event => { event.preventDefault(); beginRename(column); }}
                         onPointerDown={() => handleHeaderPointerDown(column)}
                         onPointerUp={clearLongPress}
@@ -299,19 +300,23 @@ export function PayrollManager({
                         {columnLabels[column.key] || column.label}
                       </TableHead>
                     ))}
+                    <TableHead className="w-12 text-[10px] font-bold">REMOVE</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {entries.map(entry => (
                     <TableRow key={entry.id} className="hover:bg-muted/30">
                       {PAYROLL_COLUMNS.map(column => (
-                        <TableCell
-                          key={column.key}
-                          className={`whitespace-nowrap ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-background' : ''} ${column.key === 'id' ? 'left-0 font-mono text-[11px]' : column.key === 'staff_name' ? 'left-[80px] font-medium text-[11px]' : ''} ${['gross_pay', 'total_deductions', 'net_pay'].includes(column.key) ? 'bg-primary/5' : ''}`}
+                      <TableCell
+                        key={column.key}
+                        className={`whitespace-nowrap ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-background' : ''} ${column.key === 'id' ? 'left-0 w-24 font-mono text-[11px]' : column.key === 'staff_name' ? 'left-[96px] w-56 whitespace-normal break-words font-medium text-[11px]' : column.key === 'designation' ? 'w-48 whitespace-normal break-words text-muted-foreground' : ''} ${['gross_pay', 'total_deductions', 'net_pay'].includes(column.key) ? 'bg-primary/5' : ''}`}
                         >
                           {renderColumnCell(entry, column)}
                         </TableCell>
                       ))}
+                      <TableCell className="w-12">
+                        {isDraft && <Button variant="ghost" size="icon" className="h-7 w-7" title="Remove from this payroll only" onClick={() => { if (confirm(`Remove ${entry.staff_name} from this payroll period? The staff record will remain unchanged.`)) void onRemoveEntry(entry.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>}
+                      </TableCell>
                     </TableRow>
                   ))}
                   {entries.length === 0 && (

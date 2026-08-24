@@ -229,6 +229,7 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
             <p className="text-xs text-muted-foreground mt-1">
               {age !== null ? `${age} yrs` : '—'} • {patient.gender || '—'} •{' '}
               {patient.phone || 'no phone'}
+              {patient.occupation && <> • Occupation: {patient.occupation}</>}
               {patient.date_of_birth && (
                 <> • DOB {format(new Date(patient.date_of_birth), 'MMM dd, yyyy')}</>
               )}

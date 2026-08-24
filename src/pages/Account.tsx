@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, Users, FileSpreadsheet, CreditCard, FileText, Building2, UserCheck, UserPlus, RefreshCw, DollarSign, Wallet } from 'lucide-react';
+import { LayoutDashboard, Users, FileSpreadsheet, CreditCard, FileText, Building2, UserPlus, RefreshCw, DollarSign, Wallet } from 'lucide-react';
 import { ClipboardList } from 'lucide-react';
 import { PricelistManager } from '@/components/account/PricelistManager';
 import { useStaff } from '@/hooks/useStaff';
@@ -15,7 +15,6 @@ import { PayrollPayments } from '@/components/payroll/PayrollPayments';
 import { PayrollReports } from '@/components/payroll/PayrollReports';
 import { PaymentHistory } from '@/components/payroll/PaymentHistory';
 import { CorporateAccountsManager } from '@/components/payroll/CorporateAccountsManager';
-import { StaffHRManager } from '@/components/accounts/StaffHRManager';
 import { StaffRegistrationForm } from '@/components/accounts/StaffRegistrationForm';
 import { RetainerClaimsPanel } from '@/components/account/RetainerClaimsPanel';
 import { CorporateClaimsPanel } from '@/components/account/CorporateClaimsPanel';
@@ -49,7 +48,7 @@ const Account = () => {
   const [selectedPeriod, setSelectedPeriod] = useState<PayrollPeriod | null>(null);
 
   const periodId = selectedPeriod?.id || (periods.length > 0 ? periods[0]?.id : null);
-  const { entries, loading: entriesLoading, addEntry, addAllStaff, updateEntry, refetch: refetchEntries } = usePayrollEntries(periodId, periods);
+  const { entries, loading: entriesLoading, addEntry, addAllStaff, updateEntry, removeEntry, refetch: refetchEntries } = usePayrollEntries(periodId, periods);
 
   // Auto-select first period
   if (!selectedPeriod && periods.length > 0) {
@@ -102,9 +101,6 @@ const Account = () => {
           </TabsTrigger>
           <TabsTrigger value="staff" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Users className="h-4 w-4" /> Staff
-          </TabsTrigger>
-          <TabsTrigger value="hr" className="flex items-center gap-1.5 text-xs sm:text-sm">
-            <UserCheck className="h-4 w-4" /> HR
           </TabsTrigger>
           <TabsTrigger value="payroll" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <FileSpreadsheet className="h-4 w-4" /> Payroll
@@ -160,11 +156,6 @@ const Account = () => {
           <PayrollStaffManagement staff={staff} loading={staffLoading} onRefetch={refetchStaff} />
         </TabsContent>
 
-        <TabsContent value="hr">
-          <TabHeader title="HR Management" onRefresh={refetchStaff} />
-          <StaffHRManager />
-        </TabsContent>
-
         <TabsContent value="payroll">
           <TabHeader title="Payroll" onRefresh={() => { refetchPeriods(); refetchEntries(); }} />
           <PayrollManager
@@ -183,6 +174,7 @@ const Account = () => {
             onUnlockPeriod={handleUnlockPeriod}
             onAddAllStaff={addAllStaff}
             onUpdateEntry={updateEntry}
+            onRemoveEntry={removeEntry}
           />
 
         </TabsContent>

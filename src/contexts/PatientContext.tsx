@@ -12,6 +12,7 @@ export interface Patient {
   id: string;
   card_number: string;
   mini_card_number: string;
+  physical_card_number?: string | null;
   first_name: string;
   last_name: string;
   date_of_birth: string;

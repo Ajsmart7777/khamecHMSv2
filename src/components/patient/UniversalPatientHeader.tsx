@@ -218,7 +218,8 @@ export function UniversalPatientHeader({ patient }: { patient: Patient }) {
               <h2 className="text-lg font-semibold truncate">
                 {patient.first_name} {patient.last_name}
               </h2>
-              <Badge variant="outline">{patient.card_number}</Badge>
+              <Badge variant="outline">{patient.physical_card_number ? `Physical Card: ${patient.physical_card_number}` : `Patient ID: ${patient.card_number}`}</Badge>
+              {patient.physical_card_number && <Badge variant="secondary">Patient ID: {patient.card_number}</Badge>}
               <Badge variant="secondary" className="capitalize">
                 {patient.account_type?.replace('_', ' ')}
               </Badge>

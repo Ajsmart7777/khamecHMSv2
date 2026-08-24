@@ -787,6 +787,7 @@ function NewPatientForm({
     insurance_plan: initialVerification?.verified_plan ?? initialVerification?.plan ?? '',
     enrollee_id: initialVerification?.verified_enrollee_id ?? initialVerification?.enrollee_id ?? '',
     staff_id: '',
+    physical_card_number: '',
   });
   const [memberData, setMemberData] = useState<Record<string, string>>(
     (initialVerification?.member_id_data as Record<string, string>) || {},
@@ -853,6 +854,11 @@ function NewPatientForm({
     if ((isStaff || isStaffFamily) && !formData.staff_id) {
       e.staff_id = 'Select the linked staff member';
     }
+    if (patientType === 'existing') {
+      const physicalCard = formData.physical_card_number.trim();
+      if (!physicalCard) e.physical_card_number = 'Enter the number printed on the existing physical card';
+      else if (physicalCard.length > 80) e.physical_card_number = 'Maximum 80 characters';
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -887,6 +893,29 @@ function NewPatientForm({
       return;
     }
 
+    const physicalCardNumber = patientType === 'existing' ? formData.physical_card_number.trim() : '';
+    if (physicalCardNumber) {
+      const { data: cardMatches, error: cardLookupError } = await supabase
+        .from('patients')
+        .select('id, first_name, last_name, card_number')
+        .eq('physical_card_number', physicalCardNumber)
+        .limit(1);
+      if (cardLookupError) {
+        toast.error('Could not validate the physical card number');
+        setIsSubmitting(false);
+        return;
+      }
+      if (cardMatches?.[0]) {
+        const match = cardMatches[0] as any;
+        toast.error('Physical card number already exists', {
+          description: `${match.first_name} ${match.last_name} (${match.card_number}) already has this physical card number.`,
+          duration: 6000,
+        });
+        setIsSubmitting(false);
+        return;
+      }
+    }
+
     // Derive DOB from age (Jan 1 of birth year)
     const birthYear = new Date().getFullYear() - Number(formData.age);
     const date_of_birth = `${birthYear}-01-01`;
@@ -901,6 +930,7 @@ function NewPatientForm({
     const result = await addPatient({
       card_number: '',
       mini_card_number: '',
+      physical_card_number: patientType === 'existing' ? formData.physical_card_number.trim() : null,
       first_name,
       last_name,
       date_of_birth,
@@ -1002,7 +1032,19 @@ function NewPatientForm({
         </div>
 
         {patientType === 'existing' && (
-          <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Existing Physical Card Number <span className="text-destructive">*</span></label>
+              <Input
+                value={formData.physical_card_number}
+                onChange={(e) => setFormData((prev) => ({ ...prev, physical_card_number: e.target.value }))}
+                placeholder="Enter the number printed on the old card"
+                maxLength={80}
+              />
+              {errors.physical_card_number && <p className="text-[11px] text-destructive">{errors.physical_card_number}</p>}
+              <p className="text-[10px] text-muted-foreground">The system will still generate a separate Patient ID automatically.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-xs font-medium">Opening Debt (₦)</label>
               <Input
@@ -1024,6 +1066,7 @@ function NewPatientForm({
                 className="h-8 text-sm"
               />
               <p className="text-[10px] text-muted-foreground">Balance in patient's favour.</p>
+            </div>
             </div>
           </div>
         )}

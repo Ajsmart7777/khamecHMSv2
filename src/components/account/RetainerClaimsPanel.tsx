@@ -37,6 +37,7 @@ interface PatientRow {
   first_name: string;
   last_name: string | null;
   card_number: string | null;
+  physical_card_number: string | null;
 }
 
 interface InvoiceRow {
@@ -135,7 +136,7 @@ export function RetainerClaimsPanel() {
       // Patients under retainers
       const { data: pats } = await supabase
         .from('patients')
-        .select('id, first_name, last_name, card_number, corporate_id')
+        .select('id, first_name, last_name, card_number, physical_card_number, corporate_id')
         .eq('account_type', 'retainer');
       const byRetainer: Record<string, PatientRow[]> = {};
       (pats || []).forEach(p => {
@@ -143,6 +144,7 @@ export function RetainerClaimsPanel() {
           (byRetainer[p.corporate_id] ||= []).push({
             id: p.id, first_name: p.first_name,
             last_name: p.last_name, card_number: p.card_number,
+            physical_card_number: p.physical_card_number,
           });
         }
       });
@@ -356,7 +358,7 @@ export function RetainerClaimsPanel() {
       const patientIds = [...new Set(flatInvoiceRows.map(row => String(row.patient_id || '')).filter(Boolean))];
       const invoiceIds = [...new Set(flatInvoiceRows.map(row => String(row.invoice_id || '')).filter(Boolean))];
       const [{ data: patients, error: patientsError }, { data: invoices, error: invoicesError }] = await Promise.all([
-        patientIds.length ? supabase.from('patients').select('id, first_name, last_name, card_number').in('id', patientIds) : Promise.resolve({ data: [] as any[], error: null }),
+        patientIds.length ? supabase.from('patients').select('id, first_name, last_name, card_number, physical_card_number').in('id', patientIds) : Promise.resolve({ data: [] as any[], error: null }),
         invoiceIds.length ? supabase.from('invoices').select('id, invoice_number').in('id', invoiceIds) : Promise.resolve({ data: [] as any[], error: null }),
       ]);
       if (patientsError) throw patientsError;
@@ -378,6 +380,7 @@ export function RetainerClaimsPanel() {
           amount: Number(row.amount || 0),
           patient_name: `${patient?.first_name || ''} ${patient?.last_name || ''}`.trim() || 'Registered beneficiary',
           card_number: patient?.card_number ?? null,
+          physical_card_number: patient?.physical_card_number ?? null,
           invoice_number: invoice?.invoice_number ?? null,
         };
       });
@@ -598,7 +601,7 @@ export function RetainerClaimsPanel() {
                               return (
                                 <tr key={p.id} className="border-t">
                                   <td className="px-3 py-2">{p.first_name} {p.last_name || ''}<div className="text-[10px] text-muted-foreground font-mono">{invs.length ? invs.map(i => i.invoice_number).join(', ') : 'No invoice'}</div></td>
-                                  <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{p.card_number || '—'}</td>
+                                  <td className="px-3 py-2 font-mono text-xs text-muted-foreground"><span title={`System Patient ID: ${p.card_number || '—'}`}>{p.physical_card_number || p.card_number || '—'}</span></td>
                                   <td className="px-3 py-2 text-center">{vc || <span className="text-muted-foreground">0</span>}</td>
                                   <td className="px-3 py-2 text-right">{money(breakdown.medication)}</td>
                                   <td className="px-3 py-2 text-right">{money(breakdown.lab_test)}</td>

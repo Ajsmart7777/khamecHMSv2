@@ -38,6 +38,7 @@ interface PatientRow {
   first_name: string;
   last_name: string | null;
   card_number: string | null;
+  physical_card_number: string | null;
 }
 
 interface InvoiceRow {
@@ -134,7 +135,7 @@ export function CorporateClaimsPanel() {
     try {
       const { data: pats, error: patientsError } = await supabase
         .from('patients')
-        .select('id, first_name, last_name, card_number, corporate_id')
+        .select('id, first_name, last_name, card_number, physical_card_number, corporate_id')
         .eq('account_type', 'corporate');
       if (patientsError) throw patientsError;
 
@@ -146,6 +147,7 @@ export function CorporateClaimsPanel() {
             first_name: patient.first_name,
             last_name: patient.last_name,
             card_number: patient.card_number,
+            physical_card_number: patient.physical_card_number,
           });
         }
       });
@@ -441,7 +443,7 @@ export function CorporateClaimsPanel() {
       const patientIds = [...new Set(flatInvoiceRows.map(row => String(row.patient_id || '')).filter(Boolean))];
       const invoiceIds = [...new Set(flatInvoiceRows.map(row => String(row.invoice_id || '')).filter(Boolean))];
       const [{ data: patients, error: patientsError }, { data: invoices, error: invoicesError }] = await Promise.all([
-        patientIds.length ? supabase.from('patients').select('id, first_name, last_name, card_number').in('id', patientIds) : Promise.resolve({ data: [] as any[], error: null }),
+        patientIds.length ? supabase.from('patients').select('id, first_name, last_name, card_number, physical_card_number').in('id', patientIds) : Promise.resolve({ data: [] as any[], error: null }),
         invoiceIds.length ? supabase.from('invoices').select('id, invoice_number').in('id', invoiceIds) : Promise.resolve({ data: [] as any[], error: null }),
       ]);
       if (patientsError) throw patientsError;
@@ -464,6 +466,7 @@ export function CorporateClaimsPanel() {
           amount: Number(row.amount || 0),
           patient_name: `${patient?.first_name || ''} ${patient?.last_name || ''}`.trim() || 'Registered patient',
           card_number: patient?.card_number ?? null,
+          physical_card_number: patient?.physical_card_number ?? null,
           invoice_number: invoice?.invoice_number ?? null,
         };
       });
@@ -588,7 +591,7 @@ export function CorporateClaimsPanel() {
                             const patientInvoices = invoices[patient.id] || [];
                             const subtotal = patientInvoices.reduce((sum, invoice) => sum + invoice.total_amount, 0);
                             const breakdown = serviceBreakdowns[patient.id] || emptySponsorServiceBreakdown();
-                            return <tr key={patient.id} className="border-t"><td className="px-3 py-2">{patient.first_name} {patient.last_name || ''}<div className="text-[10px] text-muted-foreground font-mono">{patientInvoices.length ? patientInvoices.map(invoice => invoice.invoice_number).join(', ') : 'No invoice'}</div></td><td className="px-3 py-2 font-mono text-xs text-muted-foreground">{patient.card_number || '—'}</td><td className="px-3 py-2 text-center">{(visitCounts[corporate.id] || {})[patient.id] || <span className="text-muted-foreground">0</span>}</td><td className="px-3 py-2 text-right">{money(breakdown.medication)}</td><td className="px-3 py-2 text-right">{money(breakdown.lab_test)}</td><td className="px-3 py-2 text-right">{money(breakdown.delivery)}</td><td className="px-3 py-2 text-right">{money(breakdown.bed)}</td><td className="px-3 py-2 text-right">{money(breakdown.others)}</td><td className="px-3 py-2 text-right font-medium">{money(subtotal)}</td></tr>;
+                            return <tr key={patient.id} className="border-t"><td className="px-3 py-2">{patient.first_name} {patient.last_name || ''}<div className="text-[10px] text-muted-foreground font-mono">{patientInvoices.length ? patientInvoices.map(invoice => invoice.invoice_number).join(', ') : 'No invoice'}</div></td><td className="px-3 py-2 font-mono text-xs text-muted-foreground"><span title={`System Patient ID: ${patient.card_number || '—'}`}>{patient.physical_card_number || patient.card_number || '—'}</span></td><td className="px-3 py-2 text-center">{(visitCounts[corporate.id] || {})[patient.id] || <span className="text-muted-foreground">0</span>}</td><td className="px-3 py-2 text-right">{money(breakdown.medication)}</td><td className="px-3 py-2 text-right">{money(breakdown.lab_test)}</td><td className="px-3 py-2 text-right">{money(breakdown.delivery)}</td><td className="px-3 py-2 text-right">{money(breakdown.bed)}</td><td className="px-3 py-2 text-right">{money(breakdown.others)}</td><td className="px-3 py-2 text-right font-medium">{money(subtotal)}</td></tr>;
                           })}
                           <tr className="border-t bg-muted/30 font-semibold"><td className="px-3 py-2" colSpan={8}>Registered-patient services</td><td className="px-3 py-2 text-right">₦{money(registeredTotal)}</td></tr>
                         </tbody>

@@ -30,7 +30,7 @@ export interface SponsorStatementItem {
   patient_id: string;
   amount: number;
   service_date: string;
-  patient?: { first_name: string; last_name: string; card_number: string } | null;
+  patient?: { first_name: string; last_name: string; card_number: string; physical_card_number?: string | null } | null;
   invoice?: { invoice_number: string; total_amount: number } | null;
 }
 
@@ -121,7 +121,7 @@ export function useSponsorStatements(sponsorType?: 'corporate' | 'retainer') {
     const patientIds = [...new Set(rows.map(row => String(row.patient_id || '')).filter(Boolean))];
     const invoiceIds = [...new Set(rows.map(row => String(row.invoice_id || '')).filter(Boolean))];
     const [{ data: patients }, { data: invoices }] = await Promise.all([
-      patientIds.length ? supabase.from('patients').select('id, first_name, last_name, card_number').in('id', patientIds) : Promise.resolve({ data: [] as any[] }),
+      patientIds.length ? supabase.from('patients').select('id, first_name, last_name, card_number, physical_card_number').in('id', patientIds) : Promise.resolve({ data: [] as any[] }),
       invoiceIds.length ? supabase.from('invoices').select('id, invoice_number, total_amount').in('id', invoiceIds) : Promise.resolve({ data: [] as any[] }),
     ]);
     const patientById = new Map((patients || []).map((patient: any) => [String(patient.id), patient]));

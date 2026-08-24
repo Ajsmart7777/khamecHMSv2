@@ -57,7 +57,7 @@ async function fetchItems(statementId: string): Promise<SponsorStatementReportIt
   const patientIds = [...new Set(rows.map(row => String(row.patient_id || '')).filter(Boolean))];
   const invoiceIds = [...new Set(rows.map(row => String(row.invoice_id || '')).filter(Boolean))];
   const [{ data: patients }, { data: invoices }] = await Promise.all([
-    patientIds.length ? supabase.from('patients').select('id, first_name, last_name, card_number').in('id', patientIds) : Promise.resolve({ data: [] as any[] }),
+    patientIds.length ? supabase.from('patients').select('id, first_name, last_name, card_number, physical_card_number').in('id', patientIds) : Promise.resolve({ data: [] as any[] }),
     invoiceIds.length ? supabase.from('invoices').select('id, invoice_number, total_amount').in('id', invoiceIds) : Promise.resolve({ data: [] as any[] }),
   ]);
   const patientById = new Map((patients || []).map((patient: any) => [String(patient.id), patient]));
@@ -118,7 +118,7 @@ function statementHtml(statement: SponsorStatement, items: SponsorStatementRepor
     const subtotal = list.reduce((sum, item) => sum + Number(item.amount || 0), 0);
     return `<tr class="row">
       <td><strong>${p?.first_name ?? ''} ${p?.last_name ?? ''}</strong><br><span class="detail">${invoiceRefs || 'Registered service'}</span></td>
-      <td class="mono">${p?.card_number ?? '—'}</td>
+      <td class="mono" title="System Patient ID: ${p?.card_number ?? '—'}">${p?.physical_card_number || p?.card_number || '—'}</td>
       <td class="num">${categoryCell(breakdown.medication)}</td>
       <td class="num">${categoryCell(breakdown.lab_test)}</td>
       <td class="num">${categoryCell(breakdown.delivery)}</td>

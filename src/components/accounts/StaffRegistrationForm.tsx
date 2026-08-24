@@ -59,6 +59,9 @@ const DESIGNATIONS = [
   'Pharmacy',
   'Lab Technician',
   'Lab Scientist',
+  'Katchma Desk Officer',
+  'NHIA Desk Officer',
+  'Billing Officer',
 ];
 
 const QUALIFICATIONS = [

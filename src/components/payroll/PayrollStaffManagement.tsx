@@ -32,6 +32,7 @@ const DESIGNATIONS = [
   'HOD. Account', 'Asst. HOD Accountant', 'Revenue Accountant', 'Receptionist', 'Expenditure Accountant',
   'Asst. Exp. Accountant', 'Chief Medical Officer', 'Nurse', 'Substaff', 'Security', 'Immunization',
   'Pharmacy', 'Lab Technician', 'Lab Scientist',
+  'Katchma Desk Officer', 'NHIA Desk Officer', 'Billing Officer',
 ];
 
 const QUALIFICATIONS = ['BSc', 'MSc', 'MBBS', 'NCE', 'ND', 'HND', 'RN', 'RM', 'RN/RM', 'B.Pharm', 'Pharm.D', 'MLS', 'SSCE', 'Diploma', 'Other'];

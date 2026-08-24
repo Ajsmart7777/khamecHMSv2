@@ -15,6 +15,7 @@ import {
   PAYROLL_ALLOWANCE_KEYS,
   PAYROLL_DEDUCTION_KEYS,
   type PayrollColumnDefinition,
+  isPayrollTextField,
 } from '@/lib/payroll';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -70,6 +71,7 @@ export function PayrollManager({
     if (column.key === 'gross_pay') return totalGross;
     if (column.key === 'total_deductions') return totalDeductions;
     if (column.key === 'net_pay') return totalNet;
+    if (isPayrollTextField(column.key)) return null;
     if (column.kind === 'earning' || column.kind === 'input' || column.kind === 'deduction') {
       return entries.reduce((sum, entry) => {
         const values = column.kind === 'deduction' ? entry.deductions : entry.allowances;
@@ -144,17 +146,23 @@ export function PayrollManager({
     longPressTimer.current = null;
   };
 
-  const startEdit = (entryId: string, field: string, currentValue: number) => {
+  const startEdit = (entryId: string, field: string, currentValue: number | string) => {
     if (!isDraft) return;
     setEditingCell({ entryId, field });
-    setEditValue(String(currentValue || 0));
+    setEditValue(String(currentValue ?? (isPayrollTextField(field) ? '' : 0)));
   };
 
   const commitEdit = async (entry: PayrollEntry) => {
     if (!editingCell) return;
+    const { field } = editingCell;
+    if (isPayrollTextField(field)) {
+      const nextAllowances = { ...entry.allowances, [field]: editValue };
+      setEditingCell(null);
+      await onUpdateEntry(entry.id, { allowances: nextAllowances });
+      return;
+    }
     const value = Number(editValue.replace(/,/g, ''));
     const amount = Number.isFinite(value) && value >= 0 ? value : 0;
-    const { field } = editingCell;
     const nextAllowances = { ...entry.allowances };
     const nextDeductions = { ...entry.deductions };
     let nextBasic = entry.basic_salary;
@@ -203,10 +211,19 @@ export function PayrollManager({
     );
   };
 
+  const renderEditableTextCell = (entry: PayrollEntry, field: string, value: string) => {
+    const isEditing = editingCell?.entryId === entry.id && editingCell.field === field;
+    if (isEditing) {
+      return <Input type="text" value={editValue} onChange={event => setEditValue(event.target.value)} onBlur={() => void commitEdit(entry)} onKeyDown={event => { if (event.key === 'Enter') void commitEdit(entry); if (event.key === 'Escape') setEditingCell(null); }} className="h-9 w-32 px-2 text-sm" autoFocus />;
+    }
+    return <button type="button" className={isDraft ? 'min-w-28 cursor-pointer rounded px-2 py-1 text-left text-sm hover:bg-accent/60' : 'min-w-28 px-2 py-1 text-left text-sm'} onClick={() => startEdit(entry.id, field, value)} disabled={!isDraft} title={isDraft ? 'Click to edit text' : 'Locked payroll'}>{value || '—'}</button>;
+  };
+
   const renderColumnCell = (entry: PayrollEntry, column: PayrollColumnDefinition) => {
     if (column.key === 'id') return entry.staff_employee_id || '—';
     if (column.key === 'staff_name') return entry.staff_name || 'Unknown Staff';
     if (column.key === 'designation') return entry.staff_designation || '—';
+    if (isPayrollTextField(column.key)) return renderEditableTextCell(entry, column.key, String(entry.allowances[column.key] ?? ''));
     if (column.key === 'basic_salary') return renderEditableCell(entry, column.key, entry.basic_salary);
     if (column.key === 'gross_pay') return <span className="font-semibold">{formatAmount(entry.gross_pay)}</span>;
     if (column.key === 'total_deductions') return <span className="font-semibold text-destructive">{formatAmount(entry.total_deductions)}</span>;

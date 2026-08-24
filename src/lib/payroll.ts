@@ -1,4 +1,4 @@
-export type PayrollValueMap = Record<string, number>;
+export type PayrollValueMap = Record<string, number | string>;
 
 export type PayrollColumnKind = 'identity' | 'input' | 'earning' | 'computed-earning' | 'deduction' | 'computed-deduction' | 'computed-net';
 
@@ -65,6 +65,8 @@ const ALLOWANCE_ALIASES: Record<string, string[]> = {
   hazard: ['hazard', 'extra'],
 };
 
+const TEXT_ALLOWANCE_KEYS = new Set(['first_app', 'gl']);
+
 const DEDUCTION_ALIASES: Record<string, string[]> = {
   plty: ['plty'],
   paye: ['paye'],
@@ -82,7 +84,8 @@ function canonicalize(source: PayrollValueMap | null | undefined, aliases: Recor
   const values = source ?? {};
   return Object.fromEntries(Object.entries(aliases).map(([key, candidates]) => {
     const present = candidates.find(candidate => Object.prototype.hasOwnProperty.call(values, candidate));
-    return [key, asAmount(present ? values[present] : 0)];
+    const raw = present ? values[present] : undefined;
+    return [key, TEXT_ALLOWANCE_KEYS.has(key) ? String(raw ?? '') : asAmount(raw)];
   }));
 }
 
@@ -105,6 +108,10 @@ export function preserveNonGridDeductions(source: PayrollValueMap | null | undef
       .filter(key => source && Object.prototype.hasOwnProperty.call(source, key))
       .map(key => [key, asAmount(source?.[key])])),
   };
+}
+
+export function isPayrollTextField(field: string): boolean {
+  return TEXT_ALLOWANCE_KEYS.has(field);
 }
 
 export function calculatePayrollTotals(

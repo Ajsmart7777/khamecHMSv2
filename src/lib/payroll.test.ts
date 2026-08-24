@@ -5,12 +5,14 @@ describe('payroll contract', () => {
   it('keeps 1st APP and GL as recorded values without adding them to gross', () => {
     const result = calculatePayrollTotals(
       100000,
-      { first_appointment: 5000, hours: 4000, housing: 20000, transport: 10000 },
+      { first_appointment: 'APP-05', hours: 'GL-04', housing: 20000, transport: 10000 },
       {},
     );
-    expect(result.allowances.first_app).toBe(5000);
-    expect(result.allowances.gl).toBe(4000);
+    expect(result.allowances.first_app).toBe('APP-05');
+    expect(result.allowances.gl).toBe('GL-04');
     expect(result.grossPay).toBe(130000);
+    expect(Number(result.allowances.first_app)).toBeNaN();
+    expect(Number(result.allowances.gl)).toBeNaN();
   });
 
   it('maps legacy allowance and deduction keys into the requested columns', () => {

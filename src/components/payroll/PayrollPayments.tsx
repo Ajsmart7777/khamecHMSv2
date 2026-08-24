@@ -52,7 +52,24 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
       if (!Number.isFinite(value)) throw new Error('Flutterwave returned no readable NGN balance');
       setBalance(value);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Could not fetch balance';
+      const candidate = err as { message?: unknown; error?: unknown; context?: { body?: unknown } } | null;
+      const contextBody = candidate?.context?.body;
+      let contextMessage = '';
+      if (typeof contextBody === 'string') {
+        try {
+          const parsed = JSON.parse(contextBody) as { error?: unknown };
+          contextMessage = typeof parsed.error === 'string' ? parsed.error : '';
+        } catch {
+          contextMessage = contextBody;
+        }
+      }
+      const message = err instanceof Error
+        ? err.message
+        : typeof candidate?.message === 'string'
+          ? candidate.message
+          : typeof candidate?.error === 'string'
+            ? candidate.error
+            : contextMessage || 'Could not fetch balance';
       setBalance(null);
       setBalanceError(message);
       toast({ title: 'Flutterwave balance unavailable', description: message, variant: 'destructive' });

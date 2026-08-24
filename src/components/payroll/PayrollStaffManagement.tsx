@@ -55,6 +55,8 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
   const [verifyingBank, setVerifyingBank] = useState(false);
   const [editDialog, setEditDialog] = useState(false);
   const [editStaff, setEditStaff] = useState<Staff | null>(null);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [bankName, setBankName] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
@@ -69,6 +71,8 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
 
   const openEdit = (s: Staff) => {
     setEditStaff(s);
+    setFirstName(s.firstName);
+    setLastName(s.lastName);
     setBankSearch('');
     setBeneficiaryName(null);
     // We need to fetch the extra fields from DB
@@ -85,6 +89,12 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
 
   const handleSave = async () => {
     if (!editStaff) return;
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
+    if (!trimmedFirstName || !trimmedLastName) {
+      toast({ title: 'Name required', description: 'Enter both first name and last name before saving.', variant: 'destructive' });
+      return;
+    }
     if (paymentMethod === 'bank') {
       if (!bankName || accountNumber.length !== 10) {
         toast({ title: 'Incomplete bank details', description: 'Select a bank and enter the full 10-digit account number.', variant: 'destructive' });
@@ -97,6 +107,8 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
     }
     setSaving(true);
     const updates: Record<string, unknown> = {
+      first_name: trimmedFirstName,
+      last_name: trimmedLastName,
       bank_name: paymentMethod === 'bank' ? bankName : null,
       account_number: paymentMethod === 'bank' ? accountNumber : null,
       payment_method: paymentMethod,
@@ -111,7 +123,7 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
       return;
     }
-    toast({ title: 'Staff updated', description: 'Designation, qualification, and payment details saved.' });
+    toast({ title: 'Staff updated', description: 'Name, designation, qualification, and payment details saved.' });
     setEditDialog(false);
     onRefetch();
   };
@@ -210,7 +222,11 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
             <DialogTitle>Edit Staff Details</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <p className="text-sm font-medium">{editStaff?.firstName} {editStaff?.lastName} ({editStaff?.employeeId})</p>
+            <p className="text-sm font-medium">Editing: {editStaff?.firstName} {editStaff?.lastName} ({editStaff?.employeeId})</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-2"><label className="text-sm font-medium">First Name</label><Input value={firstName} onChange={event => setFirstName(event.target.value)} placeholder="First name" /></div>
+              <div className="space-y-2"><label className="text-sm font-medium">Last Name</label><Input value={lastName} onChange={event => setLastName(event.target.value)} placeholder="Last name" /></div>
+            </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Designation</label>

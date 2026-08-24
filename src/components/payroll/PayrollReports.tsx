@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Download, FileText } from 'lucide-react';
+import { Download, FileText, Loader2, Printer } from 'lucide-react';
 import { PayrollPeriod, PayrollEntry } from '@/hooks/usePayroll';
 import { toast } from '@/hooks/use-toast';
+import hospitalLogo from '@/assets/hospital-logo.png';
+import { downloadPayrollReportPdf } from '@/lib/payrollReportPdf';
+import { splitPayrollPaymentEntries } from '@/lib/payrollReports';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
 type ReportType = 'master' | 'bank_schedule' | 'cash_schedule' | 'paye' | 'pension' | 'family_deductions' | 'family_med_manual';
 
 interface Props {
@@ -17,362 +19,159 @@ interface Props {
   entries: PayrollEntry[];
 }
 
+const naira = (value: number) => `₦${Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+const amount = (entry: PayrollEntry, key: string) => Number(entry.allowances?.[key] || 0);
+const totalEarnings = (entry: PayrollEntry) => entry.gross_pay - entry.basic_salary;
+
+function reportTitle(type: ReportType) {
+  switch (type) {
+    case 'master': return 'Master Payroll Report';
+    case 'bank_schedule': return 'Bank Payment Schedule';
+    case 'cash_schedule': return 'Cash Payment Schedule';
+    case 'paye': return 'PAYE Schedule';
+    case 'pension': return 'Contribution Schedule';
+    case 'family_deductions': return 'Family Medical Deductions';
+    case 'family_med_manual': return 'Family Medical Manual Schedule';
+  }
+}
+
+function ReportBrandHeader({ title, periodLabel }: { title: string; periodLabel: string }) {
+  return (
+    <div className="mb-5 flex items-center gap-4 border-b-2 border-primary pb-4">
+      <img src={hospitalLogo} alt="Khadija Medical Center" className="h-16 w-16 object-contain" />
+      <div className="flex-1">
+        <h1 className="text-xl font-extrabold tracking-wide text-primary">KHADIJA MEDICAL CENTER</h1>
+        <p className="text-xs text-muted-foreground">Comprehensive healthcare services</p>
+        <p className="mt-2 text-base font-bold uppercase tracking-wider text-foreground">{title}</p>
+        <p className="text-xs text-muted-foreground">Payroll period: {periodLabel}</p>
+      </div>
+      <div className="text-right text-[10px] text-muted-foreground">
+        <p>Prepared by Accounts</p>
+        <p>Generated: {new Date().toLocaleDateString()}</p>
+      </div>
+    </div>
+  );
+}
+
+function ReportFooter() {
+  return (
+    <div className="mt-8 grid grid-cols-2 gap-12 border-t pt-5 text-center text-xs text-muted-foreground">
+      <div><p className="mb-6 border-b border-muted-foreground pb-1">&nbsp;</p><p>Prepared by Accounts</p></div>
+      <div><p className="mb-6 border-b border-muted-foreground pb-1">&nbsp;</p><p>Authorised Signature</p></div>
+    </div>
+  );
+}
+
 export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entries }: Props) {
   const [reportType, setReportType] = useState<ReportType>('master');
+  const [downloading, setDownloading] = useState(false);
 
-  const bankEntries = entries.filter(e => e.staff_payment_method === 'bank' && e.staff_account_number);
-  const cashEntries = entries.filter(e => e.staff_payment_method !== 'bank' || !e.staff_account_number);
+  const paymentGroups = useMemo(() => splitPayrollPaymentEntries(entries), [entries]);
+  const bankEntries = paymentGroups.bank;
+  const cashEntries = paymentGroups.cash;
+  const periodLabel = selectedPeriod ? `${MONTHS[selectedPeriod.month - 1]} ${selectedPeriod.year}` : 'Unselected period';
+  const title = reportTitle(reportType);
+  const totalGross = entries.reduce((sum, entry) => sum + entry.gross_pay, 0);
+  const totalDeductions = entries.reduce((sum, entry) => sum + entry.total_deductions, 0);
+  const totalNet = entries.reduce((sum, entry) => sum + entry.net_pay, 0);
+  const reportRows = reportType === 'bank_schedule' ? bankEntries : reportType === 'cash_schedule' ? cashEntries : entries;
+  const hasRows = reportType === 'family_deductions' || reportType === 'family_med_manual'
+    ? entries.some(entry => Number(entry.deductions?.family_medical || 0) > 0)
+    : reportRows.length > 0;
 
-  const totalGross = entries.reduce((s, e) => s + e.gross_pay, 0);
-  const totalNet = entries.reduce((s, e) => s + e.net_pay, 0);
-
-  const exportCSV = () => {
-    let csv = '';
-    let rows: string[][] = [];
-    const periodLabel = selectedPeriod ? `${MONTHS[selectedPeriod.month - 1]} ${selectedPeriod.year}` : '';
-
-    if (reportType === 'master') {
-      csv = 'S/N,Staff ID,Name,Basic,Allowances,Gross Pay,Deductions,Net Pay\n';
-      rows = entries.map((e, i) => [
-        String(i + 1), e.staff_employee_id || '', e.staff_name || '',
-        String(e.basic_salary), String(Object.values(e.allowances).reduce((a, b) => a + b, 0)),
-        String(e.gross_pay), String(e.total_deductions), String(e.net_pay),
-      ]);
-    } else if (reportType === 'bank_schedule') {
-      csv = 'S/N,Staff ID,Name,Bank,Account,Amount\n';
-      rows = bankEntries.map((e, i) => [
-        String(i + 1), e.staff_employee_id || '', e.staff_name || '',
-        e.staff_bank_name || '', e.staff_account_number || '', String(e.net_pay),
-      ]);
-    } else if (reportType === 'cash_schedule') {
-      csv = 'S/N,Staff ID,Name,Amount\n';
-      rows = cashEntries.map((e, i) => [
-        String(i + 1), e.staff_employee_id || '', e.staff_name || '', String(e.net_pay),
-      ]);
-    } else if (reportType === 'paye') {
-      csv = 'S/N,Staff ID,Name,Gross Pay,Tax Deduction\n';
-      rows = entries.map((e, i) => [
-        String(i + 1), e.staff_employee_id || '', e.staff_name || '',
-        String(e.gross_pay), String(e.deductions?.tax || 0),
-      ]);
-    } else if (reportType === 'pension') {
-      csv = 'S/N,Staff ID,Name,Basic Salary,Pension Deduction\n';
-      rows = entries.map((e, i) => [
-        String(i + 1), e.staff_employee_id || '', e.staff_name || '',
-        String(e.basic_salary), String(e.deductions?.pension || 0),
-      ]);
-    } else if (reportType === 'family_deductions') {
-      csv = 'S/N,Staff ID,Name,Family Med Deduction,Status\n';
-      rows = entries.filter(e => (e.deductions?.family_medical || 0) > 0).map((e, i) => [
-        String(i + 1), e.staff_employee_id || '', e.staff_name || '',
-        String(e.deductions?.family_medical || 0), e.status || 'pending',
-      ]);
-    } else if (reportType === 'family_med_manual') {
-      csv = 'S/N,Staff ID,Staff Name,Designation,Family Med Amount,Notes/Signature\n';
-      rows = entries.filter(e => (e.deductions?.family_medical || 0) > 0).map((e, i) => [
-        String(i + 1), e.staff_employee_id || '', e.staff_name || '', e.staff_designation || '',
-        String(e.deductions?.family_medical || 0), '',
-      ]);
+  const handleDownload = async () => {
+    const element = document.getElementById('payroll-report-document');
+    if (!element || !selectedPeriod) return;
+    setDownloading(true);
+    try {
+      await downloadPayrollReportPdf(element, `${reportType}_${periodLabel.replace(/\s+/g, '_')}.pdf`, reportType === 'master');
+      toast({ title: 'PDF downloaded', description: `${title} is ready to print or share.` });
+    } catch (error) {
+      toast({ title: 'Download failed', description: error instanceof Error ? error.message : 'Could not create the PDF.', variant: 'destructive' });
+    } finally {
+      setDownloading(false);
     }
+  };
 
-
-    csv += rows.map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${reportType}_${periodLabel.replace(' ', '_')}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: 'Downloaded', description: `${reportType} report exported.` });
+  const handlePrint = () => {
+    if (!selectedPeriod) return;
+    window.print();
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <Select
-          value={selectedPeriod?.id || ''}
-          onValueChange={v => {
-            const p = periods.find(pp => pp.id === v);
-            if (p) onSelectPeriod(p);
-          }}
-        >
-          <SelectTrigger className="w-full sm:w-64">
-            <SelectValue placeholder="Select period" />
-          </SelectTrigger>
-          <SelectContent>
-            {periods.map(p => (
-              <SelectItem key={p.id} value={p.id}>
-                {MONTHS[p.month - 1]} {p.year}
-              </SelectItem>
-            ))}
-          </SelectContent>
+      <style>{`@media print { body * { visibility: hidden; } #payroll-report-document, #payroll-report-document * { visibility: visible; } #payroll-report-document { position: absolute; left: 0; top: 0; width: 100%; margin: 0; } }`}</style>
+      <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center print:hidden">
+        <Select value={selectedPeriod?.id || ''} onValueChange={value => { const period = periods.find(item => item.id === value); if (period) onSelectPeriod(period); }}>
+          <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="Select period" /></SelectTrigger>
+          <SelectContent>{periods.map(period => <SelectItem key={period.id} value={period.id}>{MONTHS[period.month - 1]} {period.year}</SelectItem>)}</SelectContent>
         </Select>
-
-        <Select value={reportType} onValueChange={v => setReportType(v as ReportType)}>
-          <SelectTrigger className="w-full sm:w-56">
-            <SelectValue />
-          </SelectTrigger>
+        <Select value={reportType} onValueChange={value => setReportType(value as ReportType)}>
+          <SelectTrigger className="w-full sm:w-64"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="master">Master Payroll</SelectItem>
+            <SelectItem value="master">Master Report</SelectItem>
             <SelectItem value="bank_schedule">Bank Schedule</SelectItem>
             <SelectItem value="cash_schedule">Cash Schedule</SelectItem>
             <SelectItem value="paye">PAYE Schedule</SelectItem>
-            <SelectItem value="pension">Pension Schedule</SelectItem>
+            <SelectItem value="pension">Contribution Schedule</SelectItem>
             <SelectItem value="family_deductions">Family Medical Deductions</SelectItem>
-            <SelectItem value="family_med_manual">Family Med (Manual Entry Report)</SelectItem>
+            <SelectItem value="family_med_manual">Family Medical Manual Schedule</SelectItem>
           </SelectContent>
-
         </Select>
-
-        <Button variant="outline" onClick={exportCSV} className="ml-auto" disabled={entries.length === 0}>
-          <Download className="h-4 w-4 mr-2" /> Export CSV
-        </Button>
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" onClick={handlePrint} disabled={!hasRows}><Printer className="mr-2 h-4 w-4" /> Print</Button>
+          <Button onClick={() => void handleDownload()} disabled={!hasRows || downloading}>
+            {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            Download PDF
+          </Button>
+        </div>
       </div>
 
-      {/* Summary */}
       {selectedPeriod && entries.length > 0 && (
-        <div className="flex gap-4 text-sm">
-          <span className="text-muted-foreground">Entries: <strong>{entries.length}</strong></span>
-          <span className="text-muted-foreground">Gross: <strong>₦{totalGross.toLocaleString()}</strong></span>
-          <span className="text-muted-foreground">Net: <strong>₦{totalNet.toLocaleString()}</strong></span>
+        <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm print:hidden">
+          <span className="text-muted-foreground">All staff: <strong>{entries.length}</strong></span>
+          <span className="text-muted-foreground">Bank staff: <strong>{bankEntries.length}</strong></span>
+          <span className="text-muted-foreground">Cash staff: <strong>{cashEntries.length}</strong></span>
+          <span className="text-muted-foreground">Gross: <strong>{naira(totalGross)}</strong></span>
+          <span className="text-muted-foreground">Deductions: <strong>{naira(totalDeductions)}</strong></span>
+          <span className="text-muted-foreground">Net: <strong>{naira(totalNet)}</strong></span>
         </div>
       )}
 
-      {/* Report Tables */}
-      {selectedPeriod && entries.length > 0 && (
-        <div className="border border-border rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            {reportType === 'master' && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>S/N</TableHead>
-                    <TableHead>Staff ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Basic</TableHead>
-                    <TableHead>Allowances</TableHead>
-                    <TableHead>Gross</TableHead>
-                    <TableHead>Deductions</TableHead>
-                    <TableHead>Net Pay</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries.map((e, i) => (
-                    <TableRow key={e.id}>
-                      <TableCell>{i + 1}</TableCell>
-                      <TableCell className="font-mono text-xs">{e.staff_employee_id}</TableCell>
-                      <TableCell>{e.staff_name}</TableCell>
-                      <TableCell>₦{e.basic_salary.toLocaleString()}</TableCell>
-                      <TableCell>₦{Object.values(e.allowances).reduce((a, b) => a + b, 0).toLocaleString()}</TableCell>
-                      <TableCell>₦{e.gross_pay.toLocaleString()}</TableCell>
-                      <TableCell>₦{e.total_deductions.toLocaleString()}</TableCell>
-                      <TableCell className="font-bold">₦{e.net_pay.toLocaleString()}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-
-            {reportType === 'bank_schedule' && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>S/N</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Bank</TableHead>
-                    <TableHead>Account</TableHead>
-                    <TableHead>Amount</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bankEntries.map((e, i) => (
-                    <TableRow key={e.id}>
-                      <TableCell>{i + 1}</TableCell>
-                      <TableCell>{e.staff_name}</TableCell>
-                      <TableCell>{e.staff_bank_name}</TableCell>
-                      <TableCell className="font-mono">{e.staff_account_number}</TableCell>
-                      <TableCell className="font-bold">₦{e.net_pay.toLocaleString()}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-
-            {reportType === 'cash_schedule' && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>S/N</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Signature</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cashEntries.map((e, i) => (
-                    <TableRow key={e.id}>
-                      <TableCell>{i + 1}</TableCell>
-                      <TableCell>{e.staff_name}</TableCell>
-                      <TableCell className="font-bold">₦{e.net_pay.toLocaleString()}</TableCell>
-                      <TableCell className="border-b border-muted-foreground w-32"></TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-
-            {reportType === 'paye' && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>S/N</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Gross Pay</TableHead>
-                    <TableHead>Tax</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries.map((e, i) => (
-                    <TableRow key={e.id}>
-                      <TableCell>{i + 1}</TableCell>
-                      <TableCell>{e.staff_name}</TableCell>
-                      <TableCell>₦{e.gross_pay.toLocaleString()}</TableCell>
-                      <TableCell>₦{(e.deductions?.tax || 0).toLocaleString()}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-
-            {reportType === 'pension' && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>S/N</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Basic Salary</TableHead>
-                    <TableHead>Pension</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries.map((e, i) => (
-                    <TableRow key={e.id}>
-                      <TableCell>{i + 1}</TableCell>
-                      <TableCell>{e.staff_name}</TableCell>
-                      <TableCell>₦{e.basic_salary.toLocaleString()}</TableCell>
-                      <TableCell>₦{(e.deductions?.pension || 0).toLocaleString()}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-            {reportType === 'family_deductions' && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>S/N</TableHead>
-                    <TableHead>Staff ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Family Med</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {entries.filter(e => (e.deductions?.family_medical || 0) > 0).map((e, i) => (
-                    <TableRow key={e.id}>
-                      <TableCell>{i + 1}</TableCell>
-                      <TableCell className="font-mono text-xs">{e.staff_employee_id}</TableCell>
-                      <TableCell>{e.staff_name}</TableCell>
-                      <TableCell className="font-bold text-destructive">
-                        ₦{(e.deductions?.family_medical || 0).toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] ${
-                          e.status === 'paid' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'
-                        }`}>
-                          {e.status?.toUpperCase() || 'PENDING'}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {entries.filter(e => (e.deductions?.family_medical || 0) > 0).length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        No family medical deductions recorded for this period.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            )}
-            {reportType === 'family_med_manual' && (
-              <div className="p-8 space-y-8 bg-white text-black print:p-0">
-                <div className="text-center border-b pb-4">
-                  <h2 className="text-2xl font-bold uppercase">Khadija Medical Center</h2>
-                  <p className="text-sm">Family Medical Deductions - Manual Entry Schedule</p>
-                  <p className="font-semibold">{selectedPeriod ? `${MONTHS[selectedPeriod.month - 1]} ${selectedPeriod.year}` : ''}</p>
-                </div>
-                
-                <Table className="border-collapse border border-black">
-                  <TableHeader>
-                    <TableRow className="border-black bg-muted/50">
-                      <TableHead className="border-black text-black font-bold h-12">S/N</TableHead>
-                      <TableHead className="border-black text-black font-bold">Staff ID</TableHead>
-                      <TableHead className="border-black text-black font-bold">Staff Name</TableHead>
-                      <TableHead className="border-black text-black font-bold">Designation</TableHead>
-                      <TableHead className="border-black text-black font-bold text-right">Amount (₦)</TableHead>
-                      <TableHead className="border-black text-black font-bold w-48 text-center">Accountant Notes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {entries.filter(e => (e.deductions?.family_medical || 0) > 0).map((e, i) => (
-                      <TableRow key={e.id} className="border-black h-12">
-                        <TableCell className="border-black">{i + 1}</TableCell>
-                        <TableCell className="border-black font-mono">{e.staff_employee_id}</TableCell>
-                        <TableCell className="border-black font-medium">{e.staff_name}</TableCell>
-                        <TableCell className="border-black text-xs uppercase">{e.staff_designation}</TableCell>
-                        <TableCell className="border-black text-right font-bold text-lg">
-                          {(e.deductions?.family_medical || 0).toLocaleString()}
-                        </TableCell>
-                        <TableCell className="border-black text-center italic text-[10px] text-muted-foreground">
-                          ________________
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {entries.filter(e => (e.deductions?.family_medical || 0) > 0).length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-12 border-black">
-                          No staff with medical deductions for this period.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-
-                <div className="flex justify-between pt-12 text-sm italic">
-                  <div className="text-center">
-                    <p>__________________________</p>
-                    <p>Prepared By (Medical)</p>
-                  </div>
-                  <div className="text-center">
-                    <p>__________________________</p>
-                    <p>Accountant / Internal Audit</p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
+      {selectedPeriod && hasRows ? (
+        <div id="payroll-report-document" className="rounded-xl border border-border bg-white p-5 text-black shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
+          <ReportBrandHeader title={title} periodLabel={periodLabel} />
+          {reportType === 'master' && (
+            <Table className="border-collapse text-[10px]">
+              <TableHeader><TableRow className="border-b-2 border-primary bg-primary/10">
+                <TableHead>S/N</TableHead><TableHead>Staff ID</TableHead><TableHead>Staff Name</TableHead><TableHead>Designation</TableHead>
+                <TableHead>Payment</TableHead><TableHead>Bank / Account</TableHead><TableHead className="text-right">Basic</TableHead><TableHead className="text-right">Earnings</TableHead><TableHead className="text-right">Gross Pay</TableHead><TableHead className="text-right">Deductions</TableHead><TableHead className="text-right">Net Pay</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>{entries.map((entry, index) => <TableRow key={entry.id} className="border-b">
+                <TableCell>{index + 1}</TableCell><TableCell className="font-mono">{entry.staff_employee_id || '—'}</TableCell><TableCell className="font-medium">{entry.staff_name}</TableCell><TableCell>{entry.staff_designation || '—'}</TableCell>
+                <TableCell className="capitalize">{entry.staff_payment_method || 'cash'}</TableCell><TableCell>{entry.staff_payment_method === 'bank' ? `${entry.staff_bank_name || '—'} / ${entry.staff_account_number || '—'}` : '—'}</TableCell>
+                <TableCell className="text-right">{naira(entry.basic_salary)}</TableCell><TableCell className="text-right">{naira(totalEarnings(entry))}</TableCell><TableCell className="text-right">{naira(entry.gross_pay)}</TableCell><TableCell className="text-right">{naira(entry.total_deductions)}</TableCell><TableCell className="text-right font-bold">{naira(entry.net_pay)}</TableCell>
+              </TableRow>)}</TableBody>
+            </Table>
+          )}
+          {reportType === 'bank_schedule' && (
+            <Table className="border-collapse text-xs"><TableHeader><TableRow className="border-b-2 border-primary bg-primary/10"><TableHead>S/N</TableHead><TableHead>Staff ID</TableHead><TableHead>Staff Name</TableHead><TableHead>Designation</TableHead><TableHead>Bank</TableHead><TableHead>Account Number</TableHead><TableHead className="text-right">Net Pay</TableHead></TableRow></TableHeader><TableBody>{bankEntries.map((entry, index) => <TableRow key={entry.id} className="border-b"><TableCell>{index + 1}</TableCell><TableCell>{entry.staff_employee_id || '—'}</TableCell><TableCell className="font-medium">{entry.staff_name}</TableCell><TableCell>{entry.staff_designation || '—'}</TableCell><TableCell>{entry.staff_bank_name}</TableCell><TableCell className="font-mono">{entry.staff_account_number}</TableCell><TableCell className="text-right font-bold">{naira(entry.net_pay)}</TableCell></TableRow>)}</TableBody></Table>
+          )}
+          {reportType === 'cash_schedule' && (
+            <Table className="border-collapse text-xs"><TableHeader><TableRow className="border-b-2 border-primary bg-primary/10"><TableHead>S/N</TableHead><TableHead>Staff ID</TableHead><TableHead>Staff Name</TableHead><TableHead>Designation</TableHead><TableHead className="text-right">Cash Amount</TableHead><TableHead>Signature</TableHead></TableRow></TableHeader><TableBody>{cashEntries.map((entry, index) => <TableRow key={entry.id} className="h-12 border-b"><TableCell>{index + 1}</TableCell><TableCell>{entry.staff_employee_id || '—'}</TableCell><TableCell className="font-medium">{entry.staff_name}</TableCell><TableCell>{entry.staff_designation || '—'}</TableCell><TableCell className="text-right font-bold">{naira(entry.net_pay)}</TableCell><TableCell className="min-w-32 border-b border-muted-foreground" /></TableRow>)}</TableBody></Table>
+          )}
+          {reportType === 'paye' && <SimpleTable headers={['S/N', 'Staff ID', 'Staff Name', 'Gross Pay', 'PAYE']} rows={entries.map((entry, index) => [index + 1, entry.staff_employee_id || '—', entry.staff_name, naira(entry.gross_pay), naira(Number(entry.deductions?.paye || entry.deductions?.tax || 0))])} />}
+          {reportType === 'pension' && <SimpleTable headers={['S/N', 'Staff ID', 'Staff Name', 'Basic Salary', 'Contribution']} rows={entries.map((entry, index) => [index + 1, entry.staff_employee_id || '—', entry.staff_name, naira(entry.basic_salary), naira(Number(entry.deductions?.contribution || entry.deductions?.pension || 0))])} />}
+          {(reportType === 'family_deductions' || reportType === 'family_med_manual') && <SimpleTable headers={['S/N', 'Staff ID', 'Staff Name', 'Designation', 'Family Medical Amount', ...(reportType === 'family_med_manual' ? ['Notes / Signature'] : ['Status'])]} rows={entries.filter(entry => Number(entry.deductions?.family_medical || 0) > 0).map((entry, index) => [index + 1, entry.staff_employee_id || '—', entry.staff_name, entry.staff_designation || '—', naira(Number(entry.deductions?.family_medical || 0)), reportType === 'family_med_manual' ? ' ' : entry.status || 'pending'])} />}
+          <ReportFooter />
         </div>
-      )}
-
-      {(!selectedPeriod || entries.length === 0) && (
-        <div className="text-center py-12 text-muted-foreground flex flex-col items-center gap-2">
-          <FileText className="h-8 w-8" />
-          {selectedPeriod ? 'No entries for this period.' : 'Select a payroll period to view reports.'}
-        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground print:hidden"><FileText className="h-8 w-8" />{selectedPeriod ? 'No staff entries match this report.' : 'Select a payroll period to view reports.'}</div>
       )}
     </div>
   );
+}
+
+function SimpleTable({ headers, rows }: { headers: string[]; rows: Array<Array<string | number>> }) {
+  return <Table className="border-collapse text-xs"><TableHeader><TableRow className="border-b-2 border-primary bg-primary/10">{headers.map(header => <TableHead key={header}>{header}</TableHead>)}</TableRow></TableHeader><TableBody>{rows.map((row, index) => <TableRow key={index} className="border-b">{row.map((cell, cellIndex) => <TableCell key={cellIndex}>{cell}</TableCell>)}</TableRow>)}</TableBody></Table>;
 }

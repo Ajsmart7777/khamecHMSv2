@@ -65,6 +65,20 @@ export function PayrollManager({
   const totalDeductions = entries.reduce((sum, entry) => sum + entry.total_deductions, 0);
   const totalNet = entries.reduce((sum, entry) => sum + entry.net_pay, 0);
 
+  const getColumnTotal = (column: PayrollColumnDefinition): number | null => {
+    if (column.key === 'basic_salary') return entries.reduce((sum, entry) => sum + entry.basic_salary, 0);
+    if (column.key === 'gross_pay') return totalGross;
+    if (column.key === 'total_deductions') return totalDeductions;
+    if (column.key === 'net_pay') return totalNet;
+    if (column.kind === 'earning' || column.kind === 'input' || column.kind === 'deduction') {
+      return entries.reduce((sum, entry) => {
+        const values = column.kind === 'deduction' ? entry.deductions : entry.allowances;
+        return sum + (Number(values[column.key]) || 0);
+      }, 0);
+    }
+    return null;
+  };
+
   const handleCreate = async () => {
     setCreating(true);
     const period = await onCreatePeriod(newMonth, newYear);
@@ -324,6 +338,22 @@ export function PayrollManager({
                       <TableCell colSpan={PAYROLL_COLUMNS.length} className="py-8 text-center text-muted-foreground">
                         No entries. Click “Add All Staff” to populate this period.
                       </TableCell>
+                    </TableRow>
+                  )}
+                  {entries.length > 0 && (
+                    <TableRow className="border-t-2 border-primary/30 bg-primary/10 font-bold">
+                      {PAYROLL_COLUMNS.map(column => {
+                        const total = getColumnTotal(column);
+                        return (
+                          <TableCell
+                            key={column.key}
+                            className={`px-3 py-4 text-right text-sm ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-primary/10' : ''} ${column.key === 'id' ? 'left-0 w-28 text-left text-xs' : column.key === 'staff_name' ? 'left-[112px] w-56 text-left' : column.key === 'designation' ? 'w-48 text-left text-xs text-muted-foreground' : column.kind === 'identity' ? 'w-40' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-36' : 'w-28'} ${['total_deductions'].includes(column.key) ? 'text-destructive' : ''}`}
+                          >
+                            {column.key === 'id' ? 'TOTAL' : column.key === 'staff_name' ? '' : column.key === 'designation' ? '' : total === null ? '' : formatAmount(total)}
+                          </TableCell>
+                        );
+                      })}
+                      <TableCell className="w-20 px-3 py-4 text-center text-sm">—</TableCell>
                     </TableRow>
                   )}
                 </TableBody>

@@ -4,7 +4,12 @@ import { getCrdbClient } from './_shared/crdb.js';
 const FLW_BASE = 'https://api.flutterwave.com';
 const ALLOWED_ROLES = ['billing', 'accountant', 'admin'];
 
-class FlutterwaveBusinessError extends Error {}
+class FlutterwaveBusinessError extends Error {
+  constructor(message: string, public readonly providerStatus?: number) {
+    super(message);
+    this.name = 'FlutterwaveBusinessError';
+  }
+}
 
 function normalizeBankName(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -42,15 +47,24 @@ async function getNigerianBanks() {
 async function flwRequest(path: string, method = 'GET', body?: unknown) {
   const key = process.env.FLUTTERWAVE_SECRET_KEY;
   if (!key) throw new Error('FLUTTERWAVE_SECRET_KEY not configured');
-  const response = await fetch(`${FLW_BASE}${path}`, {
-    method,
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${FLW_BASE}${path}`, {
+      method,
+      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch {
+    throw new FlutterwaveBusinessError('Could not reach Flutterwave. Check the production API connection and try again.');
+  }
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data?.status !== 'success') {
-    const message = typeof data?.message === 'string' ? data.message : typeof data?.error?.message === 'string' ? data.error.message : 'Flutterwave rejected the request';
-    throw new FlutterwaveBusinessError(message);
+    const providerMessage = typeof data?.message === 'string'
+      ? data.message
+      : typeof data?.error?.message === 'string'
+        ? data.error.message
+        : 'Flutterwave rejected the request';
+    throw new FlutterwaveBusinessError(`Flutterwave request failed (HTTP ${response.status}): ${providerMessage}`, response.status);
   }
   return data;
 }
@@ -146,7 +160,9 @@ export default async (request: Request) => {
         return json({ error: `Unknown action: ${body.action}` }, 400);
     }
   } catch (error) {
-    if (error instanceof FlutterwaveBusinessError) return json({ error: error.message, type: 'flutterwave_business_error' }, 200);
+    if (error instanceof FlutterwaveBusinessError) {
+      return json({ error: error.message, type: 'flutterwave_business_error', provider_status: error.providerStatus ?? null }, 200);
+    }
     return json({ error: error instanceof Error ? error.message : 'Internal error' }, 500);
   }
 };

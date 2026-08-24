@@ -32,6 +32,8 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
   const [payingId, setPayingId] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [provider, setProvider] = useState<PaymentProvider>('flutterwave');
+  const [validatingReadiness, setValidatingReadiness] = useState(false);
+  const [readinessSummary, setReadinessSummary] = useState<string | null>(null);
   const { getBalance, resolveBank, resolveAccount, initiateTransfer } = useProviderActions(provider);
 
   const bankEntries = entries.filter(e => e.staff_payment_method === 'bank' && e.staff_bank_name && e.staff_account_number);
@@ -79,11 +81,53 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
 
   useEffect(() => { if (canPay) fetchBalance(); }, [canPay, provider]);
 
+  const validatePayrollReadiness = async () => {
+    if (!selectedPeriod || bankEntries.length === 0) return;
+    setValidatingReadiness(true);
+    setReadinessSummary(null);
+    let ready = 0;
+    const issues: string[] = [];
+    try {
+      await getBalance();
+      for (const entry of bankEntries) {
+        try {
+          const bankResult = await resolveBank(entry.staff_bank_name!);
+          const bankCode = String(bankResult?.bank?.code ?? '').trim();
+          if (!bankCode) throw new Error('bank code unavailable');
+          const accountResult = await resolveAccount(entry.staff_account_number!, bankCode);
+          if (!accountResult?.account?.account_name) throw new Error('account could not be resolved');
+          ready++;
+        } catch (error) {
+          issues.push(`${entry.staff_name}: ${error instanceof Error ? error.message : 'validation failed'}`);
+        }
+      }
+      const summary = issues.length === 0
+        ? `${ready} bank account(s) passed readiness checks. No money was transferred.`
+        : `${ready} account(s) passed; ${issues.length} need attention. No money was transferred.`;
+      setReadinessSummary(summary);
+      toast({
+        title: issues.length === 0 ? 'Payroll Readiness Passed' : 'Payroll Readiness Needs Attention',
+        description: issues.length === 0 ? summary : `${summary} ${issues[0]}`,
+        variant: issues.length === 0 ? 'default' : 'destructive',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Provider readiness check failed';
+      setReadinessSummary(message);
+      toast({ title: 'Readiness Check Failed', description: message, variant: 'destructive' });
+    } finally {
+      setValidatingReadiness(false);
+    }
+  };
+
   const payEntry = async (entry: PayrollEntry): Promise<boolean> => {
     if (!selectedPeriod || !entry.staff_bank_name || !entry.staff_account_number) return false;
 
-    const reference = `PAY-${entry.id.slice(0, 8)}-${Date.now()}`;
+    // One stable reference belongs to one payroll entry. A processing/paid attempt
+    // must never be submitted again; a failed attempt without a provider transfer
+    // code may be safely reused rather than creating a second attempt row.
+    const reference = `PAY-${selectedPeriod.id.slice(0, 8)}-${entry.id.slice(0, 8)}`;
     let paymentAttemptId: string | null = null;
+    let transferRequestStarted = false;
     setPayingId(entry.id);
 
     try {
@@ -94,23 +138,48 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
       const bankCode = String(bankResult?.bank?.code ?? '').trim();
       if (!bankCode) throw new Error(`${entry.staff_bank_name} is not available in ${providerLabel}'s current bank list`);
 
-      // Record the attempt before contacting the provider.  This prevents an
-      // accepted transfer from becoming invisible if a later local write fails.
-      const { data: paymentAttempt, error: attemptError } = await supabase
+      const { data: previousAttempts, error: previousAttemptError } = await supabase
         .from('payroll_payments')
-        .insert({
-          payroll_period_id: selectedPeriod.id,
-          payroll_entry_id: entry.id,
-          staff_id: entry.staff_id,
-          amount: entry.net_pay,
-          status: 'processing',
-          provider_reference: reference,
-          provider,
-        })
-        .select('id')
-        .single();
-      if (attemptError || !paymentAttempt) throw attemptError || new Error('Could not record the payroll payment attempt.');
-      paymentAttemptId = paymentAttempt.id;
+        .select('id,status,provider_transfer_code,provider_reference')
+        .eq('payroll_entry_id', entry.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (previousAttemptError) throw previousAttemptError;
+      const previous = ((previousAttempts || []) as Array<Record<string, unknown>>)[0];
+      const previousStatus = String(previous?.status || '').toLowerCase();
+      if (previous && ['processing', 'paid', 'success'].includes(previousStatus)) {
+        throw new Error(`A ${previousStatus} payment attempt already exists for this payroll entry; wait for provider confirmation before retrying.`);
+      }
+      if (previous?.provider_transfer_code) {
+        throw new Error('A provider transfer reference already exists for this payroll entry; confirmation is required before retrying.');
+      }
+
+      if (previous?.id && previousStatus === 'failed') {
+        const { error: retryError } = await supabase
+          .from('payroll_payments')
+          .update({ status: 'processing', amount: entry.net_pay, provider, failure_reason: null, provider_reference: reference })
+          .eq('id', previous.id);
+        if (retryError) throw retryError;
+        paymentAttemptId = String(previous.id);
+      } else {
+        // Record the attempt before contacting the provider. This prevents an
+        // accepted transfer from becoming invisible if a later local write fails.
+        const { data: paymentAttempt, error: attemptError } = await supabase
+          .from('payroll_payments')
+          .insert({
+            payroll_period_id: selectedPeriod.id,
+            payroll_entry_id: entry.id,
+            staff_id: entry.staff_id,
+            amount: entry.net_pay,
+            status: 'processing',
+            provider_reference: reference,
+            provider,
+          })
+          .select('id')
+          .single();
+        if (attemptError || !paymentAttempt) throw attemptError || new Error('Could not record the payroll payment attempt.');
+        paymentAttemptId = paymentAttempt.id;
+      }
 
       const { error: processingError } = await supabase
         .from('payroll_entries')
@@ -120,6 +189,9 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
 
       const accountResult = await resolveAccount(entry.staff_account_number, bankCode);
       const beneficiaryName = accountResult?.account?.account_name || entry.staff_name || 'Staff';
+      // From this point onward, a timeout or client-side failure could mean the
+      // provider accepted the transfer. Never mark it retryable automatically.
+      transferRequestStarted = true;
       const transferRes = await initiateTransfer({
         amount: entry.net_pay,
         account_bank: bankCode,
@@ -143,15 +215,21 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Transfer failed';
       if (paymentAttemptId) {
+        const safeStatus = transferRequestStarted ? 'processing' : 'failed';
+        const safeReason = transferRequestStarted
+          ? `Transfer submission completed without a confirmed provider response. Do not retry until the provider status is verified. ${errorMsg}`
+          : errorMsg;
         await supabase
           .from('payroll_payments')
-          .update({ status: 'failed', failure_reason: errorMsg })
+          .update({ status: safeStatus, failure_reason: safeReason })
           .eq('id', paymentAttemptId);
       }
-      await supabase.from('payroll_entries').update({ status: 'failed' }).eq('id', entry.id);
+      await supabase.from('payroll_entries').update({ status: transferRequestStarted ? 'processing' : 'failed' }).eq('id', entry.id);
 
-      let title = 'Payment Rejected';
-      let description = `${entry.staff_name}: ${errorMsg}`;
+      let title = transferRequestStarted ? 'Transfer Status Requires Confirmation' : 'Payment Rejected';
+      let description = transferRequestStarted
+        ? `${entry.staff_name}: the transfer request reached the provider boundary, but no confirmed response was received. Do not retry until its provider status is checked.`
+        : `${entry.staff_name}: ${errorMsg}`;
       const normalizedError = errorMsg.toLowerCase();
       if (normalizedError.includes('third party payouts')) {
         title = 'Transfers Not Enabled';
@@ -329,14 +407,25 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
               </h3>
               <p className="text-xs text-muted-foreground mt-1">Processing means submitted to the provider. Only Paid is a confirmed settlement; Failed can be corrected and retried.</p>
             </div>
-            <Button
-              onClick={() => setShowConfirm(true)}
-              disabled={payingAll || retryableBankEntries.length === 0}
-            >
-              {payingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-              Pay All ({retryableBankEntries.length})
-            </Button>
-          </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={validatePayrollReadiness}
+                  disabled={validatingReadiness || payingAll || bankEntries.length === 0}
+                >
+                  {validatingReadiness ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  {validatingReadiness ? 'Checking…' : 'Validate Only'}
+                </Button>
+                <Button
+                  onClick={() => setShowConfirm(true)}
+                  disabled={payingAll || retryableBankEntries.length === 0}
+                >
+                  {payingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                  Pay All ({retryableBankEntries.length})
+                </Button>
+              </div>
+            </div>
+            {readinessSummary && <p className="text-xs text-muted-foreground mt-2">{readinessSummary}</p>}
 
           <div className="border border-border rounded-xl overflow-hidden">
             <div className="overflow-x-auto">

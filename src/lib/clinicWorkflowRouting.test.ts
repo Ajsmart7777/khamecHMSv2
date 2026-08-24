@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   isOutpatientQueueStatus,
+  labResultTargetStation,
   ownerRoleForLabReturn,
   queueForPatient,
   shouldPreserveWardLocation,
@@ -21,6 +22,9 @@ describe('clinic workflow routing', () => {
   });
 
   it('routes a returned result to the exact requester station and doctor workspace', () => {
+    expect(labResultTargetStation(' nurse ')).toBe('nurse');
+    expect(labResultTargetStation('NURSE')).toBe('nurse');
+    expect(labResultTargetStation('doctor1')).toBe('doctor');
     expect(ownerRoleForLabReturn({ targetStation: 'nurse', senderRole: 'nurse' })).toBe('nurse');
     expect(ownerRoleForLabReturn({ targetStation: 'doctor', senderRole: 'doctor1', assignedDoctor: 'doctor1' })).toBe('doctor1');
     expect(ownerRoleForLabReturn({ targetStation: 'doctor', senderRole: 'doctor2', assignedDoctor: 'doctor1' })).toBe('doctor2');

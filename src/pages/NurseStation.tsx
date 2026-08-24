@@ -75,6 +75,34 @@ const NurseStation = () => {
     void refreshPatients();
   };
 
+  // Cockroach production uses explicit reads rather than browser realtime
+  // subscriptions. Refresh immediately when Lab returns a result in this
+  // browser, and poll while the Nurse station is open so another tablet can
+  // deliver the patient back to this queue without manual refresh.
+  useEffect(() => {
+    const onPatientStatusChanged = (event: Event) => {
+      const patientId = (event as CustomEvent<{ patientId?: string; status?: string }>).detail?.patientId;
+      const status = (event as CustomEvent<{ patientId?: string; status?: string }>).detail?.status;
+      if (patientId && ['waiting', 'with_nurse'].includes(status ?? '')) {
+        setLocallyForwardedPatientIds((previous) => {
+          if (!previous.has(patientId)) return previous;
+          const next = new Set(previous);
+          next.delete(patientId);
+          return next;
+        });
+      }
+      void refreshPatients();
+    };
+    window.addEventListener('hms:patient-status-changed', onPatientStatusChanged);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refreshPatients();
+    }, 4000);
+    return () => {
+      window.removeEventListener('hms:patient-status-changed', onPatientStatusChanged);
+      window.clearInterval(interval);
+    };
+  }, [refreshPatients]);
+
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
   const handlePatientComplete = async (patientId: string, assignedDoctor: 'doctor1' | 'doctor2') => {

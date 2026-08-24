@@ -9,6 +9,10 @@ export function statusAfterClinicalOrder(target: ClinicalOrderTarget): PatientSt
   return target === 'nurse' ? 'with_nurse' : 'awaiting_billing';
 }
 
+export function labResultTargetStation(senderRole?: string | null): 'nurse' | 'doctor' {
+  return String(senderRole ?? '').trim().toLowerCase() === 'nurse' ? 'nurse' : 'doctor';
+}
+
 export function ownerRoleForLabReturn(input: {
   targetStation: 'nurse' | 'doctor';
   senderRole?: string | null;

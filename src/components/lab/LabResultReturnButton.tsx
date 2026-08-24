@@ -17,7 +17,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
 import { SnapCropDialog } from '@/components/visit/SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
-import { ownerRoleForLabReturn, shouldPreserveWardLocation } from '@/lib/clinicWorkflowRouting';
+import { labResultTargetStation, ownerRoleForLabReturn, shouldPreserveWardLocation } from '@/lib/clinicWorkflowRouting';
 
 interface Props {
   parentSnap: SnapOrder;
@@ -125,10 +125,10 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
       // Identify the target user (the one who requested the lab) and their
       // role to determine the routing station.
       const requesterId = parentSnap.created_by || parentSnap.returned_to;
-      const senderRole = parentSnap.source_role || 'doctor';
-      const targetStation = senderRole.startsWith('doctor')
-        ? 'doctor'
-        : (senderRole === 'nurse' ? 'nurse' : 'doctor');
+      // original_sender_role is the durable ownership marker. source_role is
+      // retained for older rows, so keep it as the compatibility fallback.
+      const senderRole = String(parentSnap.original_sender_role || parentSnap.source_role || 'doctor').trim().toLowerCase();
+      const targetStation = labResultTargetStation(senderRole);
 
       const { error } = await supabase.from('snap_orders').insert({
         patient_id: parentSnap.patient_id,
@@ -235,10 +235,44 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
             'Laboratory result saved, but workflow routing timed out.',
           );
           if (journeyError) throw journeyError;
-          await supabase
+
+          // The Cockroach workflow function updates patient_journey and mirrors
+          // patients.status. Verify the legacy status explicitly because the
+          // mirror is intentionally compatibility-safe and older rows/triggers
+          // may leave it unchanged without failing the journey write.
+          const { data: routedPatient, error: routedReadError } = await supabase
             .from('patients')
-            .update({ last_visit: new Date().toISOString() })
-            .eq('id', parentSnap.patient_id);
+            .select('status')
+            .eq('id', parentSnap.patient_id)
+            .maybeSingle();
+          if (routedReadError) throw routedReadError;
+          if (routedPatient?.status !== newStatus) {
+            const { error: statusWriteError } = await supabase
+              .from('patients')
+              .update({ status: newStatus, last_visit: new Date().toISOString() })
+              .eq('id', parentSnap.patient_id);
+            if (statusWriteError) throw statusWriteError;
+            const { data: confirmedPatient, error: confirmError } = await supabase
+              .from('patients')
+              .select('status')
+              .eq('id', parentSnap.patient_id)
+              .maybeSingle();
+            if (confirmError) throw confirmError;
+            if (confirmedPatient?.status !== newStatus) {
+              throw new Error(`Patient status did not reach ${newStatus}`);
+            }
+          } else {
+            await supabase
+              .from('patients')
+              .update({ last_visit: new Date().toISOString() })
+              .eq('id', parentSnap.patient_id);
+          }
+
+          // Refresh any open workspace in this browser immediately. Nurse
+          // workspaces on another tablet are covered by the queue polling path.
+          window.dispatchEvent(new CustomEvent('hms:patient-status-changed', {
+            detail: { patientId: parentSnap.patient_id, status: newStatus },
+          }));
         }
       } catch (statusErr) {
         console.warn('Could not route patient after lab return', statusErr);
@@ -246,7 +280,7 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
       }
 
       toast.success(entryMode === 'typed' ? 'Typed result sent back' : 'Result snap sent back', {
-        description: routingWarning ?? `Delivered to ${senderRole}.`,
+        description: routingWarning ?? `Delivered to ${senderRole === 'nurse' ? 'the Nurse queue' : senderRole}.`,
       });
       close();
       onDone?.();

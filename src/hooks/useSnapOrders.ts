@@ -20,6 +20,7 @@ export interface MatchedItem {
   emergency_episode_item_id?: string;
   source_snap_id?: string | null;
   needs_pricelist_match?: boolean;
+  source_text?: string;
 }
 
 export interface SnapOrder {

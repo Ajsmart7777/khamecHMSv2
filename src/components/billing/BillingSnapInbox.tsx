@@ -452,7 +452,11 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
   onBilled: () => Promise<void>;
   patientName: string;
 }) {
-  const [items, setItems] = useState<MatchedItem[]>(snap.matched_items ?? []);
+  const initialItems = useMemo(() => (snap.matched_items ?? []).map(line => ({
+    ...line,
+    source_text: line.source_text ?? line.name,
+  })), [snap.matched_items]);
+  const [items, setItems] = useState<MatchedItem[]>(initialItems);
   const [searches, setSearches] = useState<Record<number, string>>({});
   const [matches, setMatches] = useState<Record<number, PricelistItem[]>>({});
   const [busy, setBusy] = useState(false);
@@ -464,8 +468,12 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
       const clean = query.trim();
       if (!clean) return null;
       return window.setTimeout(async () => {
-        const result = await fuzzyMatchPricelist(clean);
-        if (!cancelled) setMatches(prev => ({ ...prev, [index]: result }));
+        try {
+          const result = await fuzzyMatchPricelist(clean);
+          if (!cancelled) setMatches(prev => ({ ...prev, [index]: result }));
+        } catch (error) {
+          if (!cancelled) toast.error('Pricelist search failed', { description: error instanceof Error ? error.message : 'Please try again.' });
+        }
       }, 150);
     }).filter(Boolean) as number[];
     return () => { cancelled = true; timers.forEach(window.clearTimeout); };
@@ -484,10 +492,28 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
     setMatches(prev => ({ ...prev, [index]: [] }));
   };
 
+  const changeMatch = (index: number) => {
+    setItems(prev => prev.map((line, i) => i === index ? {
+      ...line,
+      pricelist_id: '',
+      name: line.source_text ?? line.name,
+      size: null,
+      unit_price: 0,
+    } : line));
+    setSearches(prev => ({ ...prev, [index]: '' }));
+    setMatches(prev => ({ ...prev, [index]: [] }));
+  };
+
+  const setQty = (idx: number, qty: number) =>
+    setItems(prev => prev.map((line, i) => i === idx ? { ...line, qty: Math.max(1, qty) } : line));
+
+  const total = items.reduce((sum, item) => sum + Number(item.unit_price || 0) * Math.max(1, Number(item.qty || 1)), 0);
+  const matchedCount = items.filter(item => item.pricelist_id && Number(item.unit_price) > 0).length;
+
   const finish = async () => {
     if (items.length === 0) { toast.error('This Emergency Episode draft has no lines'); return; }
-    if (items.some(item => !item.pricelist_id || Number(item.unit_price) <= 0)) {
-      toast.error('Match every Emergency Episode line first', { description: 'Search the Pricelist beside each plain-text medicine or laboratory line.' });
+    if (matchedCount !== items.length) {
+      toast.error('Match every Emergency Episode line first', { description: 'Search and select one Pricelist item for each written emergency line.' });
       return;
     }
     setBusy(true);
@@ -498,49 +524,106 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
         _billing_note: snap.note || 'Emergency Episode billing draft',
       });
       if (error) throw error;
-      toast.success('One Emergency Episode invoice created', { description: 'The matched bill is now available for normal Cashier payment.' });
+      toast.success('Invoice generated · waiting for cashier payment', {
+        description: 'All Emergency Episode lines were matched and one pending invoice was created.',
+      });
       await onBilled();
       onClose();
     } catch (error: any) {
-      toast.error(error?.message || 'Could not complete Emergency Episode billing draft');
-    } finally { setBusy(false); }
+      toast.error(error?.message || 'Could not generate Emergency Episode invoice');
+    } finally {
+      setBusy(false);
+    }
   };
-
-  const total = items.reduce((sum, item) => sum + Number(item.unit_price || 0) * Math.max(1, Number(item.qty || 1)), 0);
-  const matchedCount = items.filter(item => item.pricelist_id && Number(item.unit_price) > 0).length;
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-5xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Emergency Episode Billing Draft · {patientName}</DialogTitle>
+          <DialogTitle>Generate Invoice · {patientName}</DialogTitle>
         </DialogHeader>
+
         <div className="rounded-lg border-2 border-amber-300 bg-amber-50/60 dark:bg-amber-950/20 p-3 text-xs">
-          <p className="font-semibold text-amber-900 dark:text-amber-200">Match every emergency line before creating the invoice.</p>
-          <p className="mt-1 text-amber-800/80 dark:text-amber-200/80">The clinical team entered these lines as plain text. Search and select the correct Pricelist item for each line. No payment has been recorded at this stage.</p>
+          <p className="font-semibold text-amber-900 dark:text-amber-200">Emergency Episode Billing Draft</p>
+          <p className="mt-1 text-amber-800/80 dark:text-amber-200/80">The clinical team entered the lines below as plain text. Match every line to the Pricelist before generating one invoice. No payment has been recorded yet.</p>
         </div>
-        <div className="flex items-center justify-between text-xs text-muted-foreground"><span>{matchedCount}/{items.length} lines matched</span><span>One invoice total: <strong className="text-foreground">{fmt(total)}</strong></span></div>
-        <div className="space-y-3">
-          {items.map((line, index) => {
-            const query = searches[index] ?? '';
-            const result = matches[index] ?? [];
-            return (
-              <div key={line.emergency_episode_item_id || index} className="rounded-lg border bg-muted/20 p-3 space-y-2">
-                <div className="flex items-start gap-2">
-                  {line.category === 'lab' ? <Beaker className="h-4 w-4 mt-0.5 text-module-laboratory" /> : <Pill className="h-4 w-4 mt-0.5 text-module-pharmacy" />}
-                  <div className="min-w-0 flex-1"><p className="text-sm font-medium whitespace-pre-wrap break-words">{line.name}</p><p className="text-[11px] text-muted-foreground capitalize">{line.category} · quantity {line.qty || 1}</p></div>
-                  {line.pricelist_id && Number(line.unit_price) > 0 ? <Badge variant="success" className="text-[10px]">Matched · {fmt(Number(line.unit_price))}</Badge> : <Badge variant="warning" className="text-[10px]">Needs Pricelist match</Badge>}
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Original Emergency Lines</h4>
+              <Badge variant="outline">{items.length} line{items.length === 1 ? '' : 's'}</Badge>
+            </div>
+            <div className="space-y-2">
+              {items.map((line, index) => (
+                <div key={line.emergency_episode_item_id || index} className="rounded-lg border bg-muted/20 p-3">
+                  <div className="flex items-start gap-2">
+                    {line.category === 'lab' ? <Beaker className="h-4 w-4 mt-0.5 text-module-laboratory" /> : <Pill className="h-4 w-4 mt-0.5 text-module-pharmacy" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium whitespace-pre-wrap break-words">{line.source_text ?? line.name}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground capitalize">{line.category} · quantity {line.qty || 1}</p>
+                    </div>
+                    {line.pricelist_id && Number(line.unit_price) > 0
+                      ? <Badge variant="success" className="text-[10px]">Matched</Badge>
+                      : <Badge variant="warning" className="text-[10px]">Needs match</Badge>}
+                  </div>
                 </div>
-                <div className="relative">
-                  <Input value={query} onChange={e => setSearches(prev => ({ ...prev, [index]: e.target.value }))} placeholder="Search Pricelist by name, size, or category…" disabled={busy || (!!line.pricelist_id && Number(line.unit_price) > 0)} />
-                  {result.length > 0 && <div className="absolute z-20 mt-1 w-full rounded-md border bg-popover p-1 shadow-lg max-h-44 overflow-y-auto">{result.map(option => <button key={option.id} type="button" onClick={() => choosePricelist(index, option)} className="w-full rounded px-2 py-1.5 text-left text-xs hover:bg-accent"><span className="font-medium">{option.name}</span>{option.size ? <span className="text-muted-foreground"> · {option.size}</span> : null}<span className="float-right font-mono">{fmt(option.price)}</span></button>)}</div>}
-                </div>
-                <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground"><span>{line.pricelist_id ? `Selected: ${line.name}${line.size ? ` · ${line.size}` : ''}` : 'Use the exact matching hospital Pricelist item.'}</span>{line.pricelist_id && <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px]" onClick={() => { setItems(prev => prev.map((item, i) => i === index ? { ...item, pricelist_id: '', unit_price: 0 } : item)); setSearches(prev => ({ ...prev, [index]: '' })); }} disabled={busy}>Change match</Button>}</div>
-              </div>
-            );
-          })}
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Invoice Items</h4>
+              <span className="text-xs text-muted-foreground">{matchedCount}/{items.length} matched</span>
+            </div>
+            <div className="space-y-3">
+              {items.map((line, index) => {
+                const query = searches[index] ?? '';
+                const result = matches[index] ?? [];
+                const matched = Boolean(line.pricelist_id && Number(line.unit_price) > 0);
+                return (
+                  <div key={line.emergency_episode_item_id || index} className="rounded-lg border p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-medium truncate">{matched ? `${line.name}${line.size ? ` ${line.size}` : ''}` : 'Select a Pricelist item'}</p>
+                      {matched && <Badge variant="success" className="shrink-0 text-[10px]">{fmt(Number(line.unit_price))}/unit</Badge>}
+                    </div>
+                    <div className="relative">
+                      <Input
+                        placeholder="Search Pricelist…"
+                        value={query}
+                        onChange={e => setSearches(prev => ({ ...prev, [index]: e.target.value }))}
+                        disabled={busy || matched}
+                      />
+                      {result.length > 0 && <div className="absolute z-20 mt-1 w-full rounded-md border bg-popover p-1 shadow-lg max-h-44 overflow-y-auto">{result.map(option => <button key={option.id} type="button" onClick={() => choosePricelist(index, option)} className="w-full rounded px-2 py-1.5 text-left text-xs hover:bg-accent"><span className="font-medium">{option.name}</span>{option.size ? <span className="text-muted-foreground"> · {option.size}</span> : null}<span className="float-right font-mono">{fmt(option.price)}</span></button>)}</div>}
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                      <span className="truncate">{matched ? `From Pricelist: ${line.name}${line.size ? ` · ${line.size}` : ''}` : `Written line: ${line.source_text ?? line.name}`}</span>
+                      {matched && <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px]" onClick={() => changeMatch(index)} disabled={busy}>Change match</Button>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input type="number" min={1} value={line.qty} onChange={e => setQty(index, Number(e.target.value) || 1)} disabled={busy} className="w-24" />
+                      <span className="text-xs text-muted-foreground">Qty</span>
+                      <span className="ml-auto text-sm font-mono font-semibold">{fmt(Number(line.unit_price || 0) * Math.max(1, Number(line.qty || 1)))}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="bg-muted/30 rounded-lg p-4 border border-border flex items-center justify-between gap-4">
+              <div><p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Grand Total</p><p className="text-3xl font-black text-primary">{fmt(total)}</p></div>
+              <span className="text-xs text-muted-foreground">One pending invoice → Cashier</span>
+            </div>
+          </div>
         </div>
-        <DialogFooter><Button variant="outline" onClick={onClose} disabled={busy}>Close</Button><Button onClick={finish} disabled={busy || matchedCount !== items.length}>{busy ? 'Creating invoice…' : 'Create one invoice → Cashier'}</Button></DialogFooter>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose} disabled={busy}>Close</Button>
+          <Button variant="hero" onClick={finish} disabled={busy || items.length === 0 || matchedCount !== items.length}>
+            <Send className="h-4 w-4 mr-2" />
+            {busy ? 'Generating…' : 'Generate Invoice'}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

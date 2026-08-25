@@ -1075,7 +1075,7 @@ function NewPatientForm({
           </div>
           <p className="text-[10px] text-muted-foreground mt-2">
             {patientType === 'new' 
-              ? "Charge Registration Fee (₦1,000) and Monthly Consultation (₦3,000)."
+              ? "Charge Registration Fee (₦1,000) and Monthly Consultation (₦2,000)."
               : "No Registration Fee. Record any opening debt or credit from the physical card."}
           </p>
         </div>

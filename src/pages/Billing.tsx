@@ -59,6 +59,7 @@ const Billing = () => {
   const [feeStatuses, setFeeStatuses] = useState<PatientFeeStatus[]>([]);
   
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
+  const registrationPaid = Boolean(selectedPatient?.registration_fee_paid) || hasPaidFee(feeStatuses, 'registration');
   const consultationPaid = hasPaidFee(feeStatuses, 'consultation');
 
   useEffect(() => {
@@ -145,6 +146,18 @@ const Billing = () => {
     });
   };
 
+  const addRegistrationFee = () => {
+    if (!selectedPatientId || registrationPaid) return;
+    if (invoiceItems.some(item => item.category === 'registration')) {
+      toast.info('Registration fee already added', { description: 'Only one lifetime registration fee can be billed for the selected patient.' });
+      return;
+    }
+    setInvoiceItems((items) => [
+      ...items.filter(item => item.description.trim() || item.category !== 'general'),
+      { id: Date.now(), description: 'Registration Fee', qty: 1, price: 1000, category: 'registration' },
+    ]);
+  };
+
   const addConsultationFee = () => {
     if (!selectedPatientId || consultationPaid) return;
     if (invoiceItems.some(item => item.category === 'consultation')) {
@@ -173,6 +186,10 @@ const Billing = () => {
         return;
       }
 
+      if (registrationPaid && validItems.some(item => item.category === 'registration')) {
+        toast.info('Registration fee already paid', { description: 'This patient has already paid the lifetime registration fee.' });
+        return;
+      }
       if (consultationPaid && validItems.some(item => item.category === 'consultation')) {
         toast.info('Consultation fee already paid', { description: 'This patient has already paid the consultation fee for the current month.' });
         return;
@@ -354,6 +371,18 @@ const Billing = () => {
               </div>
 
               {selectedPatient && <VisitCardBar patientId={selectedPatient.id} />}
+
+              {selectedPatient && !registrationPaid && (
+                <div className="rounded-lg border border-amber-300/40 bg-amber-50/60 dark:bg-amber-950/20 p-3 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">Registration Fee</p>
+                    <p className="text-xs text-muted-foreground">Lifetime · ₦1,000</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={addRegistrationFee} className="h-8">
+                    <PlusCircle className="h-3.5 w-3.5 mr-1" /> Add registration fee
+                  </Button>
+                </div>
+              )}
 
               {selectedPatient && (
                 <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex flex-wrap items-center justify-between gap-3">

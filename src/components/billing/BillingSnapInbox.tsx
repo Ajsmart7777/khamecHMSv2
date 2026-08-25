@@ -456,66 +456,20 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
     ...line,
     source_text: line.source_text ?? line.name,
   })), [snap.matched_items]);
-  const [items, setItems] = useState<MatchedItem[]>(initialItems);
-  const [searches, setSearches] = useState<Record<number, string>>({});
-  const [matches, setMatches] = useState<Record<number, PricelistItem[]>>({});
+  const [items, setItems] = useState<MatchedItem[]>(initialItems.map(line => ({ ...line, pricelist_id: '', unit_price: Number(line.unit_price || 0) })));
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    const timers = Object.entries(searches).map(([key, query]) => {
-      const index = Number(key);
-      const clean = query.trim();
-      if (!clean) return null;
-      return window.setTimeout(async () => {
-        try {
-          const result = await fuzzyMatchPricelist(clean);
-          if (!cancelled) setMatches(prev => ({ ...prev, [index]: result }));
-        } catch (error) {
-          if (!cancelled) toast.error('Pricelist search failed', { description: error instanceof Error ? error.message : 'Please try again.' });
-        }
-      }, 150);
-    }).filter(Boolean) as number[];
-    return () => { cancelled = true; timers.forEach(window.clearTimeout); };
-  }, [searches]);
-
-  const choosePricelist = (index: number, item: PricelistItem) => {
-    setItems(prev => prev.map((line, i) => i === index ? {
-      ...line,
-      pricelist_id: item.id,
-      name: item.name,
-      size: item.size,
-      category: line.category === 'lab' ? 'lab' : item.category,
-      unit_price: item.price,
-    } : line));
-    setSearches(prev => ({ ...prev, [index]: '' }));
-    setMatches(prev => ({ ...prev, [index]: [] }));
-  };
-
-  const changeMatch = (index: number) => {
-    setItems(prev => prev.map((line, i) => i === index ? {
-      ...line,
-      pricelist_id: '',
-      name: line.source_text ?? line.name,
-      size: null,
-      unit_price: 0,
-    } : line));
-    setSearches(prev => ({ ...prev, [index]: '' }));
-    setMatches(prev => ({ ...prev, [index]: [] }));
+  const updateLine = (index: number, patch: Partial<MatchedItem>) => {
+    setItems(prev => prev.map((line, i) => i === index ? { ...line, ...patch } : line));
   };
 
   const setQty = (idx: number, qty: number) =>
-    setItems(prev => prev.map((line, i) => i === idx ? { ...line, qty: Math.max(1, qty) } : line));
+    updateLine(idx, { qty: Math.max(1, qty) });
 
   const total = items.reduce((sum, item) => sum + Number(item.unit_price || 0) * Math.max(1, Number(item.qty || 1)), 0);
-  const matchedCount = items.filter(item => item.pricelist_id && Number(item.unit_price) > 0).length;
 
   const finish = async () => {
     if (items.length === 0) { toast.error('This Emergency Episode draft has no lines'); return; }
-    if (matchedCount !== items.length) {
-      toast.error('Match every Emergency Episode line first', { description: 'Search and select one Pricelist item for each written emergency line.' });
-      return;
-    }
     setBusy(true);
     try {
       const { error } = await (supabase.rpc as any)('complete_emergency_billing_draft', {
@@ -543,9 +497,9 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
           <DialogTitle>Generate Invoice · {patientName}</DialogTitle>
         </DialogHeader>
 
-        <div className="rounded-lg border-2 border-amber-300 bg-amber-50/60 dark:bg-amber-950/20 p-3 text-xs">
+            <div className="rounded-lg border-2 border-amber-300 bg-amber-50/60 dark:bg-amber-950/20 p-3 text-xs">
           <p className="font-semibold text-amber-900 dark:text-amber-200">Emergency Episode Billing Draft</p>
-          <p className="mt-1 text-amber-800/80 dark:text-amber-200/80">The clinical team entered the lines below as plain text. Match every line to the Pricelist before generating one invoice. No payment has been recorded yet.</p>
+          <p className="mt-1 text-amber-800/80 dark:text-amber-200/80">These are the exact plain-text emergency lines recorded by the clinical team. Enter the billable description, quantity, and price manually. Pricelist matching is not required.</p>
         </div>
 
         <div className="grid gap-5 lg:grid-cols-2">
@@ -563,9 +517,7 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
                       <p className="text-sm font-medium whitespace-pre-wrap break-words">{line.source_text ?? line.name}</p>
                       <p className="mt-1 text-[11px] text-muted-foreground capitalize">{line.category} · quantity {line.qty || 1}</p>
                     </div>
-                    {line.pricelist_id && Number(line.unit_price) > 0
-                      ? <Badge variant="success" className="text-[10px]">Matched</Badge>
-                      : <Badge variant="warning" className="text-[10px]">Needs match</Badge>}
+                    <Badge variant="outline" className="text-[10px]">Written emergency line</Badge>
                   </div>
                 </div>
               ))}
@@ -574,41 +526,22 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Invoice Items</h4>
-              <span className="text-xs text-muted-foreground">{matchedCount}/{items.length} matched</span>
+              <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Billing Items</h4>
+              <span className="text-xs text-muted-foreground">Manual entry</span>
             </div>
             <div className="space-y-3">
-              {items.map((line, index) => {
-                const query = searches[index] ?? '';
-                const result = matches[index] ?? [];
-                const matched = Boolean(line.pricelist_id && Number(line.unit_price) > 0);
-                return (
-                  <div key={line.emergency_episode_item_id || index} className="rounded-lg border p-3 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium truncate">{matched ? `${line.name}${line.size ? ` ${line.size}` : ''}` : 'Select a Pricelist item'}</p>
-                      {matched && <Badge variant="success" className="shrink-0 text-[10px]">{fmt(Number(line.unit_price))}/unit</Badge>}
-                    </div>
-                    <div className="relative">
-                      <Input
-                        placeholder="Search Pricelist…"
-                        value={query}
-                        onChange={e => setSearches(prev => ({ ...prev, [index]: e.target.value }))}
-                        disabled={busy || matched}
-                      />
-                      {result.length > 0 && <div className="absolute z-20 mt-1 w-full rounded-md border bg-popover p-1 shadow-lg max-h-44 overflow-y-auto">{result.map(option => <button key={option.id} type="button" onClick={() => choosePricelist(index, option)} className="w-full rounded px-2 py-1.5 text-left text-xs hover:bg-accent"><span className="font-medium">{option.name}</span>{option.size ? <span className="text-muted-foreground"> · {option.size}</span> : null}<span className="float-right font-mono">{fmt(option.price)}</span></button>)}</div>}
-                    </div>
-                    <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-                      <span className="truncate">{matched ? `From Pricelist: ${line.name}${line.size ? ` · ${line.size}` : ''}` : `Written line: ${line.source_text ?? line.name}`}</span>
-                      {matched && <Button type="button" variant="ghost" size="sm" className="h-7 text-[11px]" onClick={() => changeMatch(index)} disabled={busy}>Change match</Button>}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Input type="number" min={1} value={line.qty} onChange={e => setQty(index, Number(e.target.value) || 1)} disabled={busy} className="w-24" />
-                      <span className="text-xs text-muted-foreground">Qty</span>
-                      <span className="ml-auto text-sm font-mono font-semibold">{fmt(Number(line.unit_price || 0) * Math.max(1, Number(line.qty || 1)))}</span>
-                    </div>
+              {items.map((line, index) => (
+                <div key={line.emergency_episode_item_id || index} className="rounded-lg border p-3 space-y-2">
+                  <Input value={line.name} onChange={e => updateLine(index, { name: e.target.value, description: e.target.value })} disabled={busy} placeholder="Billable description" />
+                  <div className="flex items-center gap-2">
+                    <Input type="number" min={1} value={line.qty} onChange={e => setQty(index, Number(e.target.value) || 1)} disabled={busy} className="w-24" />
+                    <span className="text-xs text-muted-foreground">Qty</span>
+                    <Input type="number" min={0} value={line.unit_price} onChange={e => updateLine(index, { unit_price: Math.max(0, Number(e.target.value) || 0), pricelist_id: '' })} disabled={busy} className="w-32" />
+                    <span className="text-xs text-muted-foreground">Unit price</span>
+                    <span className="ml-auto text-sm font-mono font-semibold">{fmt(Number(line.unit_price || 0) * Math.max(1, Number(line.qty || 1)))}</span>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
             <div className="bg-muted/30 rounded-lg p-4 border border-border flex items-center justify-between gap-4">
               <div><p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Grand Total</p><p className="text-3xl font-black text-primary">{fmt(total)}</p></div>
@@ -619,7 +552,7 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose} disabled={busy}>Close</Button>
-          <Button variant="hero" onClick={finish} disabled={busy || items.length === 0 || matchedCount !== items.length}>
+          <Button variant="hero" onClick={finish} disabled={busy || items.length === 0}>
             <Send className="h-4 w-4 mr-2" />
             {busy ? 'Generating…' : 'Generate Invoice'}
           </Button>

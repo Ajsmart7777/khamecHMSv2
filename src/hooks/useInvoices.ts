@@ -112,26 +112,6 @@ export function useInvoices() {
     try {
       const totalAmount = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
-      // Do not allow ordinary Billing actions to bypass an Emergency Episode
-      // draft. The approved complete_emergency_billing_draft RPC is the only
-      // path that may create the invoice while the draft is pending.
-      const { data: pendingEmergencyDraft, error: emergencyGateError } = await (supabase as any)
-        .from('snap_orders')
-        .select('id')
-        .eq('patient_id', patientId)
-        .eq('intent', 'emergency_billing_draft')
-        .eq('status', 'pending_billing')
-        .limit(1)
-        .maybeSingle();
-      if (emergencyGateError) {
-        logError('Emergency Billing gate check failed', emergencyGateError);
-        return null;
-      }
-      if (pendingEmergencyDraft) {
-        logError('Invoice creation blocked by pending Emergency Billing draft', { patientId, draftId: pendingEmergencyDraft.id });
-        return null;
-      }
-
       // Auto-tag invoice with sponsor info from patient so corporate/retainer
       // claims surface immediately in the Accountant module.
       const { data: patient } = await (supabase as any)

@@ -81,6 +81,7 @@ import { StaffSelector } from '@/components/reception/StaffSelector';
 import { CheckInDialog } from '@/components/visit/CheckInDialog';
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { useActiveVisit } from '@/hooks/useVisits';
+import { getPatientFeeStatuses, hasPaidFee, markPatientFeePaid, LIFETIME_REGISTRATION_PERIOD, monthStart, type PatientFeeStatus } from '@/lib/patientFees';
 import { EligibilityRequestButton } from '@/components/reception/EligibilityRequestButton';
 import { PreRegistrationVerificationPanel } from '@/components/reception/PreRegistrationVerificationPanel';
 import { StaffMigrationQueue } from '@/components/reception/StaffMigrationQueue';
@@ -381,8 +382,9 @@ function EmptyState({ onNewPatient }: { onNewPatient: () => void }) {
 
 function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { patient: Patient; onClose: () => void; onSendToNurse: (preferredDoctor?: 'doctor1' | 'doctor2') => void; refreshData: () => void }) {
   const { updatePatient, updatePatientStatus, deletePatient } = usePatients();
-  
-  
+  const { hasRole } = useAuth();
+  const [feeStatuses, setFeeStatuses] = useState<PatientFeeStatus[]>([]);
+  const [feeBusy, setFeeBusy] = useState(false);
   const [isSendDialogOpen, setIsSendDialogOpen] = useState(false);
   const [isCheckingFee, setIsCheckingFee] = useState(false);
 
@@ -398,7 +400,31 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
   // run partial payments on their own balance. Sponsored / insured / staff
   // settle via the sponsor.
   const canUseBalance = hasWallet(patient);
+  const isReception = hasRole(['receptionist']);
+  const registrationPaid = patient.registration_fee_paid || hasPaidFee(feeStatuses, 'registration');
+  const consultationPaid = hasPaidFee(feeStatuses, 'consultation');
 
+  useEffect(() => {
+    let active = true;
+    getPatientFeeStatuses(patient.id)
+      .then((statuses) => { if (active) setFeeStatuses(statuses); })
+      .catch((error) => logError('Failed to load patient fee status', error));
+    return () => { active = false; };
+  }, [patient.id]);
+
+  const markFeePaid = async (feeType: 'registration' | 'consultation') => {
+    if (!isReception || feeBusy) return;
+    setFeeBusy(true);
+    try {
+      await markPatientFeePaid(patient.id, feeType);
+      setFeeStatuses(await getPatientFeeStatuses(patient.id));
+      if (feeType === 'registration') await updatePatient(patient.id, { registration_fee_paid: true });
+      await refreshData();
+      toast.success(feeType === 'registration' ? 'Registration fee marked as paid' : 'Consultation fee marked as paid');
+    } catch (error: any) {
+      toast.error('Could not mark fee as paid', { description: error?.message || 'Please try again.' });
+    } finally { setFeeBusy(false); }
+  };
 
   const handleConfirmSend = () => {
     onSendToNurse(preferredDoctor === 'none' ? undefined : preferredDoctor);
@@ -489,6 +515,28 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
           </div>
         )}
       </div>
+
+      {isReception && (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold">Patient Fees</p>
+              <p className="text-xs text-muted-foreground">Reception payment acknowledgement</p>
+            </div>
+            <Badge variant="outline">{format(new Date(), 'MMMM yyyy')}</Badge>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex items-center justify-between gap-2 rounded-md border bg-background p-3">
+              <div><p className="text-xs font-medium">Registration Fee</p><p className="text-[11px] text-muted-foreground">Lifetime</p></div>
+              {registrationPaid ? <Badge variant="success">Paid</Badge> : <Button size="sm" onClick={() => markFeePaid('registration')} disabled={feeBusy}>Mark as Paid</Button>}
+            </div>
+            <div className="flex items-center justify-between gap-2 rounded-md border bg-background p-3">
+              <div><p className="text-xs font-medium">Consultation Fee</p><p className="text-[11px] text-muted-foreground">This month</p></div>
+              {consultationPaid ? <Badge variant="success">Paid</Badge> : <Button size="sm" onClick={() => markFeePaid('consultation')} disabled={feeBusy}>Mark as Paid</Button>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Actions */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -949,6 +997,7 @@ function NewPatientForm({
       enrollee_id: isInsurance ? primaryEnrollee : null,
       member_id_data: cleanMemberData,
       balance: 0,
+      registration_fee_paid: patientType === 'existing',
     } as any);
 
     if (result && (result as any).id && parseFloat(openingDebt) > 0) {

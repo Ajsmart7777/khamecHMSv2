@@ -37,6 +37,7 @@ import { SettleDischargeDialog } from '@/components/billing/SettleDischargeDialo
 import { BillingSnapInbox } from '@/components/billing/BillingSnapInbox';
 import { useActiveVisit } from '@/hooks/useVisits';
 import { CheckCircle2 } from 'lucide-react';
+import { getPatientFeeStatuses, hasPaidFee, type PatientFeeStatus } from '@/lib/patientFees';
 
 const Billing = () => {
   const { patients, loading, updatePatientStatus, refreshPatients } = usePatients();
@@ -55,8 +56,22 @@ const Billing = () => {
   const [isGenerating, setIsGenerating] = useState(false);
 
   const [corporateAccount, setCorporateAccount] = useState<CorporateAccount | null>(null);
+  const [feeStatuses, setFeeStatuses] = useState<PatientFeeStatus[]>([]);
   
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
+  const consultationPaid = hasPaidFee(feeStatuses, 'consultation');
+
+  useEffect(() => {
+    let active = true;
+    if (!selectedPatientId) {
+      setFeeStatuses([]);
+      return () => { active = false; };
+    }
+    getPatientFeeStatuses(selectedPatientId)
+      .then((statuses) => { if (active) setFeeStatuses(statuses); })
+      .catch((error) => { console.error('Failed to load patient fee status', error); if (active) setFeeStatuses([]); });
+    return () => { active = false; };
+  }, [selectedPatientId]);
 
   useEffect(() => {
     const fetchCorporate = async () => {
@@ -130,6 +145,18 @@ const Billing = () => {
     });
   };
 
+  const addConsultationFee = () => {
+    if (!selectedPatientId || consultationPaid) return;
+    if (invoiceItems.some(item => item.category === 'consultation')) {
+      toast.info('Consultation fee already added', { description: 'Only one consultation fee can be billed for the selected patient.' });
+      return;
+    }
+    setInvoiceItems((items) => [
+      ...items.filter(item => item.description.trim() || item.category !== 'general'),
+      { id: Date.now(), description: 'Monthly Consultation Fee', qty: 1, price: 3000, category: 'consultation' },
+    ]);
+  };
+
   const handleGenerateInvoice = async (payViaCorporate = false) => {
     if (isGenerating) return;
     setIsGenerating(true);
@@ -143,6 +170,11 @@ const Billing = () => {
 
       if (!selectedPatientId) {
         toast.error('No Patient', { description: 'Please select a patient first.' });
+        return;
+      }
+
+      if (consultationPaid && validItems.some(item => item.category === 'consultation')) {
+        toast.info('Consultation fee already paid', { description: 'This patient has already paid the consultation fee for the current month.' });
         return;
       }
 
@@ -322,6 +354,25 @@ const Billing = () => {
               </div>
 
               {selectedPatient && <VisitCardBar patientId={selectedPatient.id} />}
+
+              {selectedPatient && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">Consultation Fee</p>
+                    <p className="text-xs text-muted-foreground">Once per calendar month</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={consultationPaid ? 'success' : 'outline'}>
+                      {consultationPaid ? 'Paid this month' : 'Unpaid this month'}
+                    </Badge>
+                    {!consultationPaid && (
+                      <Button variant="outline" size="sm" onClick={addConsultationFee} className="h-8">
+                        <PlusCircle className="h-3.5 w-3.5 mr-1" /> Add consultation fee
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-4 border-t pt-6">
                 <div className="flex items-center justify-between">

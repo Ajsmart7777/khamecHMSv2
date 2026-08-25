@@ -214,6 +214,7 @@ export const handler: Handler = async (event) => {
         receive_store_transfer: ['uuid'],
         reject_store_transfer: ['uuid', 'text'],
         mark_item_unavailable: ['uuid', 'text'],
+        mark_patient_fee_paid: ['uuid', 'text', 'date'],
         refund_invoice_item: ['uuid', 'text'],
         dispense_inventory_invoice_item: ['uuid'],
         settle_invoice_atomic: ['uuid', 'numeric', 'numeric', 'numeric', 'text', 'text', 'boolean', 'boolean'],

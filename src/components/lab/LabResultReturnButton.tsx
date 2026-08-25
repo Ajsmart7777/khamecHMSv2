@@ -196,7 +196,13 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
       // in the ward; their result snap is still delivered to the requester.
       let routingWarning: string | null = null;
       try {
-        const newStatus = targetStation === 'nurse' ? 'with_nurse' : 'with_doctor';
+        // The Nurse must receive every completed lab result for the next
+        // clinical action. For Doctor 1/2 requests, the returned snap still
+        // carries the original doctor owner, while the shared patient status
+        // moves to Nurse so both queues can act without creating a duplicate
+        // order or result.
+        const doctorRequestedLab = senderRole === 'doctor1' || senderRole === 'doctor2';
+        const newStatus = doctorRequestedLab || targetStation === 'nurse' ? 'with_nurse' : 'with_doctor';
         const [{ data: patientRow, error: patientReadError }, { data: activeAdmission, error: admissionReadError }] = await Promise.all([
           supabase
             .from('patients')
@@ -279,7 +285,11 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
       }
 
       toast.success(entryMode === 'typed' ? 'Typed result sent back' : 'Result snap sent back', {
-        description: routingWarning ?? `Delivered to ${senderRole === 'nurse' ? 'the Nurse queue' : senderRole}.`,
+        description: routingWarning ?? (
+          senderRole === 'doctor1' || senderRole === 'doctor2'
+            ? `Delivered to ${senderRole === 'doctor1' ? 'Doctor 1' : 'Doctor 2'} and the Nurse queue.`
+            : `Delivered to ${senderRole === 'nurse' ? 'the Nurse queue' : senderRole}.`
+        ),
       });
       close();
       onDone?.();

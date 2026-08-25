@@ -18,11 +18,16 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { QuickDischargeButton } from '@/components/patient/QuickDischargeButton';
 import { EmergencyEpisodePatientPanel } from '@/components/visit/EmergencyEpisodePatientPanel';
+import { useSnapOrders } from '@/hooks/useSnapOrders';
 
 const Doctor = () => {
   const { patients, loading, refreshPatients, getPatientsByStatus } = usePatients();
   const { updatePatientStatus } = usePatients();
   const { role } = useAuth();
+  const { orders: returnedLabResults, refresh: refreshReturnedLabResults } = useSnapOrders({
+    station: 'doctor',
+    statuses: ['returned'],
+  });
   const [searchParams] = useSearchParams();
   const asParam = searchParams.get('as');
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
@@ -42,8 +47,31 @@ const Doctor = () => {
     ? baseQueue.filter(p => p.assigned_doctor === myDoctorKey)
     : baseQueue;
 
-  // Patients returned from lab are already status='with_doctor' so they appear in scopedQueue naturally.
-  const doctorQueue = scopedQueue;
+  // A completed lab result must remain owned by the original doctor while the
+  // patient is also returned to Nurse for the next action. Include the patient
+  // here when the returned result belongs to this doctor, even if the shared
+  // patient status is currently with_nurse. Set-based merging prevents a
+  // duplicate patient card when status is already with_doctor.
+  const returnedLabPatientIds = new Set(
+    myDoctorKey
+      ? returnedLabResults
+          .filter(order => String(order.original_sender_role || '').toLowerCase() === myDoctorKey)
+          .map(order => order.patient_id)
+      : [],
+  );
+  const returnedLabQueue = myDoctorKey
+    ? patients.filter(patient =>
+        returnedLabPatientIds.has(patient.id) && patient.assigned_doctor === myDoctorKey,
+      )
+    : [];
+  const doctorQueue = [...new Map(
+    [...scopedQueue, ...returnedLabQueue].map(patient => [patient.id, patient]),
+  ).values()];
+
+  useEffect(() => {
+    const timer = window.setInterval(() => { void refreshReturnedLabResults(); }, 4000);
+    return () => window.clearInterval(timer);
+  }, [refreshReturnedLabResults]);
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
   // Handler for global "Snap to Admit" triggers

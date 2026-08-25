@@ -18,7 +18,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { QuickDischargeButton } from '@/components/patient/QuickDischargeButton';
 import { EmergencyEpisodePatientPanel } from '@/components/visit/EmergencyEpisodePatientPanel';
-import { AdmittedPatientsPanel } from '@/components/visit/AdmittedPatientsPanel';
 
 const Doctor = () => {
   const { patients, loading, refreshPatients, getPatientsByStatus } = usePatients();
@@ -235,9 +234,6 @@ const Doctor = () => {
         </div>
       </div>
 
-      <div className="mt-6">
-        <AdmittedPatientsPanel sourceStation="doctor" title="Admitted Patients — Emergency Continuation" />
-      </div>
 
       {selectedPatient && selectedPatient.id && (
         <PatientHistoryDialog

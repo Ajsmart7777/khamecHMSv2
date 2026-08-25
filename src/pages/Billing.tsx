@@ -153,7 +153,7 @@ const Billing = () => {
     }
     setInvoiceItems((items) => [
       ...items.filter(item => item.description.trim() || item.category !== 'general'),
-      { id: Date.now(), description: 'Monthly Consultation Fee', qty: 1, price: 3000, category: 'consultation' },
+      { id: Date.now(), description: 'Monthly Consultation Fee', qty: 1, price: 2000, category: 'consultation' },
     ]);
   };
 

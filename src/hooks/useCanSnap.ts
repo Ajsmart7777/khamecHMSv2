@@ -63,7 +63,7 @@ export function useCanSnap(patientId: string | null | undefined) {
       
       const status = (p as any)?.status;
       const roleLabel = role ?? 'unauthenticated';
-      const isClinicalRole = ['nurse', 'doctor1', 'doctor2', 'doctor'].includes(roleLabel);
+      const isClinicalRole = ['nurse', 'doctor1', 'doctor2'].includes(roleLabel);
       
       // Clinical roles can always add snaps if status is awaiting_billing or admitted
       // This allows adding additional items after the first one is sent to billing.
@@ -125,7 +125,7 @@ function labelForStatus(s?: string) {
   switch (s) {
     case 'waiting':     return 'nurse (waiting)';
     case 'with_nurse':  return 'nurse';
-    case 'with_doctor': return 'doctor';
+    case 'with_doctor': return 'assigned doctor';
     case 'in_lab':      return 'lab';
     case 'at_pharmacy': return 'pharmacy';
     case 'admitted':    return 'ward nurse / doctor';

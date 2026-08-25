@@ -166,7 +166,7 @@ function LabOrderPreviewDialog({ snap, onClose, patientName }: { snap: SnapOrder
 
             <div className="flex items-center justify-between text-xs border-t pt-2">
               <span className="text-muted-foreground">Original Sender:</span>
-              <Badge variant="outline" className="text-[10px] capitalize">{snap.source_role || 'Unknown'}</Badge>
+              <Badge variant="outline" className="text-[10px] capitalize">{snap.original_sender_role || snap.source_role || 'Unknown'}</Badge>
             </div>
           </div>
         </div>

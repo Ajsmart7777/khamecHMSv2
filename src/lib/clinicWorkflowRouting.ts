@@ -19,8 +19,9 @@ export function ownerRoleForLabReturn(input: {
   assignedDoctor?: 'doctor1' | 'doctor2' | null;
 }): ClinicalOwnerRole {
   if (input.targetStation === 'nurse') return 'nurse';
-  if (input.senderRole === 'doctor2' || input.assignedDoctor === 'doctor2') return 'doctor2';
-  return 'doctor1';
+  if (input.senderRole === 'doctor2') return 'doctor2';
+  if (input.senderRole === 'doctor1') return 'doctor1';
+  return input.assignedDoctor ?? 'doctor1';
 }
 
 export function shouldPreserveWardLocation(status: string | null | undefined, hasActiveAdmission: boolean) {

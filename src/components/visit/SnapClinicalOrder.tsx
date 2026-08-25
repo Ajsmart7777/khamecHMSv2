@@ -19,6 +19,7 @@ import { useActiveVisit, openOrResumeVisit } from '@/hooks/useVisits';
 import { uploadVisitAttachment, VisitStation } from '@/hooks/useVisitAttachments';
 import { createSnapOrder, SnapOrderType, SnapTargetStation } from '@/hooks/useSnapOrders';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSearchParams } from 'react-router-dom';
 import { useCanSnap } from '@/hooks/useCanSnap';
 import { usePatients } from '@/contexts/PatientContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -57,6 +58,14 @@ export function SnapClinicalOrder({
   onSent,
 }: Props) {
   const { role } = useAuth();
+  const [searchParams] = useSearchParams();
+  const asParam = searchParams.get('as');
+  const senderRole: 'nurse' | 'doctor1' | 'doctor2' =
+    role === 'nurse' || role === 'doctor1' || role === 'doctor2'
+      ? role
+      : asParam === 'nurse' || asParam === 'doctor1' || asParam === 'doctor2'
+        ? asParam
+        : sourceStation === 'nurse' ? 'nurse' : 'doctor1';
   const { visit, refresh } = useActiveVisit(patientId);
   const { allowed, reason, loading: checking, debugLog } = useCanSnap(patientId);
   const { updatePatientStatus, getPatientById } = usePatients();
@@ -172,7 +181,9 @@ export function SnapClinicalOrder({
         visitId,
         orderType,
         targetStation: target,
-        sourceRole: role ?? sourceStation,
+        // Persist the actual clinical owner, not Admin when an administrator
+        // is viewing a station through the `as` workspace parameter.
+        sourceRole: senderRole,
         photoPath: path,
         note: note.trim(),
       });

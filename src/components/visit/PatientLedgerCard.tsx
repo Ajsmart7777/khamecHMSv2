@@ -447,6 +447,7 @@ export function PatientLedgerCard({
   const [visits, setVisits] = useState<LedgerVisit[]>([]);
   const [unassignedRows, setUnassignedRows] = useState<LedgerRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [attachmentText, setAttachmentText] = useState<Record<string, string>>({});
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -459,7 +460,10 @@ export function PatientLedgerCard({
 
   // Load everything
   const load = useMemo(() => async (showSpinner = false) => {
-    if (showSpinner) setLoading(true);
+    if (showSpinner) {
+      setLoading(true);
+      setLoadError(null);
+    }
 
     const { data: visitList } = await supabase
       .from('visits')
@@ -615,6 +619,7 @@ export function PatientLedgerCard({
           id: episode.id,
           patient_id: episode.patient_id,
           visit_id: ledgerVisitId,
+          invoice_id: episode.invoice_id ?? null,
           order_type: 'treatment',
           target_station: 'doctor',
           source_role: 'nurse',
@@ -669,9 +674,9 @@ export function PatientLedgerCard({
           }
         }
       });
-      const invoice = invoicesWithItems.find((candidate: any) => String(candidate.id) === String(episode.invoice_id));
-      if (invoice?.id) invoiceIdToKey.set(String(invoice.id), episodeKey);
-      linkedSourceToKey.set(`emergency:${episode.id}`, episodeKey);
+      // Emergency invoice/order linkage is carried on the emitted row data and
+      // resolved later by buildLinkedOrderGroups(), where its maps are scoped.
+      // Do not write to that helper's local maps from this loader.
     });
 
     // Typed Pharmacy orders are written to prescriptions and normally also to
@@ -923,11 +928,19 @@ export function PatientLedgerCard({
     );
     setUnassignedRows(orphaned);
     setVisits(built);
+    setLoadError(null);
     setLoading(false);
   }, [patient.id]);
 
   useEffect(() => {
-    load(true);
+    let active = true;
+    void load(true).catch((error: any) => {
+      if (!active) return;
+      console.error('Patient ledger card load failed', error);
+      setLoadError(error?.message || 'The patient ledger could not be loaded. Please retry.');
+      setLoading(false);
+    });
+    return () => { active = false; };
   }, [load]);
 
   // Realtime — refresh on any change to related tables for this patient/visits
@@ -935,7 +948,9 @@ export function PatientLedgerCard({
     let debounce: ReturnType<typeof setTimeout> | null = null;
     const bump = () => {
       if (debounce) clearTimeout(debounce);
-      debounce = setTimeout(() => load(false), 250);
+      debounce = setTimeout(() => {
+        void load(false).catch((error: any) => console.error('Patient ledger refresh failed', error));
+      }, 250);
     };
 
     const patientFilter = `patient_id=eq.${patient.id}`;
@@ -1132,6 +1147,20 @@ export function PatientLedgerCard({
         {loading ? (
           <div className="flex items-center justify-center py-12 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading card…
+          </div>
+        ) : loadError ? (
+          <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+            <AlertTriangle className="h-6 w-6 text-destructive" />
+            <p className="text-sm text-destructive">{loadError}</p>
+            <Button variant="outline" size="sm" onClick={() => {
+              setLoadError(null);
+              setLoading(true);
+              void load(true).catch((error: any) => {
+                console.error('Patient ledger retry failed', error);
+                setLoadError(error?.message || 'The patient ledger could not be loaded. Please retry.');
+                setLoading(false);
+              });
+            }}>Retry loading card</Button>
           </div>
         ) : visits.length === 0 && unassignedRows.length === 0 ? (
           <div className="p-12 text-center text-muted-foreground text-sm">

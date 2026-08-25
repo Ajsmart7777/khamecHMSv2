@@ -28,36 +28,66 @@ export function InAppCameraDialog({ open, onCancel, onCapture }: Props) {
     setReady(false);
     setError(null);
 
+    const stopStream = () => {
+      const current = streamRef.current;
+      if (current) current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
+    };
+
+    // Some Android tablets reject ideal 1920x1080 constraints with
+    // NotReadableError / “Cannot open video source”, even though the camera is
+    // available. Try the requested camera first, then progressively relax the
+    // constraints so low-end tablet cameras can still capture a usable snap.
+    const constraints: MediaStreamConstraints[] = [
+      { video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false },
+      { video: { facingMode: { ideal: facing } }, audio: false },
+      { video: true, audio: false },
+    ];
+
     (async () => {
       try {
         if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error('Camera not supported on this device/browser');
+          throw new Error('Camera is not supported on this device/browser.');
         }
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-          audio: false,
-        });
+        stopStream();
+        let stream: MediaStream | null = null;
+        let lastError: unknown = null;
+        for (const requestedConstraints of constraints) {
+          try {
+            stream = await navigator.mediaDevices.getUserMedia(requestedConstraints);
+            break;
+          } catch (attemptError) {
+            lastError = attemptError;
+          }
+        }
+        if (!stream) throw lastError ?? new Error('Could not open camera');
         if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
+          stream.getTracks().forEach((track) => track.stop());
           return;
         }
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play().catch(() => {});
-          setReady(true);
+          if (!cancelled) setReady(true);
         }
       } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? 'Could not open camera');
+        if (!cancelled) {
+          const name = String(e?.name ?? '');
+          const message = name === 'NotAllowedError' || name === 'PermissionDeniedError'
+            ? 'Camera permission is blocked. Allow camera access in the tablet browser settings and try again.'
+            : name === 'NotReadableError' || name === 'TrackStartError'
+              ? 'The camera is busy or unavailable. Close other camera apps, then try again.'
+              : e?.message ?? 'Could not open camera';
+          setError(message);
+        }
       }
     })();
 
     return () => {
       cancelled = true;
-      const s = streamRef.current;
-      if (s) s.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-      if (videoRef.current) videoRef.current.srcObject = null;
+      stopStream();
     };
   }, [open, facing]);
 
@@ -99,6 +129,7 @@ export function InAppCameraDialog({ open, onCancel, onCapture }: Props) {
             playsInline
             muted
             autoPlay
+            disablePictureInPicture
             className="w-full h-full object-contain bg-black"
           />
           {!ready && !error && (

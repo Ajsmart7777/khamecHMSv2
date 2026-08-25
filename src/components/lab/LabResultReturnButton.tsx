@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react';
-import { Camera, FileText, PenLine, Send, X } from 'lucide-react';
+import { Camera, Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -37,9 +36,9 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number, message: string): P
 }
 
 /**
- * Lab tech can return the result as a photographed paper or as typed text.
- * Both paths create the same lab_result snap and route it back to the original
- * requester, so Doctor, Nurse, and patient-ledger views remain consistent.
+ * Laboratory results are returned as photographed paper snaps and routed back
+ * to the exact original requester, so Doctor, Nurse, and patient-ledger views
+ * remain consistent.
  */
 export function LabResultReturnButton({ parentSnap, onDone }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -333,78 +332,19 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
             </TooltipTrigger>
             {!allowed && reason && <TooltipContent side="top" className="max-w-xs">{reason}</TooltipContent>}
           </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="inline-block">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={openTypedEntry}
-                  disabled={!allowed || checking}
-                  aria-disabled={!allowed}
-                >
-                  {allowed ? <PenLine className="h-4 w-4 mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
-                  Type Result
-                </Button>
-              </span>
-            </TooltipTrigger>
-            {!allowed && reason && <TooltipContent side="top" className="max-w-xs">{reason}</TooltipContent>}
-          </Tooltip>
         </div>
       </TooltipProvider>
 
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open && !busy) close(); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{entryMode === 'typed' ? 'Type Lab Result' : 'Send Lab Result Snap'}</DialogTitle>
+            <DialogTitle>Send Lab Result Snap</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="flex items-center gap-2 rounded-lg bg-muted/40 p-1">
-              <Button
-                type="button"
-                size="sm"
-                variant={entryMode === 'typed' ? 'default' : 'ghost'}
-                className="flex-1"
-                onClick={() => setEntryMode('typed')}
-                disabled={busy}
-              >
-                <FileText className="h-4 w-4 mr-1" /> Type
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={entryMode === 'snap' ? 'default' : 'ghost'}
-                className="flex-1"
-                onClick={openSnapEntry}
-                disabled={busy}
-              >
-                <Camera className="h-4 w-4 mr-1" /> Snap
-              </Button>
-            </div>
-
-            {entryMode === 'typed' ? (
-              <div className="space-y-2">
-                <Label htmlFor={`typed-lab-result-${parentSnap.id}`}>Laboratory result</Label>
-                <Textarea
-                  id={`typed-lab-result-${parentSnap.id}`}
-                  value={typedResult}
-                  onChange={(e) => setTypedResult(e.target.value)}
-                  placeholder="Enter the test result, measurements, reference range, and interpretation…"
-                  className="min-h-[220px] resize-y"
-                  maxLength={10000}
-                  disabled={busy}
-                  autoFocus
-                />
-                <p className="text-xs text-muted-foreground">
-                  Type the complete result clearly. It will be delivered to the requesting {parentSnap.source_role || 'clinical'} workspace and shown in the patient record.
-                </p>
+            {previewUrl && (
+              <div className="rounded-lg overflow-hidden bg-muted flex items-center justify-center max-h-[40vh]">
+                <img src={previewUrl} alt="Lab result preview" className="max-h-[40vh] object-contain" />
               </div>
-            ) : (
-              previewUrl && (
-                <div className="rounded-lg overflow-hidden bg-muted flex items-center justify-center max-h-[40vh]">
-                  <img src={previewUrl} alt="Lab result preview" className="max-h-[40vh] object-contain" />
-                </div>
-              )
             )}
 
             <div>
@@ -419,16 +359,16 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              This result will be delivered back to the requesting <span className="font-medium">{parentSnap.source_role || 'clinical'}</span> workspace.
+              This result snap will be delivered back to the original requesting workspace.
             </p>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={close} disabled={busy}>
               <X className="h-4 w-4 mr-1" /> Cancel
             </Button>
-            <Button onClick={submit} disabled={busy || (entryMode === 'typed' && typedResult.trim().length < 3) || (entryMode === 'snap' && !file)}>
+            <Button onClick={submit} disabled={busy || !file}>
               <Send className="h-4 w-4 mr-1" />
-              {busy ? 'Sending…' : entryMode === 'typed' ? 'Send Typed Result' : 'Send Result Snap'}
+              {busy ? 'Sending…' : 'Send Result Snap'}
             </Button>
           </DialogFooter>
         </DialogContent>

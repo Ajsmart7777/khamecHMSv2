@@ -186,7 +186,7 @@ export function InsuranceClaimsPanel() {
         return !(patientInvoices.length > 0 && patientInvoices.every(i => Boolean(i.claim_submitted_at)));
       })
       .filter(p => {
-        const claims = claimVisitByPatient[p.id] || [];
+        const claims = claimVisitsByPatient[p.id] || [];
         // A card remains active only while at least one monthly claim visit is
         // unresolved. Historical settled/rejected visits remain in the ledger
         // but never keep an active card visible.

@@ -44,7 +44,7 @@ interface PatientContextType {
   patients: Patient[];
   loading: boolean;
   error: string | null;
-  refreshPatients: () => Promise<void>;
+  refreshPatients: (options?: { background?: boolean }) => Promise<void>;
   addPatient: (patient: Omit<Patient, 'id' | 'registered_at' | 'updated_at' | 'created_at'>) => Promise<Patient | null>;
   deletePatient: (patientId: string) => Promise<boolean>;
   updatePatientStatus: (patientId: string, status: PatientStatus, opts?: { guardInpatient?: boolean }) => Promise<boolean>;
@@ -61,9 +61,10 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const location = useLocation();
 
-  const fetchPatients = useCallback(async () => {
+  const fetchPatients = useCallback(async (options?: { background?: boolean }) => {
+    const isBackgroundRefresh = options?.background === true;
     try {
-      setLoading(true);
+      if (!isBackgroundRefresh) setLoading(true);
       const { data, error: fetchError } = await supabase
         .from('patients')
         .select('*')
@@ -78,12 +79,12 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       logError('Error fetching patients', err);
       setError('Failed to fetch patients');
     } finally {
-      setLoading(false);
+      if (!isBackgroundRefresh) setLoading(false);
     }
   }, []);
 
-  const refreshPatients = useCallback(async () => {
-    await fetchPatients();
+  const refreshPatients = useCallback(async (options?: { background?: boolean }) => {
+    await fetchPatients(options);
   }, [fetchPatients]);
 
   const addPatient = useCallback(async (patientData: Omit<Patient, 'id' | 'registered_at' | 'updated_at' | 'created_at'>): Promise<Patient | null> => {

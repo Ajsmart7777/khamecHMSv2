@@ -91,11 +91,11 @@ const NurseStation = () => {
           return next;
         });
       }
-      void refreshPatients();
+      void refreshPatients({ background: true });
     };
     window.addEventListener('hms:patient-status-changed', onPatientStatusChanged);
     const interval = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void refreshPatients();
+      if (document.visibilityState === 'visible') void refreshPatients({ background: true });
     }, 4000);
     return () => {
       window.removeEventListener('hms:patient-status-changed', onPatientStatusChanged);

@@ -179,7 +179,14 @@ export function InsuranceClaimsPanel() {
       .filter(p => (typeFilter === 'all' || p.account_type === typeFilter))
       .filter(p => (invoicesByPatient[p.id]?.length || 0) > 0)
       .filter(p => {
-        const claims = claimVisitsByPatient[p.id] || [];
+        const patientInvoices = invoicesByPatient[p.id] || [];
+        // Once every invoice in the active claim has been submitted, remove
+        // the patient from this active workspace. The invoice, visit, and
+        // ledger history remain preserved; partial submissions stay visible.
+        return !(patientInvoices.length > 0 && patientInvoices.every(i => Boolean(i.claim_submitted_at)));
+      })
+      .filter(p => {
+        const claims = claimVisitByPatient[p.id] || [];
         // A card remains active only while at least one monthly claim visit is
         // unresolved. Historical settled/rejected visits remain in the ledger
         // but never keep an active card visible.
@@ -252,8 +259,8 @@ export function InsuranceClaimsPanel() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Only insurance patients (HMO / NHIA / KATCHMA) who have been <b>discharged</b> this month appear here.
-        Click a card to see all visits and invoices with a full breakdown of services provided to the patient.
+        Only insurance patients (HMO / NHIA / KATCHMA) who have been <b>discharged</b> this month and still have an unsubmitted invoice appear here.
+        Once all invoices are submitted, the card leaves this active workspace while its full visit and invoice history remains preserved.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -275,7 +282,7 @@ export function InsuranceClaimsPanel() {
         <div className="text-center py-10"><Loader2 className="h-5 w-5 mx-auto animate-spin" /></div>
       ) : visiblePatients.length === 0 ? (
         <div className="text-center py-10 border rounded-lg text-muted-foreground text-sm">
-          No discharged insurance patient with a visit in this month.
+          No discharged insurance patient with an unsubmitted invoice in this month.
         </div>
       ) : (
         <div className="space-y-5">

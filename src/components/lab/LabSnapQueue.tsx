@@ -7,6 +7,7 @@ import { SnapFulfillDialog } from '@/components/pharmacy/PharmacySnapQueue';
 import { LabResultReturnButton } from '@/components/lab/LabResultReturnButton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 
 const fmt = (n: number) => `₦${n.toLocaleString()}`;
 
@@ -95,6 +96,8 @@ export function LabSnapQueue() {
 
 function LabOrderPreviewDialog({ snap, onClose, patientName }: { snap: SnapOrder; onClose: () => void; patientName: string }) {
   const [imgUrl, setImgUrl] = useState<string | null>(null);
+  const [typedDiagnosis, setTypedDiagnosis] = useState<string | null>(null);
+  const [typedTests, setTypedTests] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +106,29 @@ function LabOrderPreviewDialog({ snap, onClose, patientName }: { snap: SnapOrder
     }
     return () => { cancelled = true; };
   }, [snap.photo_path]);
+
+  const linkedLabRequestId = snap.ocr_text?.startsWith('LINKED_LAB_REQUEST:')
+    ? snap.ocr_text.slice('LINKED_LAB_REQUEST:'.length)
+    : null;
+
+  useEffect(() => {
+    let cancelled = false;
+    setTypedDiagnosis(null);
+    setTypedTests([]);
+    if (!linkedLabRequestId) return () => { cancelled = true; };
+    (async () => {
+      const { data, error } = await supabase
+        .from('lab_requests')
+        .select('diagnosis, tests')
+        .eq('id', linkedLabRequestId)
+        .maybeSingle();
+      if (!cancelled && !error && data) {
+        setTypedDiagnosis(typeof data.diagnosis === 'string' ? data.diagnosis.trim() || null : null);
+        setTypedTests(Array.isArray(data.tests) ? data.tests.map(String).filter(Boolean) : []);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [linkedLabRequestId]);
 
   const total = (snap.matched_items ?? []).reduce((s, it) => s + it.unit_price * it.qty, 0);
   const isTyped = snap.ocr_text && (snap.ocr_text.startsWith('LINKED_PRESCRIPTION:') || snap.ocr_text.startsWith('LINKED_LAB_REQUEST:'));
@@ -126,11 +152,26 @@ function LabOrderPreviewDialog({ snap, onClose, patientName }: { snap: SnapOrder
 
           <div className="space-y-4">
             {isTyped && (
-              <div className="bg-module-laboratory/10 border border-module-laboratory/20 rounded-lg p-3">
-                <p className="text-xs font-bold text-module-laboratory uppercase mb-2 tracking-wider">Clinical Details (Typed Order)</p>
-                <div className="text-xs space-y-2 whitespace-pre-wrap font-medium">
-                  {snap.note}
-                </div>
+              <div className="bg-module-laboratory/10 border border-module-laboratory/20 rounded-lg p-3 space-y-3">
+                <p className="text-xs font-bold text-module-laboratory uppercase tracking-wider">Clinical Details (Typed Order)</p>
+                {typedDiagnosis && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase text-muted-foreground">Diagnosis</p>
+                    <p className="text-sm font-medium whitespace-pre-wrap">{typedDiagnosis}</p>
+                  </div>
+                )}
+                {typedTests.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase text-muted-foreground">Requested Tests</p>
+                    <p className="text-sm font-medium whitespace-pre-wrap">{typedTests.join(', ')}</p>
+                  </div>
+                )}
+                {snap.note && (
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase text-muted-foreground">Order Details</p>
+                    <p className="text-xs whitespace-pre-wrap font-medium">{snap.note}</p>
+                  </div>
+                )}
               </div>
             )}
 

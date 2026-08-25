@@ -82,8 +82,29 @@ try {
     console.log(`CRDB migration already applied: ${version}`);
     process.exit(0);
   }
-  // Every DDL statement is deliberately sent in its own implicit transaction.
-  for (const statement of required) await client.query(statement);
+  // CockroachDB runs DDL through background schema-change jobs. Each DDL
+  // statement is sent separately, and trigger/function replacements are retried
+  // while the preceding DROP/TRIGGER job finishes propagating.
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const ddl = /^(DROP TRIGGER|CREATE TRIGGER|CREATE OR REPLACE FUNCTION|CREATE TABLE)/i;
+  const retryableSchemaChange = /already exists|active trigger|schema change|descriptor|being modified|only implemented in the declarative schema changer/i;
+  for (const statement of required) {
+    let lastError;
+    for (let attempt = 1; attempt <= 12; attempt += 1) {
+      try {
+        await client.query(statement);
+        lastError = undefined;
+        break;
+      } catch (error) {
+        lastError = error;
+        const message = error instanceof Error ? error.message : String(error);
+        if (!ddl.test(statement) || !retryableSchemaChange.test(message) || attempt === 12) throw error;
+        await sleep(Math.min(2500, 350 + attempt * 250));
+      }
+    }
+    if (lastError) throw lastError;
+    if (/^(DROP TRIGGER|CREATE TRIGGER)/i.test(statement)) await sleep(1000);
+  }
   await client.query('INSERT INTO public.hms_schema_migrations(version) VALUES ($1)', [version]);
   console.log(`CRDB migration applied: ${version}`);
 } finally {

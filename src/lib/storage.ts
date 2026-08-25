@@ -89,10 +89,17 @@ export async function uploadFile(
     };
 
     let data: unknown, error: unknown;
+    const signUpload = () => supabase.functions.invoke('r2-sign-upload', {
+      body: { bucket, path, contentType: type },
+    });
     try {
-      ({ data, error } = await supabase.functions.invoke('r2-sign-upload', {
-        body: { bucket, path, contentType: type },
-      }));
+      ({ data, error } = await signUpload());
+      // Retry once through the normal session-refresh path. We never bypass
+      // the server-side token check when a tablet has a stale PWA session.
+      if (error && /unauthorized|401/i.test(await readFnError(error))) {
+        await supabase.auth.refreshSession();
+        ({ data, error } = await signUpload());
+      }
     } catch (e) {
       try {
         await uploadThroughServer();
@@ -109,7 +116,11 @@ export async function uploadFile(
         await uploadThroughServer();
         return path;
       } catch (fallbackError) {
-        throw new Error(`Step 1/2 (sign upload): ${await readFnError(error || fallbackError)}`);
+        const detail = await readFnError(error || fallbackError);
+        if (/unauthorized|401/i.test(detail)) {
+          throw new Error('Your session has expired on this tablet. Please sign out, sign in again, and retry the snap.');
+        }
+        throw new Error(`Step 1/2 (sign upload): ${detail}`);
       }
     }
 

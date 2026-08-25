@@ -1,5 +1,5 @@
 [build]
-  command = "pnpm build"
+  command = "node scripts/apply_emergency_billing_netlify.mjs && pnpm build"
   publish = "dist"
   functions = "netlify/functions"
 

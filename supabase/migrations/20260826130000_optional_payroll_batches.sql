@@ -29,19 +29,6 @@ CREATE INDEX IF NOT EXISTS payroll_payment_batches_period_idx
 CREATE INDEX IF NOT EXISTS payroll_payments_batch_idx
   ON public.payroll_payments (batch_id, created_at DESC);
 
-ALTER TABLE public.payroll_payment_batches ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Payroll roles can read payment batches"
-  ON public.payroll_payment_batches FOR SELECT TO authenticated
-  USING (has_any_role(auth.uid(), ARRAY['billing'::app_role, 'accountant'::app_role, 'admin'::app_role]));
-
-CREATE POLICY "Payroll roles can insert payment batches"
-  ON public.payroll_payment_batches FOR INSERT TO authenticated
-  WITH CHECK (has_any_role(auth.uid(), ARRAY['billing'::app_role, 'accountant'::app_role, 'admin'::app_role]));
-
-CREATE POLICY "Payroll roles can update payment batches"
-  ON public.payroll_payment_batches FOR UPDATE TO authenticated
-  USING (has_any_role(auth.uid(), ARRAY['billing'::app_role, 'accountant'::app_role, 'admin'::app_role]));
-
-GRANT SELECT, INSERT, UPDATE ON public.payroll_payment_batches TO authenticated;
-GRANT SELECT, INSERT, UPDATE ON public.payroll_payment_batches TO service_role;
+-- The production Cockroach gateway sets hms.user_id/hms.user_role and performs
+-- role checks before forwarding table queries. Do not add Supabase auth-schema
+-- policies here: the Cockroach production database intentionally has no auth schema.

@@ -119,7 +119,7 @@ const Laboratory = () => {
     }
   };
 
-  const handleSendToDoctor = async (request: LabRequest) => {
+  const handleSendToClinicalTeam = async (request: LabRequest) => {
     const patient = getPatient(request.patient_id);
     if (!patient) return;
     // If the patient has no assigned doctor yet, ask the lab tech which doctor to route to.
@@ -128,12 +128,10 @@ const Laboratory = () => {
       setDoctorRoutingRequest(request);
       return;
     }
-    const success = await updatePatientStatus(patient.id, 'with_doctor');
+    const success = await updatePatientStatus(patient.id, 'with_clinical_team');
     if (success) {
       toast.success('Results Sent', {
-        description: `Lab results for ${patient.first_name} ${patient.last_name} routed to ${
-          patient.assigned_doctor === 'doctor1' ? 'Doctor 1' : 'Doctor 2'
-        }.`,
+        description: `Lab results for ${patient.first_name} ${patient.last_name} are now available to Nurse, Doctor 1, and Doctor 2.`,
       });
     }
   };
@@ -150,12 +148,10 @@ const Laboratory = () => {
       toast.error('Failed to assign doctor');
       return;
     }
-    const success = await updatePatientStatus(patient.id, 'with_doctor');
+    const success = await updatePatientStatus(patient.id, 'with_clinical_team');
     if (success) {
       toast.success('Results Sent', {
-        description: `Lab results for ${patient.first_name} ${patient.last_name} routed to ${
-          routingDoctor === 'doctor1' ? 'Doctor 1' : 'Doctor 2'
-        }.`,
+        description: `Lab results for ${patient.first_name} ${patient.last_name} are now available to Nurse, Doctor 1, and Doctor 2.`,
       });
       setDoctorRoutingRequest(null);
       setRoutingDoctor('');
@@ -297,13 +293,13 @@ const Laboratory = () => {
       <Dialog open={!!doctorRoutingRequest} onOpenChange={(open) => !open && setDoctorRoutingRequest(null)}>
         <DialogContent className="sm:max-w-md animate-scale-in">
           <DialogHeader>
-            <DialogTitle>Route to Doctor</DialogTitle>
+            <DialogTitle>Route to Clinical Team</DialogTitle>
             <DialogDescription>
-              This patient has no assigned doctor yet. Select which doctor should receive the lab results.
+              This patient has no assigned doctor yet. The result will be visible to Nurse, Doctor 1, and Doctor 2.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-2">
-            <label className="text-sm font-medium">Assign Doctor</label>
+            <label className="text-sm font-medium">Optional Doctor Assignment</label>
             <Select value={routingDoctor} onValueChange={(v) => setRoutingDoctor(v as 'doctor1' | 'doctor2')}>
               <SelectTrigger><SelectValue placeholder="Select Doctor 1 or Doctor 2" /></SelectTrigger>
               <SelectContent>
@@ -316,7 +312,7 @@ const Laboratory = () => {
             <Button variant="outline" onClick={() => setDoctorRoutingRequest(null)}>Cancel</Button>
             <Button onClick={handleConfirmDoctorRouting} disabled={!routingDoctor}>
               <Send className="h-4 w-4 mr-1" />
-              Send to Doctor
+                Send to Clinical Team
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -30,7 +30,7 @@ import { TypedLabRequestEditor } from '@/components/lab/TypedLabRequestEditor';
 
 
 type OrderType = 'prescription' | 'lab' | 'treatment';
-type Target = 'pharmacy' | 'lab' | 'nurse' | 'doctor';
+type Target = 'pharmacy' | 'lab' | 'nurse';
 
 interface Line {
   pricelist_id: string;
@@ -47,7 +47,7 @@ interface Props {
   patientId: string;
   patientName: string;
   patientBalance: number;
-  sourceStation: 'nurse' | 'doctor';
+  sourceStation: 'nurse' | 'doctor1' | 'doctor2';
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: () => void;

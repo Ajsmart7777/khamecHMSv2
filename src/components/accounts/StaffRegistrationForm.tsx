@@ -324,7 +324,7 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                 <ShieldCheck className="h-4 w-4 text-primary mt-0.5" />
                 <div>
                   <Label className="text-sm font-medium">System User (has login)</Label>
-                  <p className="text-xs text-muted-foreground">Enable for staff who log into the app (nurse, reception, doctor, etc.)</p>
+                  <p className="text-xs text-muted-foreground">Enable for staff who log into the app (Nurse, Reception, Doctor 1, Doctor 2, etc.)</p>
                 </div>
               </div>
               <Switch checked={form.isSystemUser} onCheckedChange={v => setForm(f => ({ ...f, isSystemUser: v, role: v ? f.role : '' }))} />

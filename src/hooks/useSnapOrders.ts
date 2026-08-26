@@ -5,7 +5,7 @@ import { getFileUrl } from '@/lib/storage';
 import { toast } from 'sonner';
 
 export type SnapOrderType = 'prescription' | 'lab' | 'treatment' | 'lab_result';
-export type SnapTargetStation = 'pharmacy' | 'lab' | 'doctor' | 'nurse' | 'billing';
+export type SnapTargetStation = 'pharmacy' | 'lab' | 'clinical_team' | 'nurse' | 'billing';
 export type SnapStatus =
   | 'pending_billing' | 'awaiting_payment' | 'paid' | 'fulfilled' | 'rejected' | 'cancelled'
   | 'returned' | 'acknowledged';

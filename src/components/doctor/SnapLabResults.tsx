@@ -3,7 +3,6 @@ import { FlaskConical, Image as ImageIcon, FileText, Archive, Eye } from 'lucide
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { SnapOrder, snapPhotoUrl } from '@/hooks/useSnapOrders';
 
@@ -12,11 +11,10 @@ import { SnapOrder, snapPhotoUrl } from '@/hooks/useSnapOrders';
  * both typed and photographed returns as snap_orders with order_type = 'lab'
  * and status = 'returned'; older lab_result rows remain supported.
  *
- * Once seen, a result can be archived (status -> 'acknowledged') so it stops
- * showing up as "New" in the Returned from Lab inbox.
+ * A clinical acknowledgement applies to the patient's shared result set, so
+ * Nurse, Doctor 1, and Doctor 2 stop seeing the same returned result together.
  */
 export function SnapLabResults({ patientId }: { patientId: string }) {
-  const { user } = useAuth();
   const [items, setItems] = useState<SnapOrder[]>([]);
   const [urls, setUrls] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
@@ -73,13 +71,12 @@ export function SnapLabResults({ patientId }: { patientId: string }) {
 
   const archive = async (id: string) => {
     setBusy(id);
-    const { error } = await supabase
-      .from('snap_orders')
-      .update({ status: 'acknowledged', ack_by: user?.id, ack_at: new Date().toISOString() } as any)
-      .eq('id', id);
+    const { error } = await supabase.rpc('acknowledge_clinical_team_lab_results', {
+      _patient_id: patientId,
+    });
     setBusy(null);
     if (error) { toast.error(error.message); return; }
-    toast.success('Result archived');
+    toast.success('Clinical result acknowledged for all workspaces');
     refresh();
   };
 

@@ -28,7 +28,7 @@ import {
 const moduleIcons = {
   Reception: Users,
   Nurse: Activity,
-  Doctor: Stethoscope,
+  'Clinical Team': Stethoscope,
   Lab: FlaskConical,
   Billing: Receipt,
   Pharmacy: Pill,
@@ -38,10 +38,10 @@ const moduleIcons = {
   Admin: Shield,
 };
 
-const moduleVariants: Record<string, 'reception' | 'nurse' | 'doctor' | 'lab' | 'billing' | 'pharmacy' | 'store' | 'account' | 'auditing' | 'admin'> = {
+const moduleVariants: Record<string, 'reception' | 'nurse' | 'clinical' | 'lab' | 'billing' | 'pharmacy' | 'store' | 'account' | 'auditing' | 'admin'> = {
   Reception: 'reception',
   Nurse: 'nurse',
-  Doctor: 'doctor',
+  'Clinical Team': 'clinical',
   Lab: 'lab',
   Billing: 'billing',
   Pharmacy: 'pharmacy',
@@ -54,7 +54,7 @@ const moduleVariants: Record<string, 'reception' | 'nurse' | 'doctor' | 'lab' | 
 const modulePaths: Record<string, string> = {
   Reception: '/reception',
   Nurse: '/nurse',
-  Doctor: '/doctor',
+  'Clinical Team': '/doctor?as=doctor1',
   Lab: '/lab',
   Billing: '/billing',
   Pharmacy: '/pharmacy',
@@ -99,9 +99,9 @@ const Index = () => {
             <StatsCard
               title="Active Consultations"
               value={stats.activeConsultations}
-              subtitle="Currently with doctors"
+              subtitle="Currently with clinical team"
               icon={Stethoscope}
-              color="text-module-doctor"
+              color="text-module-clinical"
             />
             <StatsCard
               title="Today's Revenue"

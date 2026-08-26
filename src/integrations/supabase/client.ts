@@ -2,7 +2,9 @@
 function requestContext() {
   const userId = typeof localStorage !== 'undefined' ? localStorage.getItem('hms_user_id') : null;
   const userRole = typeof localStorage !== 'undefined' ? localStorage.getItem('hms_user_role') : null;
-  return { user_id: userId, user_role: userRole };
+  const asParam = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('as') : null;
+  const activeWorkspace = userRole === 'admin' && ['nurse', 'doctor1', 'doctor2'].includes(asParam ?? '') ? asParam : userRole;
+  return { user_id: userId, user_role: activeWorkspace };
 }
 
 class CockroachQueryBuilder {

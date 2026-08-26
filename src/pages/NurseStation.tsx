@@ -40,15 +40,14 @@ const NurseStation = () => {
   const [locallyForwardedPatientIds, setLocallyForwardedPatientIds] = useState<Set<string>>(new Set());
   const canAct = useAdmissionPerms();
   
-  // Filter patients that are waiting or with nurse
-  // Patients returned from lab are set back to 'with_nurse' so their card
-  // stays in the queue and the nurse can take the next action (another lab
-  // request, prescription, route to doctor, etc.).
+  // Returned lab patients use the shared clinical-team state and appear here
+  // alongside Doctor 1 and Doctor 2. Any next action moves them out of all
+  // three clinical queues atomically through the patient status transition.
   // Deduplicate by patient id so concurrent lab returns / status flips
   // (which can briefly emit multiple realtime events for the same patient)
   // never render the same card twice in the queue.
   const nurseQueue = useMemo(() => {
-    const allNursePatients = getPatientsByStatus(['waiting', 'with_nurse'])
+    const allNursePatients = getPatientsByStatus(['waiting', 'with_nurse', 'with_clinical_team'])
       .filter((p) => !locallyForwardedPatientIds.has(p.id));
     return Array.from(
       new Map(
@@ -63,7 +62,7 @@ const NurseStation = () => {
     setLocallyForwardedPatientIds((previous) => {
       const next = new Set(previous);
       patients.forEach((patient) => {
-        if (!['waiting', 'with_nurse'].includes(patient.status)) next.delete(patient.id);
+        if (!['waiting', 'with_nurse', 'with_clinical_team'].includes(patient.status)) next.delete(patient.id);
       });
       return next.size === previous.size ? previous : next;
     });
@@ -83,7 +82,7 @@ const NurseStation = () => {
     const onPatientStatusChanged = (event: Event) => {
       const patientId = (event as CustomEvent<{ patientId?: string; status?: string }>).detail?.patientId;
       const status = (event as CustomEvent<{ patientId?: string; status?: string }>).detail?.status;
-      if (patientId && ['waiting', 'with_nurse'].includes(status ?? '')) {
+      if (patientId && ['waiting', 'with_nurse', 'with_clinical_team'].includes(status ?? '')) {
         setLocallyForwardedPatientIds((previous) => {
           if (!previous.has(patientId)) return previous;
           const next = new Set(previous);
@@ -116,7 +115,7 @@ const NurseStation = () => {
       toast.error('Failed to assign doctor');
       return;
     }
-    const success = await updatePatientStatus(patientId, 'with_doctor');
+    const success = await updatePatientStatus(patientId, 'with_clinical_team');
     if (success && patient) {
       toast.success("Patient Sent to Doctor", {
         description: `${patient.first_name} ${patient.last_name} sent to ${assignedDoctor === 'doctor1' ? 'Doctor 1' : 'Doctor 2'}.`,

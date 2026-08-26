@@ -15,96 +15,88 @@ const DOC2 = 'user-doc2';
 const row = (over: Partial<LabResultRow> = {}): LabResultRow => ({
   id: 'snap-1',
   patient_id: 'pat-1',
-  order_type: 'lab_result',
+  order_type: 'lab',
   status: 'returned',
   returned_to: NURSE,
-  target_station: 'nurse',
+  target_station: 'clinical_team',
   ...over,
 });
 
 describe('stationForRole', () => {
-  it('maps nurse to nurse and both doctors to the doctor station', () => {
+  it('recognizes all three clinical roles and Admin workspace aliases', () => {
     expect(stationForRole('nurse')).toBe('nurse');
-    expect(stationForRole('doctor1')).toBe('doctor');
-    expect(stationForRole('doctor2')).toBe('doctor');
+    expect(stationForRole('doctor1')).toBe('doctor1');
+    expect(stationForRole('doctor2')).toBe('doctor2');
+    expect(stationForRole('admin', 'nurse')).toBe('nurse');
+    expect(stationForRole('admin', 'doctor1')).toBe('doctor1');
   });
 });
 
 describe('labResultOrFilter', () => {
-  it('always scopes to returned_to of the current user', () => {
-    expect(labResultOrFilter(DOC1, 'doctor1')).toBe(
-      `returned_to.eq.${DOC1},and(returned_to.is.null,target_station.eq.doctor)`,
-    );
+  it('scopes every clinical role to the shared clinical-team target', () => {
+    expect(labResultOrFilter(NURSE, 'nurse')).toBe('target_station.eq.clinical_team');
+    expect(labResultOrFilter(DOC1, 'doctor1')).toBe('target_station.eq.clinical_team');
+    expect(labResultOrFilter(DOC2, 'doctor2')).toBe('target_station.eq.clinical_team');
   });
 
-  it('never contains a bare station clause that could fan out', () => {
-    const f = labResultOrFilter(DOC2, 'doctor2');
-    // strip the guarded `and(returned_to.is.null, ...)` legacy group
-    const topLevel = f.replace(/and\([^)]*\)/g, '');
-    expect(topLevel).not.toMatch(/target_station\.eq\./);
-    expect(topLevel).toContain(`returned_to.eq.${DOC2}`);
+  it('does not grant the shared result filter to unrelated roles', () => {
+    expect(labResultOrFilter(DOC1, 'lab_tech')).toBe('target_station.eq.__no_clinical_access__');
   });
 });
 
-describe('canSeeLabResult — strict single-owner visibility', () => {
-  it('shows the result to the requester only', () => {
-    const r = row({ returned_to: DOC1, target_station: 'doctor' });
-    expect(canSeeLabResult(r, DOC1, 'doctor1')).toBe(true);
-    expect(canSeeLabResult(r, DOC2, 'doctor2')).toBe(false);
-    expect(canSeeLabResult(r, NURSE, 'nurse')).toBe(false);
-  });
-
-  it('does not leak a nurse-requested result to doctors', () => {
-    const r = row({ returned_to: NURSE, target_station: 'nurse' });
+describe('canSeeLabResult — shared clinical-team visibility', () => {
+  it('shows one returned result to Nurse, Doctor 1, and Doctor 2', () => {
+    const r = row({ returned_to: DOC1 });
     expect(canSeeLabResult(r, NURSE, 'nurse')).toBe(true);
-    expect(canSeeLabResult(r, DOC1, 'doctor1')).toBe(false);
-    expect(canSeeLabResult(r, DOC2, 'doctor2')).toBe(false);
+    expect(canSeeLabResult(r, DOC1, 'doctor1')).toBe(true);
+    expect(canSeeLabResult(r, DOC2, 'doctor2')).toBe(true);
   });
 
-  it('falls back to station only for legacy ownerless rows', () => {
-    const legacy = row({ returned_to: null, target_station: 'doctor' });
-    expect(canSeeLabResult(legacy, DOC1, 'doctor1')).toBe(true);
-    expect(canSeeLabResult(legacy, NURSE, 'nurse')).toBe(false);
+  it('also supports Admin acting through a clinical workspace', () => {
+    expect(canSeeLabResult(row(), 'admin-user', 'admin', 'nurse')).toBe(true);
+    expect(canSeeLabResult(row(), 'admin-user', 'admin', 'doctor1')).toBe(true);
   });
 
-  it('ignores non lab_result or non returned rows', () => {
-    expect(canSeeLabResult(row({ order_type: 'lab' }), NURSE, 'nurse')).toBe(false);
+  it('rejects legacy single-station rows until the database migration normalizes them', () => {
+    expect(canSeeLabResult(row({ target_station: 'nurse' }), NURSE, 'nurse')).toBe(false);
+    expect(canSeeLabResult(row({ target_station: 'legacy_station' }), DOC1, 'doctor1')).toBe(false);
+  });
+
+  it('accepts both normal and emergency lab result order types', () => {
+    expect(canSeeLabResult(row({ order_type: 'lab' }), NURSE, 'nurse')).toBe(true);
+    expect(canSeeLabResult(row({ order_type: 'lab_result' }), DOC1, 'doctor1')).toBe(true);
+  });
+
+  it('ignores acknowledged or non-lab rows', () => {
     expect(canSeeLabResult(row({ status: 'acknowledged' }), NURSE, 'nurse')).toBe(false);
+    expect(canSeeLabResult(row({ order_type: 'prescription' }), NURSE, 'nurse')).toBe(false);
   });
 });
 
 describe('selectInboxResults', () => {
   const rows = [
-    row({ id: 'a', returned_to: NURSE, target_station: 'nurse' }),
-    row({ id: 'b', patient_id: 'pat-2', returned_to: DOC1, target_station: 'doctor' }),
-    row({ id: 'c', patient_id: 'pat-3', returned_to: DOC2, target_station: 'doctor' }),
+    row({ id: 'a', patient_id: 'pat-1', returned_to: NURSE }),
+    row({ id: 'b', patient_id: 'pat-2', returned_to: DOC1 }),
+    row({ id: 'c', patient_id: 'pat-3', returned_to: DOC2 }),
   ];
 
-  it('gives each user only their own results', () => {
-    expect(selectInboxResults(rows, NURSE, 'nurse').map((r) => r.id)).toEqual(['a']);
-    expect(selectInboxResults(rows, DOC1, 'doctor1').map((r) => r.id)).toEqual(['b']);
-    expect(selectInboxResults(rows, DOC2, 'doctor2').map((r) => r.id)).toEqual(['c']);
+  it('gives the same shared result set to all three clinical roles', () => {
+    expect(selectInboxResults(rows, NURSE, 'nurse').map((r) => r.id)).toEqual(['a', 'b', 'c']);
+    expect(selectInboxResults(rows, DOC1, 'doctor1').map((r) => r.id)).toEqual(['a', 'b', 'c']);
+    expect(selectInboxResults(rows, DOC2, 'doctor2').map((r) => r.id)).toEqual(['a', 'b', 'c']);
   });
 
   it('hides admitted patients from the outpatient inbox', () => {
-    expect(selectInboxResults(rows, DOC1, 'doctor1', ['pat-2'])).toEqual([]);
+    expect(selectInboxResults(rows, DOC1, 'doctor1', ['pat-2']).map((r) => r.id)).toEqual(['a', 'c']);
   });
 });
 
-describe('forwarding', () => {
-  it('removes the row from the previous owner and gives it to the new one', () => {
-    const original = row({ returned_to: DOC1, target_station: 'doctor' });
-    const forwarded = afterForward(original, NURSE, 'nurse');
-
-    expect(canSeeLabResult(forwarded, DOC1, 'doctor1')).toBe(false);
-    expect(canSeeLabResult(forwarded, DOC2, 'doctor2')).toBe(false);
-    expect(selectInboxResults([forwarded], DOC2, 'doctor2')).toEqual([]);
-  });
-
-  it('doctor1 forwarding to nurse does not leave a copy at doctor2', () => {
-    const inbox = [row({ id: 'x', returned_to: DOC1, target_station: 'doctor' })];
-    const after = inbox.map((r) => afterForward(r, NURSE, 'nurse'));
-    expect(selectInboxResults(after, DOC1, 'doctor1')).toEqual([]);
-    expect(selectInboxResults(after, DOC2, 'doctor2')).toEqual([]);
+describe('shared acknowledgement', () => {
+  it('removes the result from every clinical queue after any next action', () => {
+    const acknowledged = afterForward(row(), NURSE, 'nurse');
+    expect(acknowledged.status).toBe('acknowledged');
+    expect(canSeeLabResult(acknowledged, NURSE, 'nurse')).toBe(false);
+    expect(canSeeLabResult(acknowledged, DOC1, 'doctor1')).toBe(false);
+    expect(canSeeLabResult(acknowledged, DOC2, 'doctor2')).toBe(false);
   });
 });

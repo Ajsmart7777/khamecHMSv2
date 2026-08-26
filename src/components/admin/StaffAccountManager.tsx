@@ -59,7 +59,8 @@ const roleOptions: { value: AppRole; label: string }[] = [
 
 const roleBadgeColor: Record<string, string> = {
   admin: 'bg-destructive/10 text-destructive border-destructive/30',
-  doctor: 'bg-blue-500/10 text-blue-600 border-blue-200',
+  doctor1: 'bg-blue-500/10 text-blue-600 border-blue-200',
+  doctor2: 'bg-blue-500/10 text-blue-600 border-blue-200',
   nurse: 'bg-green-500/10 text-green-600 border-green-200',
   receptionist: 'bg-purple-500/10 text-purple-600 border-purple-200',
   lab_tech: 'bg-orange-500/10 text-orange-600 border-orange-200',

@@ -62,7 +62,7 @@ export function useDashboardStats() {
     // Derive patient stats from context (real-time)
     const activePatients = patients.filter(p => p.status !== 'discharged');
     const newToday = patients.filter(p => p.registered_at >= todayISO);
-    const withDoctor = patients.filter(p => p.status === 'with_doctor');
+    const withClinicalTeam = patients.filter(p => p.status === 'with_clinical_team');
     const discharged = patients.filter(p => p.status === 'discharged' && p.last_visit && p.last_visit >= todayISO);
     const totalWalletBalance = patients.reduce((sum, p) => sum + Number(p.balance ?? 0), 0);
     const totalWalletCredit = patients.reduce((sum, p) => sum + Math.max(0, Number(p.balance ?? 0)), 0);
@@ -100,7 +100,7 @@ export function useDashboardStats() {
       setStats({
         totalPatients: activePatients.length,
         newRegistrations: newToday.length,
-        activeConsultations: withDoctor.length,
+        activeConsultations: withClinicalTeam.length,
         pendingLab,
         pendingPayments: pendingInvoices.length,
         completedVisits: discharged.length,
@@ -116,7 +116,7 @@ export function useDashboardStats() {
         registered: 'Reception',
         waiting: 'Reception',
         with_nurse: 'Nurse',
-        with_doctor: 'Doctor',
+        with_clinical_team: 'Clinical Team',
         in_lab: 'Lab',
         awaiting_billing: 'Billing',
         awaiting_payment: 'Billing',
@@ -124,7 +124,7 @@ export function useDashboardStats() {
       };
 
       const moduleCounts: Record<string, { active: number; pending: number; completed: number }> = {};
-      const moduleNames = ['Reception', 'Nurse', 'Doctor', 'Lab', 'Billing', 'Pharmacy', 'Store', 'Account', 'Auditing', 'Admin'];
+      const moduleNames = ['Reception', 'Nurse', 'Clinical Team', 'Lab', 'Billing', 'Pharmacy', 'Store', 'Account', 'Auditing', 'Admin'];
       moduleNames.forEach(m => { moduleCounts[m] = { active: 0, pending: 0, completed: 0 }; });
 
       patients.forEach(p => {
@@ -143,8 +143,8 @@ export function useDashboardStats() {
       moduleCounts['Pharmacy'].completed = dispensedPresc;
       moduleCounts['Reception'].completed = discharged.length;
       moduleCounts['Reception'].pending = patients.filter(p => p.status === 'registered' || p.status === 'waiting').length;
-      moduleCounts['Nurse'].pending = patients.filter(p => p.status === 'waiting' || p.status === 'with_nurse').length;
-      moduleCounts['Doctor'].pending = patients.filter(p => p.status === 'with_doctor').length;
+      moduleCounts['Nurse'].pending = patients.filter(p => p.status === 'waiting' || p.status === 'with_nurse' || p.status === 'with_clinical_team').length;
+      moduleCounts['Clinical Team'].pending = patients.filter(p => p.status === 'with_clinical_team').length;
 
       const modStats: ModuleStat[] = moduleNames.map(name => {
         const c = moduleCounts[name];

@@ -25,7 +25,7 @@ const Doctor = () => {
   const { updatePatientStatus } = usePatients();
   const { role } = useAuth();
   const { orders: returnedLabResults, refresh: refreshReturnedLabResults } = useSnapOrders({
-    station: 'doctor',
+    station: 'clinical_team',
     statuses: ['returned'],
   });
   const [searchParams] = useSearchParams();
@@ -42,36 +42,18 @@ const Doctor = () => {
     : role === 'admin' && (asParam === 'doctor1' || asParam === 'doctor2') ? asParam
     : null;
 
-  const baseQueue = getPatientsByStatus(['with_doctor']);
-  const scopedQueue = myDoctorKey
-    ? baseQueue.filter(p => p.assigned_doctor === myDoctorKey)
-    : baseQueue;
-
-  // A completed lab result must remain owned by the original doctor while the
-  // patient is also returned to Nurse for the next action. Include the patient
-  // here when the returned result belongs to this doctor, even if the shared
-  // patient status is currently with_nurse. Set-based merging prevents a
-  // duplicate patient card when status is already with_doctor.
-  const returnedLabPatientIds = new Set(
-    myDoctorKey
-      ? returnedLabResults
-          .filter(order => String(order.original_sender_role || '').toLowerCase() === myDoctorKey)
-          .map(order => order.patient_id)
-      : [],
-  );
-  const returnedLabQueue = myDoctorKey
-    ? patients.filter(patient =>
-        returnedLabPatientIds.has(patient.id) && patient.assigned_doctor === myDoctorKey,
-      )
-    : [];
-  const doctorQueue = [...new Map(
-    [...scopedQueue, ...returnedLabQueue].map(patient => [patient.id, patient]),
-  ).values()];
+  // Lab results use a shared clinical-team state. Both Doctor 1 and Doctor 2
+  // see the same patient as Nurse, regardless of who requested the test.
+  const doctorQueue = getPatientsByStatus(['with_clinical_team']);
+  const workspaceLabel = myDoctorKey === 'doctor2' ? 'Doctor 2' : 'Doctor 1';
 
   useEffect(() => {
-    const timer = window.setInterval(() => { void refreshReturnedLabResults(); }, 4000);
+    const timer = window.setInterval(() => {
+      void refreshReturnedLabResults();
+      void refreshPatients({ background: true });
+    }, 4000);
     return () => window.clearInterval(timer);
-  }, [refreshReturnedLabResults]);
+  }, [refreshReturnedLabResults, refreshPatients]);
   const selectedPatient = selectedPatientId ? patients.find(p => p.id === selectedPatientId) : null;
 
   // Handler for global "Snap to Admit" triggers
@@ -85,7 +67,7 @@ const Doctor = () => {
   }, [setSelectedPatientId]);
 
   return (
-    <MainLayout title="Doctor's Console" subtitle="Snap the paper card and route the patient">
+    <MainLayout title={`${workspaceLabel} Console`} subtitle="Snap the paper card and route the patient">
       <div className="flex items-center gap-2 mb-4">
         <div className="flex items-center gap-1.5 text-xs text-success">
           <Wifi className="h-3.5 w-3.5 animate-pulse" />
@@ -94,7 +76,7 @@ const Doctor = () => {
         <Button variant="ghost" size="sm" onClick={refreshPatients} className="h-7 px-2">
           <RefreshCw className="h-3.5 w-3.5" />
         </Button>
-        <Badge variant="doctor" className="ml-auto">{doctorQueue.length} patients</Badge>
+        <Badge variant="clinical" className="ml-auto">{doctorQueue.length} patients</Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -125,8 +107,8 @@ const Doctor = () => {
                       className={cn(
                         "p-3 rounded-lg border cursor-pointer transition-all hover-lift animate-fade-in",
                         selectedPatientId === patient.id
-                          ? "border-module-doctor bg-module-doctor/5"
-                          : "border-border hover:border-module-doctor/50",
+                          ? "border-module-clinical bg-module-clinical/5"
+                          : "border-border hover:border-module-clinical/50",
                       )}
                     >
                       <div className="flex items-center justify-between mb-1">
@@ -168,20 +150,20 @@ const Doctor = () => {
               />
 
               <div className="bg-card rounded-xl border border-border p-6 text-center space-y-3">
-                <div className="mx-auto w-12 h-12 rounded-full bg-module-doctor/10 flex items-center justify-center">
-                  <ClipboardList className="h-6 w-6 text-module-doctor" />
+                <div className="mx-auto w-12 h-12 rounded-full bg-module-clinical/10 flex items-center justify-center">
+                  <ClipboardList className="h-6 w-6 text-module-clinical" />
                 </div>
                 <h3 className="font-semibold">Snap the paper card and route the patient</h3>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
                   Write Dx / Rx / Lab request on the card, then snap and choose where the patient goes next.
-                  Lab results always come back to your queue.
+                  Completed lab results return to Nurse, Doctor 1, and Doctor 2 together.
                 </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <SnapClinicalOrder
                   patientId={selectedPatient.id}
-                  sourceStation="doctor"
+                  sourceStation={myDoctorKey ?? 'doctor1'}
                   defaultOrderType="prescription"
                   defaultTarget="pharmacy"
                   label="Snap → Pharmacy"
@@ -190,7 +172,7 @@ const Doctor = () => {
                 />
                 <SnapClinicalOrder
                   patientId={selectedPatient.id}
-                  sourceStation="doctor"
+                  sourceStation={myDoctorKey ?? 'doctor1'}
                   defaultOrderType="lab"
                   defaultTarget="lab"
                   label="Snap → Lab"
@@ -199,7 +181,7 @@ const Doctor = () => {
                 />
                 <SnapClinicalOrder
                   patientId={selectedPatient.id}
-                  sourceStation="doctor"
+                  sourceStation={myDoctorKey ?? 'doctor1'}
                   defaultOrderType="treatment"
                   defaultTarget="nurse"
                   label="Snap → Nurse"

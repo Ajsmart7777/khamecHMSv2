@@ -18,7 +18,7 @@ const badgeVariants = cva(
         // Module-specific variants
         reception: "border-transparent bg-module-reception/15 text-module-reception",
         nurse: "border-transparent bg-module-nurse/15 text-module-nurse",
-        doctor: "border-transparent bg-module-doctor/15 text-module-doctor",
+        clinical: "border-transparent bg-module-clinical/15 text-module-clinical",
         lab: "border-transparent bg-module-lab/15 text-module-lab",
         billing: "border-transparent bg-module-billing/15 text-module-billing",
         pharmacy: "border-transparent bg-module-pharmacy/15 text-module-pharmacy",

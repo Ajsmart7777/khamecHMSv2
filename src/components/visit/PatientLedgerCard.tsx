@@ -29,7 +29,7 @@ interface LedgerRow {
   visitId: string;
   at: string;
   kind: RowKind;
-  station: string;         // reception, nurse, doctor, lab, pharmacy, billing, cashier, admin
+  station: string;         // reception, nurse, clinical_team, lab, pharmacy, billing, cashier, admin
   title: string;
   actor?: string | null;
   data?: any;              // kind-specific
@@ -46,7 +46,7 @@ interface LedgerVisit {
 const STATION_TONE: Record<string, string> = {
   reception: 'bg-blue-100 text-blue-700 border-blue-200',
   nurse:     'bg-teal-100 text-teal-700 border-teal-200',
-  doctor:    'bg-indigo-100 text-indigo-700 border-indigo-200',
+  clinical_team: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   lab:       'bg-purple-100 text-purple-700 border-purple-200',
   pharmacy:  'bg-emerald-100 text-emerald-700 border-emerald-200',
   billing:   'bg-amber-100 text-amber-700 border-amber-200',
@@ -587,7 +587,7 @@ export function PatientLedgerCard({
       const ledgerVisitId = visitIdForLedger(s.visit_id);
       push(ledgerVisitId, {
         id: `snap-${s.id}`, visitId: ledgerVisitId ?? '', at: s.created_at, kind: 'snap',
-        station: s.source_role ?? 'doctor',
+        station: s.source_role ?? 'clinical_team',
         title: SNAP_LABEL[sub] ?? (s.order_type ?? 'Snap'),
         data: s,
         subkind: sub,
@@ -621,7 +621,7 @@ export function PatientLedgerCard({
           visit_id: ledgerVisitId,
           invoice_id: episode.invoice_id ?? null,
           order_type: 'treatment',
-          target_station: 'doctor',
+          target_station: 'clinical_team',
           source_role: 'nurse',
           order_parent_id: episodeKey,
           ocr_text: `EMERGENCY_EPISODE:${episode.id}`,
@@ -668,7 +668,7 @@ export function PatientLedgerCard({
               visitId: itemVisitId ?? '',
               at: lab.completed_at ?? lab.updated_at ?? item.updated_at ?? item.created_at,
               kind: 'snap', station: 'lab', title: 'Emergency Lab Result',
-              data: { id: `emergency-lab-result-${item.id}`, patient_id: episode.patient_id, visit_id: itemVisitId, order_parent_id: episodeKey, order_type: 'lab_result', target_station: 'doctor', source_role: 'lab_tech', note: resultText, result_text: resultText, status: 'returned', matched_items: [] },
+              data: { id: `emergency-lab-result-${item.id}`, patient_id: episode.patient_id, visit_id: itemVisitId, order_parent_id: episodeKey, order_type: 'lab_result', target_station: 'clinical_team', source_role: 'lab_tech', note: resultText, result_text: resultText, status: 'returned', matched_items: [] },
               subkind: 'lab_result',
             });
           }
@@ -707,15 +707,15 @@ export function PatientLedgerCard({
         visitId: ledgerVisitId ?? '',
         at: rx.created_at,
         kind: 'snap',
-        station: 'doctor',
-        title: 'Prescription Order',
+          station: 'clinical_team',
+          title: 'Prescription Order',
         data: {
           id: rx.id,
           patient_id: rx.patient_id,
           visit_id: ledgerVisitId,
           order_type: 'prescription',
           target_station: 'pharmacy',
-          source_role: 'doctor',
+          source_role: 'clinical_team',
           photo_path: null,
           note,
           ocr_text: `LINKED_PRESCRIPTION:${rx.id}`,
@@ -781,7 +781,7 @@ export function PatientLedgerCard({
             patient_id: lab.patient_id,
             visit_id: ledgerVisitId,
             order_type: 'lab_result',
-            target_station: 'doctor',
+            target_station: 'clinical_team',
             source_role: 'lab_tech',
             parent_snap_id: linkedParent?.id ?? null,
             order_parent_id: linkedParent ? null : lab.id,
@@ -1335,7 +1335,7 @@ function Chip({ children, mono, icon }: { children: React.ReactNode; mono?: bool
   );
 }
 
-const FILTER_STATIONS = ['nurse', 'doctor', 'lab', 'pharmacy', 'billing', 'cashier'] as const;
+const FILTER_STATIONS = ['nurse', 'clinical_team', 'lab', 'pharmacy', 'billing', 'cashier'] as const;
 
 function StationFilterBar({
   visits, selected, onToggle,

@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 const clinicalNodes = [
   { id: 'reception', label: 'Reception', icon: Users, color: 'bg-module-reception' },
   { id: 'nurse', label: 'Nurse', icon: Activity, color: 'bg-module-nurse' },
-  { id: 'doctor', label: 'Doctor', icon: Stethoscope, color: 'bg-module-doctor' },
+  { id: 'clinical_team', label: 'Clinical Team', icon: Stethoscope, color: 'bg-module-clinical' },
   { id: 'lab', label: 'Lab', icon: FlaskConical, color: 'bg-module-lab' },
 ];
 

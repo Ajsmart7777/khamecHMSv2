@@ -39,7 +39,8 @@ const STORY_STAGES: { key: StoryStage; number: string; title: string; descriptio
 const stationTone: Record<string, string> = {
   reception: 'background:#dbeafe;color:#1d4ed8;border-color:#bfdbfe',
   nurse: 'background:#ccfbf1;color:#0f766e;border-color:#99f6e4',
-  doctor: 'background:#e0e7ff;color:#4338ca;border-color:#c7d2fe',
+  doctor1: 'background:#e0e7ff;color:#4338ca;border-color:#c7d2fe',
+  doctor2: 'background:#e0e7ff;color:#4338ca;border-color:#c7d2fe',
   lab: 'background:#f3e8ff;color:#7e22ce;border-color:#e9d5ff',
   pharmacy: 'background:#d1fae5;color:#047857;border-color:#a7f3d0',
   billing: 'background:#fef3c7;color:#b45309;border-color:#fde68a',
@@ -213,7 +214,7 @@ function buildRows(input: ArchiveLedgerPdfInput): Map<string, ArchiveRow[]> {
       visitId: snap.visit_id,
       at: snap.created_at,
       kind: 'snap',
-      station: snap.source_role ?? 'doctor',
+      station: snap.source_role ?? 'clinical_team',
       title: subLabel[kind] ?? snap.order_type ?? 'Snap',
       data: snap,
       subkind: kind,

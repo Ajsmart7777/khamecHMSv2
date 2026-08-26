@@ -66,7 +66,7 @@ export default {
         module: {
           reception: "hsl(var(--reception))",
           nurse: "hsl(var(--nurse))",
-          doctor: "hsl(var(--doctor))",
+          clinical: "hsl(var(--clinical))",
           lab: "hsl(var(--lab))",
           billing: "hsl(var(--billing))",
           pharmacy: "hsl(var(--pharmacy))",

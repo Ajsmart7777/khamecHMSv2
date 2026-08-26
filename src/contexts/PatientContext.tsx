@@ -176,23 +176,23 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
 
       // Route through the workflow engine (Phase 1). advance_journey
       // mirrors the value into patients.status for backward compatibility.
-      // There is no generic "doctor" role any more — work is owned by the
-      // patient's assigned doctor workspace (doctor1 / doctor2).
-      const doctorRole =
-        current.assigned_doctor === 'doctor2' ? 'doctor2' : 'doctor1';
+      // Lab results are available to the shared clinical team. The active
+      // workspace, not the login account, determines the requester identity.
       const ownerRoleMap: Record<string, string> = {
         with_nurse: 'nurse',
+        with_clinical_team: 'clinical_team',
         awaiting_room: 'nurse',
-        with_doctor: doctorRole,
         in_lab: 'lab_tech',
-        lab_results_ready: doctorRole,
+        lab_results_ready: 'clinical_team',
         awaiting_billing: 'billing',
         awaiting_payment: 'cashier',
         at_pharmacy: 'pharmacist',
         admitted: 'nurse',
         discharged: 'reception',
       };
-      const { error: rpcError } = await supabase.rpc('advance_journey', {
+      const leavingSharedClinicalTeam = current.status === 'with_clinical_team' && status !== 'with_clinical_team';
+      const transitionRpc = leavingSharedClinicalTeam ? 'advance_clinical_team_action' : 'advance_journey';
+      const { error: rpcError } = await (supabase.rpc as any)(transitionRpc, {
         _patient_id: patientId,
         _to_state: status,
         _owner_role: ownerRoleMap[status] ?? null,
@@ -240,9 +240,8 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
 
       const notifMap: Record<string, { title: string; message: string; type: string; target_role: string; link: string }> = {
         with_nurse: { title: 'Patient Sent to Nurse', message: `${patientName} is ready for vitals`, type: 'patient', target_role: 'nurse', link: '/nurse-station' },
-        with_doctor: { title: 'Patient Ready for Doctor', message: `${patientName} is waiting for consultation`, type: 'patient', target_role: doctorRole, link: '/doctor' },
+        with_clinical_team: { title: 'Lab Results Ready', message: `Results for ${patientName} are available to the clinical team`, type: 'lab', target_role: 'all', link: '/doctor' },
         in_lab: { title: 'Lab Test Requested', message: `${patientName} needs lab work`, type: 'lab', target_role: 'lab_tech', link: '/laboratory' },
-        lab_results_ready: { title: 'Lab Results Ready', message: `Results for ${patientName} are available`, type: 'lab', target_role: doctorRole, link: '/doctor' },
         awaiting_billing: { title: 'Patient Awaiting Billing', message: `${patientName} needs billing`, type: 'billing', target_role: 'billing', link: '/billing' },
         at_pharmacy: { title: 'Patient at Pharmacy', message: `${patientName} has medication to collect`, type: 'pharmacy', target_role: 'pharmacist', link: '/pharmacy' },
         discharged: { title: 'Patient Discharged', message: `${patientName} has been discharged`, type: 'success', target_role: 'all', link: '/reception' },

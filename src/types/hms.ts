@@ -19,7 +19,7 @@ export type PatientStatus =
   | 'registered'
   | 'waiting'
   | 'with_nurse'
-  | 'with_doctor'
+  | 'with_clinical_team'
   | 'in_lab'
   | 'awaiting_billing'
   | 'awaiting_payment'

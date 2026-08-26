@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/dialog';
 
 interface Props {
-  sourceStation: 'nurse' | 'doctor';
+  sourceStation: 'nurse' | 'doctor1' | 'doctor2';
   title?: string;
   assignedDoctor?: 'doctor1' | 'doctor2';
 }

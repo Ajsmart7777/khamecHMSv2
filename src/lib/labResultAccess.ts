@@ -1,9 +1,9 @@
 /**
- * Single source of truth for "who owns a lab result".
+ * Shared visibility rules for laboratory results.
  *
- * A returned lab result belongs to the EXACT user who created the original
- * lab snap (`returned_to`). It must never fan out to a whole station, because
- * doctor1 and doctor2 share `target_station = 'doctor'`.
+ * A returned lab result is available to Nurse, Doctor 1, and Doctor 2 at the
+ * same time. `returned_to` is retained for audit/history compatibility, but it
+ * is not used to hide the result from the other clinical workspaces.
  */
 
 export type LabResultRow = {
@@ -15,34 +15,31 @@ export type LabResultRow = {
   target_station: string | null;
 };
 
-export type StationKey = 'nurse' | 'doctor';
+export type StationKey = 'nurse' | 'doctor1' | 'doctor2' | 'clinical_team';
 
-/** Station bucket used only as a legacy fallback for rows with no owner. */
-export function stationForRole(role: string | null | undefined, asParam: string | null = null): StationKey {
-  const effectiveRole = (role === 'admin' && asParam) ? asParam : role;
-  return effectiveRole === 'nurse' ? 'nurse' : 'doctor';
+export function stationForRole(role: string | null | undefined, asParam: string | null = null): StationKey | null {
+  const effectiveRole = role === 'admin' && asParam ? asParam : role;
+  if (effectiveRole === 'nurse' || effectiveRole === 'doctor1' || effectiveRole === 'doctor2') return effectiveRole;
+  return null;
 }
 
-/** PostgREST `.or()` expression: mine, or legacy ownerless rows for my station. */
-export function labResultOrFilter(userId: string, role: string | null | undefined, asParam: string | null = null): string {
+/** The result target is a shared clinical team, not a single requester. */
+export function labResultOrFilter(_userId: string, role: string | null | undefined, asParam: string | null = null): string {
   const station = stationForRole(role, asParam);
-  return `returned_to.eq.${userId},and(returned_to.is.null,target_station.eq.${station})`;
+  return station ? 'target_station.eq.clinical_team' : 'target_station.eq.__no_clinical_access__';
 }
 
-/** Client-side guard mirroring the server filter. */
 export function canSeeLabResult(
   row: LabResultRow,
-  userId: string,
+  _userId: string,
   role: string | null | undefined,
   asParam: string | null = null,
 ): boolean {
-  if (row.order_type !== 'lab_result') return false;
+  if (!['lab', 'lab_result'].includes(row.order_type)) return false;
   if (row.status !== 'returned') return false;
-  if (row.returned_to) return row.returned_to === userId;
-  return row.target_station === stationForRole(role, asParam);
+  return Boolean(stationForRole(role, asParam)) && row.target_station === 'clinical_team';
 }
 
-/** Full inbox selection: owned results, excluding admitted patients. */
 export function selectInboxResults(
   rows: LabResultRow[],
   userId: string,
@@ -51,22 +48,14 @@ export function selectInboxResults(
   asParam: string | null = null,
 ): LabResultRow[] {
   const admitted = new Set(admittedPatientIds);
-  return rows.filter((r) => canSeeLabResult(r, userId, role, asParam) && !admitted.has(r.patient_id));
+  return rows.filter((row) => canSeeLabResult(row, userId, role, asParam) && !admitted.has(row.patient_id));
 }
 
-/**
- * Forwarding / acknowledging transfers ownership away from the current user,
- * so the row must leave their inbox immediately.
- */
+/** Any accepted next action acknowledges the shared result for every queue. */
 export function afterForward(
   row: LabResultRow,
-  newOwnerId: string | null,
-  newStation: string | null = null,
+  _newOwnerId: string | null,
+  _newStation: string | null = null,
 ): LabResultRow {
-  return {
-    ...row,
-    status: 'acknowledged',
-    returned_to: newOwnerId,
-    target_station: newStation ?? row.target_station,
-  };
+  return { ...row, status: 'acknowledged', returned_to: null, target_station: 'clinical_team' };
 }

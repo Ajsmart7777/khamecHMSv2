@@ -1,27 +1,30 @@
 import type { PatientStatus } from '@/types/hms';
 
 export type ClinicalOrderTarget = 'nurse' | 'lab' | 'pharmacy' | 'billing';
-export type ClinicalOwnerRole = 'nurse' | 'doctor1' | 'doctor2';
+export type ClinicalOwnerRole = 'nurse' | 'doctor1' | 'doctor2' | 'clinical_team';
 
 const wardStatuses: PatientStatus[] = ['admitted', 'ready_for_discharge', 'awaiting_room'];
+
+export function normalizeClinicalRole(role?: string | null, asParam?: string | null): 'nurse' | 'doctor1' | 'doctor2' | null {
+  const candidate = String(role === 'admin' && asParam ? asParam : role ?? '').trim().toLowerCase();
+  return candidate === 'nurse' || candidate === 'doctor1' || candidate === 'doctor2' ? candidate : null;
+}
 
 export function statusAfterClinicalOrder(target: ClinicalOrderTarget): PatientStatus {
   return target === 'nurse' ? 'with_nurse' : 'awaiting_billing';
 }
 
-export function labResultTargetStation(senderRole?: string | null): 'nurse' | 'doctor' {
-  return String(senderRole ?? '').trim().toLowerCase() === 'nurse' ? 'nurse' : 'doctor';
+/** Returned results are visible to the shared clinical team, never a generic Doctor bucket. */
+export function labResultTargetStation(_senderRole?: string | null): 'clinical_team' {
+  return 'clinical_team';
 }
 
-export function ownerRoleForLabReturn(input: {
-  targetStation: 'nurse' | 'doctor';
+export function ownerRoleForLabReturn(_input: {
+  targetStation?: string | null;
   senderRole?: string | null;
   assignedDoctor?: 'doctor1' | 'doctor2' | null;
 }): ClinicalOwnerRole {
-  if (input.targetStation === 'nurse') return 'nurse';
-  if (input.senderRole === 'doctor2') return 'doctor2';
-  if (input.senderRole === 'doctor1') return 'doctor1';
-  return input.assignedDoctor ?? 'doctor1';
+  return 'clinical_team';
 }
 
 export function shouldPreserveWardLocation(status: string | null | undefined, hasActiveAdmission: boolean) {
@@ -30,10 +33,10 @@ export function shouldPreserveWardLocation(status: string | null | undefined, ha
 
 export function queueForPatient(status: string | null | undefined, assignedDoctor?: 'doctor1' | 'doctor2' | null) {
   if (status === 'with_nurse') return 'nurse';
-  if (status === 'with_doctor') return assignedDoctor ?? 'doctor1';
+  if (status === 'with_clinical_team') return 'clinical_team';
   return null;
 }
 
 export function isOutpatientQueueStatus(status: string | null | undefined) {
-  return status === 'waiting' || status === 'with_nurse' || status === 'with_doctor';
+  return status === 'waiting' || status === 'with_nurse' || status === 'with_clinical_team';
 }

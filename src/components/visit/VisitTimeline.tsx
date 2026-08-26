@@ -19,7 +19,7 @@ interface TimelineEvent {
   id: string;
   kind: EventKind;
   at: string;                          // ISO timestamp
-  station: string;                     // reception, nurse, doctor, lab, pharmacy, billing, cashier
+  station: string;                     // reception, nurse, clinical_team, lab, pharmacy, billing, cashier
   title: string;
   subtitle?: string;
   meta?: string;
@@ -31,7 +31,7 @@ interface TimelineEvent {
 const STATION_TONE: Record<string, string> = {
   reception: 'bg-blue-500/15 text-blue-700 border-blue-500/30',
   nurse:     'bg-teal-500/15 text-teal-700 border-teal-500/30',
-  doctor:    'bg-indigo-500/15 text-indigo-700 border-indigo-500/30',
+  clinical_team: 'bg-indigo-500/15 text-indigo-700 border-indigo-500/30',
   lab:       'bg-purple-500/15 text-purple-700 border-purple-500/30',
   pharmacy:  'bg-emerald-500/15 text-emerald-700 border-emerald-500/30',
   billing:   'bg-amber-500/15 text-amber-700 border-amber-500/30',
@@ -135,14 +135,14 @@ export function VisitTimeline({ visitId }: Props) {
       });
 
       (rxRes.data ?? []).forEach((r: any) => list.push({
-        id: `rx-${r.id}`, kind: 'prescription', at: r.created_at, station: 'doctor',
+        id: `rx-${r.id}`, kind: 'prescription', at: r.created_at, station: 'clinical_team',
         title: r.diagnosis || 'Prescription written',
         subtitle: (r.prescription_items ?? []).map((m: any) => m.medication).filter(Boolean).join(', ') || undefined,
         meta: r.status,
       }));
 
       (lRes.data ?? []).forEach((l: any) => list.push({
-        id: `lab-${l.id}`, kind: 'lab_request', at: l.created_at, station: 'doctor',
+        id: `lab-${l.id}`, kind: 'lab_request', at: l.created_at, station: 'clinical_team',
         title: 'Lab requested',
         subtitle: Array.isArray(l.tests) ? l.tests.join(', ') : undefined,
         meta: l.status,

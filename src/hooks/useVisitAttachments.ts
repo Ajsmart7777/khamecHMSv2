@@ -6,7 +6,8 @@ import { toast } from 'sonner';
 export type VisitStation =
   | 'reception'
   | 'nurse'
-  | 'doctor'
+  | 'doctor1'
+  | 'doctor2'
   | 'lab'
   | 'pharmacy'
   | 'billing'

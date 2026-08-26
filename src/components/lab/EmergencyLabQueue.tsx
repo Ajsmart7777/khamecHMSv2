@@ -65,17 +65,17 @@ export function EmergencyLabQueue({ requests, patients, updateLabRequest, refres
     finally { setBusy(false); }
   };
 
-  const sendToDoctor = async (request: LabRequest) => {
+  const sendToClinicalTeam = async (request: LabRequest) => {
     const patient = patients.find(item => item.id === request.patient_id);
     if (!patient) return;
     setBusy(true);
     try {
       const wardStatus = ['admitted', 'in_ward', 'ready_for_discharge'].includes(String(patient.status));
       if (!wardStatus) {
-        const ok = await updatePatientStatus(patient.id, 'with_doctor');
-        if (!ok) throw new Error('Could not route patient to doctor');
+        const ok = await updatePatientStatus(patient.id, 'with_clinical_team');
+        if (!ok) throw new Error('Could not route patient to the clinical team');
       }
-      toast.success('Emergency results sent to doctor', { description: wardStatus ? 'Ward location preserved; doctor can review the linked result.' : 'Patient is now with Doctor.' });
+      toast.success('Emergency results sent to clinical team', { description: wardStatus ? 'Ward location preserved; Nurse, Doctor 1, and Doctor 2 can review the linked result.' : 'Patient is now available to Nurse, Doctor 1, and Doctor 2.' });
     } catch (error: any) { toast.error(error?.message || 'Could not route results'); }
     finally { setBusy(false); }
   };
@@ -96,7 +96,7 @@ export function EmergencyLabQueue({ requests, patients, updateLabRequest, refres
           </div>
         ))}
         {completed.map(request => (
-          <div key={`done-${request.id}`} className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 flex flex-col md:flex-row md:items-center gap-3"><div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{patientName(request.patient_id)}</p><p className="text-xs text-muted-foreground">{request.tests.join(', ')} · emergency result completed</p></div><Badge variant="success" className="text-[10px]">Completed</Badge><Button size="sm" variant="outline" onClick={() => sendToDoctor(request)} disabled={busy}><Send className="h-3.5 w-3.5 mr-1" /> Send to doctor</Button></div>
+          <div key={`done-${request.id}`} className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-3 flex flex-col md:flex-row md:items-center gap-3"><div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{patientName(request.patient_id)}</p><p className="text-xs text-muted-foreground">{request.tests.join(', ')} · emergency result completed</p></div><Badge variant="success" className="text-[10px]">Completed</Badge><Button size="sm" variant="outline" onClick={() => sendToClinicalTeam(request)} disabled={busy}><Send className="h-3.5 w-3.5 mr-1" /> Send to clinical team</Button></div>
         ))}
       </div>
 

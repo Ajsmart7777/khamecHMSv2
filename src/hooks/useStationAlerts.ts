@@ -13,9 +13,9 @@ export interface StationAlert {
 
 /** Which patient status means "the patient just arrived at my station". */
 const roleIncomingStatus: Partial<Record<AppRole, PatientStatus[]>> = {
-  nurse: ['with_nurse', 'awaiting_room'],
-  doctor1: ['with_doctor'],
-  doctor2: ['with_doctor'],
+  nurse: ['with_nurse', 'with_clinical_team', 'awaiting_room'],
+  doctor1: ['with_clinical_team'],
+  doctor2: ['with_clinical_team'],
   lab_tech: ['in_lab'],
   pharmacist: ['at_pharmacy'],
   billing: ['awaiting_billing'],
@@ -26,8 +26,8 @@ const roleIncomingStatus: Partial<Record<AppRole, PatientStatus[]>> = {
 /** Which snap target_station belongs to my role. */
 const roleStation: Partial<Record<AppRole, string[]>> = {
   nurse: ['nurse'],
-  doctor1: ['doctor'],
-  doctor2: ['doctor'],
+  doctor1: ['clinical_team'],
+  doctor2: ['clinical_team'],
   lab_tech: ['lab'],
   pharmacist: ['pharmacy'],
   billing: ['billing'],

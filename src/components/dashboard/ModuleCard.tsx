@@ -10,7 +10,7 @@ interface ModuleCardProps {
   patientsToday: number;
   pendingTasks: number;
   status: 'active' | 'busy' | 'idle';
-  variant: 'reception' | 'nurse' | 'doctor' | 'lab' | 'billing' | 'pharmacy' | 'store' | 'account' | 'auditing' | 'admin';
+  variant: 'reception' | 'nurse' | 'clinical' | 'lab' | 'billing' | 'pharmacy' | 'store' | 'account' | 'auditing' | 'admin';
 }
 
 const statusColors = {
@@ -22,7 +22,7 @@ const statusColors = {
 const variantStyles = {
   reception: 'border-module-reception/30 hover:border-module-reception',
   nurse: 'border-module-nurse/30 hover:border-module-nurse',
-  doctor: 'border-module-doctor/30 hover:border-module-doctor',
+  clinical: 'border-module-clinical/30 hover:border-module-clinical',
   lab: 'border-module-lab/30 hover:border-module-lab',
   billing: 'border-module-billing/30 hover:border-module-billing',
   pharmacy: 'border-module-pharmacy/30 hover:border-module-pharmacy',
@@ -35,7 +35,7 @@ const variantStyles = {
 const iconBgStyles = {
   reception: 'bg-module-reception/10 text-module-reception',
   nurse: 'bg-module-nurse/10 text-module-nurse',
-  doctor: 'bg-module-doctor/10 text-module-doctor',
+  clinical: 'bg-module-clinical/10 text-module-clinical',
   lab: 'bg-module-lab/10 text-module-lab',
   billing: 'bg-module-billing/10 text-module-billing',
   pharmacy: 'bg-module-pharmacy/10 text-module-pharmacy',

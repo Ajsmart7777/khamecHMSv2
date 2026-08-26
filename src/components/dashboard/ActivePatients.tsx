@@ -8,7 +8,7 @@ const statusConfig: Record<PatientStatus, { label: string; variant: 'default' | 
   registered: { label: 'Registered', variant: 'secondary' },
   waiting: { label: 'Waiting', variant: 'warning' },
   with_nurse: { label: 'With Nurse', variant: 'info' },
-  with_doctor: { label: 'With Doctor', variant: 'info' },
+  with_clinical_team: { label: 'With Clinical Team', variant: 'info' },
   in_lab: { label: 'In Lab', variant: 'warning' },
   awaiting_billing: { label: 'Awaiting Billing', variant: 'warning' },
   awaiting_payment: { label: 'Awaiting Cashier', variant: 'warning' },

@@ -38,11 +38,11 @@ const statusConfig: Record<PatientStatus, {
     icon: Activity,
     color: 'text-module-nurse'
   },
-  with_doctor: {
-    label: 'With Doctor',
+  with_clinical_team: {
+    label: 'With Clinical Team',
     variant: 'info',
     icon: Stethoscope,
-    color: 'text-module-doctor'
+    color: 'text-module-clinical'
   },
   in_lab: {
     label: 'In Lab',

@@ -30,11 +30,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TypedPrescriptionEditor } from '@/components/prescription/TypedPrescriptionEditor';
 import { TypedLabRequestEditor } from '@/components/lab/TypedLabRequestEditor';
 import { ReferralEditorDialog } from '@/components/referral/ReferralEditorDialog';
-import { statusAfterClinicalOrder } from '@/lib/clinicWorkflowRouting';
+import { normalizeClinicalRole, statusAfterClinicalOrder } from '@/lib/clinicWorkflowRouting';
 
 interface Props {
   patientId: string;
-  sourceStation: VisitStation; // 'nurse' | 'doctor'
+  sourceStation: VisitStation; // active workspace station
   defaultOrderType?: SnapOrderType;
   defaultTarget?: SnapTargetStation;
   variant?: 'default' | 'outline' | 'secondary';
@@ -61,11 +61,8 @@ export function SnapClinicalOrder({
   const [searchParams] = useSearchParams();
   const asParam = searchParams.get('as');
   const senderRole: 'nurse' | 'doctor1' | 'doctor2' =
-    role === 'nurse' || role === 'doctor1' || role === 'doctor2'
-      ? role
-      : asParam === 'nurse' || asParam === 'doctor1' || asParam === 'doctor2'
-        ? asParam
-        : sourceStation === 'nurse' ? 'nurse' : 'doctor1';
+    normalizeClinicalRole(role, asParam)
+      ?? (sourceStation === 'nurse' ? 'nurse' : sourceStation === 'doctor2' ? 'doctor2' : 'doctor1');
   const { visit, refresh } = useActiveVisit(patientId);
   const { allowed, reason, loading: checking, debugLog } = useCanSnap(patientId);
   const { updatePatientStatus, getPatientById } = usePatients();
@@ -157,7 +154,7 @@ export function SnapClinicalOrder({
         patientId,
         file,
         label: `${orderType} → ${target}`,
-        station: sourceStation,
+        station: senderRole,
       }).catch(() => null);
 
       if (emergencyEpisodeId) {

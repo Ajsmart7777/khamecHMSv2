@@ -55,7 +55,7 @@ export const StatsCard = React.forwardRef<HTMLDivElement, StatsCardProps>(
           color.includes('destructive') && "from-destructive/50 to-destructive",
           color.includes('reception') && "from-module-reception/50 to-module-reception",
           color.includes('nurse') && "from-module-nurse/50 to-module-nurse",
-          color.includes('doctor') && "from-module-doctor/50 to-module-doctor",
+          color.includes('clinical') && "from-module-clinical/50 to-module-clinical",
           color.includes('pharmacy') && "from-module-pharmacy/50 to-module-pharmacy",
         )} />
       </div>

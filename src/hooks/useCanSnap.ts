@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { normalizeClinicalRole } from '@/lib/clinicWorkflowRouting';
 
 /**
  * Client-side mirror of `public.can_add_snap_for_patient`.
@@ -34,16 +35,17 @@ export function useCanSnap(patientId: string | null | undefined) {
       if (rpcErr) logs.push(`RPC Error: ${rpcErr.message}`);
 
       // Special check: if a lab result is ready for this user, they are allowed to act
-      const { data: hasLabResult } = await supabase
+      const { data: labResults } = await supabase
         .from('snap_orders')
         .select('id')
         .eq('patient_id', patientId)
-        .eq('order_type', 'lab_result')
+        .in('order_type', ['lab', 'lab_result'])
+        .eq('target_station', 'clinical_team')
         .eq('status', 'returned')
-        .eq('returned_to', user.id)
-        .maybeSingle();
+        .limit(1);
+      const hasLabResult = Array.isArray(labResults) && labResults.length > 0;
 
-      logs.push(`Has Lab Result check: ${!!hasLabResult}`);
+      logs.push(`Has shared clinical-team lab result: ${hasLabResult}`);
       if (cancelled) return;
       
       if (rpcErr) { 
@@ -53,7 +55,8 @@ export function useCanSnap(patientId: string | null | undefined) {
         return; 
       }
 
-      const isAllowed = !!rpcRes || !!hasLabResult;
+      const activeRole = normalizeClinicalRole(role, new URLSearchParams(window.location.search).get('as'));
+      const isAllowed = !!rpcRes || hasLabResult;
       
       const { data: p } = await supabase
         .from('patients')
@@ -63,11 +66,11 @@ export function useCanSnap(patientId: string | null | undefined) {
       
       const status = (p as any)?.status;
       const roleLabel = role ?? 'unauthenticated';
-      const isClinicalRole = ['nurse', 'doctor1', 'doctor2'].includes(roleLabel);
+      const isClinicalRole = activeRole !== null;
       
       // Clinical roles can always add snaps if status is awaiting_billing or admitted
       // This allows adding additional items after the first one is sent to billing.
-      const finalAllowed = isAllowed || (isClinicalRole && (status === 'awaiting_billing' || status === 'admitted' || status === 'with_nurse' || status === 'with_doctor' || status === 'waiting'));
+      const finalAllowed = isAllowed || (isClinicalRole && (status === 'awaiting_billing' || status === 'admitted' || status === 'with_nurse' || status === 'with_clinical_team' || status === 'waiting'));
       
       setAllowed(finalAllowed);
       setDebugLog(logs);
@@ -83,9 +86,11 @@ export function useCanSnap(patientId: string | null | undefined) {
         const assigned = (p as any)?.assigned_doctor;
         const roleLabel = role ?? 'unauthenticated';
         
-        let msg = `Only the current owner can add to this card. You are ${roleLabel}.`;
-        if (status === 'with_doctor' && assigned && assigned !== role) {
-          msg = `This patient is assigned to ${assigned === 'doctor1' ? 'Doctor 1' : 'Doctor 2'}. You are logged in as ${roleLabel}.`;
+        let msg = `Only the current workspace can add to this card. You are ${activeRole ?? roleLabel}.`;
+        if (status === 'with_clinical_team') {
+          msg = 'This patient is available to Nurse, Doctor 1, and Doctor 2.';
+        } else if (assigned && (activeRole === 'doctor1' || activeRole === 'doctor2') && assigned !== activeRole) {
+          msg = `This patient is assigned to ${assigned === 'doctor1' ? 'Doctor 1' : 'Doctor 2'}. You are working as ${activeRole === 'doctor1' ? 'Doctor 1' : 'Doctor 2'}.`;
         }
         
         setReason(msg);
@@ -125,10 +130,10 @@ function labelForStatus(s?: string) {
   switch (s) {
     case 'waiting':     return 'nurse (waiting)';
     case 'with_nurse':  return 'nurse';
-    case 'with_doctor': return 'assigned doctor';
+    case 'with_clinical_team': return 'Nurse / Doctor 1 / Doctor 2';
     case 'in_lab':      return 'lab';
     case 'at_pharmacy': return 'pharmacy';
-    case 'admitted':    return 'ward nurse / doctor';
+    case 'admitted':    return 'ward Nurse / Doctor 1 / Doctor 2';
     default:            return `no station (status: ${s ?? 'unknown'})`;
   }
 }

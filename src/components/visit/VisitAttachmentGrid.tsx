@@ -9,7 +9,8 @@ import { useAuth } from '@/contexts/AuthContext';
 const stationColors: Record<string, string> = {
   reception: 'bg-slate-500',
   nurse: 'bg-rose-500',
-  doctor: 'bg-blue-500',
+  doctor1: 'bg-blue-500',
+  doctor2: 'bg-blue-500',
   lab: 'bg-emerald-500',
   pharmacy: 'bg-violet-500',
   billing: 'bg-amber-500',

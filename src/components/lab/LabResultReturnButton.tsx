@@ -16,7 +16,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
 import { SnapCropDialog } from '@/components/visit/SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
-import { labResultTargetStation, ownerRoleForLabReturn, shouldPreserveWardLocation } from '@/lib/clinicWorkflowRouting';
+import { labResultTargetStation, normalizeClinicalRole, ownerRoleForLabReturn, shouldPreserveWardLocation } from '@/lib/clinicWorkflowRouting';
 
 interface Props {
   parentSnap: SnapOrder;
@@ -36,9 +36,8 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number, message: string): P
 }
 
 /**
- * Laboratory results are returned as photographed paper snaps and routed back
- * to the exact original requester, so Doctor, Nurse, and patient-ledger views
- * remain consistent.
+ * Laboratory results are returned as photographed paper snaps and delivered to
+ * the shared Nurse, Doctor 1, and Doctor 2 clinical queues.
  */
 export function LabResultReturnButton({ parentSnap, onDone }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -121,12 +120,12 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
       const { data: userData } = await supabase.auth.getUser();
       const uid = userData.user?.id;
 
-      // Identify the target user (the one who requested the lab) and their
-      // role to determine the routing station.
+      // Preserve the original requester only as audit/history metadata. Queue
+      // visibility is shared and never depends on the requester.
       const requesterId = parentSnap.created_by || parentSnap.returned_to;
       // original_sender_role is the durable ownership marker. source_role is
       // retained for older rows, so keep it as the compatibility fallback.
-      const senderRole = String(parentSnap.original_sender_role || parentSnap.source_role || 'doctor').trim().toLowerCase();
+      const senderRole = normalizeClinicalRole(parentSnap.original_sender_role || parentSnap.source_role) ?? 'clinical_team';
       const targetStation = labResultTargetStation(senderRole);
 
       const { error } = await supabase.from('snap_orders').insert({
@@ -190,19 +189,14 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
         if (labRequestError) throw labRequestError;
       }
 
-      // Return the patient to the original sender through the workflow engine.
-      // This records patient_journey/history and keeps Doctor 1/Doctor 2
-      // ownership aligned with the exact requester. Admitted patients remain
-      // in the ward; their result snap is still delivered to the requester.
+      // Return the result to the shared clinical team through the workflow
+      // engine. Admitted patients remain in the ward; their result is still
+      // visible to Nurse, Doctor 1, and Doctor 2.
       let routingWarning: string | null = null;
       try {
-        // The Nurse must receive every completed lab result for the next
-        // clinical action. For Doctor 1/2 requests, the returned snap still
-        // carries the original doctor owner, while the shared patient status
-        // moves to Nurse so both queues can act without creating a duplicate
-        // order or result.
-        const doctorRequestedLab = senderRole === 'doctor1' || senderRole === 'doctor2';
-        const newStatus = doctorRequestedLab || targetStation === 'nurse' ? 'with_nurse' : 'with_doctor';
+        // Every completed lab result returns to the shared clinical team.
+        // Nurse, Doctor 1, and Doctor 2 see the same patient simultaneously;
+        // any next action moves the patient out of this shared queue.
         const [{ data: patientRow, error: patientReadError }, { data: activeAdmission, error: admissionReadError }] = await Promise.all([
           supabase
             .from('patients')
@@ -219,22 +213,19 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
         if (patientReadError) throw patientReadError;
         if (admissionReadError) throw admissionReadError;
 
+        const newStatus = 'with_clinical_team' as const;
         if (!shouldPreserveWardLocation(patientRow?.status, Boolean(activeAdmission)) && patientRow?.status !== 'discharged') {
-          const ownerRole = ownerRoleForLabReturn({
-            targetStation,
-            senderRole,
-            assignedDoctor: patientRow?.assigned_doctor,
-          });
+          const ownerRole = ownerRoleForLabReturn({ targetStation, senderRole, assignedDoctor: patientRow?.assigned_doctor });
           const { error: journeyError } = await withTimeout(
             supabase.rpc('advance_journey', {
               _patient_id: parentSnap.patient_id,
               _to_state: newStatus,
               _owner_role: ownerRole,
-              _owner_user_id: requesterId ?? null,
-              _department: targetStation === 'nurse' ? 'nursing' : 'medical',
-              _location: targetStation,
+              _owner_user_id: null,
+              _department: 'clinical',
+              _location: 'clinical_team',
               _visit_id: parentSnap.visit_id,
-              _reason: 'Laboratory result returned to the original requester',
+              _reason: 'Laboratory result returned to the shared clinical team',
             }),
             12000,
             'Laboratory result saved, but workflow routing timed out.',
@@ -286,9 +277,7 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
 
       toast.success(entryMode === 'typed' ? 'Typed result sent back' : 'Result snap sent back', {
         description: routingWarning ?? (
-          senderRole === 'doctor1' || senderRole === 'doctor2'
-            ? `Delivered to ${senderRole === 'doctor1' ? 'Doctor 1' : 'Doctor 2'} and the Nurse queue.`
-            : `Delivered to ${senderRole === 'nurse' ? 'the Nurse queue' : senderRole}.`
+          'Delivered to Nurse, Doctor 1, and Doctor 2 queues.'
         ),
       });
       close();
@@ -369,7 +358,7 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              This result snap will be delivered back to the original requesting workspace.
+              This result snap will be delivered to Nurse, Doctor 1, and Doctor 2 together.
             </p>
           </div>
           <DialogFooter>

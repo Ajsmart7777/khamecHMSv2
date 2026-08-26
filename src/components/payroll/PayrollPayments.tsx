@@ -17,7 +17,8 @@ import { toast } from '@/hooks/use-toast';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const READINESS_TIMEOUT_MS = 15000;
-const READINESS_CONCURRENCY = 6;
+const READINESS_CONCURRENCY = 3;
+const READINESS_ATTEMPTS = 3;
 
 type ReadinessResult = {
   entryId: string;
@@ -41,6 +42,25 @@ async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = RE
   } finally {
     if (timeoutHandle) clearTimeout(timeoutHandle);
   }
+}
+
+function isTransientProviderError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /HTTP (429|500|502|503|504)\b/i.test(message) || /Could not reach Flutterwave/i.test(message) || /timed out after/i.test(message);
+}
+
+async function resolveAccountWithRetry(resolveAccount: (accountNumber: string, bankCode: string) => Promise<any>, accountNumber: string, bankCode: string, staffName: string) {
+  let lastError: unknown = null;
+  for (let attempt = 1; attempt <= READINESS_ATTEMPTS; attempt += 1) {
+    try {
+      return await withTimeout(resolveAccount(accountNumber, bankCode), `${staffName} account check`);
+    } catch (error) {
+      lastError = error;
+      if (!isTransientProviderError(error) || attempt === READINESS_ATTEMPTS) throw error;
+      await new Promise(resolve => setTimeout(resolve, 450 * attempt));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('account validation failed');
 }
 
 async function mapWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>) {
@@ -150,9 +170,11 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
           });
           const bankCode = String(bank?.code ?? bank?.bank_code ?? bank?.id ?? '').trim();
           if (!bankCode) throw new Error('bank is not in Flutterwave current bank list');
-          const accountResult = await withTimeout(
-            resolveAccount(entry.staff_account_number!, bankCode),
-            `${entry.staff_name} account check`,
+          const accountResult = await resolveAccountWithRetry(
+            resolveAccount,
+            entry.staff_account_number!,
+            bankCode,
+            entry.staff_name,
           );
           const accountName = String(accountResult?.account?.account_name ?? '').trim();
           if (!accountName) throw new Error('account could not be resolved');

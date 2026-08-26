@@ -452,14 +452,13 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
   onBilled: () => Promise<void>;
   patientName: string;
 }) {
-  const initialItems = useMemo(() => (snap.matched_items ?? []).map(line => ({
+  const referenceLines = useMemo(() => (snap.matched_items ?? []).map(line => ({
     ...line,
     source_text: line.source_text ?? line.name,
-    pricelist_id: line.pricelist_id ?? '',
-    unit_price: Number(line.unit_price || 0),
-    qty: Math.max(1, Number(line.qty || 1)),
   })), [snap.matched_items]);
-  const [items, setItems] = useState<MatchedItem[]>(initialItems);
+  // Original emergency lines are reference-only. Billing starts with an empty
+  // invoice list and decides how many billable lines to add.
+  const [items, setItems] = useState<MatchedItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [manualQuery, setManualQuery] = useState('');
   const [manualMatches, setManualMatches] = useState<PricelistItem[]>([]);
@@ -490,26 +489,29 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
   };
 
   const addManual = (it: PricelistItem) => {
-    // Emergency lines must retain their source item IDs for reconciliation. A
-    // Pricelist selection therefore fills the first still-unpriced source line
-    // instead of adding an unrelated extra invoice line.
-    const target = items.findIndex(line => !line.pricelist_id && Number(line.unit_price || 0) === 0);
-    if (target < 0) {
-      toast.info('All emergency lines already have billing values', { description: 'Edit an existing line or clear its price before assigning another Pricelist item.' });
-      return;
-    }
-    updateLine(target, {
+    setItems(prev => [...prev, {
       pricelist_id: it.id,
       name: it.name,
       description: it.name,
       size: it.size,
       category: it.category,
       unit_price: it.price,
-    });
+      qty: 1,
+    }]);
     setManualQuery('');
     setManualMatches([]);
     setActiveIdx(0);
   };
+
+  const addBlankLine = () => setItems(prev => [...prev, {
+    pricelist_id: '',
+    name: '',
+    description: '',
+    size: null,
+    category: 'emergency',
+    unit_price: 0,
+    qty: 1,
+  }]);
 
   const finish = async () => {
     const validItems = items.filter(item => item.name?.trim() && item.description?.trim());
@@ -552,9 +554,9 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
                 <p className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider">Original Emergency Order</p>
                 <Badge variant="outline" className="text-[10px]">Manual billing</Badge>
               </div>
-              <p className="text-[11px] text-amber-800/80 dark:text-amber-200/80">This is the exact plain-text record entered by the clinical team. Use the Billing Items panel to search the Pricelist or enter the billable description and price manually.</p>
+              <p className="text-[11px] text-amber-800/80 dark:text-amber-200/80">This is the exact plain-text record entered by the clinical team for reference. It does not pre-fill invoice lines. Search the Pricelist to add as many billable lines as needed, or add a manual line.</p>
               <div className="bg-background rounded border border-amber-300/60 p-3 text-sm whitespace-pre-wrap break-words font-mono">
-                {items.map((line, index) => <div key={line.emergency_episode_item_id || index} className="mb-2 last:mb-0"><span className="text-muted-foreground mr-2">{index + 1}.</span>{line.source_text ?? line.name}</div>)}
+                {referenceLines.map((line, index) => <div key={line.emergency_episode_item_id || index} className="mb-2 last:mb-0"><span className="text-muted-foreground mr-2">{index + 1}.</span>{line.source_text ?? line.name}</div>)}
               </div>
             </div>
             <div className="p-3 border rounded-lg bg-muted/20 space-y-2">
@@ -579,7 +581,7 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
                 }}
                 disabled={busy}
               />
-              <Button size="sm" onClick={doManualSearch} disabled={busy}>Search</Button>
+              <Button size="sm" onClick={doManualSearch} disabled={busy}>Search</Button><Button size="sm" variant="outline" onClick={addBlankLine} disabled={busy}><Plus className="h-3.5 w-3.5 mr-1" /> Add manual line</Button>
             </div>
 
             {manualMatches.length > 0 && (
@@ -599,7 +601,7 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
                 <span className="text-muted-foreground">{items.length} line{items.length === 1 ? '' : 's'}</span>
               </div>
               <div className="divide-y">
-                {items.length === 0 && <p className="p-3 text-xs text-muted-foreground text-center">No emergency lines are available.</p>}
+                {items.length === 0 && <p className="p-3 text-xs text-muted-foreground text-center">Search the Pricelist or add a manual line to start the invoice.</p>}
                 {items.map((it, idx) => (
                   <div key={it.emergency_episode_item_id || idx} className="p-2 flex items-center gap-2">
                     <div className="flex-1 min-w-0">

@@ -76,14 +76,19 @@ BEGIN
   IF _uid IS NULL OR NOT public.has_any_role(_uid, ARRAY['nurse','doctor1','doctor2','admin']::public.app_role[]) THEN
     RAISE EXCEPTION 'Not authorized';
   END IF;
+  SELECT count(*)::integer INTO _count
+  FROM public.snap_orders
+  WHERE patient_id = _patient_id
+    AND status = 'returned'
+    AND order_type IN ('lab', 'lab_result')
+    AND target_station = 'clinical_team';
   UPDATE public.snap_orders
   SET status = 'acknowledged', ack_by = _uid, ack_at = now(), updated_at = now()
   WHERE patient_id = _patient_id
     AND status = 'returned'
     AND order_type IN ('lab', 'lab_result')
     AND target_station = 'clinical_team';
-  GET DIAGNOSTICS _count = ROW_COUNT;
-  RETURN _count;
+  RETURN COALESCE(_count, 0);
 END;
 $$;
 

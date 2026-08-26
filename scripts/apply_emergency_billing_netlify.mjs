@@ -98,6 +98,14 @@ try {
       } catch (error) {
         lastError = error;
         const message = error instanceof Error ? error.message : String(error);
+        // A prior build may already have recreated this trigger while the
+        // migration marker was not yet written. The function definitions above
+        // are authoritative, so an existing trigger with the same name is safe
+        // to accept and the marker can be written below.
+        if (/^CREATE TRIGGER/i.test(statement) && /already exists/i.test(message)) {
+          lastError = undefined;
+          break;
+        }
         if (!ddl.test(statement) || !retryableSchemaChange.test(message) || attempt === 12) throw error;
         await sleep(Math.min(2500, 350 + attempt * 250));
       }

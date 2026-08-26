@@ -1,11 +1,25 @@
 -- Shared laboratory-result routing for Nurse, Doctor 1, and Doctor 2.
 -- Returned-to remains audit data; visibility is shared through clinical_team.
 
+ALTER TABLE public.patients DROP CONSTRAINT IF EXISTS patients_status_check;
+ALTER TABLE public.patients ADD CONSTRAINT patients_status_check CHECK (status IN (
+  'registered', 'waiting', 'with_nurse', 'with_doctor', 'with_clinical_team',
+  'in_lab', 'awaiting_billing', 'awaiting_payment', 'at_pharmacy',
+  'admitted', 'discharged', 'awaiting_room'
+));
+
 UPDATE public.patients SET status = 'with_clinical_team' WHERE status = 'with_doctor';
 UPDATE public.patient_journey
 SET current_state = 'with_clinical_team', owner_role = 'clinical_team', updated_at = now()
 WHERE current_state = 'with_doctor';
 UPDATE public.user_roles SET role = 'doctor1'::public.app_role WHERE role::text = 'doctor';
+
+ALTER TABLE public.patients DROP CONSTRAINT IF EXISTS patients_status_check;
+ALTER TABLE public.patients ADD CONSTRAINT patients_status_check CHECK (status IN (
+  'registered', 'waiting', 'with_nurse', 'with_clinical_team', 'in_lab',
+  'awaiting_billing', 'awaiting_payment', 'at_pharmacy', 'admitted',
+  'discharged', 'awaiting_room'
+));
 
 CREATE OR REPLACE FUNCTION public.can_add_snap_for_patient(_patient_id uuid, _user_id uuid)
 RETURNS boolean LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$

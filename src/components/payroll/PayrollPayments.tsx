@@ -457,6 +457,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
   */
 
   const totalRetryableAmount = retryableBankEntries.reduce((sum, e) => sum + e.net_pay, 0);
+  const totalAmountToPay = entries.reduce((sum, entry) => sum + entry.net_pay, 0);
   const providerLabel = provider === 'paystack' ? 'Paystack' : 'Flutterwave';
 
   return (
@@ -526,7 +527,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
             </RadioGroup>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="bg-card border border-border rounded-xl p-4">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-sm text-muted-foreground">{providerLabel} Balance</p>
@@ -544,6 +545,11 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
             <div className="bg-card border border-border rounded-xl p-4">
               <p className="text-sm text-muted-foreground">Cash Schedule</p>
               <p className="text-2xl font-bold">{cashEntries.length}</p>
+            </div>
+            <div className="bg-card border border-border rounded-xl p-4">
+              <p className="text-sm text-muted-foreground">Total Amount to Pay</p>
+              <p className="text-2xl font-bold">₦{totalAmountToPay.toLocaleString()}</p>
+              <p className="text-xs text-muted-foreground mt-1">Bank + cash net pay</p>
             </div>
             <div className="bg-card border border-border rounded-xl p-4">
                 <p className="text-sm text-muted-foreground">Confirmed Paid</p>

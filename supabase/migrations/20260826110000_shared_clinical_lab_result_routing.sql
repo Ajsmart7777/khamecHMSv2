@@ -121,7 +121,7 @@ BEGIN
   INSERT INTO public.snap_orders(patient_id, visit_id, order_type, target_station, source_role, status, created_by, original_sender_role, intent, note, ocr_text)
   VALUES (_patient_id, _visit_id, 'lab', 'lab', v_role, 'pending_billing', v_uid, v_role, 'typed_order', 'Typed Lab Order: ' || array_to_string(_tests, ', '), 'LINKED_LAB_REQUEST:' || v_lab_id::text);
   UPDATE public.patients SET status = 'awaiting_billing' WHERE id = _patient_id AND status::text != 'admitted';
-  PERFORM public.write_audit_log('create_typed_lab_request', 'lab_requests', v_lab_id::text, jsonb_build_object('patient_id', _patient_id, 'source_role', v_role), 'success');
+  SELECT public.write_audit_log('create_typed_lab_request', 'lab_requests', v_lab_id::text, jsonb_build_object('patient_id', _patient_id, 'source_role', v_role), 'success');
   RETURN v_lab_id;
 END;
 $$;
@@ -153,7 +153,7 @@ BEGIN
   INSERT INTO public.emergency_episode_items(episode_id, item_type, description, quantity, unit_price, administered_now, status, lab_request_id, created_by, notes)
   VALUES (_episode_id, 'lab', array_to_string(_tests, ', '), 1, 0, false, 'authorized', v_lab, v_uid, 'Typed emergency lab request; performed before payment.')
   RETURNING id INTO v_item;
-  PERFORM public.write_audit_log('emergency_typed_lab_created', 'lab_request', v_lab::text, jsonb_build_object('episode_id', _episode_id, 'episode_item_id', v_item, 'source_role', v_role), 'success');
+  SELECT public.write_audit_log('emergency_typed_lab_created', 'lab_request', v_lab::text, jsonb_build_object('episode_id', _episode_id, 'episode_item_id', v_item, 'source_role', v_role), 'success');
   RETURN v_lab;
 END;
 $$;
@@ -182,7 +182,7 @@ BEGIN
 
   SELECT EXISTS (SELECT 1 FROM public.admissions WHERE patient_id = v_patient AND status IN ('active','ready_for_discharge','waiting_assignment')) INTO v_active_admission;
   IF NOT v_active_admission THEN UPDATE public.patients SET status='with_clinical_team', last_visit=now(), updated_at=now() WHERE id=v_patient AND status::text NOT IN ('discharged','with_clinical_team'); END IF;
-  PERFORM public.write_audit_log('emergency_lab_completed', 'lab_request', _lab_request_id::text, jsonb_build_object('episode_id', v_episode, 'patient_id', v_patient, 'result_snap_id', v_result_snap, 'original_sender_role', v_sender_role, 'target_station', 'clinical_team'), 'success');
+  SELECT public.write_audit_log('emergency_lab_completed', 'lab_request', _lab_request_id::text, jsonb_build_object('episode_id', v_episode, 'patient_id', v_patient, 'result_snap_id', v_result_snap, 'original_sender_role', v_sender_role, 'target_station', 'clinical_team'), 'success');
   RETURN jsonb_build_object('lab_request_id', _lab_request_id, 'episode_id', v_episode, 'patient_id', v_patient, 'status', 'completed', 'result_snap_id', v_result_snap, 'target_station', 'clinical_team');
 END;
 $$;

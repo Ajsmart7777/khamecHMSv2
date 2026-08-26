@@ -479,7 +479,7 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
       });
       if (error) throw error;
       toast.success('Invoice generated · waiting for cashier payment', {
-        description: 'All Emergency Episode lines were matched and one pending invoice was created.',
+        description: 'All Emergency Episode lines were entered manually and one pending invoice was created.',
       });
       await onBilled();
       onClose();

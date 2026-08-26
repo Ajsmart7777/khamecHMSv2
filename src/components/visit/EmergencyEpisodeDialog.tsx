@@ -170,7 +170,7 @@ export function EmergencyEpisodeDialog({ patientId, patientName, visitId = null,
       if (error) throw error;
       const result = (data || {}) as any;
       setFinalized({ draft_id: result.billing_draft_id || result.draft_id });
-      toast.success('Emergency Episode finalized to Billing draft', { description: 'Billing will match each text line to the pricelist before creating one invoice.' });
+      toast.success('Emergency Episode finalized to Billing draft', { description: 'Billing will enter each plain-text line manually and create one separate invoice.' });
       onSaved?.();
     } catch (error: any) { toast.error(error?.message || 'Could not finalize Emergency Episode'); }
     finally { setBusy(false); }
@@ -211,7 +211,7 @@ export function EmergencyEpisodeDialog({ patientId, patientName, visitId = null,
         </section>
 
         {episodeId && !finalized && <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs"><div className="flex items-center gap-2 font-semibold"><Clock className="h-4 w-4" /> Episode saved and still open</div><p className="mt-1 text-muted-foreground">You may Save for later, refer the patient to Doctor 1 or Doctor 2, or Finalize when urgent care is complete. Finalize locks the episode and sends a billing draft to Billing.</p></div>}
-        {finalized && <div className="rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20 p-3 text-sm"><p className="font-semibold text-emerald-800 dark:text-emerald-200">Sent to Billing as a draft</p><p className="text-xs mt-1">Billing will match each plain-text line to the Pricelist and generate one invoice. The episode is now locked, but you may start a separate emergency episode if needed.</p>{finalized.draft_id && <p className="text-[11px] font-mono mt-1">Draft: {finalized.draft_id}</p>}<Button type="button" size="sm" variant="outline" className="mt-3" onClick={startNewEpisode} disabled={busy}><Plus className="h-4 w-4 mr-2" /> Start new emergency episode</Button></div>}
+        {finalized && <div className="rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20 p-3 text-sm"><p className="font-semibold text-emerald-800 dark:text-emerald-200">Sent to Billing as a draft</p><p className="text-xs mt-1">Billing will enter each plain-text line manually and generate one separate invoice. Normal orders remain separate, and you may start another emergency episode if needed.</p>{finalized.draft_id && <p className="text-[11px] font-mono mt-1">Draft: {finalized.draft_id}</p>}<Button type="button" size="sm" variant="outline" className="mt-3" onClick={startNewEpisode} disabled={busy}><Plus className="h-4 w-4 mr-2" /> Start new emergency episode</Button></div>}
 
         <DialogFooter className="gap-2"><Button variant="ghost" onClick={close} disabled={busy}>{finalized ? 'Close' : 'Save for later'}</Button>{canAdmit && !finalized && onRequestAdmission && <Button variant="secondary" onClick={onRequestAdmission} disabled={busy}><Plus className="h-4 w-4 mr-2" /> Admit patient</Button>}{episodeId && !finalized && <Button onClick={finalize} disabled={busy || savedItems.length === 0}>{busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Receipt className="h-4 w-4 mr-2" />} Finalize → Billing draft</Button>}</DialogFooter>
       </DialogContent>

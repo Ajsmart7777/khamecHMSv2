@@ -455,20 +455,65 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
   const initialItems = useMemo(() => (snap.matched_items ?? []).map(line => ({
     ...line,
     source_text: line.source_text ?? line.name,
+    pricelist_id: line.pricelist_id ?? '',
+    unit_price: Number(line.unit_price || 0),
+    qty: Math.max(1, Number(line.qty || 1)),
   })), [snap.matched_items]);
-  const [items, setItems] = useState<MatchedItem[]>(initialItems.map(line => ({ ...line, pricelist_id: '', unit_price: Number(line.unit_price || 0) })));
+  const [items, setItems] = useState<MatchedItem[]>(initialItems);
   const [busy, setBusy] = useState(false);
+  const [manualQuery, setManualQuery] = useState('');
+  const [manualMatches, setManualMatches] = useState<PricelistItem[]>([]);
+  const [activeIdx, setActiveIdx] = useState(0);
 
   const updateLine = (index: number, patch: Partial<MatchedItem>) => {
     setItems(prev => prev.map((line, i) => i === index ? { ...line, ...patch } : line));
   };
-
-  const setQty = (idx: number, qty: number) =>
-    updateLine(idx, { qty: Math.max(1, qty) });
-
+  const setQty = (index: number, qty: number) => updateLine(index, { qty: Math.max(1, qty) });
+  const removeItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index));
   const total = items.reduce((sum, item) => sum + Number(item.unit_price || 0) * Math.max(1, Number(item.qty || 1)), 0);
 
+  useEffect(() => {
+    const q = manualQuery.trim();
+    if (!q) { setManualMatches([]); return; }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const matches = await fuzzyMatchPricelist(q);
+      if (!cancelled) { setManualMatches(matches); setActiveIdx(0); }
+    }, 150);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [manualQuery]);
+
+  const doManualSearch = async () => {
+    const matches = await fuzzyMatchPricelist(manualQuery);
+    setManualMatches(matches);
+    if (matches.length === 0) toast.error('No matches — you may edit the emergency line manually or add it via Pricelist Manager');
+  };
+
+  const addManual = (it: PricelistItem) => {
+    // Emergency lines must retain their source item IDs for reconciliation. A
+    // Pricelist selection therefore fills the first still-unpriced source line
+    // instead of adding an unrelated extra invoice line.
+    const target = items.findIndex(line => !line.pricelist_id && Number(line.unit_price || 0) === 0);
+    if (target < 0) {
+      toast.info('All emergency lines already have billing values', { description: 'Edit an existing line or clear its price before assigning another Pricelist item.' });
+      return;
+    }
+    updateLine(target, {
+      pricelist_id: it.id,
+      name: it.name,
+      description: it.name,
+      size: it.size,
+      category: it.category,
+      unit_price: it.price,
+    });
+    setManualQuery('');
+    setManualMatches([]);
+    setActiveIdx(0);
+  };
+
   const finish = async () => {
+    const validItems = items.filter(item => item.name?.trim() && item.description?.trim());
+    if (validItems.length !== items.length) { toast.error('Complete every emergency billing line before generating the invoice'); return; }
     if (items.length === 0) { toast.error('This Emergency Episode draft has no lines'); return; }
     setBusy(true);
     try {
@@ -492,69 +537,95 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-5xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Generate Invoice · {patientName}</DialogTitle>
+          <DialogTitle>
+            Snap Review · {patientName} · <span className="capitalize text-primary">{snap.order_type}</span> → <span className="capitalize">{snap.target_station}</span>
+          </DialogTitle>
         </DialogHeader>
 
-            <div className="rounded-lg border-2 border-amber-300 bg-amber-50/60 dark:bg-amber-950/20 p-3 text-xs">
-          <p className="font-semibold text-amber-900 dark:text-amber-200">Emergency Episode Billing Draft</p>
-          <p className="mt-1 text-amber-800/80 dark:text-amber-200/80">These are the exact plain-text emergency lines recorded by the clinical team. Enter the billable description, quantity, and price manually. Pricelist matching is not required.</p>
-        </div>
-
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Original Emergency Lines</h4>
-              <Badge variant="outline">{items.length} line{items.length === 1 ? '' : 's'}</Badge>
+            <div className="p-3 border-2 border-amber-300 rounded-lg bg-amber-50/60 dark:bg-amber-950/20 space-y-2">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-amber-700" />
+                <p className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider">Original Emergency Order</p>
+                <Badge variant="outline" className="text-[10px]">Manual billing</Badge>
+              </div>
+              <p className="text-[11px] text-amber-800/80 dark:text-amber-200/80">This is the exact plain-text record entered by the clinical team. Use the Billing Items panel to search the Pricelist or enter the billable description and price manually.</p>
+              <div className="bg-background rounded border border-amber-300/60 p-3 text-sm whitespace-pre-wrap break-words font-mono">
+                {items.map((line, index) => <div key={line.emergency_episode_item_id || index} className="mb-2 last:mb-0"><span className="text-muted-foreground mr-2">{index + 1}.</span>{line.source_text ?? line.name}</div>)}
+              </div>
             </div>
-            <div className="space-y-2">
-              {items.map((line, index) => (
-                <div key={line.emergency_episode_item_id || index} className="rounded-lg border bg-muted/20 p-3">
-                  <div className="flex items-start gap-2">
-                    {line.category === 'lab' ? <Beaker className="h-4 w-4 mt-0.5 text-module-laboratory" /> : <Pill className="h-4 w-4 mt-0.5 text-module-pharmacy" />}
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium whitespace-pre-wrap break-words">{line.source_text ?? line.name}</p>
-                      <p className="mt-1 text-[11px] text-muted-foreground capitalize">{line.category} · quantity {line.qty || 1}</p>
-                    </div>
-                    <Badge variant="outline" className="text-[10px]">Written emergency line</Badge>
-                  </div>
-                </div>
-              ))}
+            <div className="p-3 border rounded-lg bg-muted/20 space-y-2">
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Emergency Billing Rule</p>
+              <p className="text-xs text-muted-foreground">Emergency care is recorded before payment. This draft remains separate from normal laboratory or pharmacy orders and creates one pending invoice for Cashier.</p>
             </div>
           </div>
 
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Billing Items</h4>
-              <span className="text-xs text-muted-foreground">Manual entry</span>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Type to search pricelist… (e.g. 'pan' finds Panadol)"
+                value={manualQuery}
+                onChange={e => setManualQuery(e.target.value)}
+                onKeyDown={e => {
+                  if (manualMatches.length > 0) {
+                    if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(manualMatches.length - 1, i + 1)); return; }
+                    if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(0, i - 1)); return; }
+                    if (e.key === 'Enter') { e.preventDefault(); const pick = manualMatches[activeIdx] ?? manualMatches[0]; if (pick) addManual(pick); return; }
+                    if (e.key === 'Escape') { e.preventDefault(); setManualMatches([]); return; }
+                  } else if (e.key === 'Enter') doManualSearch();
+                }}
+                disabled={busy}
+              />
+              <Button size="sm" onClick={doManualSearch} disabled={busy}>Search</Button>
             </div>
-            <div className="space-y-3">
-              {items.map((line, index) => (
-                <div key={line.emergency_episode_item_id || index} className="rounded-lg border p-3 space-y-2">
-                  <Input value={line.name} onChange={e => updateLine(index, { name: e.target.value, description: e.target.value })} disabled={busy} placeholder="Billable description" />
-                  <div className="flex items-center gap-2">
-                    <Input type="number" min={1} value={line.qty} onChange={e => setQty(index, Number(e.target.value) || 1)} disabled={busy} className="w-24" />
-                    <span className="text-xs text-muted-foreground">Qty</span>
-                    <Input type="number" min={0} value={line.unit_price} onChange={e => updateLine(index, { unit_price: Math.max(0, Number(e.target.value) || 0), pricelist_id: '' })} disabled={busy} className="w-32" />
-                    <span className="text-xs text-muted-foreground">Unit price</span>
-                    <span className="ml-auto text-sm font-mono font-semibold">{fmt(Number(line.unit_price || 0) * Math.max(1, Number(line.qty || 1)))}</span>
+
+            {manualMatches.length > 0 && (
+              <div className="border rounded-lg p-2 space-y-1 max-h-40 overflow-y-auto">
+                {manualMatches.map((m, i) => (
+                  <button key={m.id} onClick={() => addManual(m)} onMouseEnter={() => setActiveIdx(i)} className={'w-full text-left text-xs px-2 py-1 rounded flex items-center justify-between ' + (i === activeIdx ? 'bg-primary/15 ring-1 ring-primary/40' : 'hover:bg-primary/10')}>
+                    <span>{highlightMatch(m.name, manualQuery)}{m.size ? <> ({highlightMatch(m.size, manualQuery)})</> : null}</span>
+                    <span className="font-mono">{fmt(m.price)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="border rounded-lg">
+              <div className="p-2 text-xs font-medium border-b flex items-center justify-between">
+                <span>Invoice Items</span>
+                <span className="text-muted-foreground">{items.length} line{items.length === 1 ? '' : 's'}</span>
+              </div>
+              <div className="divide-y">
+                {items.length === 0 && <p className="p-3 text-xs text-muted-foreground text-center">No emergency lines are available.</p>}
+                {items.map((it, idx) => (
+                  <div key={it.emergency_episode_item_id || idx} className="p-2 flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <Input value={it.name} onChange={e => updateLine(idx, { name: e.target.value, description: e.target.value, pricelist_id: '' })} disabled={busy} className="h-8 text-xs" placeholder="Billable description" />
+                      <p className="text-[10px] text-muted-foreground mt-1">{it.category || 'emergency'} · {it.pricelist_id ? 'Pricelist item' : 'Manual line'}</p>
+                    </div>
+                    <Input type="number" min={1} value={it.qty} onChange={e => setQty(idx, Number(e.target.value) || 1)} disabled={busy} className="w-16 h-8 text-xs" />
+                    <Input type="number" min={0} value={it.unit_price} onChange={e => updateLine(idx, { unit_price: Math.max(0, Number(e.target.value) || 0), pricelist_id: '' })} disabled={busy} className="w-24 h-8 text-xs" />
+                    <span className="text-xs font-mono w-20 text-right">{fmt(Number(it.unit_price || 0) * Math.max(1, Number(it.qty || 1)))}</span>
+                    <Button size="sm" variant="ghost" onClick={() => removeItem(idx)} disabled={busy}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
                   </div>
-                </div>
-              ))}
-            </div>
-            <div className="bg-muted/30 rounded-lg p-4 border border-border flex items-center justify-between gap-4">
-              <div><p className="text-xs text-muted-foreground uppercase font-bold tracking-widest">Grand Total</p><p className="text-3xl font-black text-primary">{fmt(total)}</p></div>
-              <span className="text-xs text-muted-foreground">One pending invoice → Cashier</span>
+                ))}
+              </div>
+              <div className="p-2 border-t flex items-center justify-between">
+                <span className="text-sm font-medium">Total</span>
+                <span className="text-lg font-mono font-bold">{fmt(total)}</span>
+              </div>
             </div>
           </div>
         </div>
 
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onClose} disabled={busy}>Close</Button>
-          <Button variant="hero" onClick={finish} disabled={busy || items.length === 0}>
+          <Button onClick={finish} disabled={busy || items.length === 0}>
             <Send className="h-4 w-4 mr-2" />
-            {busy ? 'Generating…' : 'Generate Invoice'}
+            {busy ? 'Creating…' : 'Create Invoice → Send to Cashier'}
           </Button>
         </DialogFooter>
       </DialogContent>

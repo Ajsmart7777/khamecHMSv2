@@ -22,7 +22,7 @@ ALTER TABLE public.patients ADD CONSTRAINT patients_status_check CHECK (status I
 ));
 
 CREATE OR REPLACE FUNCTION public.can_add_snap_for_patient(_patient_id uuid, _user_id uuid)
-RETURNS boolean LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+RETURNS boolean LANGUAGE plpgsql STABLE SECURITY DEFINER AS $$
 DECLARE
   _status text;
   _is_admitted boolean;
@@ -68,7 +68,7 @@ END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.acknowledge_clinical_team_lab_results(_patient_id uuid)
-RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+RETURNS integer LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   _uid uuid := public.hms_current_user_id();
   _count integer;
@@ -89,7 +89,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.create_lab_request_from_typed(
   _patient_id uuid, _visit_id uuid, _diagnosis text, _tests text[]
-) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_uid uuid := public.hms_current_user_id();
   v_lab_id uuid;
@@ -185,7 +185,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.can_add_snap_for_patient(uuid, uuid) TO authenticated;
 CREATE OR REPLACE FUNCTION public.advance_clinical_team_action(
   _patient_id uuid, _to_state text, _owner_role text DEFAULT NULL
-) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+) RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   _uid uuid := public.hms_current_user_id();
   _journey_id uuid;

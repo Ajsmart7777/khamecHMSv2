@@ -9,7 +9,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { Wallet, Send, Loader2, RefreshCw, Banknote } from 'lucide-react';
+import { Wallet, Send, Loader2, RefreshCw, Banknote, CheckSquare } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { PayrollPeriod, PayrollEntry, PaymentProvider, useProviderActions } from '@/hooks/usePayroll';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
@@ -34,11 +35,16 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
   const [provider, setProvider] = useState<PaymentProvider>('flutterwave');
   const [validatingReadiness, setValidatingReadiness] = useState(false);
   const [readinessSummary, setReadinessSummary] = useState<string | null>(null);
+  const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set());
+  const [creatingBatch, setCreatingBatch] = useState(false);
+  const [pendingBatchEntries, setPendingBatchEntries] = useState<PayrollEntry[]>([]);
   const { getBalance, resolveBank, resolveAccount, initiateTransfer } = useProviderActions(provider);
 
   const bankEntries = entries.filter(e => e.staff_payment_method === 'bank' && e.staff_bank_name && e.staff_account_number);
   const cashEntries = entries.filter(e => e.staff_payment_method !== 'bank' || !e.staff_account_number);
   const retryableBankEntries = bankEntries.filter(e => e.status === 'pending' || e.status === 'failed');
+  const selectedRetryableEntries = retryableBankEntries.filter(entry => selectedEntryIds.has(entry.id));
+  const allRetryableSelected = retryableBankEntries.length > 0 && selectedRetryableEntries.length === retryableBankEntries.length;
 
   const canPay = selectedPeriod?.status === 'locked';
 
@@ -119,7 +125,41 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
     }
   };
 
-  const payEntry = async (entry: PayrollEntry): Promise<boolean> => {
+  const createPaymentBatch = async (batchEntries: PayrollEntry[]) => {
+    if (!selectedPeriod || batchEntries.length === 0) return null;
+    const { data: latestRows, error: latestError } = await supabase
+      .from('payroll_payment_batches')
+      .select('batch_number')
+      .eq('payroll_period_id', selectedPeriod.id)
+      .eq('provider', provider)
+      .order('batch_number', { ascending: false })
+      .limit(1);
+    if (latestError) throw latestError;
+    const latestNumber = Number((latestRows as Array<Record<string, unknown>> | null)?.[0]?.batch_number || 0);
+    const batchNumber = latestNumber + 1;
+    const { data, error } = await supabase
+      .from('payroll_payment_batches')
+      .insert({
+        payroll_period_id: selectedPeriod.id,
+        provider,
+        batch_number: batchNumber,
+        label: `Payroll batch ${batchNumber}`,
+        status: 'processing',
+        requested_count: batchEntries.length,
+        requested_amount: batchEntries.reduce((sum, entry) => sum + entry.net_pay, 0),
+      })
+      .select('id,batch_number')
+      .single();
+    if (error || !data) throw error || new Error('Could not create payroll batch.');
+    return { id: String(data.id), batchNumber: Number(data.batch_number || batchNumber) };
+  };
+
+  const updatePaymentBatchStatus = async (batchId: string, succeeded: number, failed: number) => {
+    const status = succeeded > 0 && failed === 0 ? 'submitted' : succeeded > 0 ? 'partial' : 'failed';
+    await supabase.from('payroll_payment_batches').update({ status, updated_at: new Date().toISOString() }).eq('id', batchId);
+  };
+
+  const payEntry = async (entry: PayrollEntry, batch?: { id: string; batchNumber: number }): Promise<boolean> => {
     if (!selectedPeriod || !entry.staff_bank_name || !entry.staff_account_number) return false;
 
     // One stable reference belongs to one payroll entry. A processing/paid attempt
@@ -157,7 +197,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
       if (previous?.id && previousStatus === 'failed') {
         const { error: retryError } = await supabase
           .from('payroll_payments')
-          .update({ status: 'processing', amount: entry.net_pay, provider, failure_reason: null, provider_reference: reference })
+          .update({ status: 'processing', amount: entry.net_pay, provider, failure_reason: null, provider_reference: reference, batch_id: batch?.id || null, batch_number: batch?.batchNumber || null })
           .eq('id', previous.id);
         if (retryError) throw retryError;
         paymentAttemptId = String(previous.id);
@@ -174,6 +214,8 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
             status: 'processing',
             provider_reference: reference,
             provider,
+            batch_id: batch?.id || null,
+            batch_number: batch?.batchNumber || null,
           })
           .select('id')
           .single();
@@ -270,13 +312,60 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
     }
   };
 
-  const payAll = async () => {
+  const payEntriesAsBatch = async (batchEntries: PayrollEntry[]) => {
+    if (batchEntries.length === 0) return;
     setShowConfirm(false);
     setPayingAll(true);
+    setCreatingBatch(true);
     let succeeded = 0;
     let failed = 0;
-    const errors: string[] = [];
+    let batch: { id: string; batchNumber: number } | null = null;
+    try {
+      batch = await createPaymentBatch(batchEntries);
+      for (const entry of batchEntries) {
+        const ok = await payEntry(entry, batch || undefined);
+        if (ok) succeeded++;
+        else failed++;
+      }
+      if (batch) await updatePaymentBatchStatus(batch.id, succeeded, failed);
+    } catch (error) {
+      toast({ title: 'Batch Processing Failed', description: error instanceof Error ? error.message : 'Could not process this payroll batch.', variant: 'destructive' });
+    }
 
+    await onRefreshEntries();
+    void fetchBalance();
+    setSelectedEntryIds(new Set());
+    setCreatingBatch(false);
+    setPayingAll(false);
+
+    if (failed === 0 && succeeded > 0) {
+      toast({ title: 'Batch Submitted for Confirmation', description: `${succeeded} transfer(s) are processing with ${providerLabel}. They will show Paid only after provider confirmation.` });
+    } else if (succeeded > 0 && failed > 0) {
+      toast({ title: 'Batch Partially Submitted', description: `${succeeded} submitted for confirmation; ${failed} rejected. Correct the rejected entries and retry only those entries.`, variant: 'destructive' });
+    }
+  };
+
+  const openBatchConfirmation = (batchEntries: PayrollEntry[]) => {
+    if (batchEntries.length === 0) return;
+    setPendingBatchEntries(batchEntries);
+    setShowConfirm(true);
+  };
+
+  const toggleEntrySelection = (entryId: string, checked: boolean) => {
+    setSelectedEntryIds(previous => {
+      const next = new Set(previous);
+      if (checked) next.add(entryId);
+      else next.delete(entryId);
+      return next;
+    });
+  };
+
+  const toggleAllSelection = (checked: boolean) => {
+    setSelectedEntryIds(checked ? new Set(retryableBankEntries.map(entry => entry.id)) : new Set());
+  };
+
+  /* legacy per-entry loop removed; batch processing preserves the same idempotent payEntry path */
+  /*
     for (const entry of retryableBankEntries) {
       const ok = await payEntry(entry);
       if (ok) {
@@ -286,18 +375,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
         errors.push(entry.staff_name || 'Unknown');
       }
     }
-
-    await onRefreshEntries();
-    fetchBalance();
-    setPayingAll(false);
-
-    if (failed === 0 && succeeded > 0) {
-      toast({ title: 'Transfers Submitted for Confirmation', description: `${succeeded} transfer(s) are processing with ${providerLabel}. They will show Paid only after provider confirmation.` });
-    } else if (succeeded > 0 && failed > 0) {
-      toast({ title: 'Some Transfers Were Rejected', description: `${succeeded} submitted for confirmation; ${failed} rejected. Check the specific error toast, correct the issue, then retry.`, variant: 'destructive' });
-    }
-    // When all fail, individual rejection toasts already explain the reason.
-  };
+  */
 
   const totalRetryableAmount = retryableBankEntries.reduce((sum, e) => sum + e.net_pay, 0);
   const providerLabel = provider === 'paystack' ? 'Paystack' : 'Flutterwave';
@@ -307,16 +385,16 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
       <AlertDialog open={showConfirm} onOpenChange={setShowConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Bulk Payment</AlertDialogTitle>
+            <AlertDialogTitle>Confirm Payroll Batch</AlertDialogTitle>
             <AlertDialogDescription>
-              You are about to initiate <strong>{retryableBankEntries.length}</strong> bank transfer(s)
-              totaling <strong>₦{totalRetryableAmount.toLocaleString()}</strong> via <strong>{providerLabel}</strong>.
+              You are about to initiate <strong>{(pendingBatchEntries.length || retryableBankEntries.length)}</strong> bank transfer(s)
+              totaling <strong>₦{(pendingBatchEntries.length ? pendingBatchEntries : retryableBankEntries).reduce((sum, entry) => sum + entry.net_pay, 0).toLocaleString()}</strong> via <strong>{providerLabel}</strong>.
               This action will debit your {providerLabel} balance. Are you sure you want to proceed?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={payAll}>Yes, Pay All</AlertDialogAction>
+            <AlertDialogAction onClick={() => void payEntriesAsBatch(pendingBatchEntries.length ? pendingBatchEntries : retryableBankEntries)}>Yes, Process Batch</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -416,12 +494,20 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
                   {validatingReadiness ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                   {validatingReadiness ? 'Checking…' : 'Validate Only'}
                 </Button>
-                <Button
-                  onClick={() => setShowConfirm(true)}
-                  disabled={payingAll || retryableBankEntries.length === 0}
+                  <Button
+                  onClick={() => openBatchConfirmation(retryableBankEntries)}
+                  disabled={payingAll || retryableBankEntries.length === 0 || selectedRetryableEntries.length > 0}
                 >
                   {payingAll ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
                   Pay All ({retryableBankEntries.length})
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => openBatchConfirmation(selectedRetryableEntries)}
+                  disabled={payingAll || creatingBatch || selectedRetryableEntries.length === 0}
+                >
+                  {creatingBatch ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckSquare className="h-4 w-4 mr-2" />}
+                  Pay Selected Batch ({selectedRetryableEntries.length})
                 </Button>
               </div>
             </div>
@@ -431,7 +517,10 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                    <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox checked={allRetryableSelected} onCheckedChange={value => toggleAllSelection(value === true)} aria-label="Select all payable staff" />
+                    </TableHead>
                     <TableHead>Staff ID</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Bank</TableHead>
@@ -444,6 +533,9 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
                 <TableBody>
                   {bankEntries.map(entry => (
                     <TableRow key={entry.id}>
+                      <TableCell>
+                        <Checkbox checked={selectedEntryIds.has(entry.id)} onCheckedChange={value => toggleEntrySelection(entry.id, value === true)} disabled={!['pending', 'failed'].includes(entry.status) || payingAll} aria-label={`Select ${entry.staff_name || 'staff member'}`} />
+                      </TableCell>
                       <TableCell className="font-mono text-xs">{entry.staff_employee_id}</TableCell>
                       <TableCell className="font-medium">{entry.staff_name}</TableCell>
                       <TableCell className="text-sm">{entry.staff_bank_name}</TableCell>
@@ -470,7 +562,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
                   ))}
                   {bankEntries.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">No bank transfer entries</TableCell>
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No bank transfer entries</TableCell>
                     </TableRow>
                   )}
                 </TableBody>

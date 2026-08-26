@@ -16,6 +16,46 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const READINESS_TIMEOUT_MS = 15000;
+const READINESS_CONCURRENCY = 6;
+
+type ReadinessResult = {
+  entryId: string;
+  staffName: string;
+  bankName: string;
+  ok: boolean;
+  message: string;
+};
+
+function normalizeBankName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = READINESS_TIMEOUT_MS): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)} seconds`)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle);
+  }
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>) {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+  const runWorker = async () => {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => runWorker()));
+  return results;
+}
 
 interface Props {
   periods: PayrollPeriod[];
@@ -35,10 +75,11 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
   const [provider, setProvider] = useState<PaymentProvider>('flutterwave');
   const [validatingReadiness, setValidatingReadiness] = useState(false);
   const [readinessSummary, setReadinessSummary] = useState<string | null>(null);
+  const [readinessResults, setReadinessResults] = useState<ReadinessResult[]>([]);
   const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(new Set());
   const [creatingBatch, setCreatingBatch] = useState(false);
   const [pendingBatchEntries, setPendingBatchEntries] = useState<PayrollEntry[]>([]);
-  const { getBalance, resolveBank, resolveAccount, initiateTransfer } = useProviderActions(provider);
+  const { getBalance, listBanks, resolveBank, resolveAccount, initiateTransfer } = useProviderActions(provider);
 
   const bankEntries = entries.filter(e => e.staff_payment_method === 'bank' && e.staff_bank_name && e.staff_account_number);
   const cashEntries = entries.filter(e => e.staff_payment_method !== 'bank' || !e.staff_account_number);
@@ -91,29 +132,45 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
     if (!selectedPeriod || bankEntries.length === 0) return;
     setValidatingReadiness(true);
     setReadinessSummary(null);
-    let ready = 0;
-    const issues: string[] = [];
+    setReadinessResults([]);
     try {
-      await getBalance();
-      for (const entry of bankEntries) {
+      await withTimeout(getBalance(), `${providerLabel} balance check`);
+      const bankResponse = await withTimeout(listBanks(), `${providerLabel} bank-list check`);
+      const providerBanks = (Array.isArray(bankResponse?.banks) ? bankResponse.banks : []) as Array<Record<string, unknown>>;
+      if (providerBanks.length === 0) throw new Error(`${providerLabel} returned no Nigerian banks`);
+
+      const results = await mapWithConcurrency(bankEntries, READINESS_CONCURRENCY, async (entry): Promise<ReadinessResult> => {
         try {
-          const bankResult = await resolveBank(entry.staff_bank_name!);
-          const bankCode = String(bankResult?.bank?.code ?? '').trim();
-          if (!bankCode) throw new Error('bank code unavailable');
-          const accountResult = await resolveAccount(entry.staff_account_number!, bankCode);
-          if (!accountResult?.account?.account_name) throw new Error('account could not be resolved');
-          ready++;
+          const requestedName = normalizeBankName(entry.staff_bank_name || '');
+          const bank = providerBanks.find(candidate => {
+            const candidateName = normalizeBankName(String(candidate.name ?? ''));
+            return candidateName === requestedName
+              || candidateName.includes(requestedName)
+              || requestedName.includes(candidateName);
+          });
+          const bankCode = String(bank?.code ?? bank?.bank_code ?? bank?.id ?? '').trim();
+          if (!bankCode) throw new Error('bank is not in Flutterwave current bank list');
+          const accountResult = await withTimeout(
+            resolveAccount(entry.staff_account_number!, bankCode),
+            `${entry.staff_name} account check`,
+          );
+          const accountName = String(accountResult?.account?.account_name ?? '').trim();
+          if (!accountName) throw new Error('account could not be resolved');
+          return { entryId: entry.id, staffName: entry.staff_name, bankName: entry.staff_bank_name!, ok: true, message: `Resolved as ${accountName}` };
         } catch (error) {
-          issues.push(`${entry.staff_name}: ${error instanceof Error ? error.message : 'validation failed'}`);
+          return { entryId: entry.id, staffName: entry.staff_name, bankName: entry.staff_bank_name!, ok: false, message: error instanceof Error ? error.message : 'validation failed' };
         }
-      }
+      });
+      const ready = results.filter(result => result.ok).length;
+      const issues = results.filter(result => !result.ok);
+      setReadinessResults(results);
       const summary = issues.length === 0
         ? `${ready} bank account(s) passed readiness checks. No money was transferred.`
         : `${ready} account(s) passed; ${issues.length} need attention. No money was transferred.`;
       setReadinessSummary(summary);
       toast({
         title: issues.length === 0 ? 'Payroll Readiness Passed' : 'Payroll Readiness Needs Attention',
-        description: issues.length === 0 ? summary : `${summary} ${issues[0]}`,
+        description: issues.length === 0 ? summary : `${summary} ${issues[0].staffName}: ${issues[0].message}`,
         variant: issues.length === 0 ? 'default' : 'destructive',
       });
     } catch (error) {
@@ -512,6 +569,17 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
               </div>
             </div>
             {readinessSummary && <p className="text-xs text-muted-foreground mt-2">{readinessSummary}</p>}
+            {readinessResults.length > 0 && (
+              <div className="mt-2 max-h-48 overflow-y-auto rounded-md border border-border bg-muted/20 p-2 text-xs">
+                {readinessResults.map(result => (
+                  <div key={result.entryId} className="flex items-start justify-between gap-3 py-1">
+                    <span className={result.ok ? 'text-success' : 'text-destructive'}>{result.ok ? 'Passed' : 'Needs attention'}</span>
+                    <span className="min-w-0 flex-1">{result.staffName} · {result.bankName}</span>
+                    <span className="max-w-[45%] text-right text-muted-foreground">{result.message}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
           <div className="border border-border rounded-xl overflow-hidden">
             <div className="overflow-x-auto">

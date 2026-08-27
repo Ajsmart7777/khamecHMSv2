@@ -37,6 +37,54 @@ interface Props {
 
 const formatAmount = (value: number) => Number(value || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 
+function PayrollFloatingScrollbar({ containerRef, enabled }: { containerRef: { current: HTMLDivElement | null }; enabled: boolean }) {
+  const scrollbarRef = useRef<HTMLDivElement>(null);
+  const [contentWidth, setContentWidth] = useState(0);
+  const [needsScroll, setNeedsScroll] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const container = containerRef.current;
+    const scrollbar = scrollbarRef.current;
+    if (!container || !scrollbar) return;
+
+    const measure = () => {
+      const width = container.scrollWidth;
+      setContentWidth(width);
+      setNeedsScroll(width > container.clientWidth + 1);
+      scrollbar.scrollLeft = container.scrollLeft;
+    };
+    const syncFromTable = () => {
+      if (Math.abs(scrollbar.scrollLeft - container.scrollLeft) > 1) scrollbar.scrollLeft = container.scrollLeft;
+    };
+    const syncFromScrollbar = () => {
+      if (Math.abs(container.scrollLeft - scrollbar.scrollLeft) > 1) container.scrollLeft = scrollbar.scrollLeft;
+    };
+
+    measure();
+    container.addEventListener('scroll', syncFromTable, { passive: true });
+    scrollbar.addEventListener('scroll', syncFromScrollbar, { passive: true });
+    window.addEventListener('resize', measure);
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    observer?.observe(container);
+    return () => {
+      container.removeEventListener('scroll', syncFromTable);
+      scrollbar.removeEventListener('scroll', syncFromScrollbar);
+      window.removeEventListener('resize', measure);
+      observer?.disconnect();
+    };
+  }, [containerRef, enabled]);
+
+  return <div
+    ref={scrollbarRef}
+    aria-label="Payroll table horizontal scrolling"
+    className="fixed bottom-3 left-[clamp(1rem,19vw,16.5rem)] right-4 z-[60] overflow-x-auto rounded-lg border-2 border-primary/30 bg-white px-1 py-1 shadow-xl print:hidden"
+    style={{ visibility: enabled && needsScroll ? 'visible' : 'hidden', pointerEvents: enabled && needsScroll ? 'auto' : 'none' }}
+  >
+    <div aria-hidden="true" style={{ width: `${contentWidth}px`, height: '12px' }} />
+  </div>;
+}
+
 export function PayrollManager({
   periods, selectedPeriod, onSelectPeriod, entries, entriesLoading,
   onCreatePeriod, onUpdatePeriodLabels, onLockPeriod, onUnlockPeriod,
@@ -55,6 +103,7 @@ export function PayrollManager({
   const [editValue, setEditValue] = useState('');
   const longPressTimer = useRef<number | null>(null);
   const [columnLabels, setColumnLabels] = useState<Record<string, string>>({ ...DEFAULT_PAYROLL_LABELS });
+  const payrollScrollRef = useRef<HTMLDivElement>(null);
 
   const isDraft = selectedPeriod?.status === 'draft';
 
@@ -312,10 +361,11 @@ export function PayrollManager({
         entriesLoading ? (
           <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border">
-            <div className="overflow-x-auto">
+          <>
+          <div className="rounded-xl border border-border">
+            <div ref={payrollScrollRef} className="overflow-x-auto">
               <Table className="min-w-[2480px] table-fixed text-sm">
-                <TableHeader>
+                <TableHeader className="sticky top-16 z-30 bg-white shadow-sm md:top-20 print:static print:shadow-none">
                   <TableRow className="bg-muted/50">
                     {PAYROLL_COLUMNS.map(column => (
                       <TableHead
@@ -377,6 +427,8 @@ export function PayrollManager({
               </Table>
             </div>
           </div>
+          <PayrollFloatingScrollbar containerRef={payrollScrollRef} enabled={Boolean(selectedPeriod && !entriesLoading && entries.length > 0)} />
+          </>
         )
       )}
 

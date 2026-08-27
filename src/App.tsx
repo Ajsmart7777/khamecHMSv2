@@ -23,6 +23,7 @@ import Pharmacy from "./pages/Pharmacy";
 import Store from "./pages/Store";
 
 import Account from "./pages/Account";
+import AccountPayroll from "./pages/AccountPayroll";
 import Auditing from "./pages/Auditing";
 import Admin from "./pages/Admin";
 import Settings from "./pages/Settings";
@@ -101,6 +102,11 @@ const App = () => (
                 <Route path="/account" element={
                   <ProtectedRoute allowedRoles={['accountant', 'admin']}>
                     <Account />
+                  </ProtectedRoute>
+                } />
+                <Route path="/account/payroll" element={
+                  <ProtectedRoute allowedRoles={['accountant', 'admin']}>
+                    <AccountPayroll />
                   </ProtectedRoute>
                 } />
                 <Route path="/daily-sales-report" element={

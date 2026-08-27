@@ -10,7 +10,6 @@ import { usePayrollPeriods, usePayrollEntries } from '@/hooks/usePayroll';
 import { useCorporateAccounts } from '@/hooks/useCorporateAccounts';
 import { PayrollDashboard } from '@/components/payroll/PayrollDashboard';
 import { PayrollStaffManagement } from '@/components/payroll/PayrollStaffManagement';
-import { PayrollManager } from '@/components/payroll/PayrollManager';
 import { PayrollPayments } from '@/components/payroll/PayrollPayments';
 import { PayrollReports } from '@/components/payroll/PayrollReports';
 import { PaymentHistory } from '@/components/payroll/PaymentHistory';
@@ -102,9 +101,9 @@ const Account = () => {
           <TabsTrigger value="staff" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <Users className="h-4 w-4" /> Staff
           </TabsTrigger>
-          <TabsTrigger value="payroll" className="flex items-center gap-1.5 text-xs sm:text-sm">
+          <a href="/account/payroll" className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:text-sm">
             <FileSpreadsheet className="h-4 w-4" /> Payroll
-          </TabsTrigger>
+          </a>
           <TabsTrigger value="payments" className="flex items-center gap-1.5 text-xs sm:text-sm">
             <CreditCard className="h-4 w-4" /> Payments
           </TabsTrigger>
@@ -154,29 +153,6 @@ const Account = () => {
         <TabsContent value="staff">
           <TabHeader title="Staff Management" onRefresh={refetchStaff} />
           <PayrollStaffManagement staff={staff} loading={staffLoading} onRefetch={refetchStaff} />
-        </TabsContent>
-
-        <TabsContent value="payroll">
-          <TabHeader title="Payroll" onRefresh={() => { refetchPeriods(); refetchEntries(); }} />
-          <PayrollManager
-            periods={periods}
-            selectedPeriod={selectedPeriod}
-            onSelectPeriod={handleSelectPeriod}
-            entries={entries}
-            entriesLoading={entriesLoading}
-            onCreatePeriod={async (m, y) => {
-              const p = await createPeriod(m, y);
-              if (p) await refetchPeriods();
-              return p;
-            }}
-            onUpdatePeriodLabels={updatePeriodLabels}
-            onLockPeriod={handleLockPeriod}
-            onUnlockPeriod={handleUnlockPeriod}
-            onAddAllStaff={addAllStaff}
-            onUpdateEntry={updateEntry}
-            onRemoveEntry={removeEntry}
-          />
-
         </TabsContent>
 
         <TabsContent value="payments">

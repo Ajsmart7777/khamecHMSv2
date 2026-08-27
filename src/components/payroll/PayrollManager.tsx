@@ -104,8 +104,50 @@ export function PayrollManager({
   const longPressTimer = useRef<number | null>(null);
   const [columnLabels, setColumnLabels] = useState<Record<string, string>>({ ...DEFAULT_PAYROLL_LABELS });
   const payrollScrollRef = useRef<HTMLDivElement>(null);
+  const payrollHeaderRef = useRef<HTMLTableSectionElement>(null);
+  const [stickyHeader, setStickyHeader] = useState({ visible: false, left: 0, width: 0, top: 80, scrollLeft: 0, contentWidth: 0 });
 
   const isDraft = selectedPeriod?.status === 'draft';
+
+  useEffect(() => {
+    if (!selectedPeriod || entriesLoading) {
+      setStickyHeader(previous => previous.visible ? { ...previous, visible: false } : previous);
+      return;
+    }
+    const container = payrollScrollRef.current;
+    const header = payrollHeaderRef.current;
+    if (!container || !header) return;
+
+    const updateStickyHeader = () => {
+      const containerRect = container.getBoundingClientRect();
+      const headerRect = header.getBoundingClientRect();
+      const appHeader = document.querySelector('header.sticky');
+      const appHeaderBottom = appHeader instanceof HTMLElement ? appHeader.getBoundingClientRect().bottom : 80;
+      const shouldShow = headerRect.bottom <= appHeaderBottom + 1 && containerRect.bottom > appHeaderBottom + 1;
+      setStickyHeader({
+        visible: shouldShow,
+        left: containerRect.left,
+        width: containerRect.width,
+        top: appHeaderBottom,
+        scrollLeft: container.scrollLeft,
+        contentWidth: container.scrollWidth,
+      });
+    };
+
+    updateStickyHeader();
+    container.addEventListener('scroll', updateStickyHeader, { passive: true });
+    window.addEventListener('scroll', updateStickyHeader, { passive: true });
+    window.addEventListener('resize', updateStickyHeader);
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateStickyHeader) : null;
+    observer?.observe(container);
+    observer?.observe(header);
+    return () => {
+      container.removeEventListener('scroll', updateStickyHeader);
+      window.removeEventListener('scroll', updateStickyHeader);
+      window.removeEventListener('resize', updateStickyHeader);
+      observer?.disconnect();
+    };
+  }, [selectedPeriod, entriesLoading]);
 
   useEffect(() => {
     setColumnLabels({ ...DEFAULT_PAYROLL_LABELS, ...(selectedPeriod?.column_labels || {}) });
@@ -283,6 +325,26 @@ export function PayrollManager({
     return renderEditableCell(entry, column.key, value);
   };
 
+  const renderPayrollHeader = (interactive = true) => (
+    <TableRow className="bg-muted/50">
+      {PAYROLL_COLUMNS.map(column => (
+        <TableHead
+          key={column.key}
+          className={`whitespace-normal break-words px-3 py-3 text-center text-xs leading-tight font-bold ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${column.key === 'id' ? 'w-28' : column.key === 'staff_name' ? 'w-56' : column.key === 'designation' ? 'w-48' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-36' : column.kind === 'identity' ? 'w-40' : 'w-28'}`}
+          onContextMenu={interactive ? event => { event.preventDefault(); beginRename(column); } : undefined}
+          onPointerDown={interactive ? () => handleHeaderPointerDown(column) : undefined}
+          onPointerUp={interactive ? clearLongPress : undefined}
+          onPointerLeave={interactive ? clearLongPress : undefined}
+          onPointerCancel={interactive ? clearLongPress : undefined}
+          title={interactive && isDraft ? 'Right-click or hold to rename' : undefined}
+        >
+          {columnLabels[column.key] || column.label}
+        </TableHead>
+      ))}
+      <TableHead className="w-20 px-3 py-3 text-center text-xs font-bold">REMOVE</TableHead>
+    </TableRow>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
@@ -362,28 +424,27 @@ export function PayrollManager({
           <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
         ) : (
           <>
+          {stickyHeader.visible && (
+            <div
+              className="pointer-events-none fixed z-50 overflow-hidden border-b border-border bg-white/95 shadow-md print:hidden"
+              style={{ left: stickyHeader.left, top: stickyHeader.top, width: stickyHeader.width }}
+            >
+              <div
+                style={{
+                  width: `${Math.max(stickyHeader.contentWidth, 2480)}px`,
+                  transform: `translateX(-${stickyHeader.scrollLeft}px)`,
+                }}
+              >
+                <table className="w-full min-w-[2480px] table-fixed text-sm">
+                  <TableHeader>{renderPayrollHeader(false)}</TableHeader>
+                </table>
+              </div>
+            </div>
+          )}
           <div className="rounded-xl border border-border">
             <div ref={payrollScrollRef} className="overflow-x-auto overflow-y-clip">
               <table className="w-full min-w-[2480px] table-fixed text-sm">
-                <TableHeader className="print:static">
-                  <TableRow className="bg-muted/50">
-                    {PAYROLL_COLUMNS.map(column => (
-                      <TableHead
-                        key={column.key}
-                        className={`sticky top-16 z-30 bg-muted/50 shadow-[0_2px_4px_rgba(0,0,0,0.08)] whitespace-normal break-words px-3 py-3 text-center text-xs leading-tight font-bold md:top-20 print:static print:shadow-none ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${column.key === 'id' ? 'w-28' : column.key === 'staff_name' ? 'w-56' : column.key === 'designation' ? 'w-48' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-36' : column.kind === 'identity' ? 'w-40' : 'w-28'}`}
-                        onContextMenu={event => { event.preventDefault(); beginRename(column); }}
-                        onPointerDown={() => handleHeaderPointerDown(column)}
-                        onPointerUp={clearLongPress}
-                        onPointerLeave={clearLongPress}
-                        onPointerCancel={clearLongPress}
-                        title={isDraft ? 'Right-click or hold to rename' : undefined}
-                      >
-                        {columnLabels[column.key] || column.label}
-                      </TableHead>
-                    ))}
-                    <TableHead className="w-20 px-3 py-3 text-center text-xs font-bold">REMOVE</TableHead>
-                  </TableRow>
-                </TableHeader>
+                <TableHeader ref={payrollHeaderRef}>{renderPayrollHeader()}</TableHeader>
                 <TableBody>
                   {entries.map(entry => (
                     <TableRow key={entry.id} className="hover:bg-muted/30">

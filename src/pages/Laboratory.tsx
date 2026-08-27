@@ -19,7 +19,6 @@ import {
 import { toast } from 'sonner';
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { LabSnapQueue } from '@/components/lab/LabSnapQueue';
-import { EmergencyLabQueue } from '@/components/lab/EmergencyLabQueue';
 import {
   Dialog,
   DialogContent,
@@ -183,14 +182,6 @@ const Laboratory = () => {
         </Button>
       </div>
 
-      <EmergencyLabQueue
-        requests={labRequests}
-        patients={patients}
-        updateLabRequest={updateLabRequest}
-        refreshLabRequests={refreshLabRequests}
-        updatePatientStatus={updatePatientStatus}
-      />
-
       <div className="mb-6">
         <LabSnapQueue />
       </div>
@@ -217,7 +208,7 @@ const Laboratory = () => {
               <div className="p-3 bg-muted/30 rounded-lg">
                 <p className="font-medium mb-1">Test Workflow</p>
                 <ol className="list-decimal list-inside text-muted-foreground space-y-1">
-                  <li>Check "Paid Lab Requests" for incoming orders</li>
+                  <li>Check the Lab Requests queue for incoming orders</li>
                   <li>Click on a request to view details and start work</li>
                   <li>Use "Snap & Send Result" to complete the request</li>
                   <li>Mark the order as completed to notify the requester</li>

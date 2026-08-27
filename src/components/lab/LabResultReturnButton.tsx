@@ -187,6 +187,15 @@ export function LabResultReturnButton({ parentSnap, onDone }: Props) {
           } as any)
           .eq('id', linkedLabRequestId);
         if (labRequestError) throw labRequestError;
+
+        // Emergency lab requests use the same standard Lab queue, but retain
+        // their episode link for ledger/audit continuity. Close only the linked
+        // episode item; ordinary paid lab requests have no matching row.
+        const { error: emergencyItemError } = await supabase
+          .from('emergency_episode_items')
+          .update({ status: 'completed', updated_at: completedAt } as any)
+          .eq('lab_request_id', linkedLabRequestId);
+        if (emergencyItemError) throw emergencyItemError;
       }
 
       // Return the result to the shared clinical team through the workflow

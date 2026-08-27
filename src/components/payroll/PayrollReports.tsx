@@ -8,6 +8,7 @@ import { toast } from '@/hooks/use-toast';
 import hospitalLogo from '@/assets/hospital-logo.png';
 import { downloadPayrollReportPdf } from '@/lib/payrollReportPdf';
 import { splitPayrollPaymentEntries } from '@/lib/payrollReports';
+import { PAYROLL_COLUMNS, DEFAULT_PAYROLL_LABELS, isPayrollTextField, type PayrollColumnDefinition } from '@/lib/payroll';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 type ReportType = 'master' | 'bank_schedule' | 'cash_schedule' | 'paye' | 'pension' | 'family_deductions' | 'family_med_manual';
@@ -74,6 +75,24 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
   const totalGross = entries.reduce((sum, entry) => sum + entry.gross_pay, 0);
   const totalDeductions = entries.reduce((sum, entry) => sum + entry.total_deductions, 0);
   const totalNet = entries.reduce((sum, entry) => sum + entry.net_pay, 0);
+  const payrollLabels = { ...DEFAULT_PAYROLL_LABELS, ...(selectedPeriod?.column_labels || {}) };
+  const getMasterValue = (entry: PayrollEntry, column: PayrollColumnDefinition): string | number => {
+    if (column.key === 'id') return entry.staff_employee_id || '—';
+    if (column.key === 'staff_name') return entry.staff_name || 'Unknown Staff';
+    if (column.key === 'designation') return entry.staff_designation || '—';
+    if (column.key === 'basic_salary') return entry.basic_salary;
+    if (column.key === 'gross_pay') return entry.gross_pay;
+    if (column.key === 'total_deductions') return entry.total_deductions;
+    if (column.key === 'net_pay') return entry.net_pay;
+    if (isPayrollTextField(column.key)) return String(entry.allowances?.[column.key] || '');
+    return column.kind === 'deduction'
+      ? Number(entry.deductions?.[column.key] || 0)
+      : Number(entry.allowances?.[column.key] || 0);
+  };
+  const getMasterTotal = (column: PayrollColumnDefinition): number | null => {
+    if (['id', 'staff_name', 'designation'].includes(column.key) || isPayrollTextField(column.key)) return null;
+    return entries.reduce((sum, entry) => sum + Number(getMasterValue(entry, column) || 0), 0);
+  };
   const reportRows = reportType === 'bank_schedule' ? bankEntries : reportType === 'cash_schedule' ? cashEntries : entries;
   const hasRows = reportType === 'family_deductions' || reportType === 'family_med_manual'
     ? entries.some(entry => Number(entry.deductions?.family_medical || 0) > 0)
@@ -84,7 +103,7 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
     if (!element || !selectedPeriod) return;
     setDownloading(true);
     try {
-      await downloadPayrollReportPdf(element, `${reportType}_${periodLabel.replace(/\s+/g, '_')}.pdf`, reportType === 'master');
+      await downloadPayrollReportPdf(element, `${reportType}_${periodLabel.replace(/\s+/g, '_')}.pdf`, reportType === 'master', reportType === 'master' ? 'a3' : 'a4');
       toast({ title: 'PDF downloaded', description: `${title} is ready to print or share.` });
     } catch (error) {
       toast({ title: 'Download failed', description: error instanceof Error ? error.message : 'Could not create the PDF.', variant: 'destructive' });
@@ -100,7 +119,7 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
 
   return (
     <div className="space-y-4">
-      <style>{`@media print { body * { visibility: hidden; } #payroll-report-document, #payroll-report-document * { visibility: visible; } #payroll-report-document { position: absolute; left: 0; top: 0; width: 100%; margin: 0; } }`}</style>
+      <style>{`@page { size: A3 landscape; margin: 8mm; } @media print { body * { visibility: hidden; } #payroll-report-document, #payroll-report-document * { visibility: visible; } #payroll-report-document { position: absolute; left: 0; top: 0; width: 2480px; margin: 0; } #payroll-report-document table { min-width: 2480px; } }`}</style>
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center print:hidden">
         <Select value={selectedPeriod?.id || ''} onValueChange={value => { const period = periods.find(item => item.id === value); if (period) onSelectPeriod(period); }}>
           <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="Select period" /></SelectTrigger>
@@ -142,17 +161,28 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
         <div id="payroll-report-document" className="rounded-xl border border-border bg-white p-5 text-black shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
           <ReportBrandHeader title={title} periodLabel={periodLabel} />
           {reportType === 'master' && (
-            <Table className="border-collapse text-[10px]">
-              <TableHeader><TableRow className="border-b-2 border-primary bg-primary/10">
-                <TableHead>S/N</TableHead><TableHead>Staff ID</TableHead><TableHead>Staff Name</TableHead><TableHead>Designation</TableHead>
-                <TableHead>Payment</TableHead><TableHead>Bank / Account</TableHead><TableHead className="text-right">Basic</TableHead><TableHead className="text-right">Earnings</TableHead><TableHead className="text-right">Gross Pay</TableHead><TableHead className="text-right">Deductions</TableHead><TableHead className="text-right">Net Pay</TableHead>
-              </TableRow></TableHeader>
-              <TableBody>{entries.map((entry, index) => <TableRow key={entry.id} className="border-b">
-                <TableCell>{index + 1}</TableCell><TableCell className="font-mono">{entry.staff_employee_id || '—'}</TableCell><TableCell className="font-medium">{entry.staff_name}</TableCell><TableCell>{entry.staff_designation || '—'}</TableCell>
-                <TableCell className="capitalize">{entry.staff_payment_method || 'cash'}</TableCell><TableCell>{entry.staff_payment_method === 'bank' ? `${entry.staff_bank_name || '—'} / ${entry.staff_account_number || '—'}` : '—'}</TableCell>
-                <TableCell className="text-right">{naira(entry.basic_salary)}</TableCell><TableCell className="text-right">{naira(totalEarnings(entry))}</TableCell><TableCell className="text-right">{naira(entry.gross_pay)}</TableCell><TableCell className="text-right">{naira(entry.total_deductions)}</TableCell><TableCell className="text-right font-bold">{naira(entry.net_pay)}</TableCell>
-              </TableRow>)}</TableBody>
-            </Table>
+            <div className="overflow-x-auto print:overflow-visible">
+              <Table className="min-w-[2480px] table-fixed border-collapse text-[10px] print:min-w-[2480px]">
+                <TableHeader><TableRow className="border-b-2 border-primary bg-primary/10">
+                  {PAYROLL_COLUMNS.map(column => <TableHead key={column.key} className={`whitespace-normal break-words px-2 py-2 text-center text-[9px] leading-tight font-bold ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${column.key === 'id' ? 'w-24' : column.key === 'staff_name' ? 'w-48' : column.key === 'designation' ? 'w-40' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-32' : column.kind === 'identity' ? 'w-32' : 'w-24'}`}>{payrollLabels[column.key] || column.label}</TableHead>)}
+                </TableRow></TableHeader>
+                <TableBody>
+                  {entries.map(entry => <TableRow key={entry.id} className="border-b">
+                    {PAYROLL_COLUMNS.map(column => {
+                      const value = getMasterValue(entry, column);
+                      const isText = typeof value === 'string' && (column.key === 'id' || column.key === 'staff_name' || column.key === 'designation' || isPayrollTextField(column.key));
+                      return <TableCell key={column.key} className={`px-2 py-2 ${isText ? 'whitespace-normal break-words' : 'text-right'} ${['gross_pay', 'total_deductions', 'net_pay'].includes(column.key) ? 'font-bold bg-primary/5' : ''}`}>{isText ? value : naira(Number(value))}</TableCell>;
+                    })}
+                  </TableRow>)}
+                  <TableRow className="border-t-2 border-primary/30 bg-primary/10 font-bold">
+                    {PAYROLL_COLUMNS.map(column => {
+                      const total = getMasterTotal(column);
+                      return <TableCell key={column.key} className={`px-2 py-3 ${column.key === 'id' ? 'text-left' : ['staff_name', 'designation'].includes(column.key) ? 'text-left' : 'text-right'} ${column.key === 'total_deductions' ? 'text-destructive' : ''}`}>{column.key === 'id' ? 'TOTAL' : total === null ? '' : naira(total)}</TableCell>;
+                    })}
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
           )}
           {reportType === 'bank_schedule' && (
             <Table className="border-collapse text-xs"><TableHeader><TableRow className="border-b-2 border-primary bg-primary/10"><TableHead>S/N</TableHead><TableHead>Staff ID</TableHead><TableHead>Staff Name</TableHead><TableHead>Designation</TableHead><TableHead>Bank</TableHead><TableHead>Account Number</TableHead><TableHead className="text-right">Net Pay</TableHead></TableRow></TableHeader><TableBody>{bankEntries.map((entry, index) => <TableRow key={entry.id} className="border-b"><TableCell>{index + 1}</TableCell><TableCell>{entry.staff_employee_id || '—'}</TableCell><TableCell className="font-medium">{entry.staff_name}</TableCell><TableCell>{entry.staff_designation || '—'}</TableCell><TableCell>{entry.staff_bank_name}</TableCell><TableCell className="font-mono">{entry.staff_account_number}</TableCell><TableCell className="text-right font-bold">{naira(entry.net_pay)}</TableCell></TableRow>)}</TableBody></Table>

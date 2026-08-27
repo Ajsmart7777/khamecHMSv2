@@ -30,14 +30,14 @@ function addCanvasPages(pdf: jsPDF, canvas: HTMLCanvasElement) {
   }
 }
 
-export async function downloadPayrollReportPdf(element: HTMLElement, filename: string, landscape = false) {
+export async function downloadPayrollReportPdf(element: HTMLElement, filename: string, landscape = false, format: 'a3' | 'a4' = 'a4') {
   const canvas = await html2canvas(element, {
     scale: Math.min(2, window.devicePixelRatio || 1.5),
     backgroundColor: '#ffffff',
     useCORS: true,
     logging: false,
   });
-  const pdf = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4', compress: true });
+  const pdf = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format, compress: true });
   addCanvasPages(pdf, canvas);
   pdf.save(filename);
 }

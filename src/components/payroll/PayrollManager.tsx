@@ -365,12 +365,12 @@ export function PayrollManager({
           <div className="rounded-xl border border-border">
             <div ref={payrollScrollRef} className="overflow-x-auto overflow-y-clip">
               <table className="w-full min-w-[2480px] table-fixed text-sm">
-                <TableHeader className="sticky top-16 z-30 bg-white shadow-sm md:top-20 print:static print:shadow-none">
+                <TableHeader className="print:static">
                   <TableRow className="bg-muted/50">
                     {PAYROLL_COLUMNS.map(column => (
                       <TableHead
                         key={column.key}
-                        className={`whitespace-normal break-words px-3 py-3 text-center text-xs leading-tight font-bold ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${column.key === 'id' ? 'w-28' : column.key === 'staff_name' ? 'w-56' : column.key === 'designation' ? 'w-48' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-36' : column.kind === 'identity' ? 'w-40' : 'w-28'}`}
+                        className={`sticky top-16 z-30 bg-muted/50 shadow-[0_2px_4px_rgba(0,0,0,0.08)] whitespace-normal break-words px-3 py-3 text-center text-xs leading-tight font-bold md:top-20 print:static print:shadow-none ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${column.key === 'id' ? 'w-28' : column.key === 'staff_name' ? 'w-56' : column.key === 'designation' ? 'w-48' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-36' : column.kind === 'identity' ? 'w-40' : 'w-28'}`}
                         onContextMenu={event => { event.preventDefault(); beginRename(column); }}
                         onPointerDown={() => handleHeaderPointerDown(column)}
                         onPointerUp={clearLongPress}

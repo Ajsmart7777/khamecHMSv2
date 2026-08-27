@@ -21,6 +21,7 @@ export interface MatchedItem {
   source_snap_id?: string | null;
   needs_pricelist_match?: boolean;
   source_text?: string;
+  service_category?: 'medication' | 'lab_test' | 'delivery' | 'bed' | 'others';
 }
 
 export interface SnapOrder {

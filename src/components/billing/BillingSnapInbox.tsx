@@ -455,6 +455,7 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
   const referenceLines = useMemo(() => (snap.matched_items ?? []).map(line => ({
     ...line,
     source_text: line.source_text ?? line.name,
+    service_category: line.service_category ?? (line.category === 'lab' ? 'lab_test' : 'medication'),
   })), [snap.matched_items]);
   // Original emergency lines are reference-only. Billing starts with an empty
   // invoice list and decides how many billable lines to add.
@@ -463,6 +464,12 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
   const [manualQuery, setManualQuery] = useState('');
   const [manualMatches, setManualMatches] = useState<PricelistItem[]>([]);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [activeCategory, setActiveCategory] = useState<'medication' | 'lab_test'>('medication');
+
+  const nextEmergencyItemId = (category: 'medication' | 'lab_test', used: Set<string>) => {
+    const matching = referenceLines.find(line => line.service_category === category && line.emergency_episode_item_id && !used.has(line.emergency_episode_item_id));
+    return matching?.emergency_episode_item_id;
+  };
 
   const updateLine = (index: number, patch: Partial<MatchedItem>) => {
     setItems(prev => prev.map((line, i) => i === index ? { ...line, ...patch } : line));
@@ -489,29 +496,39 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
   };
 
   const addManual = (it: PricelistItem) => {
-    setItems(prev => [...prev, {
-      pricelist_id: it.id,
-      name: it.name,
-      description: it.name,
-      size: it.size,
-      category: it.category,
-      unit_price: it.price,
-      qty: 1,
-    }]);
+    setItems(prev => {
+      const used = new Set(prev.map(line => line.emergency_episode_item_id).filter(Boolean) as string[]);
+      return [...prev, {
+        pricelist_id: it.id,
+        name: it.name,
+        description: it.name,
+        size: it.size,
+        category: it.category,
+        service_category: activeCategory,
+        emergency_episode_item_id: nextEmergencyItemId(activeCategory, used),
+        unit_price: it.price,
+        qty: 1,
+      }];
+    });
     setManualQuery('');
     setManualMatches([]);
     setActiveIdx(0);
   };
 
-  const addBlankLine = () => setItems(prev => [...prev, {
-    pricelist_id: '',
-    name: '',
-    description: '',
-    size: null,
-    category: 'emergency',
-    unit_price: 0,
-    qty: 1,
-  }]);
+  const addBlankLine = () => setItems(prev => {
+    const used = new Set(prev.map(line => line.emergency_episode_item_id).filter(Boolean) as string[]);
+    return [...prev, {
+      pricelist_id: '',
+      name: '',
+      description: '',
+      size: null,
+      category: 'emergency',
+      service_category: activeCategory,
+      emergency_episode_item_id: nextEmergencyItemId(activeCategory, used),
+      unit_price: 0,
+      qty: 1,
+    }];
+  });
 
   const finish = async () => {
     const validItems = items.filter(item => item.name?.trim() && item.description?.trim());
@@ -566,6 +583,11 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
           </div>
 
           <div className="space-y-3">
+            <div className="flex gap-2" role="group" aria-label="Emergency service category">
+              <Button type="button" size="sm" variant={activeCategory === 'medication' ? 'default' : 'outline'} onClick={() => setActiveCategory('medication')} disabled={busy}><Pill className="h-3.5 w-3.5 mr-1" /> Medication</Button>
+              <Button type="button" size="sm" variant={activeCategory === 'lab_test' ? 'default' : 'outline'} onClick={() => setActiveCategory('lab_test')} disabled={busy}><Beaker className="h-3.5 w-3.5 mr-1" /> Lab Test</Button>
+            </div>
+            <p className="text-xs text-muted-foreground">New lines are billed under the selected category and retained for corporate/retainer claims.</p>
             <div className="flex gap-2">
               <Input
                 placeholder="Type to search pricelist… (e.g. 'pan' finds Panadol)"
@@ -606,7 +628,7 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
                   <div key={it.emergency_episode_item_id || idx} className="p-2 flex items-center gap-2">
                     <div className="flex-1 min-w-0">
                       <Input value={it.name} onChange={e => updateLine(idx, { name: e.target.value, description: e.target.value, pricelist_id: '' })} disabled={busy} className="h-8 text-xs" placeholder="Billable description" />
-                      <p className="text-[10px] text-muted-foreground mt-1">{it.category || 'emergency'} · {it.pricelist_id ? 'Pricelist item' : 'Manual line'}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">{it.service_category === 'lab_test' ? 'Lab Test' : it.service_category === 'medication' ? 'Medication' : (it.service_category || it.category || 'emergency')} · {it.pricelist_id ? 'Pricelist item' : 'Manual line'}</p>
                     </div>
                     <Input type="number" min={1} value={it.qty} onChange={e => setQty(idx, Number(e.target.value) || 1)} disabled={busy} className="w-16 h-8 text-xs" />
                     <Input type="number" min={0} value={it.unit_price} onChange={e => updateLine(idx, { unit_price: Math.max(0, Number(e.target.value) || 0), pricelist_id: '' })} disabled={busy} className="w-24 h-8 text-xs" />

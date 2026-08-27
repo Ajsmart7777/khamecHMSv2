@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Lock, Unlock, Users, Loader2, Pencil, Trash2 } from 'lucide-react';
@@ -363,14 +363,14 @@ export function PayrollManager({
         ) : (
           <>
           <div className="rounded-xl border border-border">
-            <div ref={payrollScrollRef} className="overflow-x-auto">
-              <Table className="min-w-[2480px] table-fixed text-sm">
+            <div ref={payrollScrollRef} className="overflow-x-auto overflow-y-clip">
+              <table className="w-full min-w-[2480px] table-fixed text-sm">
                 <TableHeader className="sticky top-16 z-30 bg-white shadow-sm md:top-20 print:static print:shadow-none">
                   <TableRow className="bg-muted/50">
                     {PAYROLL_COLUMNS.map(column => (
                       <TableHead
                         key={column.key}
-                        className={`whitespace-normal break-words px-3 py-3 text-center text-xs leading-tight font-bold ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-muted/50' : ''} ${column.key === 'id' ? 'left-0 w-28' : column.key === 'staff_name' ? 'left-[112px] w-56' : column.key === 'designation' ? 'w-48' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-36' : column.kind === 'identity' ? 'w-40' : 'w-28'}`}
+                        className={`whitespace-normal break-words px-3 py-3 text-center text-xs leading-tight font-bold ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${column.key === 'id' ? 'w-28' : column.key === 'staff_name' ? 'w-56' : column.key === 'designation' ? 'w-48' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-36' : column.kind === 'identity' ? 'w-40' : 'w-28'}`}
                         onContextMenu={event => { event.preventDefault(); beginRename(column); }}
                         onPointerDown={() => handleHeaderPointerDown(column)}
                         onPointerUp={clearLongPress}
@@ -390,7 +390,7 @@ export function PayrollManager({
                       {PAYROLL_COLUMNS.map(column => (
                       <TableCell
                         key={column.key}
-                        className={`px-3 py-3 ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-background' : ''} ${column.key === 'id' ? 'left-0 w-28 whitespace-nowrap font-mono text-xs' : column.key === 'staff_name' ? 'left-[112px] w-56 whitespace-normal break-words font-medium text-sm' : column.key === 'designation' ? 'w-48 whitespace-normal break-words text-sm text-muted-foreground' : column.kind === 'identity' ? 'w-40 text-sm' : 'w-28 text-sm'} ${['gross_pay', 'total_deductions', 'net_pay'].includes(column.key) ? 'bg-primary/5' : ''}`}
+                        className={`px-3 py-3 ${column.key === 'id' ? 'w-28 whitespace-nowrap font-mono text-xs' : column.key === 'staff_name' ? 'w-56 whitespace-normal break-words font-medium text-sm' : column.key === 'designation' ? 'w-48 whitespace-normal break-words text-sm text-muted-foreground' : column.kind === 'identity' ? 'w-40 text-sm' : 'w-28 text-sm'} ${['gross_pay', 'total_deductions', 'net_pay'].includes(column.key) ? 'bg-primary/5' : ''}`}
                         >
                           {renderColumnCell(entry, column)}
                         </TableCell>
@@ -414,7 +414,7 @@ export function PayrollManager({
                         return (
                           <TableCell
                             key={column.key}
-                            className={`px-3 py-4 text-right text-sm ${['id', 'staff_name'].includes(column.key) ? 'sticky z-10 bg-primary/10' : ''} ${column.key === 'id' ? 'left-0 w-28 text-left text-xs' : column.key === 'staff_name' ? 'left-[112px] w-56 text-left' : column.key === 'designation' ? 'w-48 text-left text-xs text-muted-foreground' : column.kind === 'identity' ? 'w-40' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-36' : 'w-28'} ${['total_deductions'].includes(column.key) ? 'text-destructive' : ''}`}
+                            className={`px-3 py-4 text-right text-sm ${column.key === 'id' ? 'w-28 text-left text-xs' : column.key === 'staff_name' ? 'w-56 text-left' : column.key === 'designation' ? 'w-48 text-left text-xs text-muted-foreground' : column.kind === 'identity' ? 'w-40' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-36' : 'w-28'} ${['total_deductions'].includes(column.key) ? 'text-destructive' : ''}`}
                           >
                             {column.key === 'id' ? 'TOTAL' : column.key === 'staff_name' ? '' : column.key === 'designation' ? '' : total === null ? '' : formatAmount(total)}
                           </TableCell>
@@ -424,7 +424,7 @@ export function PayrollManager({
                     </TableRow>
                   )}
                 </TableBody>
-              </Table>
+              </table>
             </div>
           </div>
           <PayrollFloatingScrollbar containerRef={payrollScrollRef} enabled={Boolean(selectedPeriod && !entriesLoading && entries.length > 0)} />

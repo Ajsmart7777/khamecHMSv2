@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -54,6 +54,54 @@ function ReportBrandHeader({ title, periodLabel }: { title: string; periodLabel:
   );
 }
 
+function FloatingHorizontalScrollbar({ containerRef, enabled }: { containerRef: { current: HTMLDivElement | null }; enabled: boolean }) {
+  const scrollbarRef = useRef<HTMLDivElement>(null);
+  const [contentWidth, setContentWidth] = useState(0);
+  const [needsScroll, setNeedsScroll] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const container = containerRef.current;
+    const scrollbar = scrollbarRef.current;
+    if (!container || !scrollbar) return;
+
+    const measure = () => {
+      const width = container.scrollWidth;
+      setContentWidth(width);
+      setNeedsScroll(width > container.clientWidth + 1);
+      scrollbar.scrollLeft = container.scrollLeft;
+    };
+    const fromTable = () => {
+      if (Math.abs(scrollbar.scrollLeft - container.scrollLeft) > 1) scrollbar.scrollLeft = container.scrollLeft;
+    };
+    const fromScrollbar = () => {
+      if (Math.abs(container.scrollLeft - scrollbar.scrollLeft) > 1) container.scrollLeft = scrollbar.scrollLeft;
+    };
+
+    measure();
+    container.addEventListener('scroll', fromTable, { passive: true });
+    scrollbar.addEventListener('scroll', fromScrollbar, { passive: true });
+    window.addEventListener('resize', measure);
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    observer?.observe(container);
+    return () => {
+      container.removeEventListener('scroll', fromTable);
+      scrollbar.removeEventListener('scroll', fromScrollbar);
+      window.removeEventListener('resize', measure);
+      observer?.disconnect();
+    };
+  }, [containerRef, enabled]);
+
+  return <div
+    ref={scrollbarRef}
+    aria-label="Payroll table horizontal scrolling"
+    className="fixed bottom-3 left-[clamp(1rem,18vw,17rem)] right-4 z-40 overflow-x-auto rounded-lg border border-slate-300 bg-white/95 px-1 py-1 shadow-lg backdrop-blur print:hidden"
+    style={{ visibility: enabled && needsScroll ? 'visible' : 'hidden', pointerEvents: enabled && needsScroll ? 'auto' : 'none' }}
+  >
+    <div aria-hidden="true" style={{ width: `${contentWidth}px`, height: '1px' }} />
+  </div>;
+}
+
 function ReportFooter() {
   return (
     <div className="mt-8 grid grid-cols-2 gap-12 border-t pt-5 text-center text-xs text-muted-foreground">
@@ -65,6 +113,7 @@ function ReportFooter() {
 
 export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entries }: Props) {
   const [reportType, setReportType] = useState<ReportType>('master');
+  const masterScrollRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
 
   const paymentGroups = useMemo(() => splitPayrollPaymentEntries(entries), [entries]);
@@ -162,7 +211,7 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
         <div id="payroll-report-document" className={`rounded-xl border border-border bg-white p-5 text-black shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none ${reportType === 'master' ? 'master-screen-report' : ''}`}>
           <ReportBrandHeader title={title} periodLabel={periodLabel} />
           {reportType === 'master' && (
-            <div className="overflow-x-auto print:overflow-visible">
+            <div ref={masterScrollRef} className="overflow-x-auto print:overflow-visible">
               <Table className="min-w-[2480px] table-fixed border-collapse text-[10px] print:min-w-[2480px]">
                 <TableHeader><TableRow className="border-b-2 border-primary bg-primary/10">
                   {PAYROLL_COLUMNS.map(column => <TableHead key={column.key} className={`whitespace-normal break-words px-2 py-2 text-center text-[9px] leading-tight font-bold ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${column.key === 'id' ? 'w-24' : column.key === 'staff_name' ? 'w-48' : column.key === 'designation' ? 'w-40' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-32' : column.kind === 'identity' ? 'w-32' : 'w-24'}`}>{payrollLabels[column.key] || column.label}</TableHead>)}
@@ -197,6 +246,7 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
           <ReportFooter />
         </div>
         {reportType === 'master' && <MasterPrintTiles entries={entries} periodLabel={periodLabel} payrollLabels={payrollLabels} />}
+        <FloatingHorizontalScrollbar containerRef={masterScrollRef} enabled={reportType === 'master' && hasRows} />
         </>
       ) : (
         <div className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground print:hidden"><FileText className="h-8 w-8" />{selectedPeriod ? 'No staff entries match this report.' : 'Select a payroll period to view reports.'}</div>

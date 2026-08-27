@@ -103,7 +103,7 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
     if (!element || !selectedPeriod) return;
     setDownloading(true);
     try {
-      await downloadPayrollReportPdf(element, `${reportType}_${periodLabel.replace(/\s+/g, '_')}.pdf`, reportType === 'master', reportType === 'master' ? 'a3' : 'a4');
+      await downloadPayrollReportPdf(element, `${reportType}_${periodLabel.replace(/\s+/g, '_')}.pdf`, reportType === 'master', 'a4', reportType === 'master');
       toast({ title: 'PDF downloaded', description: `${title} is ready to print or share.` });
     } catch (error) {
       toast({ title: 'Download failed', description: error instanceof Error ? error.message : 'Could not create the PDF.', variant: 'destructive' });
@@ -119,7 +119,7 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
 
   return (
     <div className="space-y-4">
-      <style>{`@page { size: A3 landscape; margin: 8mm; } @media print { body * { visibility: hidden; } #payroll-report-document, #payroll-report-document * { visibility: visible; } #payroll-report-document { position: absolute; left: 0; top: 0; width: 2480px; margin: 0; } #payroll-report-document table { min-width: 2480px; } }`}</style>
+      <style>{`@page { size: A4 portrait; margin: 8mm; } @media print { body * { visibility: hidden; } #payroll-report-document.master-screen-report, #payroll-report-document.master-screen-report * { visibility: hidden; } #payroll-report-document:not(.master-screen-report), #payroll-report-document:not(.master-screen-report) * { visibility: visible; } #payroll-report-document:not(.master-screen-report) { position: absolute; left: 0; top: 0; width: 100%; margin: 0; } #payroll-report-document.master-screen-report { display: none; } #payroll-report-print-tiles, #payroll-report-print-tiles * { visibility: visible; } #payroll-report-print-tiles { display: block !important; position: absolute; left: 0; top: 0; width: 100%; } .payroll-print-tile { break-after: page; page-break-after: always; min-height: 250mm; } .payroll-print-tile:last-child { break-after: auto; page-break-after: auto; } .payroll-print-tile table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 8px; } .payroll-print-tile th, .payroll-print-tile td { border: 1px solid #9ca3af; padding: 3px 4px; vertical-align: middle; } } @media screen { #payroll-report-print-tiles { display: none; } }`}</style>
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center print:hidden">
         <Select value={selectedPeriod?.id || ''} onValueChange={value => { const period = periods.find(item => item.id === value); if (period) onSelectPeriod(period); }}>
           <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="Select period" /></SelectTrigger>
@@ -158,7 +158,8 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
       )}
 
       {selectedPeriod && hasRows ? (
-        <div id="payroll-report-document" className="rounded-xl border border-border bg-white p-5 text-black shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
+        <>
+        <div id="payroll-report-document" className={`rounded-xl border border-border bg-white p-5 text-black shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none ${reportType === 'master' ? 'master-screen-report' : ''}`}>
           <ReportBrandHeader title={title} periodLabel={periodLabel} />
           {reportType === 'master' && (
             <div className="overflow-x-auto print:overflow-visible">
@@ -195,11 +196,53 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
           {(reportType === 'family_deductions' || reportType === 'family_med_manual') && <SimpleTable headers={['S/N', 'Staff ID', 'Staff Name', 'Designation', 'Family Medical Amount', ...(reportType === 'family_med_manual' ? ['Notes / Signature'] : ['Status'])]} rows={entries.filter(entry => Number(entry.deductions?.family_medical || 0) > 0).map((entry, index) => [index + 1, entry.staff_employee_id || '—', entry.staff_name, entry.staff_designation || '—', naira(Number(entry.deductions?.family_medical || 0)), reportType === 'family_med_manual' ? ' ' : entry.status || 'pending'])} />}
           <ReportFooter />
         </div>
+        {reportType === 'master' && <MasterPrintTiles entries={entries} periodLabel={periodLabel} payrollLabels={payrollLabels} />}
+        </>
       ) : (
         <div className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground print:hidden"><FileText className="h-8 w-8" />{selectedPeriod ? 'No staff entries match this report.' : 'Select a payroll period to view reports.'}</div>
       )}
     </div>
   );
+}
+
+function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: PayrollEntry[]; periodLabel: string; payrollLabels: Record<string, string> }) {
+  const splitAt = Math.max(1, PAYROLL_COLUMNS.findIndex(column => column.key === 'resp') + 1);
+  const leftColumns = PAYROLL_COLUMNS.slice(0, splitAt);
+  const rightColumns = PAYROLL_COLUMNS.slice(Math.max(0, splitAt - 1));
+  const rowGroups = [entries.slice(0, Math.ceil(entries.length / 2)), entries.slice(Math.ceil(entries.length / 2))].filter(group => group.length > 0);
+  const getValue = (entry: PayrollEntry, column: PayrollColumnDefinition): string | number => {
+    if (column.key === 'id') return entry.staff_employee_id || '—';
+    if (column.key === 'staff_name') return entry.staff_name || 'Unknown Staff';
+    if (column.key === 'designation') return entry.staff_designation || '—';
+    if (column.key === 'basic_salary') return entry.basic_salary;
+    if (column.key === 'gross_pay') return entry.gross_pay;
+    if (column.key === 'total_deductions') return entry.total_deductions;
+    if (column.key === 'net_pay') return entry.net_pay;
+    if (isPayrollTextField(column.key)) return String(entry.allowances?.[column.key] || '');
+    return column.kind === 'deduction' ? Number(entry.deductions?.[column.key] || 0) : Number(entry.allowances?.[column.key] || 0);
+  };
+  const formatValue = (value: string | number, column: PayrollColumnDefinition) => typeof value === 'string' && (column.kind === 'identity' || isPayrollTextField(column.key)) ? value : naira(Number(value));
+  const tileColumns = [leftColumns, rightColumns];
+
+  return <div id="payroll-report-print-tiles" aria-hidden="true">
+    {rowGroups.flatMap((rowGroup, rowIndex) => tileColumns.map((columns, columnIndex) => (
+      <section className="payroll-print-tile" key={`${rowIndex}-${columnIndex}`}>
+        <ReportBrandHeader title={`Master Payroll Report — Part ${rowIndex * 2 + columnIndex + 1}`} periodLabel={`${periodLabel} | ${columnIndex === 0 ? 'Columns: ID to RESP' : 'Columns: RESP to NET PAY'} | Staff ${rowIndex === 0 ? '1' : '2'} of ${rowGroups.length}`} />
+        <table>
+          <thead><tr>{columns.map(column => <th key={column.key}>{payrollLabels[column.key] || column.label}</th>)}</tr></thead>
+          <tbody>
+            {rowGroup.map(entry => <tr key={entry.id}>{columns.map(column => <td key={column.key} style={{ textAlign: typeof getValue(entry, column) === 'string' ? 'left' : 'right' }}>{formatValue(getValue(entry, column), column)}</td>)}</tr>)}
+            <tr><th>TOTAL</th>{columns.slice(1).map(column => {
+              if (column.kind === 'identity' || isPayrollTextField(column.key)) return <th key={column.key} />;
+              const total = rowGroup.reduce((sum, entry) => sum + Number(getValue(entry, column) || 0), 0);
+              return <th key={column.key} style={{ textAlign: 'right' }}>{naira(total)}</th>;
+            })}</tr>
+          </tbody>
+        </table>
+        <p style={{ marginTop: '8px', fontSize: '8px', color: '#6b7280' }}>Part {rowIndex * 2 + columnIndex + 1} of {rowGroups.length * 2}. Join horizontally at RESP and vertically at the staff-band break.</p>
+      </section>
+    ))) }
+  </div>;
 }
 
 function SimpleTable({ headers, rows }: { headers: string[]; rows: Array<Array<string | number>> }) {

@@ -54,13 +54,16 @@ function splitSql(sql) {
   return statements;
 }
 
-const [mainSql, repairSql, patientFeeSql, manualEmergencySql, clinicalLabSql, payrollBatchSql] = await Promise.all([
+const [mainSql, repairSql, patientFeeSql, manualEmergencySql, clinicalLabSql, payrollBatchSql, unifiedEmergencyLabSql, emergencyLabBackfillSql, emergencyLabRepairSql] = await Promise.all([
   fs.readFile(new URL('../supabase/migrations/20260825162000_separate_emergency_billing.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260825170000_repair_emergency_billing_trigger_order.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260826090000_fix_patient_fee_role_context.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260826100000_manual_emergency_invoice_lines.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260826110000_shared_clinical_lab_result_routing.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260826130000_optional_payroll_batches.sql', import.meta.url), 'utf8'),
+  fs.readFile(new URL('../supabase/migrations/20260827140000_unify_emergency_lab_queue.sql', import.meta.url), 'utf8'),
+  fs.readFile(new URL('../supabase/migrations/20260827143000_backfill_emergency_lab_queue.sql', import.meta.url), 'utf8'),
+  fs.readFile(new URL('../supabase/migrations/20260827150000_repair_legacy_emergency_lab_queue.sql', import.meta.url), 'utf8'),
 ]);
 const mainStatements = splitSql(mainSql);
 const repairStatements = splitSql(repairSql);
@@ -68,6 +71,9 @@ const patientFeeStatements = splitSql(patientFeeSql);
 const manualEmergencyStatements = splitSql(manualEmergencySql);
 const clinicalLabStatements = splitSql(clinicalLabSql);
 const payrollBatchStatements = splitSql(payrollBatchSql);
+const unifiedEmergencyLabStatements = splitSql(unifiedEmergencyLabSql);
+const emergencyLabBackfillStatements = splitSql(emergencyLabBackfillSql);
+const emergencyLabRepairStatements = splitSql(emergencyLabRepairSql);
 const completeEmergency = mainStatements.find(sql => sql.includes('CREATE OR REPLACE FUNCTION public.complete_emergency_billing_draft('));
 const repairByPrefix = prefix => repairStatements.find(sql => sql.trimStart().startsWith(prefix));
 const dropSnapTrigger = repairByPrefix('DROP TRIGGER');
@@ -85,6 +91,9 @@ const migrations = [
   { version: '20260826100000_manual_emergency_invoice_lines', statements: manualEmergencyStatements },
   { version: '20260826110000_shared_clinical_lab_result_routing', statements: clinicalLabStatements },
   { version: '20260826130000_optional_payroll_batches', statements: payrollBatchStatements },
+  { version: '20260827140000_unify_emergency_lab_queue', statements: unifiedEmergencyLabStatements },
+  { version: '20260827143000_backfill_emergency_lab_queue', statements: emergencyLabBackfillStatements },
+  { version: '20260827150000_repair_legacy_emergency_lab_queue', statements: emergencyLabRepairStatements },
 ];
 
 const client = new Client({ connectionString, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 15000, statement_timeout: 300000 });

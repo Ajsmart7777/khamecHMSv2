@@ -213,7 +213,7 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
           {reportType === 'master' && (
             <div ref={masterScrollRef} className="overflow-x-auto print:overflow-visible">
               <Table className="min-w-[2480px] table-fixed border-collapse text-[10px] print:min-w-[2480px]">
-                <TableHeader><TableRow className="border-b-2 border-primary bg-primary/10">
+                <TableHeader className="sticky top-16 z-30 bg-white shadow-sm md:top-20 print:static print:shadow-none"><TableRow className="border-b-2 border-primary bg-primary/10">
                   {PAYROLL_COLUMNS.map(column => <TableHead key={column.key} className={`whitespace-normal break-words px-2 py-2 text-center text-[9px] leading-tight font-bold ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${column.key === 'id' ? 'w-24' : column.key === 'staff_name' ? 'w-48' : column.key === 'designation' ? 'w-40' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-32' : column.kind === 'identity' ? 'w-32' : 'w-24'}`}>{payrollLabels[column.key] || column.label}</TableHead>)}
                 </TableRow></TableHeader>
                 <TableBody>

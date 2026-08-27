@@ -9,18 +9,28 @@ interface Props {
 interface State {
   hasError: boolean;
   isReloading: boolean;
+  errorMessage?: string;
 }
 
 /** Keeps an unexpected screen error recoverable instead of rendering a blank page. */
 export class AppErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false, isReloading: false };
 
-  static getDerivedStateFromError(): State {
-    return { hasError: true, isReloading: false };
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, isReloading: false, errorMessage: error?.message };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Unhandled HMS screen error', error, errorInfo);
+    const message = error?.message || '';
+    const recoverable = /chunk|module|import|loading|fetch|dynamically imported|stale|cache/i.test(message);
+    const recoveryKey = 'hms_boundary_recovery_at';
+    const previousAttempt = Number(sessionStorage.getItem(recoveryKey) || 0);
+    const canAutoRecover = recoverable && (!Number.isFinite(previousAttempt) || Date.now() - previousAttempt > 30_000);
+    if (canAutoRecover) {
+      sessionStorage.setItem(recoveryKey, String(Date.now()));
+      void this.reload();
+    }
   }
 
   /**
@@ -65,7 +75,7 @@ export class AppErrorBoundary extends Component<Props, State> {
             <div className="space-y-2">
               <h1 className="text-lg font-semibold">This screen could not be opened</h1>
               <p className="text-sm text-muted-foreground">
-                Your work has not been changed. We will clear only the outdated app cache and reload the latest workspace.
+                Your work has not been changed. We are clearing only the outdated app cache and reloading the latest workspace automatically.
               </p>
             </div>
             <Button onClick={this.reload} disabled={this.state.isReloading} className="w-full">

@@ -17,16 +17,6 @@ interface Props {
   onRefetch: () => void;
 }
 
-const NIGERIAN_BANKS = [
-  'Access Bank', 'Citibank', 'Ecobank', 'Fidelity Bank', 'First Bank',
-  'First City Monument Bank', 'Globus Bank', 'Guaranty Trust Bank',
-  'Heritage Bank', 'Keystone Bank', 'Polaris Bank', 'Providus Bank',
-  'Stanbic IBTC Bank', 'Standard Chartered', 'Sterling Bank', 'SunTrust Bank',
-  'Titan Trust Bank', 'Union Bank', 'United Bank for Africa', 'Unity Bank',
-  'Wema Bank', 'Zenith Bank', 'Jaiz Bank', 'Kuda Bank', 'Moniepoint MFB',
-  'OPay', 'PalmPay', 'VFD MFB',
-];
-
 const DESIGNATIONS = [
   'Manager', 'Asst. Manager', 'Medical Officer', 'Cashier', 'Auditor', 'Driver', 'Cleaner',
   'HOD. Account', 'Asst. HOD Accountant', 'Revenue Accountant', 'Receptionist', 'Expenditure Accountant',
@@ -36,18 +26,6 @@ const DESIGNATIONS = [
 ];
 
 const QUALIFICATIONS = ['BSc', 'MSc', 'MBBS', 'NCE', 'ND', 'HND', 'RN', 'RM', 'RN/RM', 'B.Pharm', 'Pharm.D', 'MLS', 'SSCE', 'Diploma', 'Other'];
-
-const FLUTTERWAVE_BANK_CODES: Record<string, string> = {
-  'Access Bank': '044', 'Citibank': '023', 'Ecobank': '050', 'Fidelity Bank': '070',
-  'First Bank': '011', 'First City Monument Bank': '214', 'Globus Bank': '00103',
-  'Guaranty Trust Bank': '058', 'Heritage Bank': '030', 'Keystone Bank': '082',
-  'Polaris Bank': '076', 'Providus Bank': '101', 'Stanbic IBTC Bank': '221',
-  'Standard Chartered': '068', 'Sterling Bank': '232', 'SunTrust Bank': '100',
-  'Titan Trust Bank': '000025', 'Union Bank': '032', 'United Bank for Africa': '033',
-  'Unity Bank': '215', 'Wema Bank': '035', 'Zenith Bank': '057', 'Jaiz Bank': '301',
-  'Kuda Bank': '090267', 'Moniepoint MFB': '110007', 'OPay': '100004',
-  'PalmPay': '100033', 'VFD MFB': '090110',
-};
 
 export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
   const [search, setSearch] = useState('');
@@ -59,12 +37,33 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [bankName, setBankName] = useState('');
+  const [bankOptions, setBankOptions] = useState<Array<{ code: string; name: string }>>([]);
+  const [banksLoading, setBanksLoading] = useState(false);
   const [accountNumber, setAccountNumber] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [designation, setDesignation] = useState('');
   const [qualification, setQualification] = useState('');
   const [saving, setSaving] = useState(false);
   const [detailsStaff, setDetailsStaff] = useState<Staff | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setBanksLoading(true);
+    supabase.functions.invoke('payroll-payment', { body: { action: 'list_banks' } })
+      .then(({ data, error }) => {
+        if (cancelled || error || data?.error) return;
+        const liveBanks = (Array.isArray(data?.banks) ? data.banks : [])
+          .map((bank: Record<string, unknown>) => ({
+            code: String(bank.code ?? bank.bank_code ?? bank.id ?? '').trim(),
+            name: String(bank.name ?? bank.bank_name ?? '').trim(),
+          }))
+          .filter((bank: { code: string; name: string }) => bank.code && bank.name)
+          .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name));
+        setBankOptions(liveBanks);
+      })
+      .finally(() => { if (!cancelled) setBanksLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   const filtered = staff.filter(s =>
     `${s.firstName} ${s.lastName} ${s.employeeId}`.toLowerCase().includes(search.toLowerCase())
@@ -261,23 +260,24 @@ export function PayrollStaffManagement({ staff, loading, onRefetch }: Props) {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Bank Name</label>
                   <Input value={bankSearch} onChange={e => setBankSearch(e.target.value)} placeholder="Search bank name…" />
-                  <Select value={bankName} onValueChange={value => { setBankName(value); setBeneficiaryName(null); }}>
-                    <SelectTrigger><SelectValue placeholder="Select bank" /></SelectTrigger>
+                  <Select value={bankName} onValueChange={value => { setBankName(value); setBeneficiaryName(null); }} disabled={banksLoading || bankOptions.length === 0}>
+                    <SelectTrigger><SelectValue placeholder={banksLoading ? 'Loading banks…' : 'Select bank'} /></SelectTrigger>
                     <SelectContent>
-                      {NIGERIAN_BANKS.filter(bank => bank.toLowerCase().includes(bankSearch.toLowerCase())).map(b => (
-                        <SelectItem key={b} value={b}>{b}</SelectItem>
+                      {bankOptions.filter(bank => bank.name.toLowerCase().includes(bankSearch.toLowerCase())).map(bank => (
+                        <SelectItem key={`${bank.code}-${bank.name}`} value={bank.name}>{bank.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {!banksLoading && bankOptions.length === 0 && <p className="text-xs text-destructive">Could not load the live Flutterwave bank list. Refresh and try again.</p>}
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Account Number</label>
                   <div className="flex gap-2">
                     <Input value={accountNumber} onChange={e => { setAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 10)); setBeneficiaryName(null); }} placeholder="0123456789" inputMode="numeric" maxLength={10} />
                     <Button type="button" variant="outline" disabled={verifyingBank || !bankName || accountNumber.length !== 10} onClick={async () => {
-                      const bankCode = FLUTTERWAVE_BANK_CODES[bankName];
+                      const bankCode = bankOptions.find(bank => bank.name === bankName)?.code;
                       if (!bankCode) {
-                        toast({ title: 'Bank verification unavailable', description: 'This bank is not currently configured for verification.', variant: 'destructive' });
+                        toast({ title: 'Bank verification unavailable', description: 'Select a bank from the live Flutterwave list.', variant: 'destructive' });
                         return;
                       }
                       setVerifyingBank(true);

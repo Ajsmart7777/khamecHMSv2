@@ -17,7 +17,7 @@ export function bearerToken(request: Request) {
   return request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1] ?? null;
 }
 
-export async function verifyUser(request: Request): Promise<{ id: string; token: string } | null> {
+export async function verifyUser(request: Request): Promise<{ id: string; token: string; role: string } | null> {
   const token = bearerToken(request);
   if (!token) return null;
 
@@ -30,7 +30,10 @@ export async function verifyUser(request: Request): Promise<{ id: string; token:
     const client = await getCrdbPool().connect();
     try {
       const result = await client.query(
-        `SELECT u.id, s.status::text AS staff_status
+        `SELECT u.id,
+                (SELECT ur.role::text FROM public.user_roles ur
+                 WHERE ur.user_id = u.id ORDER BY ur.role::text LIMIT 1) AS role,
+                s.status::text AS staff_status
          FROM public.auth_users u
          LEFT JOIN public.staff s ON s.auth_user_id = u.id
          WHERE u.id = $1::uuid
@@ -39,7 +42,7 @@ export async function verifyUser(request: Request): Promise<{ id: string; token:
       );
       const user = result.rows[0];
       if (!user || user.staff_status === 'deleted') return null;
-      return { id: localUserId, token };
+      return { id: localUserId, token, role: user.role || 'anon' };
     } finally {
       client.release();
     }
@@ -53,7 +56,20 @@ export async function verifyUser(request: Request): Promise<{ id: string; token:
       issuer: process.env.NEON_AUTH_ISSUER || undefined,
       audience: process.env.NEON_AUTH_AUDIENCE || undefined,
     });
-    return typeof payload.sub === 'string' ? { id: payload.sub, token } : null;
+    if (typeof payload.sub !== 'string') return null;
+    const client = await getCrdbPool().connect();
+    try {
+      const result = await client.query(
+        `SELECT (SELECT ur.role::text FROM public.user_roles ur
+                 WHERE ur.user_id = u.id ORDER BY ur.role::text LIMIT 1) AS role
+         FROM public.auth_users u WHERE u.id = $1::uuid LIMIT 1`,
+        [payload.sub],
+      );
+      const user = result.rows[0];
+      return user ? { id: payload.sub, token, role: user.role || 'anon' } : null;
+    } finally {
+      client.release();
+    }
   } catch {
     return null;
   }

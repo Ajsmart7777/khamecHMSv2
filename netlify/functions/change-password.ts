@@ -1,4 +1,6 @@
-import { authClientForRequest, database, json, optionsResponse, readJson, verifyUser } from './_shared/auth.js';
+import { getCrdbClient } from './_shared/crdb.js';
+import { hashPassword, verifyPassword } from './_shared/password.js';
+import { json, optionsResponse, readJson, verifyUser } from './_shared/auth.js';
 
 type Payload = { currentPassword?: string; newPassword?: string };
 
@@ -9,29 +11,45 @@ export default async (request: Request) => {
   const caller = await verifyUser(request);
   if (!caller) return json({ error: 'Unauthorized' }, 401);
 
+  const client = getCrdbClient();
   try {
     const { currentPassword, newPassword } = await readJson<Payload>(request);
-    if (!currentPassword || !newPassword || newPassword.length < 8) return json({ error: 'Invalid payload' }, 400);
-
-    const sql = database();
-    const userRows = await sql`select email from neon_auth."user" where id = ${caller.id}::uuid limit 1` as Array<{ email: string }>;
-    const email = userRows[0]?.email;
-    if (!email) return json({ error: 'Unauthorized' }, 401);
-
-    const auth = authClientForRequest(request) as unknown as {
-      changePassword: (payload: { currentPassword: string; newPassword: string }) => Promise<{ error?: { message?: string } | null }>;
-    };
-    const result = await auth.changePassword({ currentPassword, newPassword });
-    if (result.error) {
-      await sql`insert into public.audit_logs (user_id, action, resource_type, resource_id, status, error_message)
-        values (${caller.id}::uuid, 'password_changed', 'auth', ${caller.id}::uuid, 'failure', ${String(result.error.message || 'Password update failed')})`;
-      return json({ error: String(result.error.message || 'Password update failed') }, 400);
+    if (!currentPassword || !newPassword || newPassword.length < 8) {
+      return json({ error: 'New password must be at least 8 characters' }, 400);
     }
 
-    await sql`insert into public.audit_logs (user_id, action, resource_type, resource_id, status, details)
-      values (${caller.id}::uuid, 'password_changed', 'auth', ${caller.id}::uuid, 'success', ${JSON.stringify({ email })}::jsonb)`;
+    await client.connect();
+    const userResult = await client.query(
+      'SELECT email, password_hash FROM public.auth_users WHERE id = $1::uuid LIMIT 1',
+      [caller.id],
+    );
+    const user = userResult.rows[0];
+    const currentPasswordMatches = user ? await verifyPassword(currentPassword, user.password_hash) : false;
+    if (!user || !currentPasswordMatches) {
+      await client.query(
+        `INSERT INTO public.audit_logs (user_id, action, resource_type, resource_id, status, error_message)
+         VALUES ($1::uuid, 'password_changed', 'auth', $1::uuid, 'failure', $2)`,
+        [caller.id, 'Current password is incorrect'],
+      );
+      return json({ error: 'Current password is incorrect' }, 400);
+    }
+
+    const passwordHash = await hashPassword(newPassword);
+    await client.query(
+      `UPDATE public.auth_users
+       SET password_hash = $1, updated_at = clock_timestamp()
+       WHERE id = $2::uuid`,
+      [passwordHash, caller.id],
+    );
+    await client.query(
+      `INSERT INTO public.audit_logs (user_id, action, resource_type, resource_id, status, details)
+       VALUES ($1::uuid, 'password_changed', 'auth', $1::uuid, 'success', $2::jsonb)`,
+      [caller.id, JSON.stringify({ email: user.email })],
+    );
     return json({ success: true });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : 'Server error' }, 500);
+    return json({ error: error instanceof Error ? 'Password update failed' : 'Server error' }, 500);
+  } finally {
+    await client.end().catch(() => undefined);
   }
 };

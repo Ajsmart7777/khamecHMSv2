@@ -48,6 +48,20 @@ try {
   }
   const incomplete = await client.query("SELECT count(*)::int AS count FROM public.auth_users WHERE password_hash IS NULL OR password_hash NOT LIKE 'scrypt$v1$%'");
   if (Number(incomplete.rows[0]?.count ?? 0) !== 0) throw new Error('Migration verification failed: incomplete password hashes remain');
+  await client.query(`
+    CREATE OR REPLACE FUNCTION public.get_database_size()
+    RETURNS TABLE (database_size_bytes INT8, database_name STRING)
+    LANGUAGE PLpgSQL
+    SECURITY DEFINER
+    AS $$
+    BEGIN
+      IF NOT public.has_role(public.hms_current_user_id(), 'admin') THEN
+        RAISE EXCEPTION 'Only administrators can check database size';
+      END IF;
+      RETURN QUERY SELECT NULL::INT8, current_database()::STRING;
+    END;
+    $$
+  `);
   await client.query('ALTER TABLE public.auth_users DROP COLUMN IF EXISTS password');
   await client.query('COMMIT');
   console.log(JSON.stringify({ migrated, plaintext_column_removed: true }));

@@ -20,6 +20,20 @@ const hash = async (password) => {
 try {
   await client.connect();
   await client.query('BEGIN');
+  const columns = await client.query(`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'auth_users'
+      AND column_name IN ('password', 'password_hash')
+  `);
+  const columnNames = new Set(columns.rows.map((row) => row.column_name));
+  if (!columnNames.has('password')) {
+    if (!columnNames.has('password_hash')) {
+      throw new Error('auth_users has neither password nor password_hash; refusing to continue');
+    }
+    await client.query('COMMIT');
+    console.log(JSON.stringify({ migrated: 0, plaintext_column_removed: true, already_migrated: true }));
+    process.exit(0);
+  }
   await client.query('ALTER TABLE public.auth_users ADD COLUMN IF NOT EXISTS password_hash STRING');
   const users = await client.query('SELECT id, password, password_hash FROM public.auth_users FOR UPDATE');
   let migrated = 0;

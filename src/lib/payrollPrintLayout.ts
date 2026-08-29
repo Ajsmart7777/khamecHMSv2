@@ -18,18 +18,19 @@ export const LEFT_MASTER_COLUMNS: PayrollColumnDefinition[] = PAYROLL_COLUMNS.sl
 export const RIGHT_MASTER_COLUMNS: PayrollColumnDefinition[] = PAYROLL_COLUMNS.slice(12);
 
 export const LEFT_COLUMN_WIDTHS_MM: Record<string, number> = {
-  id: 16,
-  staff_name: 52,
-  designation: 38,
-  first_app: 18,
-  gl: 14,
-  basic_salary: 25,
-  house: 20,
-  transport: 20,
-  ls: 16,
-  del: 16,
+  sn: 10,
+  id: 15,
+  staff_name: 51,
+  designation: 36,
+  first_app: 16,
+  gl: 12,
+  basic_salary: 24,
+  house: 19,
+  transport: 19,
+  ls: 15,
+  del: 15,
   call: 22,
-  resp: 28,
+  resp: 27,
 };
 
 export const RIGHT_COLUMN_WIDTHS_MM: Record<string, number> = {

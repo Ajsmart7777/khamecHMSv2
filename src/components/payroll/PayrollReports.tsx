@@ -224,10 +224,12 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
             <div ref={masterScrollRef} className="overflow-x-auto print:overflow-visible">
               <Table className="min-w-[2480px] table-fixed border-collapse text-[10px] print:min-w-[2480px]">
                 <TableHeader className="sticky top-16 z-30 bg-white shadow-sm md:top-20 print:static print:shadow-none"><TableRow className="border-b-2 border-primary bg-primary/10">
+                  <TableHead className="w-12 text-center text-[9px] leading-tight font-bold">S/N</TableHead>
                   {PAYROLL_COLUMNS.map(column => <TableHead key={column.key} className={`whitespace-normal break-words px-2 py-2 text-center text-[9px] leading-tight font-bold ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-destructive' : ''} ${column.key === 'id' ? 'w-24' : column.key === 'staff_name' ? 'w-48' : column.key === 'designation' ? 'w-40' : column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net' ? 'w-32' : column.kind === 'identity' ? 'w-32' : 'w-24'}`}>{payrollLabels[column.key] || column.label}</TableHead>)}
                 </TableRow></TableHeader>
                 <TableBody>
-                  {entries.map(entry => <TableRow key={entry.id} className="border-b">
+                  {entries.map((entry, index) => <TableRow key={entry.id} className="border-b">
+                    <TableCell className="px-2 py-2 text-center font-bold text-muted-foreground">{index + 1}</TableCell>
                     {PAYROLL_COLUMNS.map(column => {
                       const value = getMasterValue(entry, column);
                       const isText = typeof value === 'string' && (column.key === 'id' || column.key === 'staff_name' || column.key === 'designation' || isPayrollTextField(column.key));
@@ -235,6 +237,7 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
                     })}
                   </TableRow>)}
                   <TableRow className="border-t-2 border-primary/30 bg-primary/10 font-bold">
+                    <TableCell className="px-2 py-3 text-center font-bold text-muted-foreground">—</TableCell>
                     {PAYROLL_COLUMNS.map(column => {
                       const total = getMasterTotal(column);
                       return <TableCell key={column.key} className={`px-2 py-3 ${column.key === 'id' ? 'text-left' : ['staff_name', 'designation'].includes(column.key) ? 'text-left' : 'text-right'} ${column.key === 'total_deductions' ? 'text-destructive' : ''}`}>{column.key === 'id' ? 'TOTAL' : total === null ? '' : naira(total)}</TableCell>;
@@ -313,12 +316,14 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
         <div className="flex-1 overflow-hidden">
           <table className="master-quadrant-table w-full table-fixed border-collapse">
             <colgroup>
+              <col style={{ width: `${LEFT_COLUMN_WIDTHS_MM.sn || 10}mm` }} />
               {LEFT_MASTER_COLUMNS.map(column => (
                 <col key={column.key} style={{ width: `${LEFT_COLUMN_WIDTHS_MM[column.key] || 20}mm` }} />
               ))}
             </colgroup>
             <thead>
               <tr className="bg-slate-200 font-bold border-b-2 border-slate-900" style={{ height: '7.5mm' }}>
+                <th className="border border-slate-700 px-0.5 text-center font-bold text-slate-950 text-[8.5px]">S/N</th>
                 {LEFT_MASTER_COLUMNS.map(column => (
                   <th key={column.key} className="border border-slate-700 px-1 text-center font-bold text-slate-950 text-[8.5px]">
                     {payrollLabels[column.key] || column.label}
@@ -327,8 +332,11 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
               </tr>
             </thead>
             <tbody>
-              {topRows.map(entry => (
+              {topRows.map((entry, index) => (
                 <tr key={entry.id} className="border-b border-slate-400" style={{ height: '6.8mm' }}>
+                  <td className="border border-slate-600 px-0.5 text-center font-bold text-[8.5px] text-slate-900">
+                    {index + 1}
+                  </td>
                   {LEFT_MASTER_COLUMNS.map(column => {
                     const val = getValue(entry, column);
                     const isText = typeof val === 'string' && (column.kind === 'identity' || isPayrollTextField(column.key));
@@ -424,12 +432,14 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
         <div className="flex-1 overflow-hidden">
           <table className="master-quadrant-table w-full table-fixed border-collapse">
             <colgroup>
+              <col style={{ width: `${LEFT_COLUMN_WIDTHS_MM.sn || 10}mm` }} />
               {LEFT_MASTER_COLUMNS.map(column => (
                 <col key={column.key} style={{ width: `${LEFT_COLUMN_WIDTHS_MM[column.key] || 20}mm` }} />
               ))}
             </colgroup>
             <thead>
               <tr className="bg-slate-200 font-bold border-b-2 border-slate-900" style={{ height: '7.5mm' }}>
+                <th className="border border-slate-700 px-0.5 text-center font-bold text-slate-950 text-[8.5px]">S/N</th>
                 {LEFT_MASTER_COLUMNS.map(column => (
                   <th key={column.key} className="border border-slate-700 px-1 text-center font-bold text-slate-950 text-[8.5px]">
                     {payrollLabels[column.key] || column.label}
@@ -438,8 +448,11 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
               </tr>
             </thead>
             <tbody>
-              {bottomRows.map(entry => (
+              {bottomRows.map((entry, index) => (
                 <tr key={entry.id} className="border-b border-slate-400" style={{ height: '6.8mm' }}>
+                  <td className="border border-slate-600 px-0.5 text-center font-bold text-[8.5px] text-slate-900">
+                    {midIndex + index + 1}
+                  </td>
                   {LEFT_MASTER_COLUMNS.map(column => {
                     const val = getValue(entry, column);
                     const isText = typeof val === 'string' && (column.kind === 'identity' || isPayrollTextField(column.key));
@@ -452,6 +465,7 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
                 </tr>
               ))}
               <tr className="border-t-2 border-slate-950 bg-slate-200 font-bold" style={{ height: '8mm' }}>
+                <td className="border border-slate-700 px-0.5 text-center font-bold text-[8.5px] text-slate-900">—</td>
                 {LEFT_MASTER_COLUMNS.map((column, idx) => {
                   const total = getColumnTotal(column);
                   return (

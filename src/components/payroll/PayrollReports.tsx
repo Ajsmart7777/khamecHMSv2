@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Download, FileText, Loader2, Printer } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Loader2, Printer } from 'lucide-react';
 import { PayrollPeriod, PayrollEntry } from '@/hooks/usePayroll';
 import { toast } from '@/hooks/use-toast';
 import hospitalLogo from '@/assets/hospital-logo.png';
 import { downloadPayrollReportPdf } from '@/lib/payrollReportPdf';
+import { exportPayrollToExcel } from '@/lib/payrollExcelExport';
 import { splitPayrollPaymentEntries } from '@/lib/payrollReports';
 import { PAYROLL_COLUMNS, DEFAULT_PAYROLL_LABELS, isPayrollTextField, type PayrollColumnDefinition } from '@/lib/payroll';
 import {
@@ -176,6 +177,19 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
     window.print();
   };
 
+  const handleExcelExport = () => {
+    if (!selectedPeriod) return;
+    exportPayrollToExcel({
+      reportType,
+      periodLabel,
+      entries,
+      bankEntries,
+      cashEntries,
+      payrollLabels,
+    });
+    toast({ title: 'Excel exported', description: `${title} downloaded as a styled spreadsheet.` });
+  };
+
   return (
     <div className="space-y-4">
       <style>{`@page { size: A4 landscape; margin: ${PRINT_MARGIN_MM}mm; } @media print { html, body { width: ${A4_PRINTABLE_WIDTH_MM}mm; margin: 0; background: #fff; } body * { visibility: hidden; } #payroll-report-document.master-screen-report { display: none !important; } #payroll-report-document.schedule-screen-report, #payroll-report-document.schedule-screen-report * { visibility: visible; } #payroll-report-document.schedule-screen-report { display: block !important; position: static; width: ${A4_PRINTABLE_WIDTH_MM}mm; box-sizing: border-box; } #payroll-report-print-tiles, #payroll-report-print-tiles * { visibility: visible; } #payroll-report-print-tiles { display: block !important; position: static; width: ${A4_PRINTABLE_WIDTH_MM}mm; } .payroll-print-page { box-sizing: border-box; display: flex !important; flex-direction: column; width: ${A4_PRINTABLE_WIDTH_MM}mm; height: ${A4_PRINTABLE_HEIGHT_MM}mm; max-height: ${A4_PRINTABLE_HEIGHT_MM}mm; overflow: hidden; position: relative; break-after: page; page-break-after: always; background: #fff; } .payroll-print-page:last-child { break-after: auto; page-break-after: auto; } .master-quadrant-table { width: 100%; table-layout: fixed; border-collapse: collapse; } .master-quadrant-table th, .master-quadrant-table td { box-sizing: border-box; border: 1px solid #1e293b; padding: 2px 3px; font-size: 8.5px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; } .master-quadrant-table th { font-weight: 700; background-color: #e2e8f0; color: #0f172a; } .master-quadrant-table tbody tr { height: 6.8mm; max-height: 6.8mm; box-sizing: border-box; break-inside: avoid; page-break-inside: avoid; } } @media screen { #payroll-report-print-tiles { display: none; } }`}</style>
@@ -198,6 +212,15 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
         </Select>
         <div className="ml-auto flex gap-2">
           <Button variant="outline" onClick={handlePrint} disabled={!hasRows}><Printer className="mr-2 h-4 w-4" /> Print</Button>
+          <Button
+            variant="outline"
+            onClick={handleExcelExport}
+            disabled={!hasRows}
+            className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+          >
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            Export Excel
+          </Button>
           <Button onClick={() => void handleDownload()} disabled={!hasRows || downloading}>
             {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
             Download PDF

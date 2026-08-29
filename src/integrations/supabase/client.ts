@@ -7,6 +7,13 @@ function requestContext() {
   return { user_id: userId, user_role: activeWorkspace };
 }
 
+function requestHeaders() {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const accessToken = typeof localStorage !== 'undefined' ? localStorage.getItem('hms_access_token') : null;
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  return headers;
+}
+
 class CockroachQueryBuilder {
   constructor(private table: string) {}
 
@@ -115,7 +122,7 @@ class CockroachQueryBuilder {
     try {
       const res = await fetch('/.netlify/functions/db-query', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: requestHeaders(),
         body: JSON.stringify({
           action: this._action,
           ...requestContext(),
@@ -163,7 +170,7 @@ export const supabase = {
         try {
           const res = await fetch('/.netlify/functions/db-query', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: requestHeaders(),
             body: JSON.stringify({ action: 'rpc', ...requestContext(), rpc: fnName, args })
           });
           const json = await res.json();

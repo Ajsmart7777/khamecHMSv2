@@ -122,6 +122,9 @@ export default async (request: Request) => {
       case 'resolve_account':
         return json({ account: (await flwRequest('/v3/accounts/resolve', 'POST', { account_number: body.account_number, account_bank: body.account_bank })).data });
       case 'initiate_transfer': {
+        const callbackUrl = process.env.URL
+          ? new URL('/.netlify/functions/flutterwave-webhook', process.env.URL).toString()
+          : undefined;
         const data = await flwRequest('/v3/transfers', 'POST', {
           account_bank: String(body.account_bank ?? ''),
           account_number: String(body.account_number ?? ''),
@@ -129,6 +132,7 @@ export default async (request: Request) => {
           narration: typeof body.narration === 'string' && body.narration ? body.narration : 'Salary payment',
           currency: 'NGN',
           reference: typeof body.reference === 'string' ? body.reference : undefined,
+          callback_url: callbackUrl,
           beneficiary_name: typeof body.beneficiary_name === 'string' ? body.beneficiary_name : undefined,
         });
         const transfer = data?.data;

@@ -26,7 +26,7 @@ export default async (request: Request) => {
     if (!event || !data || typeof event !== 'string' || !event.startsWith('transfer.')) return textResponse('OK');
 
     const status = String(data.status || '').toUpperCase();
-    const paymentStatus = status === 'SUCCESSFUL' || status === 'SUCCESS'
+    const paymentStatus = status === 'SUCCESSFUL' || status === 'SUCCESS' || status === 'COMPLETED'
       ? 'paid'
       : status === 'FAILED' || status === 'REJECTED' || status === 'CANCELLED'
         ? 'failed'
@@ -54,9 +54,10 @@ export default async (request: Request) => {
           `UPDATE public.payroll_payments
               SET status = $1,
                   provider_transfer_code = COALESCE($2, provider_transfer_code),
-                  paid_at = CASE WHEN $1 = 'paid' THEN now() ELSE paid_at END
+                  failure_reason = CASE WHEN $1 IN ('failed', 'reversed') THEN COALESCE($4, failure_reason) ELSE NULL END,
+                  paid_at = CASE WHEN $1 = 'paid' THEN COALESCE(paid_at, now()) ELSE paid_at END
             WHERE id = $3::uuid`,
-          [paymentStatus, transferId, payment.id],
+          [paymentStatus, transferId, payment.id, data.complete_message || data.failure_reason || null],
         );
         await db.query(
           `UPDATE public.payroll_entries

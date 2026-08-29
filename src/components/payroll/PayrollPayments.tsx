@@ -32,6 +32,16 @@ function normalizeBankName(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+type PayrollPaymentStatus = 'paid' | 'failed' | 'reversed' | 'processing';
+
+function mapProviderTransferStatus(value: unknown): PayrollPaymentStatus {
+  const status = String(value ?? '').trim().toUpperCase();
+  if (['SUCCESS', 'SUCCESSFUL', 'COMPLETED'].includes(status)) return 'paid';
+  if (['REVERSED'].includes(status)) return 'reversed';
+  if (['FAILED', 'REJECTED', 'CANCELLED'].includes(status)) return 'failed';
+  return 'processing';
+}
+
 async function withTimeout<T>(promise: Promise<T>, label: string, timeoutMs = READINESS_TIMEOUT_MS): Promise<T> {
   let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -322,17 +332,39 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
         reference,
       });
 
-      const transferId = transferRes.transfer?.id?.toString() || transferRes.transfer?.transfer_code || '';
-      const recipientCode = transferRes.transfer?.recipient_code || null;
+      const transfer = transferRes.transfer || {};
+      const transferId = transfer.id?.toString() || transfer.transfer_code || '';
+      const recipientCode = transfer.recipient_code || null;
       if (!transferId) throw new Error('The provider did not return a usable transfer reference.');
 
+      // Persist the provider identifier and any terminal response immediately.
+      // Pending provider responses remain processing and are finalized by the
+      // webhook; terminal responses do not depend on a later callback.
+      const confirmedStatus = mapProviderTransferStatus(transfer.status);
+      const providerReason = typeof transfer.complete_message === 'string'
+        ? transfer.complete_message
+        : typeof transfer.failure_reason === 'string'
+          ? transfer.failure_reason
+          : null;
       const { error: transferUpdateError } = await supabase
         .from('payroll_payments')
-        .update({ provider_transfer_code: transferId, provider_recipient_code: recipientCode, failure_reason: null })
+        .update({
+          status: confirmedStatus,
+          provider_transfer_code: transferId,
+          provider_recipient_code: recipientCode,
+          failure_reason: confirmedStatus === 'failed' || confirmedStatus === 'reversed' ? providerReason : null,
+          paid_at: confirmedStatus === 'paid' ? new Date().toISOString() : null,
+        })
         .eq('id', paymentAttemptId);
       if (transferUpdateError) throw transferUpdateError;
 
-      return true;
+      const { error: entryStatusError } = await supabase
+        .from('payroll_entries')
+        .update({ status: confirmedStatus })
+        .eq('id', entry.id);
+      if (entryStatusError) throw entryStatusError;
+
+      return confirmedStatus === 'paid' || confirmedStatus === 'processing';
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Transfer failed';
       if (paymentAttemptId) {

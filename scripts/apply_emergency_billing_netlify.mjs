@@ -54,13 +54,14 @@ function splitSql(sql) {
   return statements;
 }
 
-const [mainSql, repairSql, patientFeeSql, manualEmergencySql, clinicalLabSql, sharedClinicalConstraintSql, payrollBatchSql, unifiedEmergencyLabSql, emergencyLabBackfillSql, emergencyLabRepairSql, emergencyCategoryBillingSql, fadimatuRepairSql] = await Promise.all([
+const [mainSql, repairSql, patientFeeSql, manualEmergencySql, clinicalLabSql, sharedClinicalConstraintSql, payrollSafetySql, payrollBatchSql, unifiedEmergencyLabSql, emergencyLabBackfillSql, emergencyLabRepairSql, emergencyCategoryBillingSql, fadimatuRepairSql] = await Promise.all([
   fs.readFile(new URL('../supabase/migrations/20260825162000_separate_emergency_billing.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260825170000_repair_emergency_billing_trigger_order.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260826090000_fix_patient_fee_role_context.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260826100000_manual_emergency_invoice_lines.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260826110000_shared_clinical_lab_result_routing.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260827130000_allow_shared_clinical_lab_results.sql', import.meta.url), 'utf8'),
+  fs.readFile(new URL('../supabase/migrations/20260814144431_payroll_transfer_state_safety.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260826130000_optional_payroll_batches.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260827140000_unify_emergency_lab_queue.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260827143000_backfill_emergency_lab_queue.sql', import.meta.url), 'utf8'),
@@ -74,6 +75,7 @@ const patientFeeStatements = splitSql(patientFeeSql);
 const manualEmergencyStatements = splitSql(manualEmergencySql);
 const clinicalLabStatements = splitSql(clinicalLabSql);
 const sharedClinicalConstraintStatements = splitSql(sharedClinicalConstraintSql);
+const payrollSafetyStatements = splitSql(payrollSafetySql);
 const payrollBatchStatements = splitSql(payrollBatchSql);
 const unifiedEmergencyLabStatements = splitSql(unifiedEmergencyLabSql);
 const emergencyLabBackfillStatements = splitSql(emergencyLabBackfillSql);
@@ -97,6 +99,7 @@ const migrations = [
   { version: '20260826100000_manual_emergency_invoice_lines', statements: manualEmergencyStatements },
   { version: '20260826110000_shared_clinical_lab_result_routing', statements: clinicalLabStatements },
   { version: '20260827130000_allow_shared_clinical_lab_results', statements: sharedClinicalConstraintStatements },
+  { version: '20260814144431_payroll_transfer_state_safety', statements: payrollSafetyStatements },
   { version: '20260826130000_optional_payroll_batches', statements: payrollBatchStatements },
   { version: '20260827140000_unify_emergency_lab_queue', statements: unifiedEmergencyLabStatements },
   { version: '20260827143000_backfill_emergency_lab_queue', statements: emergencyLabBackfillStatements },

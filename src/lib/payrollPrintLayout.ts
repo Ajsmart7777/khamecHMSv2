@@ -5,7 +5,9 @@ export const A4_PORTRAIT_HEIGHT_MM = 297;
 export const PRINT_MARGIN_MM = 8;
 export const A4_PRINTABLE_WIDTH_MM = A4_PORTRAIT_WIDTH_MM - PRINT_MARGIN_MM * 2;
 export const A4_PRINTABLE_HEIGHT_MM = A4_PORTRAIT_HEIGHT_MM - PRINT_MARGIN_MM * 2;
-export const PRINT_ROWS_PER_PAGE = 20;
+export const PRINT_ROW_HEIGHT_MM = 5.2;
+export const PRINT_STATIC_HEIGHT_MM = 58;
+export const PRINT_ROWS_PER_PAGE = Math.max(1, Math.floor((A4_PRINTABLE_HEIGHT_MM - PRINT_STATIC_HEIGHT_MM) / PRINT_ROW_HEIGHT_MM));
 
 const IDENTITY_WIDTHS: Record<string, number> = {
   id: 22,

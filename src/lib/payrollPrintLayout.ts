@@ -1,11 +1,11 @@
 import type { PayrollColumnDefinition } from '@/lib/payroll';
 
-export const A4_LANDSCAPE_WIDTH_MM = 297;
-export const A4_LANDSCAPE_HEIGHT_MM = 210;
+export const A4_PORTRAIT_WIDTH_MM = 210;
+export const A4_PORTRAIT_HEIGHT_MM = 297;
 export const PRINT_MARGIN_MM = 8;
-export const A4_PRINTABLE_WIDTH_MM = A4_LANDSCAPE_WIDTH_MM - PRINT_MARGIN_MM * 2;
-export const A4_PRINTABLE_HEIGHT_MM = A4_LANDSCAPE_HEIGHT_MM - PRINT_MARGIN_MM * 2;
-export const PRINT_ROWS_PER_PAGE = 13;
+export const A4_PRINTABLE_WIDTH_MM = A4_PORTRAIT_WIDTH_MM - PRINT_MARGIN_MM * 2;
+export const A4_PRINTABLE_HEIGHT_MM = A4_PORTRAIT_HEIGHT_MM - PRINT_MARGIN_MM * 2;
+export const PRINT_ROWS_PER_PAGE = 20;
 
 const IDENTITY_WIDTHS: Record<string, number> = {
   id: 22,

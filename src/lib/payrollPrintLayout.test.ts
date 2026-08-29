@@ -19,9 +19,9 @@ describe('payroll print layout', () => {
 
   it('keeps every vertical row group intact and preserves all entries', () => {
     const rows = Array.from({ length: 29 }, (_, index) => ({ id: index }));
-    const groups = splitPayrollPrintRows(rows, 13);
-    expect(groups.map(group => group.length)).toEqual([13, 13, 3]);
+    const groups = splitPayrollPrintRows(rows, 20);
+    expect(groups.map(group => group.length)).toEqual([20, 9]);
     expect(groups.flat()).toEqual(rows);
-    expect(A4_PRINTABLE_HEIGHT_MM).toBe(194);
+    expect(A4_PRINTABLE_HEIGHT_MM).toBe(281);
   });
 });

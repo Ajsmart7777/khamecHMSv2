@@ -178,7 +178,7 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
 
   return (
     <div className="space-y-4">
-      <style>{`@page { size: A4 portrait; margin: ${PRINT_MARGIN_MM}mm; } @media print { html, body { width: ${A4_PRINTABLE_WIDTH_MM}mm; margin: 0; background: #fff; } body * { visibility: hidden; } #payroll-report-document.master-screen-report { display: none !important; } #payroll-report-document.schedule-screen-report, #payroll-report-document.schedule-screen-report * { visibility: visible; } #payroll-report-document.schedule-screen-report { display: block !important; position: static; width: ${A4_PRINTABLE_WIDTH_MM}mm; box-sizing: border-box; } #payroll-report-print-tiles, #payroll-report-print-tiles * { visibility: visible; } #payroll-report-print-tiles { display: block !important; position: static; width: ${A4_PRINTABLE_WIDTH_MM}mm; } .payroll-print-page { box-sizing: border-box; display: flex !important; flex-direction: column; width: ${A4_PRINTABLE_WIDTH_MM}mm; height: ${A4_PRINTABLE_HEIGHT_MM}mm; max-height: ${A4_PRINTABLE_HEIGHT_MM}mm; overflow: hidden; position: relative; break-after: page; page-break-after: always; background: #fff; } .payroll-print-page:last-child { break-after: auto; page-break-after: auto; } .master-quadrant-table { width: 100%; table-layout: fixed; border-collapse: collapse; } .master-quadrant-table th, .master-quadrant-table td { box-sizing: border-box; border: 1px solid #334155; padding: 2px 2px; font-size: 8px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; } .master-quadrant-table th { font-weight: 700; background-color: #e2e8f0; color: #0f172a; } .master-quadrant-table tbody tr { height: 6.2mm; max-height: 6.2mm; box-sizing: border-box; break-inside: avoid; page-break-inside: avoid; } } @media screen { #payroll-report-print-tiles { display: none; } }`}</style>
+      <style>{`@page { size: A4 landscape; margin: ${PRINT_MARGIN_MM}mm; } @media print { html, body { width: ${A4_PRINTABLE_WIDTH_MM}mm; margin: 0; background: #fff; } body * { visibility: hidden; } #payroll-report-document.master-screen-report { display: none !important; } #payroll-report-document.schedule-screen-report, #payroll-report-document.schedule-screen-report * { visibility: visible; } #payroll-report-document.schedule-screen-report { display: block !important; position: static; width: ${A4_PRINTABLE_WIDTH_MM}mm; box-sizing: border-box; } #payroll-report-print-tiles, #payroll-report-print-tiles * { visibility: visible; } #payroll-report-print-tiles { display: block !important; position: static; width: ${A4_PRINTABLE_WIDTH_MM}mm; } .payroll-print-page { box-sizing: border-box; display: flex !important; flex-direction: column; width: ${A4_PRINTABLE_WIDTH_MM}mm; height: ${A4_PRINTABLE_HEIGHT_MM}mm; max-height: ${A4_PRINTABLE_HEIGHT_MM}mm; overflow: hidden; position: relative; break-after: page; page-break-after: always; background: #fff; } .payroll-print-page:last-child { break-after: auto; page-break-after: auto; } .master-quadrant-table { width: 100%; table-layout: fixed; border-collapse: collapse; } .master-quadrant-table th, .master-quadrant-table td { box-sizing: border-box; border: 1px solid #1e293b; padding: 2px 3px; font-size: 8.5px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; } .master-quadrant-table th { font-weight: 700; background-color: #e2e8f0; color: #0f172a; } .master-quadrant-table tbody tr { height: 6.8mm; max-height: 6.8mm; box-sizing: border-box; break-inside: avoid; page-break-inside: avoid; } } @media screen { #payroll-report-print-tiles { display: none; } }`}</style>
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center print:hidden">
         <Select value={selectedPeriod?.id || ''} onValueChange={value => { const period = periods.find(item => item.id === value); if (period) onSelectPeriod(period); }}>
           <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="Select period" /></SelectTrigger>
@@ -291,22 +291,22 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
   return (
     <div id="payroll-report-print-tiles" aria-hidden="true">
       {/* ========================================================================= */}
-      {/* QUADRANT 1: TOP-LEFT (Columns 1-12: ID to RESP | Staff 1 to Mid)           */}
+      {/* QUADRANT 1: TOP-LEFT (A4 Landscape - Columns 1-12 | Staff 1 to Mid)       */}
       {/* ========================================================================= */}
       <section className="payroll-print-page" id="master-quadrant-1">
-        <div className="mb-2 flex h-[18mm] items-center justify-between border-b-2 border-slate-900 pb-1">
+        <div className="mb-1 flex h-[16mm] items-center justify-between border-b-2 border-slate-900 pb-1">
           <div className="flex items-center gap-3">
-            <img src={hospitalLogo} alt="Khadija Medical Center" className="h-10 w-10 object-contain" />
+            <img src={hospitalLogo} alt="Khadija Medical Centre" className="h-10 w-10 object-contain" />
             <div>
-              <h1 className="text-sm font-extrabold tracking-wider text-slate-900">KHADIJA MEDICAL CENTER</h1>
-              <p className="text-[9.5px] font-bold text-slate-700 uppercase">Master Payroll Report — {periodLabel}</p>
+              <h1 className="text-base font-extrabold tracking-wider text-slate-950">KHADIJA MEDICAL CENTRE</h1>
+              <p className="text-[10px] font-bold text-slate-800 uppercase">Staff Monthly Master Payroll — For the Month of:- {periodLabel}</p>
             </div>
           </div>
           <div className="text-right">
-            <span className="rounded bg-slate-900 px-2 py-0.5 text-[8.5px] font-bold text-white uppercase">
+            <span className="rounded bg-slate-900 px-2 py-0.5 text-[9px] font-bold text-white uppercase">
               Page 1 of 4 • [ Top-Left ]
             </span>
-            <p className="mt-0.5 text-[7.5px] font-semibold text-slate-600">Staff 1–{midIndex} of {totalCount}</p>
+            <p className="mt-0.5 text-[8px] font-semibold text-slate-700">Staff 1–{midIndex} of {totalCount}</p>
           </div>
         </div>
 
@@ -314,13 +314,13 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
           <table className="master-quadrant-table w-full table-fixed border-collapse">
             <colgroup>
               {LEFT_MASTER_COLUMNS.map(column => (
-                <col key={column.key} style={{ width: `${LEFT_COLUMN_WIDTHS_MM[column.key] || 15}mm` }} />
+                <col key={column.key} style={{ width: `${LEFT_COLUMN_WIDTHS_MM[column.key] || 20}mm` }} />
               ))}
             </colgroup>
             <thead>
-              <tr className="bg-slate-200 font-bold border-b-2 border-slate-800" style={{ height: '7.5mm' }}>
+              <tr className="bg-slate-200 font-bold border-b-2 border-slate-900" style={{ height: '7.5mm' }}>
                 {LEFT_MASTER_COLUMNS.map(column => (
-                  <th key={column.key} className="border border-slate-600 px-1 text-center font-bold text-slate-950 text-[8px]">
+                  <th key={column.key} className="border border-slate-700 px-1 text-center font-bold text-slate-950 text-[8.5px]">
                     {payrollLabels[column.key] || column.label}
                   </th>
                 ))}
@@ -328,12 +328,12 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
             </thead>
             <tbody>
               {topRows.map(entry => (
-                <tr key={entry.id} className="border-b border-slate-400" style={{ height: '6.2mm' }}>
+                <tr key={entry.id} className="border-b border-slate-400" style={{ height: '6.8mm' }}>
                   {LEFT_MASTER_COLUMNS.map(column => {
                     const val = getValue(entry, column);
                     const isText = typeof val === 'string' && (column.kind === 'identity' || isPayrollTextField(column.key));
                     return (
-                      <td key={column.key} className={`border border-slate-500 px-1.5 text-[8px] ${isText ? 'text-left font-medium' : 'text-right font-mono'}`}>
+                      <td key={column.key} className={`border border-slate-600 px-1 text-[8.5px] ${isText ? 'text-left font-medium' : 'text-right font-mono font-semibold'}`}>
                         {formatValue(val, column)}
                       </td>
                     );
@@ -344,27 +344,27 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
           </table>
         </div>
 
-        <div className="mt-auto flex h-[7mm] items-center justify-between border-t border-slate-400 pt-1 text-[7.5px] text-slate-600">
+        <div className="mt-auto flex h-[6mm] items-center justify-between border-t border-slate-400 pt-0.5 text-[8px] text-slate-700">
           <span>Quadrant 1 of 4 (Top-Left)</span>
-          <span className="font-bold text-slate-800">╎ SEAM: Join Right with Page 2 ➔ | Join Bottom with Page 3 ⬇</span>
+          <span className="font-bold text-slate-900">╎ SEAM: Join Right with Page 2 ➔ | Join Bottom with Page 3 ⬇</span>
           <span>Staff 1–{midIndex}</span>
         </div>
       </section>
 
       {/* ========================================================================= */}
-      {/* QUADRANT 2: TOP-RIGHT (Columns 13-25: OT to NET PAY | Staff 1 to Mid)       */}
+      {/* QUADRANT 2: TOP-RIGHT (A4 Landscape - Columns 13-25 | Staff 1 to Mid)      */}
       {/* ========================================================================= */}
       <section className="payroll-print-page" id="master-quadrant-2">
-        <div className="mb-2 flex h-[18mm] items-center justify-between border-b-2 border-slate-900 pb-1">
+        <div className="mb-1 flex h-[16mm] items-center justify-between border-b-2 border-slate-900 pb-1">
           <div>
-            <h1 className="text-xs font-bold text-slate-800 uppercase tracking-wide">PAYROLL EARNINGS & DEDUCTIONS</h1>
-            <p className="text-[8px] text-slate-600">Prepared by Accounts Department</p>
+            <h1 className="text-xs font-bold text-slate-900 uppercase tracking-wide">STAFF MONTHLY MASTER PAYROLL (EARNINGS & DEDUCTIONS)</h1>
+            <p className="text-[8.5px] text-slate-700">Khadija Medical Centre • Prepared by Accounts</p>
           </div>
           <div className="text-right">
-            <span className="rounded bg-slate-900 px-2 py-0.5 text-[8.5px] font-bold text-white uppercase">
+            <span className="rounded bg-slate-900 px-2 py-0.5 text-[9px] font-bold text-white uppercase">
               Page 2 of 4 • [ Top-Right ]
             </span>
-            <p className="mt-0.5 text-[7.5px] font-semibold text-slate-600">Staff 1–{midIndex} of {totalCount}</p>
+            <p className="mt-0.5 text-[8px] font-semibold text-slate-700">Staff 1–{midIndex} of {totalCount}</p>
           </div>
         </div>
 
@@ -372,13 +372,13 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
           <table className="master-quadrant-table w-full table-fixed border-collapse">
             <colgroup>
               {RIGHT_MASTER_COLUMNS.map(column => (
-                <col key={column.key} style={{ width: `${RIGHT_COLUMN_WIDTHS_MM[column.key] || 15}mm` }} />
+                <col key={column.key} style={{ width: `${RIGHT_COLUMN_WIDTHS_MM[column.key] || 20}mm` }} />
               ))}
             </colgroup>
             <thead>
-              <tr className="bg-slate-200 font-bold border-b-2 border-slate-800" style={{ height: '7.5mm' }}>
+              <tr className="bg-slate-200 font-bold border-b-2 border-slate-900" style={{ height: '7.5mm' }}>
                 {RIGHT_MASTER_COLUMNS.map(column => (
-                  <th key={column.key} className={`border border-slate-600 px-1 text-center font-bold text-[8px] ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-red-800' : 'text-slate-950'}`}>
+                  <th key={column.key} className={`border border-slate-700 px-1 text-center font-bold text-[8.5px] ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-red-900' : 'text-slate-950'}`}>
                     {payrollLabels[column.key] || column.label}
                   </th>
                 ))}
@@ -386,11 +386,11 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
             </thead>
             <tbody>
               {topRows.map(entry => (
-                <tr key={entry.id} className="border-b border-slate-400" style={{ height: '6.2mm' }}>
+                <tr key={entry.id} className="border-b border-slate-400" style={{ height: '6.8mm' }}>
                   {RIGHT_MASTER_COLUMNS.map(column => {
                     const val = getValue(entry, column);
                     return (
-                      <td key={column.key} className={`border border-slate-500 px-1.5 text-right font-mono text-[8px] ${['gross_pay', 'total_deductions', 'net_pay'].includes(column.key) ? 'font-bold bg-slate-100' : ''}`}>
+                      <td key={column.key} className={`border border-slate-600 px-1 text-right font-mono font-semibold text-[8.5px] ${['gross_pay', 'total_deductions', 'net_pay'].includes(column.key) ? 'font-bold bg-slate-100' : ''}`}>
                         {formatValue(val, column)}
                       </td>
                     );
@@ -401,22 +401,22 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
           </table>
         </div>
 
-        <div className="mt-auto flex h-[7mm] items-center justify-between border-t border-slate-400 pt-1 text-[7.5px] text-slate-600">
+        <div className="mt-auto flex h-[6mm] items-center justify-between border-t border-slate-400 pt-0.5 text-[8px] text-slate-700">
           <span>Quadrant 2 of 4 (Top-Right)</span>
-          <span className="font-bold text-slate-800">╎ SEAM: Join Left with Page 1 ⬅ | Join Bottom with Page 4 ⬇</span>
+          <span className="font-bold text-slate-900">╎ SEAM: Join Left with Page 1 ⬅ | Join Bottom with Page 4 ⬇</span>
           <span>Staff 1–{midIndex}</span>
         </div>
       </section>
 
       {/* ========================================================================= */}
-      {/* QUADRANT 3: BOTTOM-LEFT (Columns 1-12 | Staff Mid+1 to End + Left Totals)  */}
+      {/* QUADRANT 3: BOTTOM-LEFT (A4 Landscape - Columns 1-12 | Staff Mid+1 to End) */}
       {/* ========================================================================= */}
       <section className="payroll-print-page" id="master-quadrant-3">
-        <div className="mb-2 flex h-[10mm] items-center justify-between border-b-2 border-slate-800 pb-1">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-800">
-            MASTER PAYROLL (CONTINUED) — {periodLabel}
+        <div className="mb-1 flex h-[10mm] items-center justify-between border-b-2 border-slate-900 pb-1">
+          <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-900">
+            STAFF MONTHLY MASTER PAYROLL (CONTINUED) — {periodLabel}
           </span>
-          <span className="rounded bg-slate-800 px-2 py-0.5 text-[8.5px] font-bold text-white uppercase">
+          <span className="rounded bg-slate-900 px-2 py-0.5 text-[9px] font-bold text-white uppercase">
             Page 3 of 4 • [ Bottom-Left ]
           </span>
         </div>
@@ -425,13 +425,13 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
           <table className="master-quadrant-table w-full table-fixed border-collapse">
             <colgroup>
               {LEFT_MASTER_COLUMNS.map(column => (
-                <col key={column.key} style={{ width: `${LEFT_COLUMN_WIDTHS_MM[column.key] || 15}mm` }} />
+                <col key={column.key} style={{ width: `${LEFT_COLUMN_WIDTHS_MM[column.key] || 20}mm` }} />
               ))}
             </colgroup>
             <thead>
-              <tr className="bg-slate-200 font-bold border-b-2 border-slate-800" style={{ height: '7.5mm' }}>
+              <tr className="bg-slate-200 font-bold border-b-2 border-slate-900" style={{ height: '7.5mm' }}>
                 {LEFT_MASTER_COLUMNS.map(column => (
-                  <th key={column.key} className="border border-slate-600 px-1 text-center font-bold text-slate-950 text-[8px]">
+                  <th key={column.key} className="border border-slate-700 px-1 text-center font-bold text-slate-950 text-[8.5px]">
                     {payrollLabels[column.key] || column.label}
                   </th>
                 ))}
@@ -439,23 +439,23 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
             </thead>
             <tbody>
               {bottomRows.map(entry => (
-                <tr key={entry.id} className="border-b border-slate-400" style={{ height: '6.2mm' }}>
+                <tr key={entry.id} className="border-b border-slate-400" style={{ height: '6.8mm' }}>
                   {LEFT_MASTER_COLUMNS.map(column => {
                     const val = getValue(entry, column);
                     const isText = typeof val === 'string' && (column.kind === 'identity' || isPayrollTextField(column.key));
                     return (
-                      <td key={column.key} className={`border border-slate-500 px-1.5 text-[8px] ${isText ? 'text-left font-medium' : 'text-right font-mono'}`}>
+                      <td key={column.key} className={`border border-slate-600 px-1 text-[8.5px] ${isText ? 'text-left font-medium' : 'text-right font-mono font-semibold'}`}>
                         {formatValue(val, column)}
                       </td>
                     );
                   })}
                 </tr>
               ))}
-              <tr className="border-t-2 border-slate-900 bg-slate-200 font-bold" style={{ height: '7.5mm' }}>
+              <tr className="border-t-2 border-slate-950 bg-slate-200 font-bold" style={{ height: '8mm' }}>
                 {LEFT_MASTER_COLUMNS.map((column, idx) => {
                   const total = getColumnTotal(column);
                   return (
-                    <td key={column.key} className={`border border-slate-700 px-1.5 text-[8.5px] font-bold ${idx === 0 ? 'text-left' : 'text-right font-mono'}`}>
+                    <td key={column.key} className={`border border-slate-700 px-1 text-[9px] font-bold ${idx === 0 ? 'text-left' : 'text-right font-mono'}`}>
                       {idx === 0 ? 'GRAND TOTAL' : total === null ? '' : naira(total)}
                     </td>
                   );
@@ -466,34 +466,34 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
         </div>
 
         {/* Signatures & Seam Footer */}
-        <div className="mt-auto border-t-2 border-slate-700 pt-3">
-          <div className="mb-2 flex items-center justify-between text-[9px]">
+        <div className="mt-auto border-t-2 border-slate-900 pt-2">
+          <div className="mb-1 flex items-center justify-between text-[9.5px]">
             <div>
-              <p className="font-semibold text-slate-800">Prepared by Accounts:</p>
-              <div className="mt-4 w-48 border-b border-slate-700" />
+              <p className="font-bold text-slate-900">Checked by:</p>
+              <div className="mt-4 w-56 border-b-2 border-slate-800" />
             </div>
             <div>
-              <p className="font-semibold text-slate-800">Date:</p>
-              <div className="mt-4 w-32 border-b border-slate-700" />
+              <p className="font-bold text-slate-900">Sign / Date:</p>
+              <div className="mt-4 w-40 border-b-2 border-slate-800" />
             </div>
           </div>
-          <div className="flex h-[5mm] items-center justify-between border-t border-slate-300 pt-0.5 text-[7.5px] text-slate-600">
+          <div className="flex h-[5mm] items-center justify-between border-t border-slate-400 pt-0.5 text-[8px] text-slate-700">
             <span>Quadrant 3 of 4 (Bottom-Left)</span>
-            <span className="font-bold text-slate-800">╎ SEAM: Join Top with Page 1 ⬆ | Join Right with Page 4 ➔</span>
+            <span className="font-bold text-slate-900">╎ SEAM: Join Top with Page 1 ⬆ | Join Right with Page 4 ➔</span>
             <span>Staff {midIndex + 1}–{totalCount}</span>
           </div>
         </div>
       </section>
 
       {/* ========================================================================= */}
-      {/* QUADRANT 4: BOTTOM-RIGHT (Columns 13-25 | Staff Mid+1 to End + Right Totals)*/}
+      {/* QUADRANT 4: BOTTOM-RIGHT (A4 Landscape - Columns 13-25 | Staff Mid+1 to End)*/}
       {/* ========================================================================= */}
       <section className="payroll-print-page" id="master-quadrant-4">
-        <div className="mb-2 flex h-[10mm] items-center justify-between border-b-2 border-slate-800 pb-1">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-800">
-            PAYROLL EARNINGS & DEDUCTIONS (CONTINUED)
+        <div className="mb-1 flex h-[10mm] items-center justify-between border-b-2 border-slate-900 pb-1">
+          <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-900">
+            EARNINGS & DEDUCTIONS (CONTINUED)
           </span>
-          <span className="rounded bg-slate-800 px-2 py-0.5 text-[8.5px] font-bold text-white uppercase">
+          <span className="rounded bg-slate-900 px-2 py-0.5 text-[9px] font-bold text-white uppercase">
             Page 4 of 4 • [ Bottom-Right ]
           </span>
         </div>
@@ -502,13 +502,13 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
           <table className="master-quadrant-table w-full table-fixed border-collapse">
             <colgroup>
               {RIGHT_MASTER_COLUMNS.map(column => (
-                <col key={column.key} style={{ width: `${RIGHT_COLUMN_WIDTHS_MM[column.key] || 15}mm` }} />
+                <col key={column.key} style={{ width: `${RIGHT_COLUMN_WIDTHS_MM[column.key] || 20}mm` }} />
               ))}
             </colgroup>
             <thead>
-              <tr className="bg-slate-200 font-bold border-b-2 border-slate-800" style={{ height: '7.5mm' }}>
+              <tr className="bg-slate-200 font-bold border-b-2 border-slate-900" style={{ height: '7.5mm' }}>
                 {RIGHT_MASTER_COLUMNS.map(column => (
-                  <th key={column.key} className={`border border-slate-600 px-1 text-center font-bold text-[8px] ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-red-800' : 'text-slate-950'}`}>
+                  <th key={column.key} className={`border border-slate-700 px-1 text-center font-bold text-[8.5px] ${column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-red-900' : 'text-slate-950'}`}>
                     {payrollLabels[column.key] || column.label}
                   </th>
                 ))}
@@ -516,22 +516,22 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
             </thead>
             <tbody>
               {bottomRows.map(entry => (
-                <tr key={entry.id} className="border-b border-slate-400" style={{ height: '6.2mm' }}>
+                <tr key={entry.id} className="border-b border-slate-400" style={{ height: '6.8mm' }}>
                   {RIGHT_MASTER_COLUMNS.map(column => {
                     const val = getValue(entry, column);
                     return (
-                      <td key={column.key} className={`border border-slate-500 px-1.5 text-right font-mono text-[8px] ${['gross_pay', 'total_deductions', 'net_pay'].includes(column.key) ? 'font-bold bg-slate-100' : ''}`}>
+                      <td key={column.key} className={`border border-slate-600 px-1 text-right font-mono font-semibold text-[8.5px] ${['gross_pay', 'total_deductions', 'net_pay'].includes(column.key) ? 'font-bold bg-slate-100' : ''}`}>
                         {formatValue(val, column)}
                       </td>
                     );
                   })}
                 </tr>
               ))}
-              <tr className="border-t-2 border-slate-900 bg-slate-200 font-bold" style={{ height: '7.5mm' }}>
+              <tr className="border-t-2 border-slate-950 bg-slate-200 font-bold" style={{ height: '8mm' }}>
                 {RIGHT_MASTER_COLUMNS.map(column => {
                   const total = getColumnTotal(column);
                   return (
-                    <td key={column.key} className={`border border-slate-700 px-1.5 text-right font-mono text-[8.5px] font-bold ${column.key === 'total_deductions' ? 'text-red-800' : ''}`}>
+                    <td key={column.key} className={`border border-slate-700 px-1 text-right font-mono text-[9px] font-bold ${column.key === 'total_deductions' ? 'text-red-900' : ''}`}>
                       {total === null ? '' : naira(total)}
                     </td>
                   );
@@ -542,20 +542,20 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
         </div>
 
         {/* Signatures & Seam Footer */}
-        <div className="mt-auto border-t-2 border-slate-700 pt-3">
-          <div className="mb-2 flex items-center justify-between text-[9px]">
+        <div className="mt-auto border-t-2 border-slate-900 pt-2">
+          <div className="mb-1 flex items-center justify-between text-[9.5px]">
             <div>
-              <p className="font-semibold text-slate-800">Authorised Signature:</p>
-              <div className="mt-4 w-48 border-b border-slate-700" />
+              <p className="font-bold text-slate-900">Approved by:</p>
+              <div className="mt-4 w-56 border-b-2 border-slate-800" />
             </div>
             <div>
-              <p className="font-semibold text-slate-800">Date:</p>
-              <div className="mt-4 w-32 border-b border-slate-700" />
+              <p className="font-bold text-slate-900">Sign / Date:</p>
+              <div className="mt-4 w-40 border-b-2 border-slate-800" />
             </div>
           </div>
-          <div className="flex h-[5mm] items-center justify-between border-t border-slate-300 pt-0.5 text-[7.5px] text-slate-600">
+          <div className="flex h-[5mm] items-center justify-between border-t border-slate-400 pt-0.5 text-[8px] text-slate-700">
             <span>Quadrant 4 of 4 (Bottom-Right)</span>
-            <span className="font-bold text-slate-800">╎ SEAM: Join Top with Page 2 ⬆ | Join Left with Page 3 ⬅</span>
+            <span className="font-bold text-slate-900">╎ SEAM: Join Top with Page 2 ⬆ | Join Left with Page 3 ⬅</span>
             <span>Staff {midIndex + 1}–{totalCount}</span>
           </div>
         </div>

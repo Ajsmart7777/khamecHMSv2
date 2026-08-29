@@ -54,7 +54,7 @@ export async function downloadPayrollReportPdf(
   if (tiledMaster) {
     const quadrantElements = Array.from(document.querySelectorAll<HTMLElement>('#payroll-report-print-tiles .payroll-print-page'));
     if (quadrantElements.length > 0) {
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
       for (let i = 0; i < quadrantElements.length; i++) {
         if (i > 0) pdf.addPage();
         const pageEl = quadrantElements[i];
@@ -78,7 +78,7 @@ export async function downloadPayrollReportPdf(
         });
         const pageWidth = pdf.internal.pageSize.getWidth();
         const pageHeight = pdf.internal.pageSize.getHeight();
-        const margin = 8;
+        const margin = 6;
         const usableWidth = pageWidth - margin * 2;
         const usableHeight = pageHeight - margin * 2;
         const imgWidth = usableWidth;

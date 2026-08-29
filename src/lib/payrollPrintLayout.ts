@@ -1,16 +1,16 @@
 import { PAYROLL_COLUMNS, type PayrollColumnDefinition } from '@/lib/payroll';
 
-export const A4_PORTRAIT_WIDTH_MM = 210;
-export const A4_PORTRAIT_HEIGHT_MM = 297;
-export const PRINT_MARGIN_MM = 8;
-export const A4_PRINTABLE_WIDTH_MM = A4_PORTRAIT_WIDTH_MM - PRINT_MARGIN_MM * 2; // 194mm
-export const A4_PRINTABLE_HEIGHT_MM = A4_PORTRAIT_HEIGHT_MM - PRINT_MARGIN_MM * 2; // 281mm
-export const PRINT_ROW_HEIGHT_MM = 5.2;
-export const PRINT_STATIC_HEIGHT_MM = 58;
+export const A4_LANDSCAPE_WIDTH_MM = 297;
+export const A4_LANDSCAPE_HEIGHT_MM = 210;
+export const PRINT_MARGIN_MM = 6;
+export const A4_PRINTABLE_WIDTH_MM = A4_LANDSCAPE_WIDTH_MM - PRINT_MARGIN_MM * 2; // 285mm
+export const A4_PRINTABLE_HEIGHT_MM = A4_LANDSCAPE_HEIGHT_MM - PRINT_MARGIN_MM * 2; // 198mm
+export const PRINT_ROW_HEIGHT_MM = 7.0;
+export const PRINT_STATIC_HEIGHT_MM = 45;
 export const PRINT_ROWS_PER_PAGE = Math.max(1, Math.floor((A4_PRINTABLE_HEIGHT_MM - PRINT_STATIC_HEIGHT_MM) / PRINT_ROW_HEIGHT_MM));
 
 /**
- * 4-Quadrant Poster Master Payroll Split:
+ * 4-Quadrant Landscape Poster Master Payroll Split (2x2 A4 Landscape sheets):
  * - Left side (Pages 1 & 3): 12 columns (ID, Staff Name, Designation, 1st APP, GL, Basic, House, Transport, LS, DEL, CALL, RESP)
  * - Right side (Pages 2 & 4): 13 columns (OT, LEAVE, ENTER, NA, HAZARD, GROSS PAY, PLTY, PAYE, CONTRIBUTION, ADVCE, PERSONAL LOAN, TOTAL DEDUCTIONS, NET PAY)
  */
@@ -18,34 +18,34 @@ export const LEFT_MASTER_COLUMNS: PayrollColumnDefinition[] = PAYROLL_COLUMNS.sl
 export const RIGHT_MASTER_COLUMNS: PayrollColumnDefinition[] = PAYROLL_COLUMNS.slice(12);
 
 export const LEFT_COLUMN_WIDTHS_MM: Record<string, number> = {
-  id: 11,
-  staff_name: 34,
-  designation: 27,
-  first_app: 13,
-  gl: 10,
-  basic_salary: 17,
-  house: 14,
-  transport: 14,
-  ls: 11,
-  del: 11,
-  call: 14,
-  resp: 18,
+  id: 16,
+  staff_name: 52,
+  designation: 38,
+  first_app: 18,
+  gl: 14,
+  basic_salary: 25,
+  house: 20,
+  transport: 20,
+  ls: 16,
+  del: 16,
+  call: 22,
+  resp: 28,
 };
 
 export const RIGHT_COLUMN_WIDTHS_MM: Record<string, number> = {
-  ot: 11,
-  leave: 11,
-  enter: 11,
-  na: 10,
-  hazard: 12,
-  gross_pay: 20,
-  plty: 11,
-  paye: 16,
-  contribution: 16,
-  advce: 14,
-  personal_loan: 16,
-  total_deductions: 22,
-  net_pay: 24,
+  ot: 16,
+  leave: 16,
+  enter: 16,
+  na: 15,
+  hazard: 18,
+  gross_pay: 30,
+  plty: 16,
+  paye: 24,
+  contribution: 24,
+  advce: 20,
+  personal_loan: 24,
+  total_deductions: 32,
+  net_pay: 34,
 };
 
 export interface PayrollQuadrantSplit<T> {

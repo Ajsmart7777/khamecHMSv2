@@ -1,5 +1,7 @@
 import type { Handler } from '@netlify/functions';
+import type { PoolClient } from 'pg';
 import { getCrdbPool } from './_shared/crdb.js';
+import { verifyUser } from './_shared/auth.js';
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -173,9 +175,21 @@ export const handler: Handler = async (event) => {
     return { statusCode: 405, body: JSON.stringify({ error: 'Method Not Allowed' }) };
   }
 
-  const client = await getCrdbPool().connect();
+  let client: PoolClient | undefined;
   try {
     const body = JSON.parse(event.body || '{}');
+    const authHeaders = new Headers();
+    const authorization = event.headers?.authorization || event.headers?.Authorization;
+    if (authorization) authHeaders.set('Authorization', authorization);
+    const verifiedUser = await verifyUser(new Request('https://internal.invalid/.netlify/functions/db-query', {
+      method: 'POST',
+      headers: authHeaders,
+    }));
+    if (!verifiedUser) {
+      return { statusCode: 401, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'Unauthorized' }) };
+    }
+
+    client = await getCrdbPool().connect();
     const {
       action,
       table,
@@ -188,16 +202,19 @@ export const handler: Handler = async (event) => {
       offset,
       order,
       values,
-      user_id,
-      user_role,
+      user_role: requestedRole,
     } = body;
-
+    const workspaceRoles = new Set(['nurse', 'doctor1', 'doctor2']);
+    const effectiveRole = verifiedUser.role === 'admin' && workspaceRoles.has(requestedRole)
+      ? requestedRole
+      : verifiedUser.role;
+    const effectiveUserId = verifiedUser.id;
     // The compatibility functions read these settings through
     // hms_current_user_id()/hms_current_user_role(). They are scoped to this
     // connection and are never stored in the database.
     await client.query(
       "SELECT set_config('hms.user_id', $1, false), set_config('hms.user_role', $2, false)",
-      [user_id || '', user_role || '']
+      [effectiveUserId, effectiveRole]
     );
 
     if (action === 'rpc') {
@@ -385,7 +402,7 @@ export const handler: Handler = async (event) => {
       body: JSON.stringify({ data: null, error: err.message || 'Database request failed' }),
     };
   } finally {
-    try { client.release(); } catch {}
+    try { client?.release(); } catch {}
   }
 };
 

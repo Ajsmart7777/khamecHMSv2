@@ -18,6 +18,7 @@ const statements = [
   `CREATE TABLE IF NOT EXISTS public.auth_users (
     id UUID PRIMARY KEY,
     email STRING UNIQUE,
+    password_hash STRING,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
   )`,

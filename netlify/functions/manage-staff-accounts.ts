@@ -1,5 +1,6 @@
 import { getCrdbClient } from './_shared/crdb.js';
 import { json, optionsResponse, readJson, verifyUser } from './_shared/auth.js';
+import { hashPassword } from './_shared/password.js';
 
 const VALID_ROLES = ['admin', 'doctor1', 'doctor2', 'nurse', 'receptionist', 'pharmacist', 'store', 'lab_tech', 'billing', 'cashier', 'accountant', 'claims_manager'];
 
@@ -43,11 +44,12 @@ export default async (request: Request) => {
         const email = cleanEmail(body.email);
         if (!/^\S+@\S+\.\S+$/.test(email)) return bad('A valid email is required');
         if (!VALID_ROLES.includes(body.role)) return bad(`Invalid role. Must be one of: ${VALID_ROLES.join(', ')}`);
-        if (body.password.length < 6) return bad('Password must be at least 6 characters');
+        if (body.password.length < 8) return bad('Password must be at least 8 characters');
+        const passwordHash = await hashPassword(body.password);
 
         const idResult = await client.query(
-          'INSERT INTO public.auth_users (id, email, password) VALUES (gen_random_uuid(), $1, $2) RETURNING id',
-          [email, body.password],
+          'INSERT INTO public.auth_users (id, email, password_hash) VALUES (gen_random_uuid(), $1, $2) RETURNING id',
+          [email, passwordHash],
         );
         const userId = String(idResult.rows[0].id);
         try {
@@ -62,10 +64,11 @@ export default async (request: Request) => {
 
       case 'reset_password': {
         if (!body.userId || !body.password) return bad('userId and password are required');
-        if (body.password.length < 6) return bad('Password must be at least 6 characters');
+        if (body.password.length < 8) return bad('Password must be at least 8 characters');
+        const passwordHash = await hashPassword(body.password);
         const result = await client.query(
-          'UPDATE public.auth_users SET password = $1, updated_at = clock_timestamp() WHERE id = $2::uuid RETURNING id',
-          [body.password, body.userId],
+          'UPDATE public.auth_users SET password_hash = $1, updated_at = clock_timestamp() WHERE id = $2::uuid RETURNING id',
+          [passwordHash, body.userId],
         );
         if (!result.rowCount) return bad('User not found', 404);
         return json({ success: true, message: 'Password reset successfully' });

@@ -1,6 +1,7 @@
 import { Handler } from '@netlify/functions';
 import { getCrdbClient } from './_shared/crdb.js';
 import { createSessionToken } from './_shared/session.js';
+import { verifyPassword } from './_shared/password.js';
 
 export const handler: Handler = async (event) => {
   if (event.httpMethod !== 'POST') {
@@ -8,7 +9,7 @@ export const handler: Handler = async (event) => {
   }
 
   const { email, password } = JSON.parse(event.body || '{}');
-  console.log('Login attempt for:', email);
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
   const client = getCrdbClient();
 
   try {
@@ -16,21 +17,20 @@ export const handler: Handler = async (event) => {
     await client.connect();
     console.log('Connected. Querying user...');
     const res = await client.query(
-      `SELECT u.id, u.email, u.password,
+      `SELECT u.id, u.email, u.password_hash,
               (SELECT ur.role::text FROM public.user_roles ur
                WHERE ur.user_id = u.id ORDER BY ur.role::text LIMIT 1) AS role,
               s.status::text AS staff_status
        FROM public.auth_users u
        LEFT JOIN public.staff s ON s.auth_user_id = u.id
-       WHERE u.email = $1
+       WHERE lower(u.email) = $1
        LIMIT 1`,
-      [email]
+      [normalizedEmail]
     );
-    console.log('Query result rows:', res.rows.length);
 
     const user = res.rows[0];
-    if (user && user.password === password && user.staff_status !== 'deleted') {
-      // In a real app, we would generate a JWT here
+    const passwordMatches = user ? await verifyPassword(password, user.password_hash) : false;
+    if (user && passwordMatches && user.staff_status !== 'deleted') {
       await client.end();
       return {
         statusCode: 200,
@@ -49,7 +49,7 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 401,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: null, error: 'Invalid credentials' })
+      body: JSON.stringify({ data: null, error: 'Invalid email or password' })
     };
   } catch (err: any) {
     console.error('Login error:', err);
@@ -57,7 +57,7 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: null, error: err.message })
+      body: JSON.stringify({ data: null, error: 'Authentication service unavailable' })
     };
   }
 };

@@ -24,33 +24,6 @@ function drawTile(pdf: jsPDF, canvas: HTMLCanvasElement, x: number, y: number, w
   pdf.addImage(tile.toDataURL('image/jpeg', 0.94), 'JPEG', left, top, renderedWidth, renderedHeight, undefined, 'FAST');
 }
 
-/**
- * Master payroll reports are deliberately tiled instead of squeezed into one page.
- * Two horizontal tiles are used (ID through RESP, then RESP through NET PAY), and
- * the staff rows are split across as many vertical tiles as needed, with a minimum
- * of two row bands so a normal payroll produces four joinable pages.
- */
-function addTiledPages(pdf: jsPDF, canvas: HTMLCanvasElement) {
-  const margin = 8;
-  const horizontalTiles = 2;
-  const verticalTiles = Math.max(2, Math.ceil(canvas.height / (canvas.width / horizontalTiles)));
-  const overlapX = Math.max(8, Math.round(canvas.width * 0.012));
-  const overlapY = Math.max(8, Math.round(canvas.height * 0.012));
-  const tileWidth = canvas.width / horizontalTiles;
-  const tileHeight = canvas.height / verticalTiles;
-
-  for (let row = 0; row < verticalTiles; row += 1) {
-    for (let column = 0; column < horizontalTiles; column += 1) {
-      if (row !== 0 || column !== 0) pdf.addPage();
-      const x = Math.max(0, column * tileWidth - (column > 0 ? overlapX : 0));
-      const y = Math.max(0, row * tileHeight - (row > 0 ? overlapY : 0));
-      const right = Math.min(canvas.width, (column + 1) * tileWidth + (column < horizontalTiles - 1 ? overlapX : 0));
-      const bottom = Math.min(canvas.height, (row + 1) * tileHeight + (row < verticalTiles - 1 ? overlapY : 0));
-      drawTile(pdf, canvas, x, y, right - x, bottom - y, margin);
-    }
-  }
-}
-
 function addCanvasPages(pdf: jsPDF, canvas: HTMLCanvasElement) {
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -78,6 +51,45 @@ export async function downloadPayrollReportPdf(
   format: 'a3' | 'a4' = 'a4',
   tiledMaster = false,
 ) {
+  if (tiledMaster) {
+    const quadrantElements = Array.from(document.querySelectorAll<HTMLElement>('#payroll-report-print-tiles .payroll-print-page'));
+    if (quadrantElements.length > 0) {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+      for (let i = 0; i < quadrantElements.length; i++) {
+        if (i > 0) pdf.addPage();
+        const pageEl = quadrantElements[i];
+        const canvas = await html2canvas(pageEl, {
+          scale: Math.min(2, window.devicePixelRatio || 2),
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false,
+          onclone: (clonedDoc) => {
+            const printTiles = clonedDoc.getElementById('payroll-report-print-tiles');
+            if (printTiles) {
+              printTiles.style.display = 'block';
+              printTiles.style.visibility = 'visible';
+            }
+            const pages = clonedDoc.querySelectorAll<HTMLElement>('#payroll-report-print-tiles .payroll-print-page');
+            pages.forEach((p, idx) => {
+              p.style.display = idx === i ? 'flex' : 'none';
+              p.style.visibility = idx === i ? 'visible' : 'hidden';
+            });
+          },
+        });
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const margin = 8;
+        const usableWidth = pageWidth - margin * 2;
+        const usableHeight = pageHeight - margin * 2;
+        const imgWidth = usableWidth;
+        const imgHeight = Math.min((canvas.height * usableWidth) / canvas.width, usableHeight);
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', margin, margin, imgWidth, imgHeight, undefined, 'FAST');
+      }
+      pdf.save(filename);
+      return;
+    }
+  }
+
   const canvas = await html2canvas(element, {
     scale: Math.min(2, window.devicePixelRatio || 1.5),
     backgroundColor: '#ffffff',
@@ -85,7 +97,6 @@ export async function downloadPayrollReportPdf(
     logging: false,
   });
   const pdf = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format, compress: true });
-  if (tiledMaster) addTiledPages(pdf, canvas);
-  else addCanvasPages(pdf, canvas);
+  addCanvasPages(pdf, canvas);
   pdf.save(filename);
 }

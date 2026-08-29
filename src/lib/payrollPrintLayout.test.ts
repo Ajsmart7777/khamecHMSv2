@@ -3,9 +3,14 @@ import { PAYROLL_COLUMNS } from '@/lib/payroll';
 import {
   A4_PRINTABLE_HEIGHT_MM,
   A4_PRINTABLE_WIDTH_MM,
+  LEFT_MASTER_COLUMNS,
+  RIGHT_MASTER_COLUMNS,
+  LEFT_COLUMN_WIDTHS_MM,
+  RIGHT_COLUMN_WIDTHS_MM,
   getPayrollPrintReportWidth,
   getPayrollPrintTileOffsets,
   splitPayrollPrintRows,
+  splitPayrollQuadrantRows,
 } from './payrollPrintLayout';
 
 describe('payroll print layout', () => {
@@ -26,4 +31,29 @@ describe('payroll print layout', () => {
     expect(groups[0][0]).toEqual(rows[0]);
     expect(groups[1][41]).toEqual(rows[83]);
   });
+
+  it('correctly divides 25 columns into Left (12) and Right (13) quadrants fitting A4 printable width', () => {
+    expect(LEFT_MASTER_COLUMNS.length).toBe(12);
+    expect(RIGHT_MASTER_COLUMNS.length).toBe(13);
+    expect([...LEFT_MASTER_COLUMNS, ...RIGHT_MASTER_COLUMNS]).toEqual(PAYROLL_COLUMNS);
+
+    const leftTotalWidth = Object.values(LEFT_COLUMN_WIDTHS_MM).reduce((sum, w) => sum + w, 0);
+    const rightTotalWidth = Object.values(RIGHT_COLUMN_WIDTHS_MM).reduce((sum, w) => sum + w, 0);
+    expect(leftTotalWidth).toBe(A4_PRINTABLE_WIDTH_MM);
+    expect(rightTotalWidth).toBe(A4_PRINTABLE_WIDTH_MM);
+  });
+
+  it('splits staff into synced Top and Bottom quadrant halves', () => {
+    const staffList = Array.from({ length: 50 }, (_, i) => ({ id: `staff-${i + 1}`, name: `Staff ${i + 1}` }));
+    const split = splitPayrollQuadrantRows(staffList);
+    expect(split.totalCount).toBe(50);
+    expect(split.midIndex).toBe(25);
+    expect(split.topRows.length).toBe(25);
+    expect(split.bottomRows.length).toBe(25);
+    expect(split.topRows[0]).toEqual(staffList[0]);
+    expect(split.topRows[24]).toEqual(staffList[24]);
+    expect(split.bottomRows[0]).toEqual(staffList[25]);
+    expect(split.bottomRows[24]).toEqual(staffList[49]);
+  });
 });
+

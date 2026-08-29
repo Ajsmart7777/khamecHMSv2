@@ -9,7 +9,16 @@ import hospitalLogo from '@/assets/hospital-logo.png';
 import { downloadPayrollReportPdf } from '@/lib/payrollReportPdf';
 import { splitPayrollPaymentEntries } from '@/lib/payrollReports';
 import { PAYROLL_COLUMNS, DEFAULT_PAYROLL_LABELS, isPayrollTextField, type PayrollColumnDefinition } from '@/lib/payroll';
-import { A4_PRINTABLE_HEIGHT_MM, A4_PRINTABLE_WIDTH_MM, PRINT_MARGIN_MM, PRINT_ROW_HEIGHT_MM, PRINT_ROWS_PER_PAGE, getPayrollPrintColumnWidths, getPayrollPrintReportWidth, getPayrollPrintTileOffsets, splitPayrollPrintRows } from '@/lib/payrollPrintLayout';
+import {
+  A4_PRINTABLE_HEIGHT_MM,
+  A4_PRINTABLE_WIDTH_MM,
+  PRINT_MARGIN_MM,
+  LEFT_MASTER_COLUMNS,
+  RIGHT_MASTER_COLUMNS,
+  LEFT_COLUMN_WIDTHS_MM,
+  RIGHT_COLUMN_WIDTHS_MM,
+  splitPayrollQuadrantRows,
+} from '@/lib/payrollPrintLayout';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 type ReportType = 'master' | 'bank_schedule' | 'cash_schedule' | 'paye' | 'pension' | 'family_deductions' | 'family_med_manual';
@@ -169,7 +178,7 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
 
   return (
     <div className="space-y-4">
-      <style>{`@page { size: A4 portrait; margin: ${PRINT_MARGIN_MM}mm; } @media print { html, body { width: ${A4_PRINTABLE_WIDTH_MM}mm; margin: 0; background: #fff; } body * { visibility: hidden; } #payroll-report-document.master-screen-report { display: none !important; } #payroll-report-document.schedule-screen-report, #payroll-report-document.schedule-screen-report * { visibility: visible; } #payroll-report-document.schedule-screen-report { display: block !important; position: static; width: ${A4_PRINTABLE_WIDTH_MM}mm; box-sizing: border-box; } #payroll-report-print-tiles, #payroll-report-print-tiles * { visibility: visible; } #payroll-report-print-tiles { display: block !important; position: static; width: ${A4_PRINTABLE_WIDTH_MM}mm; } .payroll-print-page { box-sizing: border-box; display: block; width: ${A4_PRINTABLE_WIDTH_MM}mm; height: ${A4_PRINTABLE_HEIGHT_MM}mm; overflow: hidden; position: relative; break-after: page; page-break-after: always; } .payroll-print-page:last-child { break-after: auto; page-break-after: auto; } .payroll-print-canvas { box-sizing: border-box; position: absolute; top: 0; width: var(--payroll-report-width); min-width: var(--payroll-report-width); } .payroll-print-canvas table { width: var(--payroll-report-width); min-width: var(--payroll-report-width); table-layout: fixed; border-collapse: collapse; font-size: 6.5px; line-height: 1.15; white-space: nowrap; } .payroll-print-canvas th, .payroll-print-canvas td { box-sizing: border-box; border: 1px solid #9ca3af; padding: 2px 3px; vertical-align: middle; overflow: visible; } .payroll-print-canvas th { font-weight: 700; } .payroll-print-canvas tbody tr { height: ${PRINT_ROW_HEIGHT_MM}mm; break-inside: avoid; page-break-inside: avoid; } } @media screen { #payroll-report-print-tiles { display: none; } }`}</style>
+      <style>{`@page { size: A4 portrait; margin: ${PRINT_MARGIN_MM}mm; } @media print { html, body { width: ${A4_PRINTABLE_WIDTH_MM}mm; margin: 0; background: #fff; } body * { visibility: hidden; } #payroll-report-document.master-screen-report { display: none !important; } #payroll-report-document.schedule-screen-report, #payroll-report-document.schedule-screen-report * { visibility: visible; } #payroll-report-document.schedule-screen-report { display: block !important; position: static; width: ${A4_PRINTABLE_WIDTH_MM}mm; box-sizing: border-box; } #payroll-report-print-tiles, #payroll-report-print-tiles * { visibility: visible; } #payroll-report-print-tiles { display: block !important; position: static; width: ${A4_PRINTABLE_WIDTH_MM}mm; } .payroll-print-page { box-sizing: border-box; display: flex !important; flex-direction: column; width: ${A4_PRINTABLE_WIDTH_MM}mm; height: ${A4_PRINTABLE_HEIGHT_MM}mm; max-height: ${A4_PRINTABLE_HEIGHT_MM}mm; overflow: hidden; position: relative; break-after: page; page-break-after: always; background: #fff; } .payroll-print-page:last-child { break-after: auto; page-break-after: auto; } .master-quadrant-table { width: 100%; table-layout: fixed; border-collapse: collapse; } .master-quadrant-table th, .master-quadrant-table td { box-sizing: border-box; border: 1px solid #64748b; padding: 2px 2px; font-size: 7px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; } .master-quadrant-table th { font-weight: 700; background-color: #f1f5f9; color: #0f172a; } .master-quadrant-table tbody tr { height: 5.4mm; max-height: 5.4mm; box-sizing: border-box; break-inside: avoid; page-break-inside: avoid; } } @media screen { #payroll-report-print-tiles { display: none; } }`}</style>
       <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center print:hidden">
         <Select value={selectedPeriod?.id || ''} onValueChange={value => { const period = periods.find(item => item.id === value); if (period) onSelectPeriod(period); }}>
           <SelectTrigger className="w-full sm:w-64"><SelectValue placeholder="Select period" /></SelectTrigger>
@@ -257,19 +266,8 @@ export function PayrollReports({ periods, selectedPeriod, onSelectPeriod, entrie
 }
 
 function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: PayrollEntry[]; periodLabel: string; payrollLabels: Record<string, string> }) {
-  const longestTextByKey = Object.fromEntries(PAYROLL_COLUMNS.filter(column => column.kind === 'identity' || isPayrollTextField(column.key)).map(column => {
-    const lengths = entries.map(entry => {
-      if (column.key === 'id') return String(entry.staff_employee_id || '—').length;
-      if (column.key === 'staff_name') return String(entry.staff_name || 'Unknown Staff').length;
-      if (column.key === 'designation') return String(entry.staff_designation || '—').length;
-      return String(entry.allowances?.[column.key] || '').length;
-    });
-    return [column.key, Math.max(column.label.length, ...lengths)];
-  }));
-  const columnWidths = getPayrollPrintColumnWidths(PAYROLL_COLUMNS, longestTextByKey);
-  const reportWidth = getPayrollPrintReportWidth(PAYROLL_COLUMNS, longestTextByKey);
-  const tileOffsets = getPayrollPrintTileOffsets(reportWidth);
-  const rowGroups = splitPayrollPrintRows(entries);
+  const { topRows, bottomRows, midIndex, totalCount } = splitPayrollQuadrantRows(entries);
+
   const getValue = (entry: PayrollEntry, column: PayrollColumnDefinition): string | number => {
     if (column.key === 'id') return entry.staff_employee_id || '—';
     if (column.key === 'staff_name') return entry.staff_name || 'Unknown Staff';
@@ -281,29 +279,166 @@ function MasterPrintTiles({ entries, periodLabel, payrollLabels }: { entries: Pa
     if (isPayrollTextField(column.key)) return String(entry.allowances?.[column.key] || '');
     return column.kind === 'deduction' ? Number(entry.deductions?.[column.key] || 0) : Number(entry.allowances?.[column.key] || 0);
   };
-  const formatValue = (value: string | number, column: PayrollColumnDefinition) => typeof value === 'string' && (column.kind === 'identity' || isPayrollTextField(column.key)) ? value : naira(Number(value));
-  return <div id="payroll-report-print-tiles" aria-hidden="true">
-    {rowGroups.flatMap((rowGroup, rowIndex) => tileOffsets.map((offset, tileIndex) => (
-      <section className="payroll-print-page" key={`${rowIndex}-${tileIndex}`}>
-        <div className="payroll-print-canvas" style={{ '--payroll-report-width': `${reportWidth}mm`, width: `${reportWidth}mm`, left: `-${offset}mm` } as CSSProperties}>
-          <ReportBrandHeader title={`Master Payroll Report — A4 Part ${tileIndex + 1} of ${tileOffsets.length}`} periodLabel={`${periodLabel} | Staff ${rowIndex * PRINT_ROWS_PER_PAGE + 1}–${Math.min(entries.length, (rowIndex + 1) * PRINT_ROWS_PER_PAGE)} of ${entries.length}`} />
-          <table>
-            <colgroup>{columnWidths.map((width, index) => <col key={PAYROLL_COLUMNS[index].key} style={{ width: `${width}mm` }} />)}</colgroup>
-            <thead><tr>{PAYROLL_COLUMNS.map(column => <th key={column.key}>{payrollLabels[column.key] || column.label}</th>)}</tr></thead>
+
+  const formatValue = (value: string | number, column: PayrollColumnDefinition) =>
+    typeof value === 'string' && (column.kind === 'identity' || isPayrollTextField(column.key)) ? value : naira(Number(value));
+
+  const getColumnTotal = (column: PayrollColumnDefinition): number | null => {
+    if (['id', 'staff_name', 'designation'].includes(column.key) || isPayrollTextField(column.key)) return null;
+    return entries.reduce((sum, entry) => sum + Number(getValue(entry, column) || 0), 0);
+  };
+
+  const renderQuadrant = (
+    quadrantNumber: 1 | 2 | 3 | 4,
+    quadrantCorner: string,
+    cornerGuide: string,
+    columns: PayrollColumnDefinition[],
+    widths: Record<string, number>,
+    rows: PayrollEntry[],
+    startIndex: number,
+    endIndex: number,
+    showTotals: boolean,
+  ) => {
+    return (
+      <section className="payroll-print-page" id={`master-quadrant-${quadrantNumber}`} key={`quadrant-${quadrantNumber}`}>
+        <div className="mb-2 flex items-center justify-between border-b-2 border-primary pb-2">
+          <div className="flex items-center gap-3">
+            <img src={hospitalLogo} alt="Khadija Medical Center" className="h-10 w-10 object-contain" />
+            <div>
+              <h1 className="text-xs font-extrabold tracking-wide text-primary">KHADIJA MEDICAL CENTER</h1>
+              <p className="text-[9px] font-bold text-foreground">MASTER PAYROLL REPORT — {periodLabel}</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="inline-block rounded border border-primary/40 bg-primary/10 px-2 py-0.5 text-[8.5px] font-bold text-primary">
+              [ {quadrantNumber}/4 {quadrantCorner} ]
+            </span>
+            <p className="mt-0.5 text-[7.5px] text-muted-foreground">Staff {startIndex}–{endIndex} of {totalCount}</p>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-hidden">
+          <table className="master-quadrant-table w-full table-fixed border-collapse">
+            <colgroup>
+              {columns.map(column => (
+                <col key={column.key} style={{ width: `${widths[column.key] || 15}mm` }} />
+              ))}
+            </colgroup>
+            <thead>
+              <tr className="bg-slate-100 font-bold" style={{ height: '7mm' }}>
+                {columns.map(column => (
+                  <th
+                    key={column.key}
+                    className={`border border-slate-400 px-1 text-center font-bold ${
+                      column.kind === 'deduction' || column.kind === 'computed-deduction' ? 'text-red-700' : 'text-slate-900'
+                    }`}
+                  >
+                    {payrollLabels[column.key] || column.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
-              {rowGroup.map(entry => <tr key={entry.id}>{PAYROLL_COLUMNS.map(column => <td key={column.key} style={{ textAlign: typeof getValue(entry, column) === 'string' ? 'left' : 'right' }}>{formatValue(getValue(entry, column), column)}</td>)}</tr>)}
-              <tr><th>TOTAL</th>{PAYROLL_COLUMNS.slice(1).map(column => {
-                if (column.kind === 'identity' || isPayrollTextField(column.key)) return <th key={column.key} />;
-                const total = rowGroup.reduce((sum, entry) => sum + Number(getValue(entry, column) || 0), 0);
-                return <th key={column.key} style={{ textAlign: 'right' }}>{naira(total)}</th>;
-              })}</tr>
+              {rows.map(entry => (
+                <tr key={entry.id} className="border-b border-slate-300">
+                  {columns.map(column => {
+                    const val = getValue(entry, column);
+                    const isText = typeof val === 'string' && (column.kind === 'identity' || isPayrollTextField(column.key));
+                    return (
+                      <td
+                        key={column.key}
+                        className={`border border-slate-300 px-1 ${
+                          isText ? 'text-left' : 'text-right'
+                        } ${['gross_pay', 'total_deductions', 'net_pay'].includes(column.key) ? 'font-bold bg-slate-50' : ''}`}
+                      >
+                        {formatValue(val, column)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              {showTotals && (
+                <tr className="border-t-2 border-primary bg-slate-100 font-bold" style={{ height: '7mm' }}>
+                  {columns.map((column, idx) => {
+                    const total = getColumnTotal(column);
+                    return (
+                      <td
+                        key={column.key}
+                        className={`border border-slate-400 px-1 font-bold ${
+                          idx === 0 ? 'text-left' : 'text-right'
+                        } ${column.key === 'total_deductions' ? 'text-red-700' : ''}`}
+                      >
+                        {idx === 0 ? 'GRAND TOTAL' : total === null ? '' : naira(total)}
+                      </td>
+                    );
+                  })}
+                </tr>
+              )}
             </tbody>
           </table>
-          <p style={{ marginTop: '6px', fontSize: '7px', color: '#6b7280' }}>A4 tile {tileIndex + 1} of {tileOffsets.length}; vertical staff page {rowIndex + 1} of {rowGroups.length}. Align tiles at the table borders.</p>
+        </div>
+
+        <div className="mt-auto border-t border-slate-300 pt-1 text-[7px] text-muted-foreground flex justify-between items-center">
+          <span>Quadrant {quadrantNumber} of 4 ({quadrantCorner})</span>
+          <span className="font-semibold text-slate-700">★ {cornerGuide} ★</span>
+          <span>Prepared by Accounts</span>
         </div>
       </section>
-    ))) }
-  </div>;
+    );
+  };
+
+  return (
+    <div id="payroll-report-print-tiles" aria-hidden="true">
+      {/* Quadrant 1: Top-Left */}
+      {renderQuadrant(
+        1,
+        'Top-Left',
+        'Join with Page 2 (Right) and Page 3 (Bottom)',
+        LEFT_MASTER_COLUMNS,
+        LEFT_COLUMN_WIDTHS_MM,
+        topRows,
+        1,
+        midIndex,
+        false,
+      )}
+      {/* Quadrant 2: Top-Right */}
+      {renderQuadrant(
+        2,
+        'Top-Right',
+        'Join with Page 1 (Left) and Page 4 (Bottom)',
+        RIGHT_MASTER_COLUMNS,
+        RIGHT_COLUMN_WIDTHS_MM,
+        topRows,
+        1,
+        midIndex,
+        false,
+      )}
+      {/* Quadrant 3: Bottom-Left */}
+      {renderQuadrant(
+        3,
+        'Bottom-Left',
+        'Join with Page 1 (Top) and Page 4 (Right)',
+        LEFT_MASTER_COLUMNS,
+        LEFT_COLUMN_WIDTHS_MM,
+        bottomRows,
+        midIndex + 1,
+        totalCount,
+        true,
+      )}
+      {/* Quadrant 4: Bottom-Right */}
+      {renderQuadrant(
+        4,
+        'Bottom-Right',
+        'Join with Page 2 (Top) and Page 3 (Left)',
+        RIGHT_MASTER_COLUMNS,
+        RIGHT_COLUMN_WIDTHS_MM,
+        bottomRows,
+        midIndex + 1,
+        totalCount,
+        true,
+      )}
+    </div>
+  );
 }
 
 function ScheduleTotalRow({ colSpan, label, value }: { colSpan: number; label: string; value: string }) {

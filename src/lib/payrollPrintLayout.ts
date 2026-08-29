@@ -13,19 +13,22 @@ const IDENTITY_WIDTHS: Record<string, number> = {
   designation: 32,
 };
 
-export function getPayrollPrintColumnWidth(column: PayrollColumnDefinition): number {
-  if (IDENTITY_WIDTHS[column.key]) return IDENTITY_WIDTHS[column.key];
+export function getPayrollPrintColumnWidth(column: PayrollColumnDefinition, longestTextLength = 0): number {
+  if (IDENTITY_WIDTHS[column.key]) {
+    const contentWidth = longestTextLength > 0 ? longestTextLength * 1.9 + 6 : 0;
+    return Math.max(IDENTITY_WIDTHS[column.key], contentWidth);
+  }
   if (column.kind === 'computed-earning' || column.kind === 'computed-deduction' || column.kind === 'computed-net') return 30;
   if (column.kind === 'input') return 22;
   return 19;
 }
 
-export function getPayrollPrintColumnWidths(columns: PayrollColumnDefinition[]): number[] {
-  return columns.map(getPayrollPrintColumnWidth);
+export function getPayrollPrintColumnWidths(columns: PayrollColumnDefinition[], longestTextByKey: Record<string, number> = {}): number[] {
+  return columns.map(column => getPayrollPrintColumnWidth(column, longestTextByKey[column.key] || 0));
 }
 
-export function getPayrollPrintReportWidth(columns: PayrollColumnDefinition[]): number {
-  return getPayrollPrintColumnWidths(columns).reduce((total, width) => total + width, 0);
+export function getPayrollPrintReportWidth(columns: PayrollColumnDefinition[], longestTextByKey: Record<string, number> = {}): number {
+  return getPayrollPrintColumnWidths(columns, longestTextByKey).reduce((total, width) => total + width, 0);
 }
 
 export function getPayrollPrintTileOffsets(reportWidth: number, printableWidth = A4_PRINTABLE_WIDTH_MM): number[] {

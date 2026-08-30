@@ -102,7 +102,7 @@ BEGIN
          updated_at = now()
    WHERE id = _statement_id;
 
-  PERFORM public.write_audit_log(
+  SELECT public.write_audit_log(
     'corporate_month_closed', 'sponsor_statement', _statement_id::text,
     jsonb_build_object(
       'sponsor_id', _sponsor_id, 'year', _year, 'month', _month,

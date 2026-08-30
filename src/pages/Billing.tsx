@@ -271,17 +271,20 @@ const Billing = () => {
           }
         }
 
-        // A normal invoice is complete from Billing's perspective and must
-        // hand the patient to Cashier immediately. Corporate-paid invoices
-        // retain their existing next-station calculation because payment is
-        // settled in the same action.
-        const nextStatus = payViaCorporate
-          ? await nextStationForInvoice(invoice.id, selectedPatientId)
-          : 'awaiting_payment';
+        // A custom bill is a ledger-only charge. It must never move a patient
+        // between workflow stations, even when the patient is discharged or
+        // the bill is still unpaid. Registration/consultation and clinical
+        // invoices retain the normal Cashier/next-station workflow.
+        const isCustomBill = validItems.length > 0 && validItems.every(item => item.category === 'general');
+        if (!isCustomBill) {
+          const nextStatus = payViaCorporate
+            ? await nextStationForInvoice(invoice.id, selectedPatientId)
+            : 'awaiting_payment';
 
-        if (nextStatus) {
-          const statusUpdated = await updatePatientStatus(selectedPatientId, nextStatus);
-          if (!statusUpdated) throw new Error(`Invoice created, but patient could not move to ${nextStatus}`);
+          if (nextStatus) {
+            const statusUpdated = await updatePatientStatus(selectedPatientId, nextStatus);
+            if (!statusUpdated) throw new Error(`Invoice created, but patient could not move to ${nextStatus}`);
+          }
         }
 
         await Promise.all([refreshPatients(), refreshInvoices()]);

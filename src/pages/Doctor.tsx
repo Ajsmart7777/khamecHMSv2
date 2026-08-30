@@ -179,15 +179,6 @@ const Doctor = () => {
                   variant="default"
                   className="w-full"
                 />
-                <SnapClinicalOrder
-                  patientId={selectedPatient.id}
-                  sourceStation={myDoctorKey ?? 'doctor1'}
-                  defaultOrderType="treatment"
-                  defaultTarget="nurse"
-                  label="Snap → Nurse"
-                  variant="outline"
-                  className="w-full"
-                />
               </div>
 
               {canAct('admit') && (
@@ -198,7 +189,7 @@ const Doctor = () => {
                     onClick={() => setAdmitOpen(true)}
                   >
                     <BedDouble className="h-4 w-4 mr-2" />
-                    Snap to Admit
+                    Admit
                   </Button>
                 </div>
               )}

@@ -12,7 +12,7 @@ import { uploadFile } from '@/lib/storage';
 import { InAppCameraDialog } from '@/components/visit/InAppCameraDialog';
 import { SnapCropDialog } from '@/components/visit/SnapCropDialog';
 import { hasInAppCamera } from '@/lib/isMobile';
-import { requestAdmission } from '@/hooks/useAdmissions';
+import { requestAdmission, requestAdmissionDirect } from '@/hooks/useAdmissions';
 import { openOrResumeVisit } from '@/hooks/useVisits';
 import { useAdmissionPerms } from '@/lib/admissionPermissions';
 
@@ -65,6 +65,20 @@ export function AdmissionCaptureDialog({ patientId, patientName, open, onOpenCha
     if (!f) return;
     if (!f.type.startsWith('image/')) { toast.error('Please select an image'); return; }
     accept(f);
+  };
+
+  const submitDirect = async () => {
+    if (!canAdmit) { toast.error('Only a nurse or doctor can admit a patient'); return; }
+    setBusy(true);
+    try {
+      const visitId = await openOrResumeVisit({ patientId });
+      const id = await requestAdmissionDirect({ patientId, visitId });
+      if (!id) return;
+      onAdmitted?.(id);
+      close();
+    } catch (e: any) {
+      toast.error(e.message ?? 'Admission failed');
+    } finally { setBusy(false); }
   };
 
   const submit = async () => {
@@ -131,11 +145,16 @@ export function AdmissionCaptureDialog({ patientId, patientName, open, onOpenCha
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="flex-col-reverse sm:flex-row sm:justify-between gap-2">
             <Button variant="ghost" onClick={close} disabled={busy}>Cancel</Button>
-            <Button onClick={submit} disabled={busy || !file || !canAdmit}>
-              {busy ? 'Admitting…' : canAdmit ? 'Confirm Admission' : 'Not permitted for your role'}
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={submitDirect} disabled={busy || !canAdmit}>
+                {busy ? 'Admitting…' : 'Admit directly'}
+              </Button>
+              <Button onClick={submit} disabled={busy || !file || !canAdmit}>
+                {busy ? 'Admitting…' : canAdmit ? 'Confirm snap admission' : 'Not permitted for your role'}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

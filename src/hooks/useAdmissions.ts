@@ -127,6 +127,25 @@ export async function requestAdmission(input: {
 }
 
 
+export async function requestAdmissionDirect(input: {
+  patientId: string;
+  visitId?: string | null;
+}): Promise<string | null> {
+  const { data, error } = await supabase.rpc('request_admission_direct' as any, {
+    _patient_id: input.patientId,
+    _visit_id: input.visitId ?? null,
+    _reason: null,
+    _note: null,
+  });
+  if (error) {
+    reportActionError('admit', error);
+    return null;
+  }
+  window.dispatchEvent(new Event('admissions:changed'));
+  toast.success('Admission opened — sent to Nurse for bed assignment');
+  return data as string;
+}
+
 export async function forwardSnapToBilling(sourceSnapId: string, target: 'pharmacy' | 'lab', note?: string): Promise<string | null> {
   const { data, error } = await supabase.rpc('forward_snap_to_billing', {
     _source_snap_id: sourceSnapId,

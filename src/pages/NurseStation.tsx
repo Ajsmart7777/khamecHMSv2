@@ -234,7 +234,7 @@ const NurseStation = () => {
                     onClick={() => setAdmitOpen(true)}
                   >
                     <BedDouble className="h-4 w-4 mr-1.5" />
-                    Snap to Admit
+                    Admit
                   </Button>
                 )}
                 <QuickDischargeButton

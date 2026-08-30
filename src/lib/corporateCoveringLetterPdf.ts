@@ -73,6 +73,10 @@ export interface CorporateCoveringLetterData {
     total_paid: number;
     net_balance_due: number;
     credit_amount: number;
+    current_billed?: number;
+    previous_outstanding?: number;
+    credit_applied?: number;
+    amount_due?: number;
     /** Deposits currently held for a Retainer account but not yet applied to a statement. */
     available_deposit_balance?: number;
   };
@@ -247,10 +251,7 @@ function letterHtml(data: CorporateCoveringLetterData) {
       <section class="summary">
         <h2><span>4</span> Reconciliation summary</h2>
         <div class="summary-box">
-          <div><span>Total billed to date</span><strong>${money(data.summary.total_billed)}</strong></div>
-          <div><span>${isRetainer ? 'Retainer deposits applied to claims' : 'Total payments received'}</span><strong>${money(data.summary.total_paid)}</strong></div>
-          ${isRetainer ? `<div><span>Available retainer deposit (not yet applied)</span><strong>${money(data.summary.available_deposit_balance || 0)}</strong></div>` : ''}
-          <div class="result ${status === 'BALANCE DUE' ? 'due' : 'paid'}"><span>${status === 'CREDIT BALANCE' ? 'Overpayment / credit' : status === 'SETTLED' ? 'Net balance' : isRetainer ? 'Net claim balance after applied deposits' : 'Net balance due'}</span><strong>${money(status === 'CREDIT BALANCE' ? data.summary.credit_amount : data.summary.net_balance_due)}</strong></div>
+          ${!isRetainer && data.summary.current_billed !== undefined ? `<div><span>Current month billing</span><strong>${money(data.summary.current_billed)}</strong></div><div><span>Previous outstanding</span><strong>${money(data.summary.previous_outstanding || 0)}</strong></div><div><span>Credit applied</span><strong>${money(data.summary.credit_applied || 0)}</strong></div><div><span>Total payments received</span><strong>${money(data.summary.total_paid)}</strong></div><div class="result ${status === 'BALANCE DUE' ? 'due' : 'paid'}"><span>Grand amount due</span><strong>${money(data.summary.amount_due || 0)}</strong></div>` : `<div><span>Total billed to date</span><strong>${money(data.summary.total_billed)}</strong></div><div><span>${isRetainer ? 'Retainer deposits applied to claims' : 'Total payments received'}</span><strong>${money(data.summary.total_paid)}</strong></div>${isRetainer ? `<div><span>Available retainer deposit (not yet applied)</span><strong>${money(data.summary.available_deposit_balance || 0)}</strong></div>` : ''}<div class="result ${status === 'BALANCE DUE' ? 'due' : 'paid'}"><span>${status === 'CREDIT BALANCE' ? 'Overpayment / credit' : status === 'SETTLED' ? 'Net balance' : isRetainer ? 'Net claim balance after applied deposits' : 'Net balance due'}</span><strong>${money(status === 'CREDIT BALANCE' ? data.summary.credit_amount : data.summary.net_balance_due)}</strong></div>`}
         </div>
       </section>
 

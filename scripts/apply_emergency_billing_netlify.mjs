@@ -54,7 +54,7 @@ function splitSql(sql) {
   return statements;
 }
 
-const [mainSql, repairSql, patientFeeSql, manualEmergencySql, clinicalLabSql, sharedClinicalConstraintSql, payrollSafetySql, payrollBatchSql, unifiedEmergencyLabSql, emergencyLabBackfillSql, emergencyLabRepairSql, emergencyCategoryBillingSql, fadimatuRepairSql] = await Promise.all([
+const [mainSql, repairSql, patientFeeSql, manualEmergencySql, clinicalLabSql, sharedClinicalConstraintSql, payrollSafetySql, payrollBatchSql, unifiedEmergencyLabSql, emergencyLabBackfillSql, emergencyLabRepairSql, emergencyCategoryBillingSql, fadimatuRepairSql, reconciliationSql] = await Promise.all([
   fs.readFile(new URL('../supabase/migrations/20260825162000_separate_emergency_billing.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260825170000_repair_emergency_billing_trigger_order.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260826090000_fix_patient_fee_role_context.sql', import.meta.url), 'utf8'),
@@ -68,6 +68,7 @@ const [mainSql, repairSql, patientFeeSql, manualEmergencySql, clinicalLabSql, sh
   fs.readFile(new URL('../supabase/migrations/20260827150000_repair_legacy_emergency_lab_queue.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260827160000_emergency_category_billing.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260829150000_repair_fadimatu_alqaseem_dispensed_status.sql', import.meta.url), 'utf8'),
+  fs.readFile(new URL('../supabase/migrations/20260830110000_sponsor_month_end_reconciliation.sql', import.meta.url), 'utf8'),
 ]);
 const mainStatements = splitSql(mainSql);
 const repairStatements = splitSql(repairSql);
@@ -82,6 +83,7 @@ const emergencyLabBackfillStatements = splitSql(emergencyLabBackfillSql);
 const emergencyLabRepairStatements = splitSql(emergencyLabRepairSql);
 const emergencyCategoryBillingStatements = splitSql(emergencyCategoryBillingSql);
 const fadimatuRepairStatements = splitSql(fadimatuRepairSql);
+const reconciliationStatements = splitSql(reconciliationSql);
 const completeEmergency = mainStatements.find(sql => sql.includes('CREATE OR REPLACE FUNCTION public.complete_emergency_billing_draft('));
 const repairByPrefix = prefix => repairStatements.find(sql => sql.trimStart().startsWith(prefix));
 const dropSnapTrigger = repairByPrefix('DROP TRIGGER');
@@ -106,6 +108,7 @@ const migrations = [
   { version: '20260827150000_repair_legacy_emergency_lab_queue', statements: emergencyLabRepairStatements },
   { version: '20260827160000_emergency_category_billing', statements: emergencyCategoryBillingStatements },
   { version: '20260829150000_repair_fadimatu_alqaseem_dispensed_status', statements: fadimatuRepairStatements },
+  { version: '20260830110000_sponsor_month_end_reconciliation', statements: reconciliationStatements },
 ];
 
 const client = new Client({ connectionString, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 15000, statement_timeout: 300000 });

@@ -286,21 +286,18 @@ export function CorporateClaimsPanel() {
   const doClose = async (sponsorId: string) => {
     setBusy(sponsorId);
     try {
-      const statement = statementBySponsor[sponsorId];
-      let statementId = statement?.id;
-      if (!statementId || statement?.status === 'draft') {
-        const { data, error } = await supabase.rpc('generate_sponsor_statement', { _sponsor_id: sponsorId, _year: year, _month: month });
-        if (error) throw error;
-        statementId = data as string;
-      }
-      if (!statementId) throw new Error('The monthly statement could not be created.');
-
-      const update: Record<string, unknown> = { status: 'finalized', finalized_at: new Date().toISOString() };
-      if (closeNotes.trim()) update.notes = closeNotes.trim();
-      const { error } = await supabase.from('sponsor_statements').update(update).eq('id', statementId);
+      const { data, error } = await supabase.rpc('close_corporate_month', {
+        _sponsor_id: sponsorId,
+        _year: year,
+        _month: month,
+        _notes: closeNotes.trim() || null,
+      });
       if (error) throw error;
-
-      toast({ title: 'Month closed', description: 'The statement is finalized. Record each payment received instead of marking the claim paid manually.' });
+      const result = data as { amount_due?: number; previous_outstanding?: number; credit_applied?: number; coverage_status?: string };
+      toast({
+        title: 'Month closed and report issued',
+        description: `Grand amount due ₦${money(Number(result?.amount_due || 0))} · previous outstanding ₦${money(Number(result?.previous_outstanding || 0))} · credit applied ₦${money(Number(result?.credit_applied || 0))}`,
+      });
       setCloseDialog(null);
       setCloseNotes('');
       await load();
@@ -486,6 +483,10 @@ export function CorporateClaimsPanel() {
           total_paid: Number(raw.summary?.total_paid || 0),
           net_balance_due: Number(raw.summary?.net_balance_due || 0),
           credit_amount: Number(raw.summary?.credit_amount || 0),
+          current_billed: Number(statement.total_amount || 0),
+          previous_outstanding: Number(statement.previous_outstanding || 0),
+          credit_applied: Number(statement.credit_applied || 0),
+          amount_due: Number(statement.amount_due || 0),
         },
       });
       toast({ title: 'Covering letter downloaded' });
@@ -546,7 +547,7 @@ export function CorporateClaimsPanel() {
             const statement = statementBySponsor[corporate.id];
             const shownTotal = statement ? Number(statement.total_amount) : registeredTotal + manualTotal;
             const paid = statement ? paymentTotals[statement.id] || 0 : 0;
-            const balance = Math.max(shownTotal - paid, 0);
+            const balance = Math.max(Number(statement?.amount_due || shownTotal) - paid, 0);
             const locked = ['finalized', 'printed', 'paid'].includes(statement?.status || '');
             const isPaid = statement?.status === 'paid';
 
@@ -566,7 +567,7 @@ export function CorporateClaimsPanel() {
                     </div>
                     <div className="flex items-center gap-3 flex-shrink-0">
                       <div className="text-right"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">Walk-ins</p><p className="text-sm font-semibold">{manual.length}</p></div>
-                      <div className="text-right"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">This month</p><p className="text-sm font-semibold">₦{money(shownTotal)}</p></div>
+                      <div className="text-right"><p className="text-[10px] uppercase tracking-wide text-muted-foreground">Payable</p><p className="text-sm font-semibold">₦{money(Number(statement?.amount_due || shownTotal))}</p></div>
                       {statement && <Badge variant={statusVariant(statement.status)} className="uppercase text-[10px]">{statement.status}</Badge>}
                     </div>
                   </div>

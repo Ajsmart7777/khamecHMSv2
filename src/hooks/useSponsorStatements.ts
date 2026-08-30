@@ -15,6 +15,10 @@ export interface SponsorStatement {
   invoice_count: number;
   patient_count: number;
   manual_service_count: number;
+  previous_outstanding: number;
+  credit_applied: number;
+  amount_due: number;
+  coverage_status: 'unpaid' | 'partial' | 'covered' | 'credit';
   status: 'draft' | 'finalized' | 'printed' | 'paid' | 'void';
   notes: string | null;
   generated_at: string;
@@ -62,6 +66,9 @@ export function useSponsorStatements(sponsorType?: 'corporate' | 'retainer') {
         ...row,
         total_amount: Number(row.total_amount || 0),
         manual_service_count: Number(row.manual_service_count || 0),
+        previous_outstanding: Number(row.previous_outstanding || 0),
+        credit_applied: Number(row.credit_applied || 0),
+        amount_due: Number(row.amount_due || 0),
         sponsor: sponsorById.get(String(row.sponsor_id || '')) || null,
       })) as unknown as SponsorStatement[]);
     }

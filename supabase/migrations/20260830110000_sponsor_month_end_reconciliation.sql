@@ -20,7 +20,6 @@ CREATE OR REPLACE FUNCTION public.close_corporate_month(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
 AS $$
 DECLARE
   _uid UUID := auth.uid();
@@ -138,7 +137,6 @@ CREATE OR REPLACE FUNCTION public.record_corporate_statement_payment(
 ) RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
 AS $$
 DECLARE
   _uid UUID := auth.uid();

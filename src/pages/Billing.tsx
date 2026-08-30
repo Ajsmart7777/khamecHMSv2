@@ -68,10 +68,35 @@ const Billing = () => {
       setFeeStatuses([]);
       return () => { active = false; };
     }
-    getPatientFeeStatuses(selectedPatientId)
-      .then((statuses) => { if (active) setFeeStatuses(statuses); })
-      .catch((error) => { console.error('Failed to load patient fee status', error); if (active) setFeeStatuses([]); });
-    return () => { active = false; };
+
+    const refreshFeeStatuses = async () => {
+      try {
+        const statuses = await getPatientFeeStatuses(selectedPatientId);
+        if (active) setFeeStatuses(statuses);
+      } catch (error) {
+        console.error('Failed to load patient fee status', error);
+        if (active) setFeeStatuses([]);
+      }
+    };
+
+    void refreshFeeStatuses();
+    // The Cockroach compatibility client does not provide Supabase realtime
+    // events. Poll only the selected patient's fee rows so a Reception
+    // acknowledgement appears in Billing without requiring a page reload.
+    const interval = window.setInterval(() => { void refreshFeeStatuses(); }, 5000);
+    const onFocus = () => { void refreshFeeStatuses(); };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void refreshFeeStatuses();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [selectedPatientId]);
 
   useEffect(() => {
@@ -357,15 +382,22 @@ const Billing = () => {
 
               {selectedPatient && <VisitCardBar patientId={selectedPatient.id} />}
 
-              {selectedPatient && !registrationPaid && (
-                <div className="rounded-lg border border-amber-300/40 bg-amber-50/60 dark:bg-amber-950/20 p-3 flex flex-wrap items-center justify-between gap-3">
+              {selectedPatient && (
+                <div className={`rounded-lg border p-3 flex flex-wrap items-center justify-between gap-3 ${registrationPaid ? 'border-emerald-300/40 bg-emerald-50/60 dark:bg-emerald-950/20' : 'border-amber-300/40 bg-amber-50/60 dark:bg-amber-950/20'}`}>
                   <div>
                     <p className="text-sm font-semibold">Registration Fee</p>
                     <p className="text-xs text-muted-foreground">Lifetime · ₦1,000</p>
                   </div>
-                  <Button variant="outline" size="sm" onClick={addRegistrationFee} className="h-8">
-                    <PlusCircle className="h-3.5 w-3.5 mr-1" /> Add registration fee
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={registrationPaid ? 'success' : 'outline'}>
+                      {registrationPaid ? 'Paid' : 'Unpaid'}
+                    </Badge>
+                    {!registrationPaid && (
+                      <Button variant="outline" size="sm" onClick={addRegistrationFee} className="h-8">
+                        <PlusCircle className="h-3.5 w-3.5 mr-1" /> Add registration fee
+                      </Button>
+                    )}
+                  </div>
                 </div>
               )}
 

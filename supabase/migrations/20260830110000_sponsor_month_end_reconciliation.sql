@@ -22,7 +22,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  _uid UUID := auth.uid();
+  _uid UUID := public.hms_current_user_id();
   _statement_id UUID;
   _statement_total NUMERIC(14,2) := 0;
   _statement_status TEXT;
@@ -142,7 +142,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  _uid UUID := auth.uid();
+  _uid UUID := public.hms_current_user_id();
   _statement_sponsor_id UUID;
   _statement_sponsor_type TEXT;
   _statement_total NUMERIC(14,2);

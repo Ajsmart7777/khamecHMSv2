@@ -64,7 +64,11 @@ export function useSponsorStatements(sponsorType?: 'corporate' | 'retainer') {
       const sponsorById = new Map((sponsors || []).map((sponsor: any) => [String(sponsor.id), sponsor]));
       setStatements(rows.map(row => ({
         ...row,
+        period_year: Number(row.period_year || 0),
+        period_month: Number(row.period_month || 0),
         total_amount: Number(row.total_amount || 0),
+        invoice_count: Number(row.invoice_count || 0),
+        patient_count: Number(row.patient_count || 0),
         manual_service_count: Number(row.manual_service_count || 0),
         previous_outstanding: Number(row.previous_outstanding || 0),
         credit_applied: Number(row.credit_applied || 0),

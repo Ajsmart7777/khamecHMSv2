@@ -180,7 +180,24 @@ function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
   const createInvoiceAndSend = async () => {
     if (items.length === 0) { toast.error('Add at least one item'); return; }
     setBusy(true);
+    let createdInvoiceId: string | null = null;
     try {
+      // Re-read the snap immediately before creating an invoice. This prevents
+      // two Billing workspaces or a retry after a network timeout from creating
+      // separate invoices for the same clinical request.
+      const { data: currentSnap, error: currentSnapError } = await supabase
+        .from('snap_orders')
+        .select('status, invoice_id')
+        .eq('id', snap.id)
+        .maybeSingle();
+      if (currentSnapError) throw currentSnapError;
+      if (!currentSnap || currentSnap.status !== 'pending_billing' || currentSnap.invoice_id) {
+        toast.info('This request was already billed or is no longer waiting for Billing.');
+        await onBilled();
+        onClose();
+        return;
+      }
+
       const invoice = await createInvoice(
         snap.patient_id,
         items.map(it => ({
@@ -192,9 +209,27 @@ function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
         `From snap ${snap.id.slice(0, 8)} · ${snap.order_type} → ${snap.target_station}`,
       );
       if (!invoice) throw new Error('Invoice creation failed');
+      createdInvoiceId = invoice.id;
       await saveSnapMatchedItems(snap.id, items);
-      const ok = await attachInvoiceToSnap(snap.id, invoice.id);
-      if (!ok) throw new Error('Could not link invoice');
+      let ok = await attachInvoiceToSnap(snap.id, invoice.id);
+      if (!ok) {
+        // A lost response does not mean the conditional update failed. Re-read
+        // before cleaning up so a successfully linked invoice is never voided.
+        const { data: linkedSnap, error: linkedSnapError } = await supabase
+          .from('snap_orders')
+          .select('status, invoice_id')
+          .eq('id', snap.id)
+          .maybeSingle();
+        if (linkedSnapError) throw linkedSnapError;
+        ok = linkedSnap?.invoice_id === invoice.id;
+        if (!ok && linkedSnap?.invoice_id) {
+          await supabase.from('invoices').update({
+            status: 'voided',
+            notes: `Duplicate billing attempt prevented; request linked to invoice ${linkedSnap.invoice_id}.`,
+          }).eq('id', invoice.id);
+        }
+      }
+      if (!ok) throw new Error('This request was claimed by another Billing session; duplicate billing was prevented.');
 
       // Billing is complete at this point. Move the patient to the canonical
       // Cashier state immediately so Reception and all station queues update
@@ -208,6 +243,21 @@ function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
       toast.success('Invoice created · waiting for cashier payment');
       onClose();
     } catch (e: any) {
+      // If invoice creation succeeded but snap linking failed before another
+      // invoice claimed the request, keep the orphan out of all payment queues.
+      if (createdInvoiceId) {
+        const { data: linkedSnap } = await supabase
+          .from('snap_orders')
+          .select('invoice_id')
+          .eq('id', snap.id)
+          .maybeSingle();
+        if (linkedSnap?.invoice_id !== createdInvoiceId) {
+          await supabase.from('invoices').update({
+            status: 'voided',
+            notes: 'Voided after failed or duplicate snap-link attempt; no clinical request was attached.',
+          }).eq('id', createdInvoiceId);
+        }
+      }
       toast.error(e.message);
     } finally {
       setBusy(false);

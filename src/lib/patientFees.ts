@@ -19,6 +19,10 @@ export function monthStart(date = new Date()): string {
 
 export const LIFETIME_REGISTRATION_PERIOD = '0001-01-01';
 
+function normalizePeriodStart(value: unknown): string {
+  return String(value ?? '').slice(0, 10);
+}
+
 export async function getPatientFeeStatuses(patientId: string, periodStart = monthStart()) {
   const { data, error } = await supabase
     .from('patient_fee_status')
@@ -26,7 +30,10 @@ export async function getPatientFeeStatuses(patientId: string, periodStart = mon
     .eq('patient_id', patientId)
     .in('period_start', [LIFETIME_REGISTRATION_PERIOD, periodStart]);
   if (error) throw error;
-  return (data || []) as PatientFeeStatus[];
+  return (data || []).map((row) => ({
+    ...row,
+    period_start: normalizePeriodStart(row.period_start),
+  })) as PatientFeeStatus[];
 }
 
 export async function markPatientFeePaid(
@@ -45,5 +52,5 @@ export async function markPatientFeePaid(
 
 export function hasPaidFee(statuses: PatientFeeStatus[], feeType: PatientFeeType) {
   const period = feeType === 'registration' ? LIFETIME_REGISTRATION_PERIOD : monthStart();
-  return statuses.some(s => s.fee_type === feeType && s.period_start === period && s.status === 'paid');
+  return statuses.some(s => s.fee_type === feeType && normalizePeriodStart(s.period_start) === period && s.status === 'paid');
 }

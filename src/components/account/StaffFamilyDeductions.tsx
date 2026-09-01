@@ -27,6 +27,8 @@ interface DeductionInvoice {
   staff_sponsor_id: string;
   notes: string | null;
   salary_deduction_batch_id: string | null;
+  is_salary_deduction?: boolean;
+  payment_method?: string | null;
 }
 
 interface Batch {
@@ -98,9 +100,8 @@ export function StaffFamilyDeductions() {
         withTimeout(
           supabase
             .from('invoices')
-            .select('id, invoice_number, paid_amount, paid_at, patient_id, staff_sponsor_id, notes, salary_deduction_batch_id')
+            .select('id, invoice_number, paid_amount, paid_at, patient_id, staff_sponsor_id, notes, salary_deduction_batch_id, is_salary_deduction, payment_method')
             .eq('status', 'paid')
-            .or('is_salary_deduction.eq.true,payment_method.eq.salary,payment_method.eq.salary_deduction')
             .order('paid_at', { ascending: false }),
           'Current deductions',
         ),
@@ -119,6 +120,10 @@ export function StaffFamilyDeductions() {
         // The deployed Supabase wrapper does not expose `.is()`. Keep the
         // current-cycle rule identical by filtering unbatched rows locally.
         const currentCycle = ((openRes.data || []) as DeductionInvoice[])
+          .filter(invoice => (
+            invoice.is_salary_deduction === true
+            || ['salary', 'salary_deduction'].includes(String(invoice.payment_method || '').toLowerCase())
+          ))
           .filter(invoice => !invoice.salary_deduction_batch_id);
         setInvoices(currentCycle);
       }
@@ -139,7 +144,7 @@ export function StaffFamilyDeductions() {
     setSelectedBatch(batch);
     const { data, error } = await supabase
       .from('invoices')
-      .select('id, invoice_number, paid_amount, paid_at, patient_id, staff_sponsor_id, notes, salary_deduction_batch_id')
+      .select('id, invoice_number, paid_amount, paid_at, patient_id, staff_sponsor_id, notes, salary_deduction_batch_id, is_salary_deduction, payment_method')
       .eq('salary_deduction_batch_id', batch.id)
       .order('paid_at', { ascending: false });
     if (error) toast.error('Failed to load batch details');

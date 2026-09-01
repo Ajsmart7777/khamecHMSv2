@@ -54,7 +54,7 @@ function splitSql(sql) {
   return statements;
 }
 
-const [mainSql, repairSql, patientFeeSql, manualEmergencySql, clinicalLabSql, sharedClinicalConstraintSql, payrollSafetySql, payrollBatchSql, unifiedEmergencyLabSql, emergencyLabBackfillSql, emergencyLabRepairSql, emergencyCategoryBillingSql, fadimatuRepairSql, reconciliationSql, directAdmissionSql, fulfilledSnapWorkflowSql, staffFamilySalaryDeductionSql, salaryDeductionMarkerRepairSql] = await Promise.all([
+const [mainSql, repairSql, patientFeeSql, manualEmergencySql, clinicalLabSql, sharedClinicalConstraintSql, payrollSafetySql, payrollBatchSql, unifiedEmergencyLabSql, emergencyLabBackfillSql, emergencyLabRepairSql, emergencyCategoryBillingSql, fadimatuRepairSql, reconciliationSql, directAdmissionSql, fulfilledSnapWorkflowSql, staffFamilySalaryDeductionSql, salaryDeductionMarkerRepairSql, pharmacyDischargeAndAmountRepairSql] = await Promise.all([
   fs.readFile(new URL('../supabase/migrations/20260825162000_separate_emergency_billing.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260825170000_repair_emergency_billing_trigger_order.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260826090000_fix_patient_fee_role_context.sql', import.meta.url), 'utf8'),
@@ -73,6 +73,7 @@ const [mainSql, repairSql, patientFeeSql, manualEmergencySql, clinicalLabSql, sh
   fs.readFile(new URL('../supabase/migrations/20260831120000_fix_fulfilled_snap_workflow.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260901103000_fix_staff_family_salary_deduction_visibility.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260901120000_repair_salary_deduction_marker.sql', import.meta.url), 'utf8'),
+  fs.readFile(new URL('../supabase/migrations/20260901130000_repair_pharmacy_discharge_and_staff_deduction_amounts.sql', import.meta.url), 'utf8'),
 ]);
 const mainStatements = splitSql(mainSql);
 const repairStatements = splitSql(repairSql);
@@ -92,6 +93,7 @@ const directAdmissionStatements = splitSql(directAdmissionSql);
 const fulfilledSnapWorkflowStatements = splitSql(fulfilledSnapWorkflowSql);
 const staffFamilySalaryDeductionStatements = splitSql(staffFamilySalaryDeductionSql);
 const salaryDeductionMarkerRepairStatements = splitSql(salaryDeductionMarkerRepairSql);
+const pharmacyDischargeAndAmountRepairStatements = splitSql(pharmacyDischargeAndAmountRepairSql);
 const completeEmergency = mainStatements.find(sql => sql.includes('CREATE OR REPLACE FUNCTION public.complete_emergency_billing_draft('));
 const repairByPrefix = prefix => repairStatements.find(sql => sql.trimStart().startsWith(prefix));
 const dropSnapTrigger = repairByPrefix('DROP TRIGGER');
@@ -121,6 +123,7 @@ const migrations = [
   { version: '20260831120000_fix_fulfilled_snap_workflow', statements: fulfilledSnapWorkflowStatements },
   { version: '20260901103000_fix_staff_family_salary_deduction_visibility', statements: staffFamilySalaryDeductionStatements },
   { version: '20260901120000_repair_salary_deduction_marker', statements: salaryDeductionMarkerRepairStatements },
+  { version: '20260901130000_repair_pharmacy_discharge_and_staff_deduction_amounts', statements: pharmacyDischargeAndAmountRepairStatements },
 ];
 
 const client = new Client({ connectionString, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 15000, statement_timeout: 300000 });

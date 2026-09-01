@@ -106,6 +106,21 @@ const Pharmacy = () => {
       return;
     }
 
+    // A paid pharmacy snap remains a pending route until it is explicitly
+    // fulfilled. Mark it complete before calculating the patient's next station.
+    const { error: snapFulfillError } = await supabase
+      .from('snap_orders')
+      .update({ status: 'fulfilled', fulfilled_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('patient_id', selectedPatientId)
+      .eq('target_station', 'pharmacy')
+      .eq('status', 'paid');
+    if (snapFulfillError) {
+      toast.error('Prescription dispensed, but pharmacy routing could not be completed', {
+        description: snapFulfillError.message,
+      });
+      return;
+    }
+
     await prescriptionAuditLogger(
       'prescription_dispensed',
       selectedPrescription.id,

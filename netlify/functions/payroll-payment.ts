@@ -1,172 +1,165 @@
-import { json, optionsResponse, readJson, verifyUser } from './_shared/auth.js';
-import { getCrdbClient } from './_shared/crdb.js';
+/**
+ * Netlify Function: payroll-payment
+ *
+ * This is the **frontend API actions** endpoint. The React payroll UI calls
+ * this function for Flutterwave interactions: balance check, bank listing,
+ * account resolution, transfer initiation, bulk transfers, and transfer
+ * verification.
+ *
+ * Flutterwave **webhook callbacks** (async transfer status updates) are
+ * handled separately by `flutterwave-webhook.ts`.
+ *
+ * Required environment variables:
+ *   FLUTTERWAVE_SECRET_KEY – Flutterwave v3 secret key
+ */
 
-const FLW_BASE = 'https://api.flutterwave.com';
-const ALLOWED_ROLES = ['billing', 'accountant', 'admin'];
+import type { Handler } from '@netlify/functions';
 
-class FlutterwaveBusinessError extends Error {
-  constructor(message: string, public readonly providerStatus?: number) {
-    super(message);
-    this.name = 'FlutterwaveBusinessError';
+const FLW_SECRET = process.env.FLUTTERWAVE_SECRET_KEY || '';
+const FLW_BASE = 'https://api.flutterwave.com/v3';
+
+/* ── Helpers ────────────────────────────────────────────────────────────── */
+
+function json(statusCode: number, data: Record<string, unknown>) {
+  return {
+    statusCode,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    },
+    body: JSON.stringify(data),
+  };
+}
+
+/** Call a Flutterwave v3 endpoint. Throws on non-success status. */
+async function flwFetch(path: string, init?: RequestInit): Promise<any> {
+  const res = await fetch(`${FLW_BASE}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${FLW_SECRET}`,
+      'Content-Type': 'application/json',
+      ...(init?.headers || {}),
+    },
+  });
+  const body = (await res.json()) as any;
+  if (body.status !== 'success') {
+    throw new Error(body.message || `Flutterwave ${path} returned ${body.status}`);
   }
+  return body.data;
 }
 
-function normalizeBankName(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+/* ── Action handlers ────────────────────────────────────────────────────── */
+
+async function actGetBalance(): Promise<ReturnType<typeof json>> {
+  const balance = await flwFetch('/balances?currency=NGN');
+  return json(200, { balance });
 }
 
-const NIGERIAN_BANK_FALLBACKS = [
-  // Flutterwave/NGN transfer code for TAJ Bank Limited. Keep this only as a
-  // defensive fallback; the live provider list remains the source of truth.
-  { code: '302', name: 'Taj Bank Limited' },
-];
+async function actListBanks(): Promise<ReturnType<typeof json>> {
+  const banks = await flwFetch('/banks/NG');
+  return json(200, { banks });
+}
 
-function normalizeNigerianBanks(raw: unknown) {
-  const source = Array.isArray(raw) ? raw : [];
-  const banks = source
-    .map((bank) => {
-      const item = bank as Record<string, unknown>;
-      return {
-        code: String(item.code ?? item.bank_code ?? item.id ?? '').trim(),
-        name: String(item.name ?? item.bank_name ?? '').trim(),
-      };
-    })
-    .filter((bank) => bank.code && bank.name);
-  const byCode = new Map<string, { code: string; name: string }>();
-  for (const bank of [...banks, ...NIGERIAN_BANK_FALLBACKS]) {
-    if (!byCode.has(bank.code)) byCode.set(bank.code, bank);
+async function actResolveBank(bankName: string): Promise<ReturnType<typeof json>> {
+  const banks: any[] = await flwFetch('/banks/NG');
+  const needle = bankName.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const match = banks.find((b: any) => {
+    const name = (b.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    return name === needle || name.includes(needle) || needle.includes(name);
+  });
+  if (!match) {
+    throw new Error(`${bankName} is not available in Flutterwave's current bank list`);
   }
-  return [...byCode.values()].sort((a, b) => a.name.localeCompare(b.name));
+  return json(200, { bank: { code: match.code, name: match.name } });
 }
 
-async function getNigerianBanks() {
-  const response = await flwRequest('/v3/banks/NG');
-  return normalizeNigerianBanks(response.data);
+async function actResolveAccount(
+  accountNumber: string,
+  bankCode: string,
+): Promise<ReturnType<typeof json>> {
+  const account = await flwFetch('/accounts/resolve', {
+    method: 'POST',
+    body: JSON.stringify({ account_number: accountNumber, account_bank: bankCode }),
+  });
+  return json(200, { account });
 }
 
-async function flwRequest(path: string, method = 'GET', body?: unknown) {
-  const key = process.env.FLUTTERWAVE_SECRET_KEY;
-  if (!key) throw new Error('FLUTTERWAVE_SECRET_KEY not configured');
-  let response: Response;
+async function actInitiateTransfer(
+  params: Record<string, unknown>,
+): Promise<ReturnType<typeof json>> {
+  const transfer = await flwFetch('/transfers', {
+    method: 'POST',
+    body: JSON.stringify({ ...params, currency: 'NGN' }),
+  });
+  return json(200, { transfer });
+}
+
+async function actBulkTransfer(transfers: any[]): Promise<ReturnType<typeof json>> {
+  const data = await flwFetch('/transfers/bulk', {
+    method: 'POST',
+    body: JSON.stringify({
+      title: 'Payroll Bulk Transfer',
+      transfers: transfers.map((t) => ({ ...t, currency: 'NGN' })),
+    }),
+  });
+  return json(200, { transfers: data });
+}
+
+async function actVerifyTransfer(transferId: string): Promise<ReturnType<typeof json>> {
+  const transfer = await flwFetch(`/transfers/${transferId}`);
+  return json(200, { transfer });
+}
+
+/* ── Main handler ──────────────────────────────────────────────────────── */
+
+export const handler: Handler = async (event) => {
+  // Handle CORS preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return json(204, {});
+  }
+
+  if (event.httpMethod !== 'POST') {
+    return json(405, { error: 'Method not allowed' });
+  }
+
+  let body: any;
   try {
-    response = await fetch(`${FLW_BASE}${path}`, {
-      method,
-      headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    body = JSON.parse(event.body || '{}');
   } catch {
-    throw new FlutterwaveBusinessError('Could not reach Flutterwave. Check the production API connection and try again.');
+    return json(400, { error: 'Invalid JSON body' });
   }
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data?.status !== 'success') {
-    const providerMessage = typeof data?.message === 'string'
-      ? data.message
-      : typeof data?.error?.message === 'string'
-        ? data.error.message
-        : 'Flutterwave rejected the request';
-    throw new FlutterwaveBusinessError(`Flutterwave request failed (HTTP ${response.status}): ${providerMessage}`, response.status);
-  }
-  return data;
-}
 
-export default async (request: Request) => {
-  if (request.method === 'OPTIONS') return optionsResponse();
-  if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+  if (!FLW_SECRET) {
+    return json(500, {
+      error: 'Flutterwave API key is not configured on the server',
+    });
+  }
+
+  const { action, ...params } = body;
 
   try {
-    const caller = await verifyUser(request);
-    if (!caller) return json({ error: 'Unauthorized' }, 401);
-    const db = getCrdbClient();
-    await db.connect();
-    let roles: Array<{ role: string }>;
-    try {
-      const result = await db.query(
-        'SELECT role FROM public.user_roles WHERE user_id = $1::uuid LIMIT 20',
-        [caller.id],
-      );
-      roles = result.rows as Array<{ role: string }>;
-    } finally {
-      await db.end();
-    }
-    if (!roles.some(({ role }) => ALLOWED_ROLES.includes(role))) return json({ error: 'Forbidden: billing, accountant, or admin role required' }, 403);
-
-    const body = await readJson<Record<string, unknown>>(request);
-    switch (body.action) {
-      case 'get_balance': {
-        const response = await flwRequest('/v3/balances/NGN');
-        const raw = Array.isArray(response.data) ? response.data[0] : response.data;
-        const record = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
-        const availableBalance = Number(record.available_balance ?? record.balance ?? 0);
-        return json({
-          balance: Number.isFinite(availableBalance) ? availableBalance : 0,
-          currency: String(record.currency ?? 'NGN'),
-        });
-      }
+    switch (action) {
+      case 'get_balance':
+        return await actGetBalance();
       case 'list_banks':
-        return json({ banks: await getNigerianBanks() });
-      case 'resolve_bank': {
-        const requestedName = String(body.bank_name ?? '').trim();
-        if (!requestedName) throw new FlutterwaveBusinessError('Bank name is required');
-        const banks = await getNigerianBanks();
-        const normalizedRequested = normalizeBankName(requestedName);
-        const bank = (Array.isArray(banks) ? banks : []).find((candidate: Record<string, unknown>) => {
-          const candidateName = String(candidate.name ?? '').trim();
-          const normalizedCandidate = normalizeBankName(candidateName);
-          return normalizedCandidate === normalizedRequested
-            || normalizedCandidate.includes(normalizedRequested)
-            || normalizedRequested.includes(normalizedCandidate);
-        });
-        if (!bank) throw new FlutterwaveBusinessError(`${requestedName} is not available in Flutterwave's current Nigerian bank list`);
-        return json({ bank: { code: String(bank.code ?? bank.id ?? ''), name: String(bank.name ?? requestedName) } });
-      }
+        return await actListBanks();
+      case 'resolve_bank':
+        return await actResolveBank(params.bank_name);
       case 'resolve_account':
-        return json({ account: (await flwRequest('/v3/accounts/resolve', 'POST', { account_number: body.account_number, account_bank: body.account_bank })).data });
-      case 'initiate_transfer': {
-        const callbackUrl = process.env.URL
-          ? new URL('/.netlify/functions/flutterwave-webhook', process.env.URL).toString()
-          : undefined;
-        const data = await flwRequest('/v3/transfers', 'POST', {
-          account_bank: String(body.account_bank ?? ''),
-          account_number: String(body.account_number ?? ''),
-          amount: Number(body.amount ?? 0),
-          narration: typeof body.narration === 'string' && body.narration ? body.narration : 'Salary payment',
-          currency: 'NGN',
-          reference: typeof body.reference === 'string' ? body.reference : undefined,
-          callback_url: callbackUrl,
-          beneficiary_name: typeof body.beneficiary_name === 'string' ? body.beneficiary_name : undefined,
-        });
-        const transfer = data?.data;
-        const rejected = new Set(['FAILED', 'REJECTED', 'CANCELLED', 'REVERSED']);
-        if (!transfer?.id || rejected.has(String(transfer.status || '').toUpperCase())) {
-          throw new FlutterwaveBusinessError(transfer?.complete_message || transfer?.failure_reason || 'Flutterwave did not accept this transfer for processing');
-        }
-        return json({ transfer });
-      }
+        return await actResolveAccount(params.account_number, params.account_bank);
+      case 'initiate_transfer':
+        return await actInitiateTransfer(params);
       case 'bulk_transfer':
-        return json({ result: (await flwRequest('/v3/bulk-transfers', 'POST', {
-          title: 'Payroll Bulk Transfer',
-          bulk_data: (Array.isArray(body.transfers) ? body.transfers : []).map((transfer: unknown) => {
-            const item = transfer as Record<string, unknown>;
-            return ({
-              bank_code: String(item.account_bank ?? ''),
-              account_number: String(item.account_number ?? ''),
-              amount: Number(item.amount ?? 0),
-              narration: typeof item.narration === 'string' && item.narration ? item.narration : 'Salary payment',
-              currency: 'NGN',
-              reference: typeof item.reference === 'string' ? item.reference : undefined,
-              beneficiary_name: typeof item.beneficiary_name === 'string' ? item.beneficiary_name : undefined,
-            });
-          }),
-        })).data });
+        return await actBulkTransfer(params.transfers);
       case 'verify_transfer':
-        return json({ transfer: (await flwRequest(`/v3/transfers/${body.transfer_id}`)).data });
+        return await actVerifyTransfer(params.transfer_id);
       default:
-        return json({ error: `Unknown action: ${body.action}` }, 400);
+        return json(400, { error: `Unknown action: ${action}` });
     }
-  } catch (error) {
-    if (error instanceof FlutterwaveBusinessError) {
-      return json({ error: error.message, type: 'flutterwave_business_error', provider_status: error.providerStatus ?? null }, 200);
-    }
-    return json({ error: error instanceof Error ? error.message : 'Internal error' }, 500);
+  } catch (err: any) {
+    console.error(`payroll-payment action "${action}" failed:`, err.message);
+    return json(500, { error: err.message || 'Internal error' });
   }
 };

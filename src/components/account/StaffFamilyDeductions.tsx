@@ -50,6 +50,33 @@ interface StaffGroup {
 }
 
 const naira = (n: number) => `₦${Number(n || 0).toLocaleString()}`;
+const LOAD_TIMEOUT_MS = 12000;
+
+function withTimeout<T>(request: PromiseLike<T>, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`${label} request timed out`));
+    }, LOAD_TIMEOUT_MS);
+
+    Promise.resolve(request).then(
+      value => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(value);
+      },
+      error => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 export function StaffFamilyDeductions() {
   const [invoices, setInvoices] = useState<DeductionInvoice[]>([]);
@@ -66,25 +93,38 @@ export function StaffFamilyDeductions() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [openRes, batchRes] = await Promise.all([
-      supabase
-        .from('invoices')
-        .select('id, invoice_number, paid_amount, paid_at, patient_id, staff_sponsor_id, notes, salary_deduction_batch_id')
-        .eq('status', 'paid')
-        .is('salary_deduction_batch_id', null)
-        .or('is_salary_deduction.eq.true,payment_method.eq.salary,payment_method.eq.salary_deduction')
-        .order('paid_at', { ascending: false }),
-      supabase
-        .from('staff_deduction_batches')
-        .select('id, batch_number, period_month, period_year, total_amount, staff_count, invoice_count, closed_at')
-        .order('closed_at', { ascending: false }),
-    ]);
+    try {
+      const [openRes, batchRes] = await Promise.all([
+        withTimeout(
+          supabase
+            .from('invoices')
+            .select('id, invoice_number, paid_amount, paid_at, patient_id, staff_sponsor_id, notes, salary_deduction_batch_id')
+            .eq('status', 'paid')
+            .is('salary_deduction_batch_id', null)
+            .or('is_salary_deduction.eq.true,payment_method.eq.salary,payment_method.eq.salary_deduction')
+            .order('paid_at', { ascending: false }),
+          'Current deductions',
+        ),
+        withTimeout(
+          supabase
+            .from('staff_deduction_batches')
+            .select('id, batch_number, period_month, period_year, total_amount, staff_count, invoice_count, closed_at')
+            .order('closed_at', { ascending: false }),
+          'Deduction history',
+        ),
+      ]);
 
-    if (openRes.error) toast.error('Failed to load current deductions');
-    else setInvoices((openRes.data || []) as DeductionInvoice[]);
+      if (openRes.error) toast.error(`Failed to load current deductions: ${openRes.error.message}`);
+      else setInvoices((openRes.data || []) as DeductionInvoice[]);
 
-    if (!batchRes.error) setBatches((batchRes.data || []) as Batch[]);
-    setLoading(false);
+      if (batchRes.error) toast.error(`Failed to load deduction history: ${batchRes.error.message}`);
+      else setBatches((batchRes.data || []) as Batch[]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The request could not be completed';
+      toast.error(`Staff Family Deductions: ${message}`);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
@@ -249,7 +289,7 @@ export function StaffFamilyDeductions() {
                     ) : currentGroups.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
-                          No pending family deductions for this cycle.
+                          No pending family deductions for this cycle. If a salary-deduction invoice was just settled, press Refresh.
                         </TableCell>
                       </TableRow>
                     ) : (

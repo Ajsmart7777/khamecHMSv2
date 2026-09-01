@@ -114,8 +114,7 @@ export default async (request: Request) => {
               SET status = $1,
                   provider_transfer_code = COALESCE($2, provider_transfer_code),
                   failure_reason = CASE WHEN $1 IN ('failed', 'reversed') THEN COALESCE($4, failure_reason) ELSE NULL END,
-                  paid_at = CASE WHEN $1 = 'paid' THEN COALESCE(paid_at, now()) ELSE paid_at END,
-                  updated_at = now()
+                  paid_at = CASE WHEN $1 = 'paid' THEN COALESCE(paid_at, now()) ELSE paid_at END
             WHERE id = $3::uuid`,
           [
             paymentStatus,

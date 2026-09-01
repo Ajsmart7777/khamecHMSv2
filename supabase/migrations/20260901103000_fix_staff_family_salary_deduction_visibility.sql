@@ -34,15 +34,15 @@ AS $$
 DECLARE
   v_staff_id uuid;
 BEGIN
-  IF COALESCE(NEW.is_salary_deduction, false) THEN
+  IF COALESCE((NEW).is_salary_deduction, false) THEN
     SELECT sfm.staff_id
       INTO v_staff_id
     FROM public.staff_family_members AS sfm
-    WHERE sfm.patient_id = NEW.patient_id
+    WHERE sfm.patient_id = (NEW).patient_id
     LIMIT 1;
 
     IF v_staff_id IS NOT NULL THEN
-      NEW.staff_sponsor_id := COALESCE(NEW.staff_sponsor_id, v_staff_id);
+      NEW.staff_sponsor_id := COALESCE((NEW).staff_sponsor_id, v_staff_id);
     END IF;
   END IF;
 

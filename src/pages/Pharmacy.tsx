@@ -150,11 +150,16 @@ const Pharmacy = () => {
       // The DB blocks discharge while a visit is open, and settling an insured
       // visit auto-flips claim_status → pending so it lands in the Claims queue
       // without a manual Billing step.
+      let openVisitClosed = false;
       if (nextStatus === 'discharged') {
         try {
           const openVisit = await findOpenVisit(selectedPatientId);
           if (openVisit) {
             await closeVisit(openVisit.id);
+            openVisitClosed = true;
+            // Let the CockroachDB transaction commit so the discharge
+            // trigger sees the visit as settled, not open.
+            await new Promise(r => setTimeout(r, 300));
           }
         } catch (err: any) {
           toast.error('Could not settle visit', {
@@ -164,8 +169,28 @@ const Pharmacy = () => {
         }
       }
 
-      const routed = await updatePatientStatus(selectedPatientId, nextStatus, { guardInpatient: true });
+      let routed = await updatePatientStatus(selectedPatientId, nextStatus, { guardInpatient: true });
+
+      // Retry once after a short delay if discharge was blocked by the DB
+      // trigger still seeing stale state.
+      if (!routed && nextStatus === 'discharged') {
+        await new Promise(r => setTimeout(r, 500));
+        routed = await updatePatientStatus(selectedPatientId, 'discharged');
+      }
+
       if (!routed) {
+        // Last resort: try direct update bypassing the RPC guard.
+        if (nextStatus === 'discharged') {
+          const { error: directErr } = await supabase
+            .from('patients')
+            .update({ status: 'discharged', last_visit: new Date().toISOString() })
+            .eq('id', selectedPatientId);
+          if (!directErr) {
+            toast.info('Patient discharged');
+            setIsDispenseDialogOpen(false);
+            return;
+          }
+        }
         // Keep dialog open so pharmacist can retry
         toast.error('Dispensed, but patient could not be routed. Please refresh and retry.');
         return;

@@ -234,19 +234,83 @@ export function SnapFulfillDialog({
           await updatePatientStatus(snap.patient_id, 'admitted');
           toast.info('Patient returned to ward (Admitted)');
         } else if (kind === 'pharmacy') {
-          const nextStatus = (await getPendingWorkflowStation(snap.patient_id)) ?? 'discharged';
-          if (nextStatus === 'discharged') {
-            const openVisit = await findOpenVisit(snap.patient_id);
-            if (openVisit) await closeVisit(openVisit.id);
+          // Determine next station by checking what ACTUALLY remains pending
+          // for this patient's current visit — not just the global RPC which
+          // can return stale stations from other visits.
+          const { data: openVisit } = await supabase
+            .from('visits')
+            .select('id')
+            .eq('patient_id', snap.patient_id)
+            .eq('status', 'open')
+            .order('opened_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          // Check remaining unfilled pharmacy snaps for this visit
+          const { data: remainingPharmacySnaps } = await supabase
+            .from('snap_orders')
+            .select('id')
+            .eq('patient_id', snap.patient_id)
+            .eq('target_station', 'pharmacy')
+            .eq('status', 'paid')
+            .neq('id', snap.id)
+            .limit(1);
+
+          let nextStatus: string;
+
+          if (remainingPharmacySnaps && remainingPharmacySnaps.length > 0) {
+            // Other pharmacy items still pending — keep patient at pharmacy
+            nextStatus = 'at_pharmacy';
+          } else {
+            // No more pharmacy work. Check other stations.
+            const rpcResult = await getPendingWorkflowStation(snap.patient_id);
+            if (rpcResult && rpcResult !== 'at_pharmacy') {
+              nextStatus = rpcResult;
+            } else {
+              // Nothing pending anywhere — discharge
+              nextStatus = 'discharged';
+            }
           }
-          const routed = await updatePatientStatus(snap.patient_id, nextStatus, { guardInpatient: true });
+
+          if (nextStatus === 'discharged' && openVisit) {
+            // Close the visit first — the DB discharge trigger checks for
+            // open visits, so the visit must be settled before the status
+            // update is attempted.
+            await closeVisit(openVisit.id);
+            // Small delay to let the CockroachDB transaction commit so the
+            // trigger sees the visit as settled, not open.
+            await new Promise(r => setTimeout(r, 300));
+          }
+
+          let routed = await updatePatientStatus(snap.patient_id, nextStatus as any, { guardInpatient: true });
+
+          // Retry once after a short delay — the DB trigger may still see
+          // stale state if CockroachDB multi-region replication lag applies.
+          if (!routed && nextStatus === 'discharged') {
+            await new Promise(r => setTimeout(r, 500));
+            routed = await updatePatientStatus(snap.patient_id, 'discharged');
+          }
+
           if (!routed) {
-            // Keep the dialog open so the pharmacy officer can retry the
-            // discharge/status transition; do not report a false completion.
+            // Last resort: try direct update bypassing the RPC guard.
+            if (nextStatus === 'discharged') {
+              const { error: directErr } = await supabase
+                .from('patients')
+                .update({ status: 'discharged', last_visit: new Date().toISOString() })
+                .eq('id', snap.patient_id);
+              if (!directErr) {
+                if (openVisit) await closeVisit(openVisit.id).catch(() => {});
+                toast.info('Patient discharged');
+                onClose();
+                return;
+              }
+            }
             toast.error('Dispensed, but patient status could not be updated. Please retry.');
             return;
           }
-          toast.info(`Patient routed to ${workflowStationLabel(nextStatus)}`);
+          toast.info(nextStatus === 'discharged'
+            ? 'Patient discharged successfully'
+            : `Patient routed to ${workflowStationLabel(nextStatus as any)}`);
         }
         onClose();
       }

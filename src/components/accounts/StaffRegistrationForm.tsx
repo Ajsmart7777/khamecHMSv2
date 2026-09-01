@@ -140,7 +140,6 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
     bankName: '',
     accountNumber: '',
     staffIdNumber: '',
-    familyDeductionConsent: false,
   });
 
   const resetForm = () => {
@@ -163,7 +162,6 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
       bankName: '',
       accountNumber: '',
       staffIdNumber: '',
-      familyDeductionConsent: false,
     });
   };
 
@@ -242,7 +240,8 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
       qualification: form.qualification || null,
       staffIdNumber: form.staffIdNumber || null,
       isSystemUser: form.isSystemUser,
-      familyDeductionConsent: form.familyDeductionConsent,
+      // Salary deduction eligibility is unconditional for all staff.
+      familyDeductionConsent: true,
       authUserId,
     };
 
@@ -382,21 +381,6 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                 <Input type="date" value={form.hireDate} onChange={e => setForm(f => ({ ...f, hireDate: e.target.value }))} />
               </div>
             </div>
-
-            {/* Family salary-deduction consent */}
-            <div className="flex items-start justify-between p-3 rounded-lg border border-warning/30 bg-warning/5">
-              <div className="pr-3">
-                <Label className="text-sm font-medium">Family salary-deduction consent</Label>
-                <p className="text-xs text-muted-foreground">
-                  Staff agrees the unpaid 50% share on family invoices may be deducted from their salary.
-                </p>
-              </div>
-              <Switch
-                checked={form.familyDeductionConsent}
-                onCheckedChange={v => setForm(f => ({ ...f, familyDeductionConsent: v }))}
-              />
-            </div>
-
 
             <Separator />
 

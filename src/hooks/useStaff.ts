@@ -48,7 +48,8 @@ const mapDbToStaff = (db: DbStaff): Staff => ({
   qualification: db.qualification || null,
   staffIdNumber: db.staff_id_number || null,
   isSystemUser: !!db.is_system_user,
-  familyDeductionConsent: !!db.family_deduction_consent,
+  // Eligibility is now unconditional; keep the legacy field mapped as true for compatibility.
+  familyDeductionConsent: true,
   authUserId: db.auth_user_id || null,
 });
 
@@ -70,7 +71,8 @@ const mapStaffToDb = (staff: Omit<Staff, 'id'>) => ({
   qualification: staff.qualification ?? null,
   staff_id_number: staff.staffIdNumber ?? null,
   is_system_user: !!staff.isSystemUser,
-  family_deduction_consent: !!staff.familyDeductionConsent,
+  // The old consent gate is retired; every staff member is eligible.
+  family_deduction_consent: true,
   auth_user_id: staff.authUserId ?? null,
 });
 

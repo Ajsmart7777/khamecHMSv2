@@ -70,9 +70,9 @@ export function StaffFamilyDeductions() {
       supabase
         .from('invoices')
         .select('id, invoice_number, paid_amount, paid_at, patient_id, staff_sponsor_id, notes, salary_deduction_batch_id')
-        .eq('is_salary_deduction', true)
         .eq('status', 'paid')
         .is('salary_deduction_batch_id', null)
+        .or('is_salary_deduction.eq.true,payment_method.eq.salary,payment_method.eq.salary_deduction')
         .order('paid_at', { ascending: false }),
       supabase
         .from('staff_deduction_batches')

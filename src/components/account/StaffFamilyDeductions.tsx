@@ -100,7 +100,6 @@ export function StaffFamilyDeductions() {
             .from('invoices')
             .select('id, invoice_number, paid_amount, paid_at, patient_id, staff_sponsor_id, notes, salary_deduction_batch_id')
             .eq('status', 'paid')
-            .is('salary_deduction_batch_id', null)
             .or('is_salary_deduction.eq.true,payment_method.eq.salary,payment_method.eq.salary_deduction')
             .order('paid_at', { ascending: false }),
           'Current deductions',
@@ -114,8 +113,15 @@ export function StaffFamilyDeductions() {
         ),
       ]);
 
-      if (openRes.error) toast.error(`Failed to load current deductions: ${openRes.error.message}`);
-      else setInvoices((openRes.data || []) as DeductionInvoice[]);
+      if (openRes.error) {
+        toast.error(`Failed to load current deductions: ${openRes.error.message}`);
+      } else {
+        // The deployed Supabase wrapper does not expose `.is()`. Keep the
+        // current-cycle rule identical by filtering unbatched rows locally.
+        const currentCycle = ((openRes.data || []) as DeductionInvoice[])
+          .filter(invoice => !invoice.salary_deduction_batch_id);
+        setInvoices(currentCycle);
+      }
 
       if (batchRes.error) toast.error(`Failed to load deduction history: ${batchRes.error.message}`);
       else setBatches((batchRes.data || []) as Batch[]);

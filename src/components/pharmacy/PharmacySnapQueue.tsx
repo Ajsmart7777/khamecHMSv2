@@ -223,40 +223,31 @@ export function SnapFulfillDialog({
 
       const ok = await markSnapFulfilled(snap.id);
       if (ok) {
-        // Also mark any linked prescription as dispensed so the legacy
-        // prescription counter ("N prescription(s) pending") stays accurate.
-        if (snap.ocr_text && snap.ocr_text.startsWith('LINKED_PRESCRIPTION:')) {
-          const rxId = snap.ocr_text.replace('LINKED_PRESCRIPTION:', '').trim();
-          if (rxId) {
-            await supabase.from('prescriptions').update({ status: 'dispensed' }).eq('id', rxId);
-            const { data: rxItems } = await supabase.from('prescription_items').select('id').eq('prescription_id', rxId);
-            if (rxItems?.length) {
-              await supabase.from('prescription_items').update({ dispensed: true }).eq('prescription_id', rxId);
-            }
-          }
-        } else if (snap.invoice_id) {
-          // Fallback: find pending prescriptions for this patient and mark
-          // them dispensed if this snap's invoice items match.
-          const { data: patientRx } = await supabase
+        // Mark all pending prescriptions for this patient as dispensed if
+        // there are no more paid pharmacy snaps remaining. This keeps the
+        // legacy prescription counter ("N prescription(s) pending") accurate
+        // because the snap path dispenses via invoice_items, not
+        // prescription_items, so prescriptions.status would stay 'pending'.
+        const { data: remainingPaid } = await supabase
+          .from('snap_orders')
+          .select('id')
+          .eq('patient_id', snap.patient_id)
+          .eq('target_station', 'pharmacy')
+          .eq('status', 'paid')
+          .neq('id', snap.id)
+          .limit(1);
+        if (!remainingPaid || remainingPaid.length === 0) {
+          // No more paid pharmacy work — mark all pending prescriptions dispensed
+          await supabase
             .from('prescriptions')
-            .select('id, diagnosis, notes, items:prescription_items(id, medication)')
+            .update({ status: 'dispensed' })
             .eq('patient_id', snap.patient_id)
             .eq('status', 'pending');
-          const { data: invoiceItems } = await supabase
-            .from('invoice_items')
-            .select('description')
-            .eq('invoice_id', snap.invoice_id);
-          if (patientRx?.length && invoiceItems?.length) {
-            const descriptions = invoiceItems.map(i => (i.description || '').toLowerCase());
-            for (const rx of patientRx) {
-              const rxMeds = (rx.items || []).map((it: any) => (it.medication || '').toLowerCase());
-              const match = descriptions.some(d => rxMeds.some(m => d.includes(m) || m.includes(d)));
-              if (match || patientRx.length === 1) {
-                await supabase.from('prescriptions').update({ status: 'dispensed' }).eq('id', rx.id);
-                await supabase.from('prescription_items').update({ dispensed: true }).eq('prescription_id', rx.id);
-              }
-            }
-          }
+          await supabase
+            .from('prescription_items')
+            .update({ dispensed: true })
+            .in('prescription_id',
+              (await supabase.from('prescriptions').select('id').eq('patient_id', snap.patient_id).eq('status', 'dispensed')).data?.map((r: any) => r.id) || []);
         }
         const { data: adm } = await supabase
           .from('admissions')

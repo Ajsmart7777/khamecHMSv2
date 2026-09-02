@@ -1,6 +1,7 @@
 import { useSelectedPatientParam } from '@/hooks/useSelectedPatientParam';
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useSnapOrders } from '@/hooks/useSnapOrders';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { UniversalPatientHeader } from '@/components/patient/UniversalPatientHeader';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,9 @@ const Pharmacy = () => {
 
   // Get pending prescriptions from database
   const pendingPrescriptions = getPendingPrescriptions();
+
+  // Source of truth for pharmacy queue: snap_orders with paid status
+  const { orders: paidPharmacySnaps } = useSnapOrders({ station: 'pharmacy', statuses: ['paid'] });
 
   const getPatientForPrescription = (patientId: string) => {
     return patients.find(p => p.id === patientId);
@@ -237,6 +241,8 @@ const Pharmacy = () => {
 
   const selectedPatient = patients.find(p => p.id === selectedPatientId);
   const activePrescriptions = pendingPrescriptions.filter(p => !dispensedPatients.has(p.patient_id));
+  // Use snap_orders as the source of truth for the header count
+  const pendingCount = paidPharmacySnaps.length || activePrescriptions.length;
 
   return (
     <MainLayout title="Pharmacy" subtitle="Medication dispensing">
@@ -254,7 +260,7 @@ const Pharmacy = () => {
           </Badge>
         )}
         <span className="text-sm text-muted-foreground">
-          {activePrescriptions.length} prescription(s) pending
+          {pendingCount} prescription(s) pending
         </span>
         <Button variant="ghost" size="sm" onClick={() => { refreshPatients(); refreshPrescriptions(); }} className="h-7 px-2 ml-auto">
           <RefreshCw className="h-3.5 w-3.5" />

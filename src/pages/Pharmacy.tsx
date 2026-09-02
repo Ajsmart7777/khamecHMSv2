@@ -241,8 +241,11 @@ const Pharmacy = () => {
 
   const selectedPatient = patients.find(p => p.id === selectedPatientId);
   const activePrescriptions = pendingPrescriptions.filter(p => !dispensedPatients.has(p.patient_id));
-  // Use snap_orders as the source of truth for the header count
-  const pendingCount = paidPharmacySnaps.length || activePrescriptions.length;
+  // Use snap_orders as the source of truth for the header count.
+  // NOTE: `0 || n` is falsy in JS, so we must compare explicitly.
+  const pendingCount = paidPharmacySnaps.length > 0
+    ? paidPharmacySnaps.length
+    : activePrescriptions.length;
 
   return (
     <MainLayout title="Pharmacy" subtitle="Medication dispensing">

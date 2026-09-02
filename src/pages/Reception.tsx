@@ -663,6 +663,47 @@ function PatientDetailsView({ patient, onClose, onSendToNurse, refreshData }: { 
             <CheckCircle2 className="h-5 w-5" />
             <span>{patient.status === 'discharged' ? 'Discharged' : 'Discharge'}</span>
           </Button>
+        ) : [
+          'at_pharmacy', 'in_lab', 'awaiting_billing',
+        ].includes(patient.status) ? (
+          <Button 
+            variant="outline" 
+            className="h-20 flex-col gap-2 transition-all hover:scale-[1.02] active:scale-[0.98] hover:shadow-sm border-warning/50 text-warning hover:bg-warning/5"
+            onClick={async () => {
+              if (!window.confirm(`Force-discharge ${patient.first_name} ${patient.last_name}? This closes any open visit and resets the patient to discharged.`)) return;
+
+              // Close any open visit first
+              const { data: openVisit } = await supabase
+                .from('visits')
+                .select('id')
+                .eq('patient_id', patient.id)
+                .eq('status', 'open')
+                .maybeSingle();
+              if (openVisit) {
+                const { closeVisit: closeV } = await import('@/hooks/useVisits');
+                await closeV(openVisit.id);
+                await new Promise(r => setTimeout(r, 300));
+              }
+
+              // Force discharge — bypass the RPC guard since this is a manual recovery
+              const { error } = await supabase
+                .from('patients')
+                .update({ status: 'discharged', last_visit: new Date().toISOString() })
+                .eq('id', patient.id);
+              if (!error) {
+                await refreshData();
+                toast.success(`${patient.first_name} ${patient.last_name} force-discharged`, {
+                  description: 'Patient status reset to discharged.',
+                  icon: <CheckCircle2 className="h-4 w-4 text-success" />
+                });
+              } else {
+                toast.error('Failed to force-discharge', { description: error.message });
+              }
+            }}
+          >
+            <AlertTriangle className="h-5 w-5" />
+            <span>Force Discharge</span>
+          </Button>
         ) : (
           <Button 
             variant="outline" 

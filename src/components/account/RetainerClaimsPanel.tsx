@@ -226,7 +226,7 @@ export function RetainerClaimsPanel() {
         setVisitCounts(vc);
       }
 
-      // Load manual patient records (gracefully handle missing table)
+      // Load manual patient records (auto-create table if missing)
       try {
         const { data: manualPatientData, error: manualPatientError } = await (supabase as any)
           .from('corporate_manual_patient_records')
@@ -254,7 +254,20 @@ export function RetainerClaimsPanel() {
         });
         setManualPatientRecords(manualPatientBySponsor);
       } catch {
-        // Table may not exist yet — manual patient records feature unavailable
+        // Table may not exist — try to create it automatically
+        try {
+          const token = typeof localStorage !== 'undefined' ? localStorage.getItem('hms_access_token') : null;
+          await fetch('/.netlify/functions/run-migration', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ migration: 'corporate_manual_patient_records' }),
+          });
+        } catch {
+          // Migration endpoint not available
+        }
         setManualPatientRecords({});
       }
 

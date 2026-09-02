@@ -1,5 +1,5 @@
 import type { Handler } from '@netlify/functions';
-import { getCRDB } from './_shared/crdb';
+import { getCrdbPool } from './_shared/crdb';
 
 /**
  * One-time cleanup: finds prescriptions still stuck at 'pending' even though
@@ -18,13 +18,15 @@ export const handler: Handler = async () => {
     'Content-Type': 'application/json',
   };
 
-  try {
-    const sql = await getCRDB();
+  const pool = getCrdbPool();
+  const client = await pool.connect();
 
+  try {
     // Find all prescriptions that are still 'pending'
-    const { rows: pendingRx } = await sql`
-      SELECT id, patient_id FROM prescriptions WHERE status = 'pending'
-    `;
+    const rxResult = await client.query(
+      `SELECT id, patient_id FROM prescriptions WHERE status = 'pending'`
+    );
+    const pendingRx = rxResult.rows;
 
     if (pendingRx.length === 0) {
       return {
@@ -39,23 +41,24 @@ export const handler: Handler = async () => {
 
     for (const rx of pendingRx) {
       // Check if this patient has any remaining 'paid' pharmacy snap_orders
-      const { rows: remainingPaid } = await sql`
-        SELECT id FROM snap_orders
-        WHERE patient_id = ${rx.patient_id}
-          AND target_station = 'pharmacy'
-          AND status = 'paid'
-        LIMIT 1
-      `;
+      const paidResult = await client.query(
+        `SELECT id FROM snap_orders
+         WHERE patient_id = $1 AND target_station = 'pharmacy' AND status = 'paid'
+         LIMIT 1`,
+        [rx.patient_id]
+      );
 
-      if (remainingPaid.length === 0) {
+      if (paidResult.rows.length === 0) {
         // No remaining paid pharmacy work — mark this prescription as dispensed
-        await sql`
-          UPDATE prescriptions SET status = 'dispensed' WHERE id = ${rx.id}
-        `;
+        await client.query(
+          `UPDATE prescriptions SET status = 'dispensed' WHERE id = $1`,
+          [rx.id]
+        );
         // Also mark all its items as dispensed
-        await sql`
-          UPDATE prescription_items SET dispensed = true WHERE prescription_id = ${rx.id}
-        `;
+        await client.query(
+          `UPDATE prescription_items SET dispensed = true WHERE prescription_id = $1`,
+          [rx.id]
+        );
         fixed++;
         fixedIds.push(rx.id);
       }
@@ -77,5 +80,7 @@ export const handler: Handler = async () => {
       headers,
       body: JSON.stringify({ error: error.message }),
     };
+  } finally {
+    client.release();
   }
 };

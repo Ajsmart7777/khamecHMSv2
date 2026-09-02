@@ -37,6 +37,7 @@ const NurseStation = () => {
   const [selectedPatientId, setSelectedPatientId] = useSelectedPatientParam();
   const [admitOpen, setAdmitOpen] = useState(false);
   const [emergencyOpen, setEmergencyOpen] = useState(false);
+  const [openEmergencyEpisodeId, setOpenEmergencyEpisodeId] = useState<string | null>(null);
   const [locallyForwardedPatientIds, setLocallyForwardedPatientIds] = useState<Set<string>>(new Set());
   const canAct = useAdmissionPerms();
   
@@ -73,6 +74,26 @@ const NurseStation = () => {
     setSelectedPatientId(null);
     void refreshPatients();
   };
+
+  // Detect active emergency episode for the selected patient so snaps
+  // auto-finalize the episode and route to billing.
+  useEffect(() => {
+    setOpenEmergencyEpisodeId(null);
+    if (!selectedPatientId) return;
+    let cancelled = false;
+    supabase
+      .from('emergency_episodes')
+      .select('id')
+      .eq('patient_id', selectedPatientId)
+      .eq('status', 'open')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setOpenEmergencyEpisodeId(data?.id ?? null);
+      });
+    return () => { cancelled = true; };
+  }, [selectedPatientId]);
 
   // Cockroach production uses explicit reads rather than browser realtime
   // subscriptions. Refresh immediately when Lab returns a result in this
@@ -217,6 +238,7 @@ const NurseStation = () => {
                     variant="outline"
                     size="sm"
                     onSent={() => handleLabRequestSent(selectedPatient.id)}
+                    emergencyEpisodeId={openEmergencyEpisodeId}
                   />
                 <SnapClinicalOrder
                   patientId={selectedPatient.id}
@@ -225,6 +247,7 @@ const NurseStation = () => {
                   label="Snap Rx / Treatment"
                   variant="outline"
                   size="sm"
+                  emergencyEpisodeId={openEmergencyEpisodeId}
                 />
                 {canAct('admit') && (
                   <Button

@@ -60,13 +60,16 @@ export async function getPendingWorkflowStation(patientId: string): Promise<Pend
     return isPendingWorkflowStation(data) ? data : null;
   }
 
-  // 2. Check for unfilled snap_orders for this visit
+  // 2. Check for unfilled snap_orders for this visit.
+  // Exclude emergency episode snaps — those create a separate billing track
+  // that must never block normal patient flow routing.
   const { data: pendingSnaps } = await supabase
     .from('snap_orders')
     .select('target_station, status')
     .eq('patient_id', patientId)
     .eq('visit_id', openVisit.id)
     .in('status', ['pending_billing', 'awaiting_payment', 'paid'])
+    .is('emergency_episode_id', null)
     .limit(1);
 
   if (pendingSnaps && pendingSnaps.length > 0) {
@@ -142,13 +145,17 @@ export async function nextStationForInvoice(
   const visitId = openVisit?.id ?? snaps[0]?.visit_id;
 
   if (visitId) {
-    // 3. Check for remaining unfilled snaps for THIS visit only
+    // 3. Check for remaining unfilled snaps for THIS visit only.
+    // Exclude emergency episode snaps — they have their own billing track
+    // and must never keep a patient stuck at billing after normal orders
+    // are fully paid and dispensed.
     const { data: remainingSnaps } = await supabase
       .from('snap_orders')
       .select('target_station, status')
       .eq('patient_id', patientId)
       .eq('visit_id', visitId)
       .in('status', ['pending_billing', 'awaiting_payment', 'paid'])
+      .is('emergency_episode_id', null)
       .neq('invoice_id', invoiceId) // Exclude the invoice we just settled
       .limit(1);
 
@@ -159,7 +166,9 @@ export async function nextStationForInvoice(
       if (station === 'billing' || station === 'clinical_team') return 'awaiting_billing';
     }
 
-    // 4. Check for other unpaid invoices for THIS visit
+    // 4. Check for other unpaid invoices for THIS visit.
+    // Exclude invoices that belong to emergency episodes — those are a
+    // separate billing track and must not keep the patient stuck at billing.
     const { data: otherUnpaid } = await supabase
       .from('invoices')
       .select('id')
@@ -167,15 +176,31 @@ export async function nextStationForInvoice(
       .eq('visit_id', visitId)
       .eq('status', 'pending')
       .neq('id', invoiceId)
-      .limit(1);
+      .limit(10);
 
     if (otherUnpaid && otherUnpaid.length > 0) {
-      return 'awaiting_payment';
+      // Filter out invoices linked to emergency episode snaps
+      const nonEmergencyInvoiceIds = new Set<string>();
+      for (const inv of otherUnpaid) {
+        const { data: invSnaps } = await supabase
+          .from('snap_orders')
+          .select('emergency_episode_id')
+          .eq('invoice_id', inv.id)
+          .limit(1);
+        if (!invSnaps || invSnaps.length === 0 || !invSnaps[0].emergency_episode_id) {
+          nonEmergencyInvoiceIds.add(inv.id);
+        }
+      }
+      if (nonEmergencyInvoiceIds.size > 0) {
+        return 'awaiting_payment';
+      }
     }
   }
 
-  // 5. Check the targets for THIS invoice's snaps
-  const stations = snaps.map((row: any) => row.target_station);
+  // 5. Check the targets for THIS invoice's snaps.
+  // Only consider non-emergency snaps for routing.
+  const nonEmergencySnaps = snaps.filter((row: any) => !row.emergency_episode_id);
+  const stations = nonEmergencySnaps.map((row: any) => row.target_station);
   if (stations.includes('lab')) return 'in_lab';
   if (stations.includes('pharmacy')) return 'at_pharmacy';
 

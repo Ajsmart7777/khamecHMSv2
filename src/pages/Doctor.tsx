@@ -169,6 +169,7 @@ const Doctor = () => {
                   label="Snap → Pharmacy"
                   variant="default"
                   className="w-full"
+                  emergencyEpisodeId={openEmergencyEpisodeId}
                 />
                 <SnapClinicalOrder
                   patientId={selectedPatient.id}
@@ -178,6 +179,7 @@ const Doctor = () => {
                   label="Snap → Lab"
                   variant="default"
                   className="w-full"
+                  emergencyEpisodeId={openEmergencyEpisodeId}
                 />
               </div>
 

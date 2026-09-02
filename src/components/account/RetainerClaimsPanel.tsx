@@ -11,8 +11,8 @@ import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from '@/components/ui/accordion';
 import {
-  Building2, FileDown, Landmark, Loader2, Lock, RefreshCw, ReceiptText,
-  Users, Wallet, Wand2, Phone, MapPin,
+  Building2, FileDown, Landmark, Loader2, Lock, Pencil, Plus, RefreshCw, ReceiptText,
+  Trash2, Users, Wallet, Wand2, Phone, MapPin,
 } from 'lucide-react';
 import { useCorporateAccounts } from '@/hooks/useCorporateAccounts';
 import { useSponsorStatements } from '@/hooks/useSponsorStatements';
@@ -81,6 +81,32 @@ interface RetainerSettlementForm {
   notes: string;
 }
 
+interface ManualPatientRecord {
+  id: string;
+  sponsor_id: string;
+  patient_name: string;
+  card_number: string | null;
+  visits: number;
+  medication: number;
+  lab_test: number;
+  delivery: number;
+  bed: number;
+  others: number;
+  notes: string | null;
+}
+
+interface ManualPatientForm {
+  patient_name: string;
+  card_number: string;
+  visits: string;
+  medication: string;
+  lab_test: string;
+  delivery: string;
+  bed: string;
+  others: string;
+  notes: string;
+}
+
 function isoDateToday() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -93,6 +119,10 @@ function emptySettlementForm(): RetainerSettlementForm {
     bank_reference: '',
     notes: '',
   };
+}
+
+function emptyManualPatientForm(): ManualPatientForm {
+  return { patient_name: '', card_number: '', visits: '0', medication: '0', lab_test: '0', delivery: '0', bed: '0', others: '0', notes: '' };
 }
 
 function money(v: number) {
@@ -123,6 +153,10 @@ export function RetainerClaimsPanel() {
   const [closeNotes, setCloseNotes] = useState('');
   const [settlementDialog, setSettlementDialog] = useState<string | null>(null);
   const [settlementForm, setSettlementForm] = useState<RetainerSettlementForm>(emptySettlementForm());
+  const [manualPatientRecords, setManualPatientRecords] = useState<Record<string, ManualPatientRecord[]>>({});
+  const [manualPatientDialog, setManualPatientDialog] = useState<string | null>(null);
+  const [editingManualPatient, setEditingManualPatient] = useState<ManualPatientRecord | null>(null);
+  const [manualPatientForm, setManualPatientForm] = useState<ManualPatientForm>(emptyManualPatientForm());
 
   const { accounts, refetch: refetchAccounts } = useCorporateAccounts('retainer');
   const { statements, fetchStatements } = useSponsorStatements('retainer');
@@ -192,11 +226,38 @@ export function RetainerClaimsPanel() {
         setVisitCounts(vc);
       }
 
+      // Load manual patient records
+      const { data: manualPatientData, error: manualPatientError } = await (supabase as any)
+        .from('corporate_manual_patient_records')
+        .select('id, sponsor_id, patient_name, card_number, visits, medication, lab_test, delivery, bed, others, notes')
+        .eq('period_year', year)
+        .eq('period_month', month)
+        .order('patient_name', { ascending: true });
+      if (manualPatientError) throw manualPatientError;
+
+      const manualPatientBySponsor: Record<string, ManualPatientRecord[]> = {};
+      (manualPatientData || []).forEach((row: any) => {
+        (manualPatientBySponsor[row.sponsor_id] ||= []).push({
+          id: row.id,
+          sponsor_id: row.sponsor_id,
+          patient_name: row.patient_name,
+          card_number: row.card_number,
+          visits: Number(row.visits) || 0,
+          medication: Number(row.medication) || 0,
+          lab_test: Number(row.lab_test) || 0,
+          delivery: Number(row.delivery) || 0,
+          bed: Number(row.bed) || 0,
+          others: Number(row.others) || 0,
+          notes: row.notes,
+        });
+      });
+      setManualPatientRecords(manualPatientBySponsor);
+
       await fetchStatements();
     } finally {
       setLoading(false);
     }
-  }, [periodStart, periodEnd, fetchStatements]);
+  }, [periodStart, periodEnd, fetchStatements, month, year]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -234,13 +295,16 @@ export function RetainerClaimsPanel() {
         const inv = invoices[p.id] || [];
         return sum + inv.reduce((s, i) => s + i.total_amount, 0);
       }, 0);
-      billed += monthTotal;
+      const manualPatientTotal = (manualPatientRecords[r.id] || []).reduce((sum, row) => {
+        return sum + row.medication + row.lab_test + row.delivery + row.bed + row.others;
+      }, 0);
+      billed += monthTotal + manualPatientTotal;
       deposit += Math.max(0, r.balance);
       const stmt = statementBySponsor[r.id];
       if (stmt && stmt.status === 'finalized') due += Number(stmt.total_amount);
     });
     return { billed, deposit, due };
-  }, [activeRetainers, patients, invoices, statementBySponsor]);
+  }, [activeRetainers, patients, invoices, manualPatientRecords, statementBySponsor]);
 
   const handleGenerate = async (sponsorId: string) => {
     setBusy(sponsorId);
@@ -328,6 +392,88 @@ export function RetainerClaimsPanel() {
       toast({ title: 'Monthly report downloaded', description: statement.statement_number });
     } catch (error) {
       toast({ title: 'Monthly report failed', description: (error as Error).message, variant: 'destructive' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openManualPatientDialog = (sponsorId: string, row?: ManualPatientRecord) => {
+    setManualPatientDialog(sponsorId);
+    setEditingManualPatient(row || null);
+    setManualPatientForm(row
+      ? {
+          patient_name: row.patient_name,
+          card_number: row.card_number || '',
+          visits: String(row.visits),
+          medication: String(row.medication),
+          lab_test: String(row.lab_test),
+          delivery: String(row.delivery),
+          bed: String(row.bed),
+          others: String(row.others),
+          notes: row.notes || '',
+        }
+      : emptyManualPatientForm());
+  };
+
+  const saveManualPatientRecord = async () => {
+    if (!manualPatientDialog) return;
+    if (!manualPatientForm.patient_name.trim()) {
+      toast({ title: 'Patient name is required', variant: 'destructive' });
+      return;
+    }
+    const medication = Number(manualPatientForm.medication) || 0;
+    const labTest = Number(manualPatientForm.lab_test) || 0;
+    const delivery = Number(manualPatientForm.delivery) || 0;
+    const bed = Number(manualPatientForm.bed) || 0;
+    const others = Number(manualPatientForm.others) || 0;
+    const total = medication + labTest + delivery + bed + others;
+    if (total <= 0) {
+      toast({ title: 'At least one service amount is required', description: 'Enter an amount for at least one service category.', variant: 'destructive' });
+      return;
+    }
+
+    setBusy(manualPatientDialog);
+    try {
+      const payload = {
+        sponsor_id: manualPatientDialog,
+        period_year: year,
+        period_month: month,
+        patient_name: manualPatientForm.patient_name.trim(),
+        card_number: manualPatientForm.card_number.trim() || null,
+        visits: Number(manualPatientForm.visits) || 0,
+        medication,
+        lab_test: labTest,
+        delivery,
+        bed,
+        others,
+        notes: manualPatientForm.notes.trim() || null,
+      };
+      const request = editingManualPatient
+        ? (supabase as any).from('corporate_manual_patient_records').update(payload).eq('id', editingManualPatient.id)
+        : (supabase as any).from('corporate_manual_patient_records').insert(payload);
+      const { error } = await request;
+      if (error) throw error;
+      toast({ title: editingManualPatient ? 'Patient record updated' : 'Patient record added', description: 'Generate or regenerate the draft statement to include the revised total.' });
+      setManualPatientDialog(null);
+      setEditingManualPatient(null);
+      await load();
+    } catch (error) {
+      toast({ title: 'Could not save patient record', description: (error as Error).message, variant: 'destructive' });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const deleteManualPatientRecord = async (row: ManualPatientRecord) => {
+    if (!window.confirm(`Remove the manual record for ${row.patient_name}?`)) return;
+    setBusy(row.id);
+    try {
+      const { error } = await (supabase as any).from('corporate_manual_patient_records').delete().eq('id', row.id);
+      if (error) throw error;
+      toast({ title: 'Patient record removed', description: 'Regenerate the draft statement to update its total.' });
+      await load();
+    } catch (error) {
+      toast({ title: 'Could not remove patient record', description: (error as Error).message, variant: 'destructive' });
     } finally {
       setBusy(null);
     }
@@ -572,54 +718,72 @@ export function RetainerClaimsPanel() {
                     </div>
 
                     {/* Patient list */}
-                    {pats.length === 0 ? (
-                      <div className="text-center py-6 text-sm text-muted-foreground border rounded">
-                        No patients under this retainer. Enroll them during registration.
-                      </div>
-                    ) : (
-                      <div className="border rounded overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead className="bg-muted/50 text-[10px] uppercase text-muted-foreground">
-                            <tr>
-                              <th className="text-left px-3 py-2">Name</th>
-                              <th className="text-left px-3 py-2">Card #</th>
-                              <th className="text-center px-3 py-2">Visits</th>
-                              <th className="text-right px-3 py-2">Medication</th>
-                              <th className="text-right px-3 py-2">Lab Test</th>
-                              <th className="text-right px-3 py-2">Delivery</th>
-                              <th className="text-right px-3 py-2">Bed</th>
-                              <th className="text-right px-3 py-2">Others</th>
-                              <th className="text-right px-3 py-2">Total</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {pats.map(p => {
-                              const invs = invoices[p.id] || [];
-                              const sub = invs.reduce((s, i) => s + i.total_amount, 0);
-                              const breakdown = serviceBreakdowns[p.id] || emptySponsorServiceBreakdown();
-                              const vc = (visitCounts[r.id] || {})[p.id] || 0;
-                              return (
-                                <tr key={p.id} className="border-t">
-                                  <td className="px-3 py-2">{p.first_name} {p.last_name || ''}<div className="text-[10px] text-muted-foreground font-mono">{invs.length ? invs.map(i => i.invoice_number).join(', ') : 'No invoice'}</div></td>
-                                  <td className="px-3 py-2 font-mono text-xs text-muted-foreground"><span title={`System Patient ID: ${p.card_number || '—'}`}>{p.physical_card_number || p.card_number || '—'}</span></td>
-                                  <td className="px-3 py-2 text-center">{vc || <span className="text-muted-foreground">0</span>}</td>
-                                  <td className="px-3 py-2 text-right">{money(breakdown.medication)}</td>
-                                  <td className="px-3 py-2 text-right">{money(breakdown.lab_test)}</td>
-                                  <td className="px-3 py-2 text-right">{money(breakdown.delivery)}</td>
-                                  <td className="px-3 py-2 text-right">{money(breakdown.bed)}</td>
-                                  <td className="px-3 py-2 text-right">{money(breakdown.others)}</td>
-                                  <td className="px-3 py-2 text-right font-medium">{sub > 0 ? money(sub) : <span className="text-muted-foreground">0.00</span>}</td>
-                                </tr>
-                              );
-                            })}
-                            <tr className="border-t bg-muted/30 font-semibold">
-                              <td className="px-3 py-2" colSpan={8}>Month total</td>
-                              <td className="px-3 py-2 text-right">₦{money(monthTotal)}</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                    <div className="border rounded overflow-x-auto">
+                      <div className="flex items-center justify-between gap-3 border-b px-3 py-2 bg-muted/30"><div><p className="text-sm font-medium">Patient service records</p><p className="text-xs text-muted-foreground">Registered patients and manually added service records for this retainer account.</p></div>{!locked && <Button size="sm" variant="ghost" onClick={() => openManualPatientDialog(r.id)}><Plus className="h-3.5 w-3.5 mr-1" /> Add patient record</Button>}</div>
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/50 text-[10px] uppercase text-muted-foreground">
+                          <tr>
+                            <th className="text-left px-3 py-2">Name</th>
+                            <th className="text-left px-3 py-2">Card #</th>
+                            <th className="text-center px-3 py-2">Visits</th>
+                            <th className="text-right px-3 py-2">Medication</th>
+                            <th className="text-right px-3 py-2">Lab Test</th>
+                            <th className="text-right px-3 py-2">Delivery</th>
+                            <th className="text-right px-3 py-2">Bed</th>
+                            <th className="text-right px-3 py-2">Others</th>
+                            <th className="text-right px-3 py-2">Total</th>
+                            <th className="w-20 px-3 py-2"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pats.length === 0 && (manualPatientRecords[r.id] || []).length === 0 ? (
+                            <tr><td className="px-3 py-4 text-center text-muted-foreground" colSpan={10}>No patients under this retainer.</td></tr>
+                          ) : null}
+                          {pats.map(p => {
+                            const invs = invoices[p.id] || [];
+                            const sub = invs.reduce((s, i) => s + i.total_amount, 0);
+                            const breakdown = serviceBreakdowns[p.id] || emptySponsorServiceBreakdown();
+                            const vc = (visitCounts[r.id] || {})[p.id] || 0;
+                            return (
+                              <tr key={p.id} className="border-t">
+                                <td className="px-3 py-2">{p.first_name} {p.last_name || ''}<div className="text-[10px] text-muted-foreground font-mono">{invs.length ? invs.map(i => i.invoice_number).join(', ') : 'No invoice'}</div></td>
+                                <td className="px-3 py-2 font-mono text-xs text-muted-foreground"><span title={`System Patient ID: ${p.card_number || '—'}`}>{p.physical_card_number || p.card_number || '—'}</span></td>
+                                <td className="px-3 py-2 text-center">{vc || <span className="text-muted-foreground">0</span>}</td>
+                                <td className="px-3 py-2 text-right">{money(breakdown.medication)}</td>
+                                <td className="px-3 py-2 text-right">{money(breakdown.lab_test)}</td>
+                                <td className="px-3 py-2 text-right">{money(breakdown.delivery)}</td>
+                                <td className="px-3 py-2 text-right">{money(breakdown.bed)}</td>
+                                <td className="px-3 py-2 text-right">{money(breakdown.others)}</td>
+                                <td className="px-3 py-2 text-right font-medium">{sub > 0 ? money(sub) : <span className="text-muted-foreground">0.00</span>}</td>
+                                <td></td>
+                              </tr>
+                            );
+                          })}
+                          {(manualPatientRecords[r.id] || []).map(row => {
+                            const rowTotal = row.medication + row.lab_test + row.delivery + row.bed + row.others;
+                            return (
+                              <tr key={row.id} className="border-t">
+                                <td className="px-3 py-2">{row.patient_name}{row.notes && <p className="text-[10px] text-muted-foreground mt-0.5">{row.notes}</p>}</td>
+                                <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{row.card_number || '—'}</td>
+                                <td className="px-3 py-2 text-center">{row.visits || <span className="text-muted-foreground">0</span>}</td>
+                                <td className="px-3 py-2 text-right">{money(row.medication)}</td>
+                                <td className="px-3 py-2 text-right">{money(row.lab_test)}</td>
+                                <td className="px-3 py-2 text-right">{money(row.delivery)}</td>
+                                <td className="px-3 py-2 text-right">{money(row.bed)}</td>
+                                <td className="px-3 py-2 text-right">{money(row.others)}</td>
+                                <td className="px-3 py-2 text-right font-medium">{money(rowTotal)}</td>
+                                <td className="px-3 py-2 text-right">{!locked && <div className="inline-flex gap-1"><Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openManualPatientDialog(r.id, row)}><Pencil className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => void deleteManualPatientRecord(row)} disabled={busy === row.id}><Trash2 className="h-3.5 w-3.5" /></Button></div>}</td>
+                              </tr>
+                            );
+                          })}
+                          <tr className="border-t bg-muted/30 font-semibold">
+                            <td className="px-3 py-2" colSpan={8}>Month total</td>
+                            <td className="px-3 py-2 text-right">₦{money(monthTotal + (manualPatientRecords[r.id] || []).reduce((sum, row) => sum + row.medication + row.lab_test + row.delivery + row.bed + row.others, 0))}</td>
+                            <td></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </AccordionContent>
               </AccordionItem>
@@ -656,6 +820,10 @@ export function RetainerClaimsPanel() {
             </Button>
           </DialogFooter>
         </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!manualPatientDialog} onOpenChange={open => !open && setManualPatientDialog(null)}>
+        <DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>{editingManualPatient ? 'Edit patient service record' : 'Add patient service record'}</DialogTitle><DialogDescription>{accounts.find(a => a.id === manualPatientDialog)?.company_name || 'Retainer account'} · {MONTHS[month - 1]} {year}. Enter the service charges for this patient manually.</DialogDescription></DialogHeader><div className="grid grid-cols-1 sm:grid-cols-3 gap-3"><div className="sm:col-span-2 space-y-1.5"><label className="text-sm font-medium">Patient name</label><Input value={manualPatientForm.patient_name} onChange={event => setManualPatientForm(form => ({ ...form, patient_name: event.target.value }))} placeholder="Full patient name" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Card number</label><Input value={manualPatientForm.card_number} onChange={event => setManualPatientForm(form => ({ ...form, card_number: event.target.value }))} placeholder="Patient card number" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Visits</label><Input type="number" min="0" value={manualPatientForm.visits} onChange={event => setManualPatientForm(form => ({ ...form, visits: event.target.value }))} placeholder="0" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Medication (₦)</label><Input type="number" min="0" step="0.01" value={manualPatientForm.medication} onChange={event => setManualPatientForm(form => ({ ...form, medication: event.target.value }))} placeholder="0.00" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Lab Test (₦)</label><Input type="number" min="0" step="0.01" value={manualPatientForm.lab_test} onChange={event => setManualPatientForm(form => ({ ...form, lab_test: event.target.value }))} placeholder="0.00" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Delivery (₦)</label><Input type="number" min="0" step="0.01" value={manualPatientForm.delivery} onChange={event => setManualPatientForm(form => ({ ...form, delivery: event.target.value }))} placeholder="0.00" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Bed (₦)</label><Input type="number" min="0" step="0.01" value={manualPatientForm.bed} onChange={event => setManualPatientForm(form => ({ ...form, bed: event.target.value }))} placeholder="0.00" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Others (₦)</label><Input type="number" min="0" step="0.01" value={manualPatientForm.others} onChange={event => setManualPatientForm(form => ({ ...form, others: event.target.value }))} placeholder="0.00" /></div><div className="sm:col-span-3 space-y-1.5"><label className="text-sm font-medium">Total</label><div className="text-lg font-semibold">₦{money((Number(manualPatientForm.medication) || 0) + (Number(manualPatientForm.lab_test) || 0) + (Number(manualPatientForm.delivery) || 0) + (Number(manualPatientForm.bed) || 0) + (Number(manualPatientForm.others) || 0))}</div></div><div className="sm:col-span-3 space-y-1.5"><label className="text-sm font-medium">Notes (optional)</label><Textarea value={manualPatientForm.notes} onChange={event => setManualPatientForm(form => ({ ...form, notes: event.target.value }))} placeholder="Any additional notes about this patient's services" rows={2} /></div></div><DialogFooter><Button variant="outline" onClick={() => setManualPatientDialog(null)}>Cancel</Button><Button onClick={() => void saveManualPatientRecord()} disabled={busy === manualPatientDialog}>{busy === manualPatientDialog && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{editingManualPatient ? 'Save changes' : 'Add patient record'}</Button></DialogFooter></DialogContent>
       </Dialog>
 
       <Dialog open={!!settlementDialog} onOpenChange={open => !open && setSettlementDialog(null)}>

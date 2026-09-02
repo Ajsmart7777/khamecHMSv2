@@ -240,12 +240,11 @@ const Pharmacy = () => {
   };
 
   const selectedPatient = patients.find(p => p.id === selectedPatientId);
-  const activePrescriptions = pendingPrescriptions.filter(p => !dispensedPatients.has(p.patient_id));
-  // Use snap_orders as the source of truth for the header count.
-  // NOTE: `0 || n` is falsy in JS, so we must compare explicitly.
-  const pendingCount = paidPharmacySnaps.length > 0
-    ? paidPharmacySnaps.length
-    : activePrescriptions.length;
+  // Use snap_orders as the sole source of truth for the pharmacy count.
+  // The legacy prescription queue has been removed; all prescriptions now
+  // flow through the snap/PharmacySnapQueue path. This prevents stale
+  // prescriptions from closed visits from inflating the pending count.
+  const pendingCount = paidPharmacySnaps.length;
 
   return (
     <MainLayout title="Pharmacy" subtitle="Medication dispensing">

@@ -22,6 +22,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useSearchParams } from 'react-router-dom';
 import { useCanSnap } from '@/hooks/useCanSnap';
 import { usePatients } from '@/contexts/PatientContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { SnapCropDialog } from './SnapCropDialog';
 import { InAppCameraDialog } from './InAppCameraDialog';
@@ -157,20 +158,31 @@ export function SnapClinicalOrder({
         station: senderRole,
       }).catch(() => null);
 
+      // When an emergency episode is active and a new snap is sent outside the
+      // episode (e.g. doctor sends a pharmacy snap while emergency is open),
+      // auto-finalize the episode first so its items move to Billing, then
+      // route this new snap through normal billing as per the flow spec.
       if (emergencyEpisodeId) {
-        const { data, error } = await (supabase.rpc as any)('record_emergency_admitted_order', {
-          _episode_id: emergencyEpisodeId,
-          _order_type: orderType === 'treatment' ? 'prescription' : orderType,
-          _target_station: target,
-          _photo_path: path,
-          _note: note.trim() || null,
-          _items: [],
-        });
-        if (error) throw error;
-        toast.success(orderType === 'lab' ? 'Emergency lab snap recorded — billing deferred' : 'Emergency prescription snap recorded — billing deferred');
-        close();
-        onSent?.();
-        return;
+        // Check if there are still unfinalized items in the episode
+        const { data: episodeItems } = await supabase
+          .from('emergency_episode_items')
+          .select('id')
+          .eq('episode_id', emergencyEpisodeId)
+          .neq('status', 'cancelled')
+          .limit(1);
+        if (episodeItems && episodeItems.length > 0) {
+          const { error: finErr } = await (supabase.rpc as any)('reconcile_emergency_episode', {
+            _episode_id: emergencyEpisodeId,
+            _billing_note: 'Auto-finalized: new clinical order sent outside episode',
+          });
+          if (finErr) {
+            console.warn('Auto-finalize episode failed', finErr);
+            toast.warning('Could not auto-finalize emergency episode — billing draft may need manual completion.');
+          } else {
+            toast.info('Emergency episode finalized to Billing', { description: 'Existing emergency items sent to Billing. New order routed normally.' });
+          }
+        }
+        // Do NOT return — continue to create the normal snap and route to billing
       }
 
       const snap = await createSnapOrder({
@@ -273,7 +285,6 @@ export function SnapClinicalOrder({
         <TabsContent value="type" className="mt-0 pt-1 space-y-2">
           {defaultOrderType === 'prescription' && (
             <div className="border rounded-xl p-4 bg-card shadow-sm">
-              {emergencyEpisodeId && <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">Emergency Episode active: this prescription stays linked and unbilled until finalization.</p>}
               <div className="flex items-center gap-2 mb-4 border-b pb-2">
                 <Pill className="h-4 w-4 text-module-pharmacy" />
                 <h4 className="font-semibold text-sm">Type Prescription</h4>
@@ -281,15 +292,27 @@ export function SnapClinicalOrder({
               <TypedPrescriptionEditor 
                 patientId={patientId}
                 visitId={visit?.id || null}
-                emergencyEpisodeId={emergencyEpisodeId}
-                onSuccess={() => { onSent?.(); close(); }}
+                emergencyEpisodeId={null}
+                onSuccess={async () => {
+                  // Auto-finalize active emergency episode before routing to billing
+                  if (emergencyEpisodeId) {
+                    try {
+                      const { error } = await (supabase.rpc as any)('reconcile_emergency_episode', {
+                        _episode_id: emergencyEpisodeId,
+                        _billing_note: 'Auto-finalized: new typed prescription sent outside episode',
+                      });
+                      if (!error) toast.info('Emergency episode finalized to Billing');
+                    } catch { /* non-fatal */ }
+                  }
+                  onSent?.();
+                  close();
+                }}
                 onCancel={() => setMode('snap')}
               />
             </div>
           )}
           {defaultOrderType === 'lab' && (
             <div className="border rounded-xl p-4 bg-card shadow-sm">
-              {emergencyEpisodeId && <p className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">Emergency Episode active: this lab request may be performed now and remains unbilled until finalization.</p>}
               <div className="flex items-center gap-2 mb-4 border-b pb-2">
                 <Beaker className="h-4 w-4 text-module-laboratory" />
                 <h4 className="font-semibold text-sm">Type Lab Order</h4>
@@ -297,8 +320,20 @@ export function SnapClinicalOrder({
               <TypedLabRequestEditor 
                 patientId={patientId}
                 visitId={visit?.id || null}
-                emergencyEpisodeId={emergencyEpisodeId}
-                onSuccess={() => { onSent?.(); close(); }}
+                emergencyEpisodeId={null}
+                onSuccess={async () => {
+                  if (emergencyEpisodeId) {
+                    try {
+                      const { error } = await (supabase.rpc as any)('reconcile_emergency_episode', {
+                        _episode_id: emergencyEpisodeId,
+                        _billing_note: 'Auto-finalized: new typed lab request sent outside episode',
+                      });
+                      if (!error) toast.info('Emergency episode finalized to Billing');
+                    } catch { /* non-fatal */ }
+                  }
+                  onSent?.();
+                  close();
+                }}
                 onCancel={() => setMode('snap')}
               />
             </div>

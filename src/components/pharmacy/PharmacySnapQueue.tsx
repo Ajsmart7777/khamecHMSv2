@@ -224,14 +224,14 @@ export function SnapFulfillDialog({
       const ok = await markSnapFulfilled(snap.id);
       if (ok) {
         // Mark all pending prescriptions for this patient as dispensed if
-        // there are no more paid pharmacy snaps remaining. This keeps the
-        // legacy prescription counter ("N prescription(s) pending") accurate
-        // because the snap path dispenses via invoice_items, not
-        // prescription_items, so prescriptions.status would stay 'pending'.
+        // there are no more paid pharmacy snaps remaining FOR THIS VISIT.
+        // Scoping to visit_id prevents old snaps from previous visits from
+        // blocking prescription closure and discharge.
         const { data: remainingPaid } = await supabase
           .from('snap_orders')
           .select('id')
           .eq('patient_id', snap.patient_id)
+          .eq('visit_id', snap.visit_id)
           .eq('target_station', 'pharmacy')
           .eq('status', 'paid')
           .neq('id', snap.id)
@@ -242,12 +242,20 @@ export function SnapFulfillDialog({
             .from('prescriptions')
             .update({ status: 'dispensed' })
             .eq('patient_id', snap.patient_id)
+            .eq('visit_id', snap.visit_id)
             .eq('status', 'pending');
-          await supabase
-            .from('prescription_items')
-            .update({ dispensed: true })
-            .in('prescription_id',
-              (await supabase.from('prescriptions').select('id').eq('patient_id', snap.patient_id).eq('status', 'dispensed')).data?.map((r: any) => r.id) || []);
+          const { data: dispensedRxs } = await supabase
+            .from('prescriptions')
+            .select('id')
+            .eq('patient_id', snap.patient_id)
+            .eq('visit_id', snap.visit_id)
+            .eq('status', 'dispensed');
+          if (dispensedRxs && dispensedRxs.length > 0) {
+            await supabase
+              .from('prescription_items')
+              .update({ dispensed: true })
+              .in('prescription_id', dispensedRxs.map((r: any) => r.id));
+          }
         }
         const { data: adm } = await supabase
           .from('admissions')
@@ -272,11 +280,14 @@ export function SnapFulfillDialog({
             .limit(1)
             .maybeSingle();
 
-          // Check remaining unfilled pharmacy snaps for this visit
+          // Check remaining unfilled pharmacy snaps for THIS VISIT ONLY.
+          // Scoping to visit_id prevents stale snaps from previous visits
+          // from keeping the patient stuck at pharmacy status.
           const { data: remainingPharmacySnaps } = await supabase
             .from('snap_orders')
             .select('id')
             .eq('patient_id', snap.patient_id)
+            .eq('visit_id', snap.visit_id)
             .eq('target_station', 'pharmacy')
             .eq('status', 'paid')
             .neq('id', snap.id)
@@ -337,6 +348,16 @@ export function SnapFulfillDialog({
           toast.info(nextStatus === 'discharged'
             ? 'Patient discharged successfully'
             : `Patient routed to ${workflowStationLabel(nextStatus as any)}`);
+        } else if (kind === 'lab') {
+          // After lab processing, return the patient to the shared clinical
+          // team (Nurse, Doctor 1, Doctor 2) so results are visible and the
+          // next clinical action can be taken.
+          const routed = await updatePatientStatus(snap.patient_id, 'with_clinical_team');
+          if (routed) {
+            toast.info('Patient returned to Clinical Team');
+          } else {
+            toast.info('Lab processed — patient status may need manual review');
+          }
         }
         onClose();
       }

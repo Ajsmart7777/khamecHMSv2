@@ -226,32 +226,37 @@ export function RetainerClaimsPanel() {
         setVisitCounts(vc);
       }
 
-      // Load manual patient records
-      const { data: manualPatientData, error: manualPatientError } = await (supabase as any)
-        .from('corporate_manual_patient_records')
-        .select('id, sponsor_id, patient_name, card_number, visits, medication, lab_test, delivery, bed, others, notes')
-        .eq('period_year', year)
-        .eq('period_month', month)
-        .order('patient_name', { ascending: true });
-      if (manualPatientError) throw manualPatientError;
+      // Load manual patient records (gracefully handle missing table)
+      try {
+        const { data: manualPatientData, error: manualPatientError } = await (supabase as any)
+          .from('corporate_manual_patient_records')
+          .select('id, sponsor_id, patient_name, card_number, visits, medication, lab_test, delivery, bed, others, notes')
+          .eq('period_year', year)
+          .eq('period_month', month)
+          .order('patient_name', { ascending: true });
+        if (manualPatientError) throw manualPatientError;
 
-      const manualPatientBySponsor: Record<string, ManualPatientRecord[]> = {};
-      (manualPatientData || []).forEach((row: any) => {
-        (manualPatientBySponsor[row.sponsor_id] ||= []).push({
-          id: row.id,
-          sponsor_id: row.sponsor_id,
-          patient_name: row.patient_name,
-          card_number: row.card_number,
-          visits: Number(row.visits) || 0,
-          medication: Number(row.medication) || 0,
-          lab_test: Number(row.lab_test) || 0,
-          delivery: Number(row.delivery) || 0,
-          bed: Number(row.bed) || 0,
-          others: Number(row.others) || 0,
-          notes: row.notes,
+        const manualPatientBySponsor: Record<string, ManualPatientRecord[]> = {};
+        (manualPatientData || []).forEach((row: any) => {
+          (manualPatientBySponsor[row.sponsor_id] ||= []).push({
+            id: row.id,
+            sponsor_id: row.sponsor_id,
+            patient_name: row.patient_name,
+            card_number: row.card_number,
+            visits: Number(row.visits) || 0,
+            medication: Number(row.medication) || 0,
+            lab_test: Number(row.lab_test) || 0,
+            delivery: Number(row.delivery) || 0,
+            bed: Number(row.bed) || 0,
+            others: Number(row.others) || 0,
+            notes: row.notes,
+          });
         });
-      });
-      setManualPatientRecords(manualPatientBySponsor);
+        setManualPatientRecords(manualPatientBySponsor);
+      } catch {
+        // Table may not exist yet — manual patient records feature unavailable
+        setManualPatientRecords({});
+      }
 
       await fetchStatements();
     } finally {

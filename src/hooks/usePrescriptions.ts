@@ -150,7 +150,14 @@ export function usePrescriptions() {
   };
 
   const getPendingPrescriptions = (): Prescription[] => {
-    return prescriptions.filter(p => p.status === 'pending');
+    return prescriptions.filter(p => {
+      if (p.status !== 'pending') return false;
+      // Exclude prescriptions where ALL items are already dispensed
+      // (e.g. dispensed via the snap/PharmacySnapQueue path without
+      // updating the prescription status field).
+      if (p.items && p.items.length > 0 && p.items.every(item => item.dispensed)) return false;
+      return true;
+    });
   };
 
   return {

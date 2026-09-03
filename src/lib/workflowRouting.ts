@@ -31,13 +31,41 @@ export function workflowStationLabel(status: WorkflowRouteStatus) {
 }
 
 /**
+ * Snap intents that belong to the Emergency Episode billing track. Items on
+ * this track are billed and settled separately; they must never block the
+ * normal patient flow or move the patient between stations.
+ */
+const EMERGENCY_SNAP_INTENTS = ['emergency_episode', 'emergency_billing_draft', 'emergency_remainder'];
+
+function isEmergencySnap(snap: { emergency_episode_id?: string | null; intent?: string | null }): boolean {
+  return !!snap.emergency_episode_id || EMERGENCY_SNAP_INTENTS.includes(String(snap.intent ?? ''));
+}
+
+/**
+ * True when every snap linked to the invoice belongs to an Emergency Episode.
+ * Settling such an invoice is part of the separate emergency billing track and
+ * must never change the patient's workflow status.
+ */
+export async function isEmergencyOnlyInvoice(invoiceId: string): Promise<boolean> {
+  const { data: snaps } = await supabase
+    .from('snap_orders')
+    .select('emergency_episode_id, intent')
+    .eq('invoice_id', invoiceId)
+    .limit(25);
+  if (!snaps || snaps.length === 0) return false;
+  return snaps.every(isEmergencySnap);
+}
+
+/**
  * Determine the next station by checking what actually remains pending
  * for a patient's CURRENT open visit only. The original DB RPC
  * `patient_pending_workflow_station` checks ALL visits, which causes
  * stale items from old visits to route patients incorrectly.
  *
- * This frontend function queries snap_orders and invoices scoped to
- * the current open visit to determine the correct next station.
+ * This frontend function queries snap_orders, invoices, and lab_requests
+ * scoped to the current open visit to determine the correct next station.
+ * Emergency-episode snaps/invoices are excluded everywhere: they are a
+ * separate billing track that must not move or block the patient.
  */
 export async function getPendingWorkflowStation(patientId: string): Promise<PendingWorkflowStation | null> {
   // 1. Find the patient's current open visit
@@ -61,8 +89,8 @@ export async function getPendingWorkflowStation(patientId: string): Promise<Pend
   }
 
   // 2. Check for unfilled snap_orders for this visit.
-  // Exclude emergency episode snaps — those create a separate billing track
-  // that must never block normal patient flow routing.
+  //    Exclude emergency episode snaps — those create a separate billing track
+  //    that must never block normal patient flow routing.
   const { data: pendingSnaps } = await supabase
     .from('snap_orders')
     .select('target_station, status')
@@ -70,35 +98,46 @@ export async function getPendingWorkflowStation(patientId: string): Promise<Pend
     .eq('visit_id', openVisit.id)
     .in('status', ['pending_billing', 'awaiting_payment', 'paid'])
     .is('emergency_episode_id', null)
-    .limit(1);
+    .limit(10);
 
   if (pendingSnaps && pendingSnaps.length > 0) {
-    const station = pendingSnaps[0].target_station;
-    if (station === 'pharmacy') return 'at_pharmacy';
-    if (station === 'lab') return 'in_lab';
-    if (station === 'billing' || station === 'clinical_team') return 'awaiting_billing';
+    // Mirror patient_pending_workflow_station precedence: billing first,
+    // then cashier, then the paid work waiting at its target station.
+    // A pending_billing pharmacy order means the patient waits at Billing,
+    // not prematurely at the pharmacy.
+    if (pendingSnaps.some((row: any) => row.status === 'pending_billing')) return 'awaiting_billing';
+    if (pendingSnaps.some((row: any) => row.status === 'awaiting_payment')) return 'awaiting_payment';
+    if (pendingSnaps.some((row: any) => row.status === 'paid' && row.target_station === 'lab')) return 'in_lab';
+    if (pendingSnaps.some((row: any) => row.status === 'paid' && row.target_station === 'pharmacy')) return 'at_pharmacy';
   }
 
-  // 3. Check for unpaid invoices for this visit
+  // 3. Check for unpaid invoices for this visit.
+  //    Emergency-only invoices (emergency episode billing) must not block or
+  //    move the patient, so they are excluded here.
   const { data: unpaidInvoices } = await supabase
     .from('invoices')
     .select('id')
     .eq('patient_id', patientId)
     .eq('visit_id', openVisit.id)
     .in('status', ['pending', 'partial'])
-    .limit(1);
+    .limit(10);
 
   if (unpaidInvoices && unpaidInvoices.length > 0) {
-    return 'awaiting_payment';
+    for (const inv of unpaidInvoices) {
+      if (!(await isEmergencyOnlyInvoice(inv.id))) return 'awaiting_payment';
+    }
   }
 
-  // 4. Check for pending lab requests for this visit (not yet snap-converted)
+  // 4. Check for pending lab requests for this visit (not yet snap-converted).
+  //    Emergency lab requests are authorized/performed immediately on the
+  //    emergency track and must not route the patient into the normal lab queue.
   const { data: pendingLabs } = await supabase
     .from('lab_requests')
     .select('id')
     .eq('patient_id', patientId)
     .eq('visit_id', openVisit.id)
     .in('status', ['ordered', 'pending'])
+    .is('emergency_episode_id', null)
     .limit(1);
 
   if (pendingLabs && pendingLabs.length > 0) {
@@ -112,6 +151,8 @@ export async function getPendingWorkflowStation(patientId: string): Promise<Pend
 /**
  * Determine where a patient should go after an invoice is settled.
  * Scoped to the current visit to avoid stale cross-visit routing.
+ * Emergency-episode invoices return null — settling them never moves
+ * the patient between stations.
  */
 export async function nextStationForInvoice(
   invoiceId: string,
@@ -121,7 +162,7 @@ export async function nextStationForInvoice(
   // 1. Check if this is a clinical invoice (linked to a snap)
   const { data: snaps, error: snapError } = await supabase
     .from('snap_orders')
-    .select('target_station, status, visit_id')
+    .select('target_station, status, visit_id, emergency_episode_id, intent')
     .eq('invoice_id', invoiceId);
 
   if (snapError) throw new Error(snapError.message);
@@ -129,6 +170,12 @@ export async function nextStationForInvoice(
   // If no snaps are linked to this invoice, it is a custom bill.
   // Custom bills MUST NOT affect the patient's workflow status.
   if (!snaps || snaps.length === 0) {
+    return null;
+  }
+
+  // Emergency-episode invoices are a separate billing track. Settling them
+  // must never move the patient between stations.
+  if (snaps.every(isEmergencySnap)) {
     return null;
   }
 
@@ -146,9 +193,9 @@ export async function nextStationForInvoice(
 
   if (visitId) {
     // 3. Check for remaining unfilled snaps for THIS visit only.
-    // Exclude emergency episode snaps — they have their own billing track
-    // and must never keep a patient stuck at billing after normal orders
-    // are fully paid and dispensed.
+    //    Exclude emergency episode snaps — they have their own billing track
+    //    and must never keep a patient stuck at billing after normal orders
+    //    are fully paid and dispensed.
     const { data: remainingSnaps } = await supabase
       .from('snap_orders')
       .select('target_station, status')
@@ -157,18 +204,20 @@ export async function nextStationForInvoice(
       .in('status', ['pending_billing', 'awaiting_payment', 'paid'])
       .is('emergency_episode_id', null)
       .neq('invoice_id', invoiceId) // Exclude the invoice we just settled
-      .limit(1);
+      .limit(10);
 
     if (remainingSnaps && remainingSnaps.length > 0) {
-      const station = remainingSnaps[0].target_station;
-      if (station === 'pharmacy') return 'at_pharmacy';
-      if (station === 'lab') return 'in_lab';
-      if (station === 'billing' || station === 'clinical_team') return 'awaiting_billing';
+      // Mirror patient_pending_workflow_station precedence. A pending_billing
+      // order means the patient still waits at Billing, not at the target.
+      if (remainingSnaps.some((row: any) => row.status === 'pending_billing')) return 'awaiting_billing';
+      if (remainingSnaps.some((row: any) => row.status === 'awaiting_payment')) return 'awaiting_payment';
+      if (remainingSnaps.some((row: any) => row.status === 'paid' && row.target_station === 'lab')) return 'in_lab';
+      if (remainingSnaps.some((row: any) => row.status === 'paid' && row.target_station === 'pharmacy')) return 'at_pharmacy';
     }
 
     // 4. Check for other unpaid invoices for THIS visit.
-    // Exclude invoices that belong to emergency episodes — those are a
-    // separate billing track and must not keep the patient stuck at billing.
+    //    Exclude invoices that belong to emergency episodes — those are a
+    //    separate billing track and must not keep the patient stuck at billing.
     const { data: otherUnpaid } = await supabase
       .from('invoices')
       .select('id')
@@ -179,30 +228,21 @@ export async function nextStationForInvoice(
       .limit(10);
 
     if (otherUnpaid && otherUnpaid.length > 0) {
-      // Filter out invoices linked to emergency episode snaps
-      const nonEmergencyInvoiceIds = new Set<string>();
       for (const inv of otherUnpaid) {
-        const { data: invSnaps } = await supabase
-          .from('snap_orders')
-          .select('emergency_episode_id')
-          .eq('invoice_id', inv.id)
-          .limit(1);
-        if (!invSnaps || invSnaps.length === 0 || !invSnaps[0].emergency_episode_id) {
-          nonEmergencyInvoiceIds.add(inv.id);
-        }
-      }
-      if (nonEmergencyInvoiceIds.size > 0) {
-        return 'awaiting_payment';
+        if (!(await isEmergencyOnlyInvoice(inv.id))) return 'awaiting_payment';
       }
     }
   }
 
-  // 5. Check the targets for THIS invoice's snaps.
-  // Only consider non-emergency snaps for routing.
-  const nonEmergencySnaps = snaps.filter((row: any) => !row.emergency_episode_id);
-  const stations = nonEmergencySnaps.map((row: any) => row.target_station);
-  if (stations.includes('lab')) return 'in_lab';
-  if (stations.includes('pharmacy')) return 'at_pharmacy';
+  // 5. Check the targets for THIS invoice's non-emergency snaps. The invoice
+  //    was just settled, so paid snaps point at the station where the work
+  //    happens; anything still awaiting billing/payment keeps the patient at
+  //    that station.
+  const nonEmergencySnaps = snaps.filter((row: any) => !isEmergencySnap(row));
+  if (nonEmergencySnaps.some((row: any) => row.status === 'paid' && row.target_station === 'lab')) return 'in_lab';
+  if (nonEmergencySnaps.some((row: any) => row.status === 'paid' && row.target_station === 'pharmacy')) return 'at_pharmacy';
+  if (nonEmergencySnaps.some((row: any) => row.status === 'awaiting_payment')) return 'awaiting_payment';
+  if (nonEmergencySnaps.some((row: any) => row.status === 'pending_billing')) return 'awaiting_billing';
 
   // Nothing pending anywhere → patient is done with the clinical visit.
   return 'discharged';

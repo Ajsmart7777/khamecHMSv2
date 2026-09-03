@@ -27,7 +27,7 @@ import { paymentAuditLogger } from '@/lib/auditLogger';
 import { supabase } from '@/integrations/supabase/client';
 import { copayPercent, hasWallet, isSponsored, sponsorLabel, splitInvoice } from '@/lib/copay';
 import { PrintableReceiptDialog } from '@/components/receipts/PrintableReceiptDialog';
-import { nextStationForInvoice } from '@/lib/workflowRouting';
+import { nextStationForInvoice, workflowStationLabel } from '@/lib/workflowRouting';
 
 // Wallet-enabled accounts (walk-in cash + staff_family) can carry a shortfall
 // on their own balance. Sponsored/insured/staff settle via the sponsor.
@@ -81,7 +81,7 @@ async function settleInvoiceAtomic(params: {
 }
 
 export function CashierPanel() {
-  const { getPendingInvoices, invoices } = useInvoices();
+  const { getPendingInvoices, invoices, refreshInvoices } = useInvoices();
   const { patients, updatePatientStatus, refreshPatients, updatePatient } = usePatients() as any;
 
   const [query, setQuery] = useState('');
@@ -244,7 +244,7 @@ export function CashierPanel() {
             copay_amount: 0,
           });
           const nextStation = await nextStationForInvoice(inv.id, inv.patient_id);
-          await updatePatientStatus(inv.patient_id, nextStation);
+          if (nextStation) await updatePatientStatus(inv.patient_id, nextStation);
           done += 1;
         } catch (e) {
           // keep going — one bad invoice must not block the rest
@@ -353,10 +353,10 @@ export function CashierPanel() {
           copay_amount: 0,
         });
         const nextStation = await nextStationForInvoice(selected.id, selected.patient_id);
-        await updatePatientStatus(selected.patient_id, nextStation);
+        if (nextStation) await updatePatientStatus(selected.patient_id, nextStation);
         toast.success('Acknowledged — sent to Claims', {
           description: `${selected.invoice_number} · Sponsor covers ₦${remaining.toLocaleString()} · ${
-            `Patient routed to ${workflowStationLabel(nextStation)}`
+            nextStation ? `Patient routed to ${workflowStationLabel(nextStation)}` : 'Patient journey unchanged'
           }`,
         });
         setReceipt({

@@ -31,7 +31,7 @@ import { paymentAuditLogger } from '@/lib/auditLogger';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useCorporateAccounts, CorporateAccount } from '@/hooks/useCorporateAccounts';
 import { supabase } from '@/integrations/supabase/client';
-import { nextStationForInvoice } from '@/lib/workflowRouting';
+import { nextStationForInvoice, isEmergencyOnlyInvoice, type WorkflowRouteStatus } from '@/lib/workflowRouting';
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { SettleDischargeDialog } from '@/components/billing/SettleDischargeDialog';
 import { BillingSnapInbox } from '@/components/billing/BillingSnapInbox';
@@ -277,9 +277,14 @@ const Billing = () => {
         // invoices retain the normal Cashier/next-station workflow.
         const isCustomBill = validItems.length > 0 && validItems.every(item => item.category === 'general');
         if (!isCustomBill) {
-          const nextStatus = payViaCorporate
-            ? await nextStationForInvoice(invoice.id, selectedPatientId)
-            : 'awaiting_payment';
+          let nextStatus: WorkflowRouteStatus | null = null;
+          if (payViaCorporate) {
+            nextStatus = await nextStationForInvoice(invoice.id, selectedPatientId);
+          } else if (!(await isEmergencyOnlyInvoice(invoice.id))) {
+            // Emergency-episode invoices live on a separate billing track.
+            // Billing/settling them must never move the patient between stations.
+            nextStatus = 'awaiting_payment';
+          }
 
           if (nextStatus) {
             const statusUpdated = await updatePatientStatus(selectedPatientId, nextStatus);

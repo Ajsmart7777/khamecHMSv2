@@ -26,6 +26,7 @@ import { StorageMonitoring } from '@/components/admin/StorageMonitoring';
 import { PatientArchiveManager } from '@/components/admin/PatientArchiveManager';
 import { OperationalArchiveManager } from '@/components/admin/OperationalArchiveManager';
 import { ResetDemoDataDialog } from '@/components/admin/ResetDemoDataDialog';
+import { DatabaseMaintenancePanel } from '@/components/admin/DatabaseMaintenancePanel';
 import { useStaff } from '@/hooks/useStaff';
 import { StatsCard } from '@/components/dashboard/StatsCard';
 import { formatDistanceToNow } from 'date-fns';
@@ -246,6 +247,8 @@ const Admin = () => {
               </div>
             )}
           </div>
+
+          <DatabaseMaintenancePanel />
 
           <div className="bg-card rounded-xl border border-border p-4">
             <h3 className="font-semibold mb-4 flex items-center gap-2">

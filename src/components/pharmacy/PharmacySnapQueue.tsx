@@ -234,6 +234,7 @@ export function SnapFulfillDialog({
           .eq('visit_id', snap.visit_id)
           .eq('target_station', 'pharmacy')
           .eq('status', 'paid')
+          .is('emergency_episode_id', null)
           .neq('id', snap.id)
           .limit(1);
         if (!remainingPaid || remainingPaid.length === 0) {
@@ -290,6 +291,7 @@ export function SnapFulfillDialog({
             .eq('visit_id', snap.visit_id)
             .eq('target_station', 'pharmacy')
             .eq('status', 'paid')
+            .is('emergency_episode_id', null)
             .neq('id', snap.id)
             .limit(1);
 

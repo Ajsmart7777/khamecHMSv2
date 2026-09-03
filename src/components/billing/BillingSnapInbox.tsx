@@ -507,6 +507,8 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
     source_text: line.source_text ?? line.name,
     service_category: line.service_category ?? (line.category === 'lab' ? 'lab_test' : 'medication'),
   })), [snap.matched_items]);
+  const referenceMedCount = referenceLines.filter(line => line.service_category === 'medication').length;
+  const referenceLabCount = referenceLines.filter(line => line.service_category === 'lab_test').length;
   // Original emergency lines are reference-only. Billing starts with an empty
   // invoice list and decides how many billable lines to add.
   const [items, setItems] = useState<MatchedItem[]>([]);
@@ -527,6 +529,10 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
   const setQty = (index: number, qty: number) => updateLine(index, { qty: Math.max(1, qty) });
   const removeItem = (index: number) => setItems(prev => prev.filter((_, i) => i !== index));
   const total = items.reduce((sum, item) => sum + Number(item.unit_price || 0) * Math.max(1, Number(item.qty || 1)), 0);
+  const medicationTotal = items
+    .filter(item => item.service_category === 'medication')
+    .reduce((sum, item) => sum + Number(item.unit_price || 0) * Math.max(1, Number(item.qty || 1)), 0);
+  const labTestTotal = total - medicationTotal;
 
   useEffect(() => {
     const q = manualQuery.trim();
@@ -593,7 +599,7 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
       });
       if (error) throw error;
       toast.success('Invoice generated · waiting for cashier payment', {
-        description: 'All Emergency Episode lines were entered manually and one pending invoice was created.',
+        description: 'One combined invoice for this Emergency Episode was created for Cashier. Medication and Lab Test lines stay categorized for claims and sponsor reports.',
       });
       await onBilled();
       onClose();
@@ -616,19 +622,39 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
         <div className="grid md:grid-cols-2 gap-4">
           <div className="space-y-3">
             <div className="p-3 border-2 border-amber-300 rounded-lg bg-amber-50/60 dark:bg-amber-950/20 space-y-2">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <FileText className="h-4 w-4 text-amber-700" />
                 <p className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider">Original Emergency Order</p>
                 <Badge variant="outline" className="text-[10px]">Manual billing</Badge>
+                {referenceMedCount > 0 && (
+                  <Badge variant="outline" className="text-[10px] text-module-pharmacy">
+                    <Pill className="h-2.5 w-2.5 mr-1" />
+                    {referenceMedCount} medication{referenceMedCount === 1 ? '' : 's'}
+                  </Badge>
+                )}
+                {referenceLabCount > 0 && (
+                  <Badge variant="outline" className="text-[10px] text-module-laboratory">
+                    <Beaker className="h-2.5 w-2.5 mr-1" />
+                    {referenceLabCount} lab test{referenceLabCount === 1 ? '' : 's'}
+                  </Badge>
+                )}
               </div>
-              <p className="text-[11px] text-amber-800/80 dark:text-amber-200/80">This is the exact plain-text record entered by the clinical team for reference. It does not pre-fill invoice lines. Search the Pricelist to add as many billable lines as needed, or add a manual line.</p>
+              <p className="text-[11px] text-amber-800/80 dark:text-amber-200/80">This is the exact plain-text record entered by the clinical team for reference. It does not pre-fill invoice lines. Search the Pricelist to add as many billable lines as needed, or add a manual line — each line is categorized Medication or Lab Test.</p>
               <div className="bg-background rounded border border-amber-300/60 p-3 text-sm whitespace-pre-wrap break-words font-mono">
-                {referenceLines.map((line, index) => <div key={line.emergency_episode_item_id || index} className="mb-2 last:mb-0"><span className="text-muted-foreground mr-2">{index + 1}.</span>{line.source_text ?? line.name}</div>)}
+                {referenceLines.map((line, index) => (
+                  <div key={line.emergency_episode_item_id || index} className="mb-2 last:mb-0 flex items-start gap-2">
+                    {line.service_category === 'lab_test'
+                      ? <Beaker className="h-3.5 w-3.5 mt-0.5 text-module-laboratory shrink-0" />
+                      : <Pill className="h-3.5 w-3.5 mt-0.5 text-module-pharmacy shrink-0" />}
+                    <span className="text-muted-foreground mr-1 shrink-0">{index + 1}.</span>
+                    <span>{line.source_text ?? line.name}</span>
+                  </div>
+                ))}
               </div>
             </div>
             <div className="p-3 border rounded-lg bg-muted/20 space-y-2">
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Emergency Billing Rule</p>
-              <p className="text-xs text-muted-foreground">Emergency care is recorded before payment. This draft remains separate from normal laboratory or pharmacy orders and creates one pending invoice for Cashier.</p>
+              <p className="text-xs text-muted-foreground">Emergency care is recorded before payment. This draft stays separate from normal pharmacy/lab orders: the officer bills the lines he deems appropriate and ONE combined invoice is created for Cashier — it never moves the patient's station.</p>
             </div>
           </div>
 
@@ -687,9 +713,27 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
                   </div>
                 ))}
               </div>
-              <div className="p-2 border-t flex items-center justify-between">
-                <span className="text-sm font-medium">Total</span>
-                <span className="text-lg font-mono font-bold">{fmt(total)}</span>
+              <div className="p-2 border-t space-y-1.5">
+                {(medicationTotal > 0 || labTestTotal > 0) && (
+                  <>
+                    {medicationTotal > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-1.5 text-muted-foreground"><Pill className="h-3 w-3 text-module-pharmacy" /> Medications</span>
+                        <span className="font-mono font-semibold">{fmt(medicationTotal)}</span>
+                      </div>
+                    )}
+                    {labTestTotal > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="flex items-center gap-1.5 text-muted-foreground"><Beaker className="h-3 w-3 text-module-laboratory" /> Lab Tests</span>
+                        <span className="font-mono font-semibold">{fmt(labTestTotal)}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                <div className="flex items-center justify-between border-t pt-1.5">
+                  <span className="text-sm font-medium">Total (one invoice)</span>
+                  <span className="text-lg font-mono font-bold">{fmt(total)}</span>
+                </div>
               </div>
             </div>
           </div>

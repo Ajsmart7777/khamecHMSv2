@@ -95,7 +95,7 @@ export function AppSidebar({ isMobile = false, onNavigate }: AppSidebarProps) {
     <>
     <aside
       className={cn(
-        "h-screen bg-sidebar flex flex-col",
+        "h-screen bg-sidebar flex flex-col print:hidden",
         isMobile ? "w-full" : "fixed left-0 top-0 z-50 transition-all duration-300",
         !isMobile && (isCollapsed ? "w-20" : "w-64")
       )}

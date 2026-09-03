@@ -12,7 +12,7 @@ export function StationAlertOverlay() {
   if (alerts.length === 0) return null;
 
   return (
-    <div className="fixed inset-x-0 top-0 z-[100] flex flex-col items-center gap-2 p-2 sm:p-3 pointer-events-none">
+    <div className="fixed inset-x-0 top-0 z-[100] flex flex-col items-center gap-2 p-2 sm:p-3 pointer-events-none print:hidden">
       {alerts.slice(0, 3).map((a) => (
         <div
           key={a.id}

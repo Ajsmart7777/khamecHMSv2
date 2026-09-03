@@ -12,22 +12,22 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Search, Printer, FileText, BadgeCheck, ChevronRight, Lock, History, Loader2 } from 'lucide-react';
+import { Search, Printer, FileText, BadgeCheck, ChevronRight, Lock, History, Loader2, Wallet } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { PrintHeader } from '@/components/receipts/PrintHeader';
 import { HOSPITAL } from '@/lib/hospital';
 
 interface DeductionInvoice {
   id: string;
   invoice_number: string;
+  total_amount: number;
   paid_amount: number;
   paid_at: string | null;
   patient_id: string;
-  staff_sponsor_id: string;
+  staff_sponsor_id: string | null;
   notes: string | null;
   salary_deduction_batch_id: string | null;
-  is_salary_deduction?: boolean;
+  is_salary_deduction?: boolean | null;
   payment_method?: string | null;
 }
 
@@ -47,7 +47,8 @@ interface StaffGroup {
   name: string;
   employeeId: string;
   department: string;
-  total: number;
+  totalBilled: number;
+  total: number; // exact amount to deduct from salary (patient share)
   items: DeductionInvoice[];
 }
 
@@ -80,6 +81,44 @@ function withTimeout<T>(request: PromiseLike<T>, label: string): Promise<T> {
   });
 }
 
+const INVOICE_COLUMNS =
+  'id, invoice_number, total_amount, paid_amount, paid_at, patient_id, staff_sponsor_id, notes, salary_deduction_batch_id, is_salary_deduction, payment_method';
+
+/**
+ * The deployed settlement RPC writes payment_method = salary_deduction but does
+ * not always persist staff_sponsor_id (CockroachDB compatibility). The backend
+ * trigger backfills it on the same write, but this component must not depend on
+ * that trigger existing: any salary-deduction invoice whose sponsor id is still
+ * empty is resolved here from the staff_family_members link table so it always
+ * groups under the correct staff sponsor.
+ */
+async function linkMissingSponsors(rows: DeductionInvoice[]): Promise<DeductionInvoice[]> {
+  const missingIds = Array.from(
+    new Set(rows.filter(inv => !inv.staff_sponsor_id).map(inv => inv.patient_id)),
+  );
+  if (missingIds.length === 0) return rows;
+
+  const { data, error } = await supabase
+    .from('staff_family_members')
+    .select('patient_id, staff_id')
+    .in('patient_id', missingIds);
+  if (error || !data) return rows;
+
+  const staffByPatient = new Map<string, string>();
+  (data as Array<{ patient_id: string; staff_id: string | null }>).forEach(link => {
+    if (link.staff_id && !staffByPatient.has(link.patient_id)) {
+      staffByPatient.set(link.patient_id, link.staff_id);
+    }
+  });
+  if (staffByPatient.size === 0) return rows;
+
+  return rows.map(inv =>
+    inv.staff_sponsor_id || staffByPatient.get(inv.patient_id)
+      ? { ...inv, staff_sponsor_id: inv.staff_sponsor_id ?? staffByPatient.get(inv.patient_id) ?? null }
+      : inv,
+  );
+}
+
 export function StaffFamilyDeductions() {
   const [invoices, setInvoices] = useState<DeductionInvoice[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -93,6 +132,10 @@ export function StaffFamilyDeductions() {
   const { patients } = usePatients();
   const { staff } = useStaff();
 
+  // Resolved family-member names (context patients plus a targeted fetch for
+  // any invoice whose patient is not in the context list).
+  const [patientNames, setPatientNames] = useState<Record<string, string>>({});
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -100,16 +143,16 @@ export function StaffFamilyDeductions() {
         withTimeout(
           supabase
             .from('invoices')
-            .select('id, invoice_number, paid_amount, paid_at, patient_id, staff_sponsor_id, notes, salary_deduction_batch_id, is_salary_deduction, payment_method')
+            .select(INVOICE_COLUMNS)
             .eq('status', 'paid')
-            .order('paid_at', { ascending: false }),
+            .order('paid_at', { ascending: false }) as unknown as Promise<{ data: any; error: any }>,
           'Current deductions',
         ),
         withTimeout(
           supabase
             .from('staff_deduction_batches')
             .select('id, batch_number, period_month, period_year, total_amount, staff_count, invoice_count, closed_at')
-            .order('closed_at', { ascending: false }),
+            .order('closed_at', { ascending: false }) as unknown as Promise<{ data: any; error: any }>,
           'Deduction history',
         ),
       ]);
@@ -125,7 +168,7 @@ export function StaffFamilyDeductions() {
             || ['salary', 'salary_deduction'].includes(String(invoice.payment_method || '').toLowerCase())
           ))
           .filter(invoice => !invoice.salary_deduction_batch_id);
-        setInvoices(currentCycle);
+        setInvoices(await linkMissingSponsors(currentCycle));
       }
 
       if (batchRes.error) toast.error(`Failed to load deduction history: ${batchRes.error.message}`);
@@ -140,20 +183,54 @@ export function StaffFamilyDeductions() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  // Resolve family-member patient names for every bill in the cycle.
+  useEffect(() => {
+    if (invoices.length === 0) return;
+    const contextNames: Record<string, string> = {};
+    patients.forEach(p => {
+      contextNames[p.id] = `${p.first_name} ${p.last_name || ''}`.trim();
+    });
+    const missingIds = Array.from(new Set(invoices.map(inv => inv.patient_id)))
+      .filter(id => !contextNames[id]);
+    if (missingIds.length === 0) {
+      setPatientNames(prev => {
+        const merged = { ...prev, ...contextNames };
+        return Object.keys(merged).length === Object.keys(prev).length && Object.keys(prev).length > 0 ? prev : merged;
+      });
+      return;
+    }
+    let cancelled = false;
+    void supabase
+      .from('patients')
+      .select('id, first_name, last_name')
+      .in('id', missingIds)
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        const fetched: Record<string, string> = {};
+        (data || []).forEach((p: any) => {
+          fetched[p.id] = `${p.first_name} ${p.last_name || ''}`.trim();
+        });
+        setPatientNames(prev => ({ ...prev, ...contextNames, ...fetched }));
+      });
+    return () => { cancelled = true; };
+  }, [invoices, patients]);
+
   const loadBatch = async (batch: Batch) => {
     setSelectedBatch(batch);
     const { data, error } = await supabase
       .from('invoices')
-      .select('id, invoice_number, paid_amount, paid_at, patient_id, staff_sponsor_id, notes, salary_deduction_batch_id, is_salary_deduction, payment_method')
+      .select(INVOICE_COLUMNS)
       .eq('salary_deduction_batch_id', batch.id)
       .order('paid_at', { ascending: false });
     if (error) toast.error('Failed to load batch details');
-    else setBatchItems((data || []) as DeductionInvoice[]);
+    else setBatchItems(await linkMissingSponsors((data || []) as DeductionInvoice[]));
   };
 
   const patientName = (id: string) => {
-    const p = patients.find(pp => pp.id === id);
-    return p ? `${p.first_name} ${p.last_name || ''}`.trim() : 'Unknown patient';
+    const ctx = patients.find(pp => pp.id === id);
+    if (ctx) return `${ctx.first_name} ${ctx.last_name || ''}`.trim();
+    if (patientNames[id]) return patientNames[id];
+    return 'Unknown patient';
   };
 
   const groupBy = (list: DeductionInvoice[]): StaffGroup[] => {
@@ -167,12 +244,14 @@ export function StaffFamilyDeductions() {
           name: s ? `${s.firstName} ${s.lastName}` : 'Unknown staff',
           employeeId: s?.employeeId || '—',
           department: s?.department || '—',
+          totalBilled: 0,
           total: 0,
           items: [],
         });
       }
       const g = map.get(key)!;
       g.total += Number(inv.paid_amount || 0);
+      g.totalBilled += Number(inv.total_amount || 0);
       g.items.push(inv);
     });
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
@@ -185,14 +264,165 @@ export function StaffFamilyDeductions() {
     return groups.filter(g =>
       g.name.toLowerCase().includes(q) ||
       g.employeeId.toLowerCase().includes(q) ||
-      g.department.toLowerCase().includes(q)
+      g.department.toLowerCase().includes(q) ||
+      g.items.some(inv => patientName(inv.patient_id).toLowerCase().includes(q))
     );
-  }, [invoices, staff, search]);
+  }, [invoices, staff, search, patientNames, patients]);
 
+  const grandTotalBilled = currentGroups.reduce((s, g) => s + g.totalBilled, 0);
   const grandTotal = currentGroups.reduce((s, g) => s + g.total, 0);
+  const grandConcession = grandTotalBilled - grandTotal;
+  const grandBillCount = currentGroups.reduce((s, g) => s + g.items.length, 0);
   const batchGroups = useMemo(() => groupBy(batchItems), [batchItems, staff]);
 
-  const handlePrint = () => window.print();
+  /**
+   * Opens a dedicated print window containing ONLY the payroll schedule — a
+   * clean, self-contained document that never includes the app shell, so the
+   * print preview shows just this record.
+   */
+  const handlePrint = () => {
+    if (currentGroups.length === 0) return;
+
+    const dateCell = (d: string | null) => (d ? format(new Date(d), 'dd MMM yyyy') : '—');
+    const groupRows = currentGroups.map(g => {
+      const concession = Math.max(g.totalBilled - g.total, 0);
+      const bills = g.items.map(inv => {
+        const invConcession = Math.max(Number(inv.total_amount || 0) - Number(inv.paid_amount || 0), 0);
+        return (
+          '<tr class="bill-row">' +
+          `<td>${patientName(inv.patient_id)}<span class="muted">${inv.invoice_number} · ${dateCell(inv.paid_at)}</span></td>` +
+          `<td></td>` +
+          `<td></td>` +
+          `<td></td>` +
+          `<td class="num">${naira(inv.total_amount)}</td>` +
+          `<td class="num muted">${naira(invConcession)}</td>` +
+          `<td class="num strong">${naira(inv.paid_amount)}</td>` +
+          `<td></td>` +
+          '</tr>'
+        );
+      }).join('');
+      return (
+        '<tr class="staff-row">' +
+        `<td>${g.name}</td>` +
+        `<td class="mono">${g.employeeId}</td>` +
+        `<td>${g.department}</td>` +
+        `<td class="num">${g.items.length}</td>` +
+        `<td class="num">${naira(g.totalBilled)}</td>` +
+        `<td class="num">${naira(concession)}</td>` +
+        `<td class="num strong">${naira(g.total)}</td>` +
+        `<td></td>` +
+        '</tr>' +
+        bills
+      );
+    }).join('');
+
+    const printWindow = window.open('', '_blank', 'width=980,height=760');
+    if (!printWindow) {
+      toast.error('Pop-up blocked — allow pop-ups for this site to print.');
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Staff Family Medical Deductions — ${HOSPITAL.name}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: Arial, Helvetica, sans-serif; color: #111; padding: 24px; }
+            .sheet { max-width: 900px; margin: 0 auto; }
+            .masthead { text-align: center; border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 14px; }
+            .masthead h1 { font-size: 19px; letter-spacing: 0.4px; text-transform: uppercase; }
+            .masthead p { font-size: 10.5px; color: #333; line-height: 1.5; margin-top: 2px; }
+            h2 { text-align: center; font-size: 14px; text-transform: uppercase; margin: 10px 0 2px; }
+            .generated { text-align: center; font-size: 10.5px; color: #444; margin-bottom: 12px; }
+            table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+            th { border: 1px solid #222; background: #e5e5e5; padding: 5px 6px; text-align: left; font-size: 10px; text-transform: uppercase; }
+            th.num, td.num { text-align: right; }
+            th.center { text-align: center; }
+            td { border: 1px solid #777; padding: 5px 6px; vertical-align: top; }
+            tr { page-break-inside: avoid; }
+            tr.staff-row td { background: #eee; font-weight: 700; border-color: #333; }
+            tr.bill-row td { border-color: #ccc; color: #222; }
+            tr.bill-row td:first-child span { display: block; font-weight: normal; color: #555; font-size: 9.5px; }
+            tr.grand-row td { background: #e5e5e5; font-weight: 700; border-top: 2px solid #111; font-size: 11px; }
+            .mono { font-family: 'Courier New', monospace; font-size: 9.5px; }
+            .muted { color: #555; }
+            .num.strong { font-weight: 700; }
+            .note { font-size: 9.5px; color: #333; margin-top: 6px; line-height: 1.45; }
+            .signatures { display: flex; justify-content: space-between; gap: 36px; margin-top: 60px; font-size: 10.5px; }
+            .signature { flex: 1; border-top: 1px solid #111; padding-top: 4px; }
+            .footer { text-align: center; font-size: 9px; color: #555; margin-top: 34px; }
+            @media print {
+              body { padding: 0; }
+              @page { margin: 12mm 10mm; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="masthead">
+              <h1>${HOSPITAL.name}</h1>
+              <p>${HOSPITAL.address}</p>
+              <p>${HOSPITAL.rc}</p>
+              <p>${HOSPITAL.email} · ${HOSPITAL.phone}</p>
+            </div>
+            <h2>Staff Family Medical Deductions — Payroll Schedule</h2>
+            <p class="generated">Current cycle · generated ${format(new Date(), 'PPP p')}</p>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Staff Sponsor</th>
+                  <th>Emp ID</th>
+                  <th>Department</th>
+                  <th class="num">Family Bill</th>
+                  <th class="num">Billed (₦)</th>
+                  <th class="num">Concession 50% (₦)</th>
+                  <th class="num">To Deduct (₦)</th>
+                  <th class="center">Deducted ✓</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${groupRows}
+                <tr class="grand-row">
+                  <td colspan="3">GRAND TOTAL</td>
+                  <td class="num">${grandBillCount}</td>
+                  <td class="num">${naira(grandTotalBilled)}</td>
+                  <td class="num">${naira(grandConcession)}</td>
+                  <td class="num">${naira(grandTotal)}</td>
+                  <td></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <p class="note">
+              Every staff-family bill carries a 50% hospital concession. The <strong>To Deduct</strong> column is the
+              patient's share that was recorded for deduction from the sponsor's salary when the cashier chose salary
+              deduction at settlement.
+            </p>
+
+            <div class="signatures">
+              <div class="signature">Prepared by (Accountant)</div>
+              <div class="signature">Checked by</div>
+              <div class="signature">Approved by</div>
+            </div>
+
+            <p class="footer">${HOSPITAL.name} — Accounts Department</p>
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+                window.onafterprint = function() { window.close(); };
+              }, 200);              };
+          </script>
+
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   const handleClose = async () => {
     setClosing(true);
@@ -232,18 +462,19 @@ export function StaffFamilyDeductions() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-module-billing">
-                    <FileText className="h-5 w-5" />
+                    <Wallet className="h-5 w-5" />
                     Staff Family Deductions — Current Cycle
                   </CardTitle>
                   <CardDescription>
-                    Total owed per staff sponsor. Print this sheet, fill the payroll deduction column, then close the cycle.
+                    Every family bill settled by salary deduction, grouped under its staff sponsor. Print the sheet
+                    for payroll, then close the cycle.
                   </CardDescription>
                 </div>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={fetchAll} disabled={loading}>
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
                   </Button>
-                  <Button size="sm" onClick={handlePrint}>
+                  <Button size="sm" onClick={handlePrint} disabled={currentGroups.length === 0}>
                     <Printer className="h-4 w-4 mr-2" /> Print
                   </Button>
                   <Button
@@ -259,37 +490,46 @@ export function StaffFamilyDeductions() {
             </CardHeader>
 
             <CardContent>
-              <div className="hidden print:block mb-4">
-                <PrintHeader department="ACCOUNTS DEPARTMENT" />
-                <h3 className="text-center font-bold text-base mt-2">
-                  STAFF FAMILY MEDICAL DEDUCTIONS — PAYROLL SCHEDULE
-                </h3>
-                <p className="text-center text-xs text-muted-foreground">
-                  Generated {format(new Date(), 'PPP p')}
-                </p>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Family bills</p>
+                  <p className="text-lg font-bold">{grandBillCount}</p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Billed total</p>
+                  <p className="text-lg font-bold">{naira(grandTotalBilled)}</p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Hospital concession (50%)</p>
+                  <p className="text-lg font-bold text-success">{naira(grandConcession)}</p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">To deduct from salaries</p>
+                  <p className="text-lg font-bold text-destructive">{naira(grandTotal)}</p>
+                </div>
               </div>
 
-              <div className="relative mb-6 print:hidden">
+              <div className="relative mb-6">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by staff name, employee ID or department..."
+                  placeholder="Search by staff name, employee ID, department or family member..."
                   className="pl-9"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                 />
               </div>
 
-              <div className="border rounded-xl overflow-hidden print:border-none">
+              <div className="border rounded-xl overflow-hidden">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-10 print:hidden" />
+                      <TableHead className="w-10" />
                       <TableHead>Staff Sponsor</TableHead>
                       <TableHead>Employee ID</TableHead>
                       <TableHead>Department</TableHead>
                       <TableHead className="text-center">Bills</TableHead>
-                      <TableHead className="text-right">Total to Deduct</TableHead>
-                      <TableHead className="w-32 hidden print:table-cell">Deducted (✓)</TableHead>
+                      <TableHead className="text-right">Billed Total</TableHead>
+                      <TableHead className="text-right">To Deduct</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -300,79 +540,102 @@ export function StaffFamilyDeductions() {
                     ) : currentGroups.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-10 text-muted-foreground">
-                          No pending family deductions for this cycle. If a salary-deduction invoice was just settled, press Refresh.
+                          No pending family deductions for this cycle. If a salary-deduction invoice was just settled,
+                          press Refresh.
                         </TableCell>
                       </TableRow>
                     ) : (
-                      currentGroups.map(g => (
-                        <Fragment key={g.staffId}>
-                          <TableRow
-                            className="cursor-pointer hover:bg-muted/40"
-
-                            onClick={() => setExpanded(p => ({ ...p, [g.staffId]: !p[g.staffId] }))}
-                          >
-                            <TableCell className="print:hidden">
-                              <ChevronRight className={`h-4 w-4 transition-transform ${expanded[g.staffId] ? 'rotate-90' : ''}`} />
-                            </TableCell>
-                            <TableCell className="font-medium">{g.name}</TableCell>
-                            <TableCell className="font-mono text-xs">{g.employeeId}</TableCell>
-                            <TableCell className="text-sm">{g.department}</TableCell>
-                            <TableCell className="text-center">{g.items.length}</TableCell>
-                            <TableCell className="text-right font-bold text-destructive">{naira(g.total)}</TableCell>
-                            <TableCell className="hidden print:table-cell" />
-                          </TableRow>
-                          {expanded[g.staffId] && g.items.map(inv => (
-                            <TableRow key={inv.id} className="bg-muted/20 print:hidden">
-                              <TableCell />
-                              <TableCell className="text-xs pl-6">{patientName(inv.patient_id)}</TableCell>
-                              <TableCell className="font-mono text-xs">{inv.invoice_number}</TableCell>
-                              <TableCell className="text-xs">
-                                {inv.paid_at ? format(new Date(inv.paid_at), 'dd MMM yyyy') : '—'}
+                      currentGroups.map(g => {
+                        const isOpen = expanded[g.staffId] !== false; // open by default so every bill is visible
+                        return (
+                          <Fragment key={g.staffId}>
+                            <TableRow
+                              className="cursor-pointer hover:bg-muted/40"
+                              onClick={() => setExpanded(p => ({ ...p, [g.staffId]: !isOpen }))}
+                            >
+                              <TableCell>
+                                <ChevronRight className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
                               </TableCell>
-                              <TableCell />
-                              <TableCell className="text-right text-xs">{naira(inv.paid_amount)}</TableCell>
-                              <TableCell className="hidden print:table-cell" />
+                              <TableCell className="font-medium">{g.name}</TableCell>
+                              <TableCell className="font-mono text-xs">{g.employeeId}</TableCell>
+                              <TableCell className="text-sm">{g.department}</TableCell>
+                              <TableCell className="text-center">{g.items.length}</TableCell>
+                              <TableCell className="text-right">{naira(g.totalBilled)}</TableCell>
+                              <TableCell className="text-right font-bold text-destructive">{naira(g.total)}</TableCell>
                             </TableRow>
-                          ))}
-                        </Fragment>
-                      ))
+                            {isOpen && (
+                              <TableRow className="bg-muted/20">
+                                <TableCell />
+                                <TableCell colSpan={6} className="p-0">
+                                  <div className="px-3 py-2">
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow className="hover:bg-transparent">
+                                          <TableHead className="text-xs">Family Member</TableHead>
+                                          <TableHead className="text-xs">Invoice</TableHead>
+                                          <TableHead className="text-xs">Date</TableHead>
+                                          <TableHead className="text-xs text-right">Billed (₦)</TableHead>
+                                          <TableHead className="text-xs text-right">Concession (₦)</TableHead>
+                                          <TableHead className="text-xs text-right">To Deduct (₦)</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {g.items.map(inv => (
+                                          <TableRow key={inv.id} className="hover:bg-transparent">
+                                            <TableCell className="text-xs font-medium">
+                                              {patientName(inv.patient_id)}
+                                            </TableCell>
+                                            <TableCell className="font-mono text-[11px]">{inv.invoice_number}</TableCell>
+                                            <TableCell className="text-xs">
+                                              {inv.paid_at ? format(new Date(inv.paid_at), 'dd MMM yyyy') : '—'}
+                                            </TableCell>
+                                            <TableCell className="text-xs text-right">{naira(inv.total_amount)}</TableCell>
+                                            <TableCell className="text-xs text-right text-success">
+                                              {naira(Math.max(Number(inv.total_amount || 0) - Number(inv.paid_amount || 0), 0))}
+                                            </TableCell>
+                                            <TableCell className="text-xs text-right font-semibold text-destructive">
+                                              {naira(inv.paid_amount)}
+                                            </TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Fragment>
+                        );
+                      })
                     )}
                     {currentGroups.length > 0 && (
                       <TableRow className="bg-muted/50 font-bold">
-                        <TableCell className="print:hidden" />
+                        <TableCell />
                         <TableCell colSpan={4} className="text-right">Grand Total:</TableCell>
+                        <TableCell className="text-right">{naira(grandTotalBilled)}</TableCell>
                         <TableCell className="text-right text-destructive text-lg">{naira(grandTotal)}</TableCell>
-                        <TableCell className="hidden print:table-cell" />
                       </TableRow>
                     )}
                   </TableBody>
                 </Table>
               </div>
 
-              <div className="mt-10 hidden print:block">
-                <div className="flex justify-between gap-12 text-xs">
-                  <div className="flex-1 border-t pt-1">Prepared by (Accountant)</div>
-                  <div className="flex-1 border-t pt-1">Checked by</div>
-                  <div className="flex-1 border-t pt-1">Approved by</div>
+              <div className="mt-6 bg-primary/5 border border-primary/20 rounded-lg p-4 flex gap-3">
+                <BadgeCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-semibold text-primary">How this works</p>
+                  <p className="text-muted-foreground mt-1">
+                    Every staff-family bill gets a <strong>50% hospital concession</strong> — for a ₦5,000 bill the
+                    patient pays ₦2,500 and the hospital forgives ₦2,500. When the cashier settles that share as a
+                    <strong> salary deduction</strong>, the exact patient share appears here under the staff sponsor,
+                    next to the family member it was billed for. Print the sheet, enter each amount in the payroll
+                    deductions column, then press <strong>Close Cycle</strong> — the bills are locked, removed from
+                    this list and kept under History. The next month starts from zero.
+                  </p>
                 </div>
-                <p className="text-center text-[10px] text-muted-foreground mt-6">
-                  {HOSPITAL.name} — Accounts Department
-                </p>
               </div>
             </CardContent>
           </Card>
-
-          <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 flex gap-3 print:hidden">
-            <BadgeCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <p className="font-semibold text-primary">How this works</p>
-              <p className="text-muted-foreground mt-1">
-                Every family bill paid by salary deduction accumulates here per staff sponsor. Print the sheet,
-                enter each amount in the payroll deductions column, then press <strong>Close Cycle</strong> — the
-                bills are locked, removed from this list and kept under History. The next month starts from zero.
-              </p>
-            </div>
-          </div>
         </TabsContent>
 
         <TabsContent value="history" className="space-y-6">
@@ -468,8 +731,8 @@ export function StaffFamilyDeductions() {
           <AlertDialogHeader>
             <AlertDialogTitle>Close this deduction cycle?</AlertDialogTitle>
             <AlertDialogDescription>
-              {invoices.length} bill(s) totalling {naira(grandTotal)} across {currentGroups.length} staff will be
-              locked as deducted and moved to History. New bills will start a fresh cycle. Make sure you have
+              {invoices.length} bill(s) totalling {naira(grandTotal)} to deduct across {currentGroups.length} staff
+              will be locked as deducted and moved to History. New bills will start a fresh cycle. Make sure you have
               printed the schedule first.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -480,7 +743,6 @@ export function StaffFamilyDeductions() {
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
-
       </AlertDialog>
     </div>
   );

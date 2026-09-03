@@ -283,6 +283,9 @@ export function CashierPanel() {
     ? Math.max(split.copayAmount - alreadyPaid, 0)
     : Math.max(invoiceTotal - alreadyPaid, 0);
   const fullCover = sponsored && split.copayAmount === 0;
+  // Staff-family copays are NOT sponsor claims: the covered 50% is a hospital
+  // concession that is written off, never routed to the Claims queue.
+  const isStaffFamily = selectedPatient?.account_type === 'staff_family';
 
   const cash = Math.max(Number(cashAmount) || 0, 0);
   const pos = Math.max(Number(posAmount) || 0, 0);
@@ -432,6 +435,8 @@ export function CashierPanel() {
 
       const notes = salDed > 0
         ? `Salary deduction of ₦${salDed.toLocaleString()} recorded · ${sponsorLabel(selectedPatient)}`
+        : isStaffFamily
+        ? `Staff family share collected · 50% hospital concession applied · ${sponsorLabel(selectedPatient)}`
         : sponsored
         ? `Copay collected; sponsor claim routed to Claims · ${sponsorLabel(selectedPatient)}`
         : shortfall > 0
@@ -516,10 +521,13 @@ export function CashierPanel() {
       if (salDed > 0) parts.push(`₦${salDed.toLocaleString()} Salary Deduction`);
       if (!sponsored && shortfall > 0) parts.push(`₦${shortfall.toLocaleString()} owed on balance`);
       if (!sponsored && overpay > 0) parts.push(`₦${overpay.toLocaleString()} credited to wallet`);
-      if (sponsored) parts.push(`sponsor ₦${(invoiceTotal - split.copayAmount).toLocaleString()} → Claims`);
+      if (isStaffFamily) parts.push(`hospital concession ₦${(invoiceTotal - split.copayAmount).toLocaleString()} (50%)`);
+      if (sponsored && !isStaffFamily) parts.push(`sponsor ₦${(invoiceTotal - split.copayAmount).toLocaleString()} → Claims`);
 
       const successMessage = salDed > 0 && cash === 0 && bal === 0
         ? 'Salary deduction recorded'
+        : isStaffFamily
+        ? 'Staff Family share collected'
         : sponsored
         ? 'Copay collected — sent to Claims'
         : overpay > 0 
@@ -820,15 +828,17 @@ export function CashierPanel() {
                   <span className="font-semibold">₦{invoiceTotal.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Sponsor covers ({100 - split.copayPct}%)</span>
+                  <span className="text-muted-foreground">{isStaffFamily ? `Hospital concession (${100 - split.copayPct}%)` : `Sponsor covers (${100 - split.copayPct}%)`}</span>
                   <span className="font-semibold text-primary">₦{split.coveredAmount.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between border-t border-primary/20 pt-1">
-                  <span className="text-muted-foreground">Patient copay ({split.copayPct}%)</span>
+                  <span className="text-muted-foreground">{isStaffFamily ? 'Patient share (50%)' : `Patient copay (${split.copayPct}%)`}</span>
                   <span className="font-bold">₦{split.copayAmount.toLocaleString()}</span>
                 </div>
                 <p className="pt-1 text-[11px] text-muted-foreground">
-                  {fullCover
+                  {isStaffFamily
+                    ? 'Staff Family bills carry a 50% hospital concession — the other 50% is the patient share to collect here. Nothing is sent to Claims.'
+                    : fullCover
                     ? 'No cash to collect. Acknowledge to send the invoice to the Claims queue.'
                     : 'Collect only the copay. The sponsor portion is auto-routed to Claims after settle.'}
                 </p>
@@ -851,6 +861,7 @@ export function CashierPanel() {
                       value={cashAmount}
                       onChange={(e) => setCashAmount(e.target.value)}
                       placeholder="0"
+                      disabled={isSalaryDeduction}
                       className="h-10 border-success/30 focus-visible:ring-success"
                     />
                   </div>
@@ -864,6 +875,7 @@ export function CashierPanel() {
                       value={posAmount}
                       onChange={(e) => setPosAmount(e.target.value)}
                       placeholder="0"
+                      disabled={isSalaryDeduction}
                       className="h-10 border-blue-500/30 focus-visible:ring-blue-500"
                     />
                   </div>
@@ -877,6 +889,7 @@ export function CashierPanel() {
                       value={transferAmount}
                       onChange={(e) => setTransferAmount(e.target.value)}
                       placeholder="0"
+                      disabled={isSalaryDeduction}
                       className="h-10 border-purple-500/30 focus-visible:ring-purple-500"
                     />
                   </div>
@@ -886,7 +899,8 @@ export function CashierPanel() {
                   <div className={`p-3 rounded-lg border transition-all ${useBalance ? 'bg-success/5 border-success/40' : 'bg-muted/30 border-border'}`}>
                     <label className="flex items-center gap-2 cursor-pointer mb-2">
                       <Checkbox
-                        checked={useBalance}
+                        checked={useBalance && !isSalaryDeduction}
+                        disabled={isSalaryDeduction}
                         onCheckedChange={(v) => setUseBalance(!!v)}
                       />
                       <PiggyBank className="h-4 w-4 text-success" />
@@ -928,6 +942,10 @@ export function CashierPanel() {
                         onCheckedChange={(v) => {
                           setIsSalaryDeduction(!!v);
                           if (v) {
+                            // Policy: the patient's full remaining share (50%
+                            // of the billed total after the staff-family
+                            // concession) is what gets deducted from the
+                            // sponsor's salary — never a partial amount.
                             setSalaryDeductionAmount(String(outstanding));
                             setCashAmount('0');
                             setPosAmount('0');
@@ -947,26 +965,22 @@ export function CashierPanel() {
                       </span>
                     </label>
                     <p className="text-[10px] text-muted-foreground ml-6 leading-tight">
-                      Staff Family members get a 50% discount. Deduct the remaining 50% from the sponsor's salary.
+                      Staff Family members get a <strong>50% hospital concession</strong> on every bill.
+                      {invoiceTotal > 0 && (
+                        <> Billed ₦{invoiceTotal.toLocaleString()} → concession ₦{split.coveredAmount.toLocaleString()} → patient pays{' '}
+                          <span className="text-warning font-semibold">₦{split.copayAmount.toLocaleString()}</span>.
+                        </>
+                      )}
+                      {isSalaryDeduction && (
+                        <> This full patient share is recorded for deduction from the sponsor's salary.</>
+                      )}
                     </p>
                   </div>
                   {isSalaryDeduction && (
-                    <div className="w-32 animate-in fade-in slide-in-from-right-1 duration-200">
-                      <p className="text-[10px] text-muted-foreground mb-1 uppercase font-semibold text-right">
-                        Max: ₦{outstanding.toLocaleString()}
-                      </p>
-                      <Input
-                        type="number"
-                        value={salaryDeductionAmount}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setSalaryDeductionAmount(e.target.value);
-                          if (val <= outstanding) {
-                            setCashAmount(String(outstanding - val));
-                          }
-                        }}
-                        className="h-9 border-warning/30 focus-visible:ring-warning"
-                      />
+                    <div className="w-44 shrink-0 rounded-md border border-warning/40 bg-background/60 px-3 py-2 text-right animate-in fade-in slide-in-from-right-1 duration-200">
+                      <p className="text-[10px] text-muted-foreground uppercase font-semibold">To deduct from salary</p>
+                      <p className="font-bold text-warning text-lg leading-tight">₦{outstanding.toLocaleString()}</p>
+                      <p className="text-[9px] text-muted-foreground">exact patient share · not editable</p>
                     </div>
                   )}
                 </div>
@@ -1099,7 +1113,9 @@ export function CashierPanel() {
                 : salDed > 0
                 ? 'Confirm Mixed Payment'
                 : sponsored
-                ? 'Collect Copay & Send to Claims'
+                ? isStaffFamily
+                  ? salDed === outstanding ? 'Confirm Salary Deduction' : 'Collect Staff Family Share'
+                  : 'Collect Copay & Send to Claims'
                 : shortfall > 0
                 ? applied === 0 
                   ? 'Confirm ₦0 (Buy on Credit)'

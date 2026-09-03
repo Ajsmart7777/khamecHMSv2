@@ -30,14 +30,14 @@ export function MainLayout({ children, title, subtitle }: MainLayoutProps) {
         </SheetContent>
       </Sheet>
 
-      <div className="lg:pl-64 transition-all duration-300">
+      <div className="lg:pl-64 transition-all duration-300 print:pl-0">
         <TopBar 
           title={title} 
           subtitle={subtitle} 
           onMenuClick={() => setMobileMenuOpen(true)}
           showMenuButton
         />
-        <main className="p-3 sm:p-4 md:p-6">
+        <main className="p-3 sm:p-4 md:p-6 print:p-0">
           {children}
         </main>
       </div>

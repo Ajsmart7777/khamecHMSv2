@@ -154,9 +154,9 @@ class CockroachQueryBuilder {
 
 export function createRealtimeChannel(_topic: string) {
   return {
-    on: function() { return this; },
-    subscribe: function() { return this; },
-    unsubscribe: function() {}
+    on: function(..._args: any[]) { return this; },
+    subscribe: function(..._args: any[]) { return this; },
+    unsubscribe: function(..._args: any[]) {}
   };
 }
 
@@ -260,9 +260,9 @@ export const supabase = {
     })
   },
   channel: () => ({
-    on: function() { return this; },
-    subscribe: function() { return this; },
-    unsubscribe: function() {}
+    on: function(..._args: any[]) { return this; },
+    subscribe: function(..._args: any[]) { return this; },
+    unsubscribe: function(..._args: any[]) {}
   }),
-  removeChannel: () => {}
+  removeChannel: (..._args: any[]) => {}
 };

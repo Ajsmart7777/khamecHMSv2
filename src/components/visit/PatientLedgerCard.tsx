@@ -1,3 +1,4 @@
+// Order-centric patient ledger.
 import { useEffect, useMemo, useState } from 'react';
 import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
@@ -56,6 +57,7 @@ const STATION_TONE: Record<string, string> = {
 
 const naira = (n: number | null | undefined) =>
   n == null ? '' : `₦${Number(n).toLocaleString()}`;
+
 
 // ---------- classification & deltas ----------
 type SnapSub =
@@ -179,63 +181,13 @@ const SUB_TONE: Record<string, string> = {
   discharge: 'bg-emerald-50 text-emerald-700 border-emerald-200',
 };
 
-type StoryStageKey = 'checkin' | 'admission' | 'orders' | 'ward' | 'discharge';
-
-const STORY_STAGES: { key: StoryStageKey; number: string; title: string; description: string }[] = [
-  { key: 'checkin', number: '01', title: 'Check-in & consultation', description: 'Registration, initial assessment, and consultation charges' },
-  { key: 'admission', number: '02', title: 'Clinical decision & admission', description: 'Treatment decision and movement to the ward' },
-  { key: 'orders', number: '03', title: 'Orders, pharmacy & laboratory', description: 'Clinical orders, fulfilment, and linked billing' },
-  { key: 'ward', number: '04', title: 'Ward stay & clinical notes', description: 'Observations, notes, and supporting evidence' },
-  { key: 'discharge', number: '05', title: 'Discharge & final settlement', description: 'Final ward charges, payment, and discharge outcome' },
-];
-
-function invoiceStoryStage(row: LedgerRow): StoryStageKey {
-  const invoiceText = [
-    row.title,
-    ...(Array.isArray(row.data?.items) ? row.data.items.map((item: any) => item.description ?? item.item_name ?? '') : []),
-  ].join(' ').toLowerCase();
-
-  if (/(registration|consultation)/.test(invoiceText)) return 'checkin';
-  if (/(bed charge|bed day|ward|admission fee|room charge)/.test(invoiceText)) return 'discharge';
-  return 'orders';
-}
-
-function storyStageForRow(row: LedgerRow, invoiceStages: Map<string, StoryStageKey>): StoryStageKey {
-  if (row.kind === 'invoice') return invoiceStoryStage(row);
-  if (row.kind === 'payment') return invoiceStages.get(String(row.data?.ref ?? '')) ?? 'orders';
-  if (row.kind === 'discharge' || row.subkind === 'discharge') return 'discharge';
-  if (row.kind === 'admission' || row.subkind === 'admission' || row.subkind === 'treatment') return 'admission';
-  if (['rx', 'lab_request', 'lab_result', 'dispense'].includes(String(row.subkind))) return 'orders';
-  if (row.subkind === 'vitals_first') return 'checkin';
-  return 'ward';
-}
-
-function narrativeSections(rows: LedgerRow[]) {
-  const invoiceStages = new Map<string, StoryStageKey>();
-  rows.forEach(row => {
-    if (row.kind === 'invoice') invoiceStages.set(String(row.data?.invoice_number ?? ''), invoiceStoryStage(row));
-  });
-
-  return STORY_STAGES.map(stage => ({
-    stage,
-    rows: rows
-      .filter(row => storyStageForRow(row, invoiceStages) === stage.key)
-      .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime()),
-  })).filter(section => section.rows.length > 0);
-}
-
 type LinkedOrderGroup = {
   key: string;
   parent: LedgerRow;
   rows: LedgerRow[];
 };
 
-const ORDER_ROW_SUBKINDS = new Set(['rx', 'lab_request', 'lab_result', 'dispense', 'emergency_episode']);
-
-function linkedOrderRole(row: LedgerRow): string {
-  const source = row.data?.source_role ?? row.station;
-  return String(source).replace(/_/g, ' ');
-}
+const ORDER_ROW_SUBKINDS = new Set(['rx', 'lab_request', 'lab_result', 'dispense', 'emergency_episode', 'treatment']);
 
 function linkedOrderText(row: LedgerRow): string {
   const snap = row.data ?? {};
@@ -286,6 +238,9 @@ function buildLinkedOrderGroups(rows: LedgerRow[]): { groups: LinkedOrderGroup[]
   rows.forEach(row => {
     if (row.kind !== 'snap' || !ORDER_ROW_SUBKINDS.has(String(row.subkind))) return;
     const snap = row.data ?? {};
+    // The Emergency Episode billing draft is already represented by the
+    // episode's own group; it must not surface as an extra standalone order.
+    if (snap.emergency_episode_id && (snap.intent === 'emergency_billing_draft' || String(snap.ocr_text ?? '').startsWith('EMERGENCY_EPISODE:'))) return;
     const key = snap.emergency_episode_id
       ? `order:emergency:${snap.emergency_episode_id}`
       : `order:${String(snap.parent_snap_id || snap.order_parent_id || snap.id || row.id)}`;
@@ -335,35 +290,645 @@ function buildLinkedOrderGroups(rows: LedgerRow[]): { groups: LinkedOrderGroup[]
   };
 }
 
-function LinkedOrderGroupView({
-  group, thumbs, attachmentText, onOpenImage, patient,
+// ---------------------------------------------------------------------------
+// Order-centric ledger: ONE ORDER = ONE CARD.
+//
+// Every clinical order is presented as a single row/card:
+//
+//   LEFT   · Billed items · Payment · Dispensed / Result   (what happened to it)
+//   CENTER · The order itself: typed text OR the original snapshot
+//   RIGHT  · Date · Time · Staff · Role                    (who did it, when)
+//
+// Rows that do not belong to an order (vitals, admission/discharge, card
+// attachments, custom bills, wallet movements) remain visible as compact
+// standalone events, interleaved chronologically so the whole card reads as a
+// single patient journey.
+// ---------------------------------------------------------------------------
+
+const ORDER_KIND_META: Record<string, { title: string; badge: string; accent: string }> = {
+  pharmacy: { title: 'Pharmacy Order', badge: 'PHARMACY', accent: 'bg-emerald-600' },
+  lab: { title: 'Laboratory Order', badge: 'LABORATORY', accent: 'bg-purple-600' },
+  treatment: { title: 'Treatment Order', badge: 'TREATMENT', accent: 'bg-sky-600' },
+  emergency_med: { title: 'Emergency Medication', badge: 'EMERGENCY · MED', accent: 'bg-amber-600' },
+  emergency_lab: { title: 'Emergency Laboratory', badge: 'EMERGENCY · LAB', accent: 'bg-amber-600' },
+  emergency_episode: { title: 'Emergency Episode', badge: 'EMERGENCY', accent: 'bg-amber-600' },
+};
+
+const ORDER_KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  pharmacy: Pill,
+  lab: FlaskConical,
+  treatment: Stethoscope,
+  emergency_med: Pill,
+  emergency_lab: FlaskConical,
+  emergency_episode: AlertTriangle,
+};
+
+function kindForOrderRow(row: LedgerRow): string {
+  const snap = row.data ?? {};
+  const sub = String(row.subkind ?? '');
+  const target = String(snap.target_station ?? '').toLowerCase();
+  const orderType = String(snap.order_type ?? '').toLowerCase();
+  const emergency = !!(snap.emergency_episode_id || snap.order_parent_id?.startsWith('order:emergency:') || row.id.startsWith('emergency-item-'));
+  if (emergency) {
+    const isLab = sub === 'lab_request' || target === 'lab' || orderType === 'lab';
+    return isLab ? 'emergency_lab' : 'emergency_med';
+  }
+  if (sub === 'lab_request' || target === 'lab' || orderType === 'lab' || orderType === 'lab_result') return 'lab';
+  if (sub === 'dispense') return 'pharmacy';
+  if (sub === 'rx' || target === 'pharmacy' || orderType === 'prescription') return 'pharmacy';
+  if (sub === 'treatment' || orderType === 'treatment') return 'treatment';
+  if (row.kind === 'invoice') return 'other';
+  return 'treatment';
+}
+
+function friendlyRole(raw: string | null | undefined): string {
+  const r = String(raw ?? '').replace(/[_-]/g, ' ').trim().toLowerCase();
+  if (!r) return 'Clinical Staff';
+  const map: Record<string, string> = {
+    reception: 'Receptionist', receptionist: 'Receptionist',
+    nurse: 'Nurse',
+    doctor: 'Doctor', doctor1: 'Doctor', doctor2: 'Doctor', clinical_team: 'Clinical Team',
+    lab: 'Laboratory Staff', lab_tech: 'Laboratory Staff',
+    pharmacy: 'Pharmacist', pharmacist: 'Pharmacist',
+    billing: 'Billing Officer', cashier: 'Cashier', accountant: 'Accountant',
+    admin: 'Admin',
+  };
+  return map[r] ?? (String(raw).replace(/[_-]/g, ' ') || 'Clinical Staff');
+}
+
+// Tiny module-level staff cache keyed by auth user id (name + friendly role).
+// The staff table is only readable by admin/billing accounts; viewers without
+// access simply fall back to the role label carried by the event itself.
+const staffCache = new Map<string, { name: string; role: string } | null>();
+let staffFetch: Promise<void> | null = null;
+function preloadStaffNames() {
+  if (staffFetch) return staffFetch;
+  staffFetch = (async () => {
+    try {
+      const { data } = await supabase.from('staff').select('auth_user_id, first_name, last_name, role');
+      (data ?? []).forEach((s: any) => {
+        if (!s.auth_user_id) return;
+        staffCache.set(String(s.auth_user_id), {
+          name: [s.first_name, s.last_name].filter(Boolean).join(' '),
+          role: friendlyRole(s.role),
+        });
+      });
+    } catch {
+      // staff is unreadable for this role — role labels still show
+    }
+  })();
+  return staffFetch;
+}
+function staffInfo(userId: string | null | undefined): { name: string | null; role: string | null } {
+  if (!userId) return { name: null, role: null };
+  const info = staffCache.get(String(userId));
+  return info ? { name: info.name, role: info.role } : { name: null, role: null };
+}
+
+function extractInvoiceItems(inv: any): any[] {
+  const all = Array.isArray(inv.invoice_items) ? inv.invoice_items : [];
+  return all.filter((it: any) =>
+    it.dispensing_status !== 'unavailable' &&
+    it.dispensing_status !== 'refund_requested' &&
+    it.dispensing_status !== 'refund_pending' &&
+    it.dispensing_status !== 'refunded' &&
+    it.dispensing_status !== 'not_given',
+  );
+}
+
+function orderFinances(group: LinkedOrderGroup) {
+  const invoices = group.rows.filter(r => r.kind === 'invoice');
+  const payments = group.rows.filter(r => r.kind === 'payment');
+  const parentData = group.parent?.data ?? {};
+  const snapInvoiceId = parentData.invoice_id;
+  const matched = Array.isArray(parentData.matched_items) ? parentData.matched_items.filter((m: any) => Number(m.qty || 1) > 0) : [];
+  const invoice = snapInvoiceId
+    ? invoices.find(i => String(i.data?.id) === String(snapInvoiceId)) ?? invoices[0]
+    : invoices[0];
+  const billed = !!invoice || (Array.isArray(parentData.matched_items) && parentData.matched_items.length > 0);
+  const paidAmount = invoice ? Number(invoice.data?.paid_amount ?? 0) : 0;
+  const totalAmount = invoice ? Number(invoice.data?.total_amount ?? 0) : 0;
+  const paid = paidAmount > 0 || ['paid', 'settled'].includes(String(invoice?.data?.status ?? '')) || payments.some(p => String(p.subkind) === 'receipt_full');
+  return { invoices, payments, invoice, billed, paid, paidAmount, totalAmount, matched };
+}
+
+function orderCompletions(group: LinkedOrderGroup) {
+  const parentData = group.parent?.data ?? {};
+  const snapStatus = String(parentData.status ?? '');
+  // Pharmacy
+  const dispenseRows = group.rows.filter(r => String(r.subkind) === 'dispense');
+  const invoiceDispensed = (group.rows.filter(r => r.kind === 'invoice')
+    .flatMap(r => extractInvoiceItems(r.data ?? {}))
+    .some((it: any) => String(it.dispensing_status ?? '') === 'dispensed'));
+  const dispensed =
+    snapStatus === 'fulfilled' || snapStatus === 'dispensed' ||
+    dispenseRows.length > 0 || invoiceDispensed;
+  const dispensedAt = dispenseRows[0]?.at ?? parentData.fulfilled_at ?? parentData.updated_at ?? null;
+  // Laboratory results. Besides dedicated lab_result rows, the laboratory
+  // returns results as snap rows that reuse order_type 'lab' with status
+  // 'returned' and link back to the original order through parent_snap_id.
+  // Both shapes must count as the order's result or the card stays stuck on
+  // "Result pending" after the result was actually returned.
+  const resultRows = group.rows.filter(r =>
+    String(r.subkind) === 'lab_result' ||
+    (r.kind === 'snap' && String(r.data?.order_type ?? '').toLowerCase() === 'lab_result') ||
+    (r.kind === 'snap' &&
+      String(r.data?.status ?? '').toLowerCase() === 'returned' &&
+      (r.data?.result_text || r.data?.photo_path)),
+  );
+  let resultText = resultRows.map(r => r.data?.result_text ?? r.data?.note ?? '').filter(Boolean)[0] ?? null;
+  let resultPhoto = resultRows.map(r => r.data?.photo_path ?? null).find(Boolean) ?? null;
+  // Fallback rows can carry the lab request's results JSON serialised as plain
+  // text (photo results in particular). Unpack it so the Result lane shows the
+  // captured image with the typed text instead of a raw JSON blob.
+  if (resultPhoto == null && resultText && String(resultText).trim().startsWith('{')) {
+    try {
+      const parsed: any = JSON.parse(resultText);
+      if (parsed && typeof parsed === 'object') {
+        resultText = String(parsed.result_text || parsed.note || '') || null;
+        resultPhoto = parsed.photo_path ?? null;
+      }
+    } catch {
+      // Not JSON — keep the original text as-is.
+    }
+  }
+  const resultAt = resultRows[0]?.at ?? null;
+  const hasResult = resultRows.length > 0;
+  return { dispensed, dispensedAt, resultRows, resultText, resultPhoto, resultAt, hasResult };
+}
+
+function CardMeta({ row, label }: { row: LedgerRow; label?: string }) {
+  const snap = row.data ?? {};
+  const createdBy = snap.created_by ?? snap.billed_by ?? snap.fulfilled_by ?? null;
+  const info = staffInfo(createdBy);
+  const role = info.role ?? friendlyRole(snap.original_sender_role ?? snap.source_role ?? row.station);
+  void label;
+  return (
+    <div className="flex md:flex-col items-center md:items-end gap-x-3 gap-y-1 md:gap-y-1.5 md:text-right flex-wrap justify-between md:justify-start">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Date / Staff</div>
+      <div className="flex items-baseline gap-2 md:gap-1.5 md:flex-col md:items-end">
+        <span className="text-sm font-bold uppercase tracking-wide">
+          {format(new Date(row.at), 'dd MMM yyyy')}
+        </span>
+        <span className="text-xs font-mono text-muted-foreground">
+          {format(new Date(row.at), 'HH:mm')}
+        </span>
+      </div>
+      {info.name ? (
+        <span className="text-xs font-semibold text-foreground">{info.name}</span>
+      ) : null}
+      <span className="px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wide bg-muted/50 text-muted-foreground capitalize">
+        {role}
+      </span>
+    </div>
+  );
+}
+
+function LaneLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1">
+      {children}
+    </div>
+  );
+}
+
+function BilledLane({ group, patient }: { group: LinkedOrderGroup; patient: Patient }) {
+  const { invoice, matched, invoices } = orderFinances(group);
+  const items = invoice ? extractInvoiceItems(invoice.data ?? {}) : [];
+  const total = invoice ? Number(invoice.data?.total_amount ?? 0) : 0;
+  const display = items.length > 0 ? items : matched;
+  if (!invoice && display.length === 0) {
+    return (
+      <div>
+        <LaneLabel>Billed</LaneLabel>
+        <p className="text-[11px] italic text-muted-foreground">Not billed yet</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-0.5">
+        <LaneLabel>Billed</LaneLabel>
+        {invoice && (
+          <span className="text-[9px] font-mono text-muted-foreground">#{invoice.data?.invoice_number}</span>
+        )}
+      </div>
+      {display.length === 0 && <p className="text-[11px] italic text-muted-foreground">Invoice issued</p>}
+      <ul className="space-y-0.5">
+        {display.slice(0, 4).map((it: any, i: number) => (
+          <li key={i} className="flex justify-between gap-2 text-[11px] leading-tight">
+            <span className="min-w-0 truncate text-foreground">
+              {it.description ?? it.name}{it.qty > 1 ? ` ×${it.qty}` : ''}
+            </span>
+            <span className="font-mono font-semibold shrink-0">{naira(it.total != null && it.total !== '' ? Number(it.total) : Number(it.unit_price ?? 0) * Number(it.qty ?? 1))}</span>
+          </li>
+        ))}
+        {display.length > 4 && <li className="text-[10px] text-muted-foreground italic">+{display.length - 4} more…</li>}
+      </ul>
+      {invoice && (
+        <div className="mt-1 pt-1 border-t border-border/60 flex justify-between text-[11px]">
+          <span className="font-bold uppercase tracking-wide text-muted-foreground">Total</span>
+          <span className="font-mono font-bold">{naira(total)}</span>
+        </div>
+      )}
+      {invoices.length > 0 && <InvoiceDetailToggle inv={invoice ?? invoices[0]} patient={patient} />}
+    </div>
+  );
+}
+
+function InvoiceDetailToggle({ inv, patient }: { inv: any; patient: Patient }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="text-[10px] font-bold uppercase tracking-wide text-primary hover:underline flex items-center gap-1"
+      >
+        {open ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+        Invoice details
+      </button>
+      {open && (
+        <div className="mt-2 rounded-md border border-border bg-background p-2">
+          <InvoiceRow inv={inv} patient={patient} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PaymentLane({ group }: { group: LinkedOrderGroup }) {
+  const { invoice, paid, paidAmount, payments } = orderFinances(group);
+  const total = invoice ? Number(invoice.data?.total_amount ?? 0) : 0;
+  if (!invoice && payments.length === 0) {
+    return (
+      <div>
+        <LaneLabel>Payment</LaneLabel>
+        <p className="text-[11px] italic text-muted-foreground">Awaiting payment</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <LaneLabel>Payment</LaneLabel>
+      {paid ? (
+        <p className="text-[11px] font-bold text-emerald-700 flex items-center gap-1">
+          <CheckCircle2 className="h-3 w-3" />
+          {paidAmount >= total ? 'Paid' : 'Partly paid'} {naira(paidAmount)}
+        </p>
+      ) : (
+        <p className="text-[11px] font-semibold text-amber-700">Pending · {naira(total)}</p>
+      )}
+      {payments.length > 0 && (
+        <ul className="mt-1 space-y-0.5">
+          {payments.slice(0, 2).map((p, i) => (
+            <li key={i} className="text-[10px] text-muted-foreground">
+              {format(new Date(p.at), 'dd MMM')} · {String(p.data?.method ?? 'cash').replace(/_/g, ' ')} · {naira(Number(p.data?.amount ?? 0))}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function ResultPhotoView({
+  photoPath, thumbs, onOpenImage,
+}: {
+  photoPath: string;
+  thumbs: Record<string, string>;
+  onOpenImage: (url: string) => void;
+}) {
+  const thumb = thumbs[photoPath];
+  if (thumb) return <SnapPhoto url={thumb} label="Result image" onOpen={onOpenImage} />;
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        const url = await snapPhotoUrl(photoPath);
+        if (url) onOpenImage(url);
+      }}
+      className="text-[11px] font-semibold text-primary underline-offset-2 hover:underline flex items-center gap-1"
+    >
+      <FileText className="h-3 w-3" /> View result image
+    </button>
+  );
+}
+
+function CompletionLane({ group, thumbs, onOpenImage }: {
+  group: LinkedOrderGroup;
+  thumbs: Record<string, string>;
+  onOpenImage: (url: string) => void;
+}) {
+  const kind = kindForOrderRow(group.parent);
+  const { dispensed, dispensedAt, resultRows, resultText, resultPhoto, resultAt, hasResult } = orderCompletions(group);
+  const isLab = kind === 'lab' || kind === 'emergency_lab';
+  if (isLab) {
+    const photoThumb = resultPhoto ? thumbs[resultPhoto] : undefined;
+    return (
+      <div>
+        <LaneLabel>Result</LaneLabel>
+        {hasResult ? (
+          <>
+            {resultPhoto ? (
+              photoThumb ? (
+                <SnapPhoto url={photoThumb} label="Result image" onOpen={onOpenImage} />
+              ) : (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const url = await snapPhotoUrl(resultPhoto);
+                    if (url) onOpenImage(url);
+                  }}
+                  className="text-[11px] font-semibold text-primary underline-offset-2 hover:underline flex items-center gap-1"
+                >
+                  <FileText className="h-3 w-3" /> View result image
+                </button>
+              )
+            ) : null}
+            {resultText && !resultPhoto ? (
+              <p className="text-[11px] leading-snug whitespace-pre-wrap max-h-24 overflow-y-auto rounded border border-violet-200 bg-violet-50/60 p-1.5 text-foreground">
+                {resultText}
+              </p>
+            ) : null}
+            {resultAt && <p className="text-[10px] text-muted-foreground mt-0.5">Result {format(new Date(resultAt), 'dd MMM · HH:mm')}</p>}
+          </>
+        ) : (
+          <p className="text-[11px] italic text-muted-foreground">Result pending</p>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div>
+      <LaneLabel>Dispensed</LaneLabel>
+      {dispensed ? (
+        <p className="text-[11px] font-bold text-emerald-700 flex items-center gap-1">
+          <CheckCircle2 className="h-3 w-3" /> Dispensed
+        </p>
+      ) : (
+        <p className="text-[11px] italic text-muted-foreground">Not dispensed</p>
+      )}
+      {dispensedAt && <p className="text-[10px] text-muted-foreground mt-0.5">{format(new Date(dispensedAt), 'dd MMM · HH:mm')}</p>}
+    </div>
+  );
+}
+
+function OrderContentBox({ row, thumb, onOpenImage }: {
+  row: LedgerRow;
+  thumb?: string;
+  onOpenImage: (url: string) => void;
+}) {
+  const snap = row.data ?? {};
+  const photo = snap.photo_path;
+  const typed =
+    snap.intent === 'typed_order' ||
+    String(snap.ocr_text ?? '').startsWith('LINKED_') ||
+    !photo;
+  const note = String(snap.note ?? '').trim();
+  if (photo && thumb && !typed) {
+    return (
+      <div>
+        <div className="rounded-lg overflow-hidden border border-border bg-muted flex items-center justify-center">
+          <button type="button" className="block w-full cursor-zoom-in" onClick={() => thumb && onOpenImage(thumb)} title="Click to enlarge the original order">
+            <img src={thumb} alt="Original order snapshot" className="max-h-64 w-full object-contain" />
+          </button>
+        </div>
+        <div className="mt-1.5 flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1">
+            <Camera className="h-3 w-3" /> Original order snapshot
+          </span>
+          <span className="text-[9px] text-muted-foreground">Click to enlarge</span>
+        </div>
+        {note && <p className="mt-1.5 text-[11px] italic text-muted-foreground whitespace-pre-wrap">"{note}"</p>}
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-lg border-2 border-primary/25 bg-primary/5 p-3 min-h-[96px]">
+      <div className="flex items-center gap-1.5 mb-1.5 text-[9px] font-bold uppercase tracking-widest text-primary">
+        <Sparkles className="h-3.5 w-3.5" />
+        {photo ? 'Typed Order' : 'Order content'}
+      </div>
+      {note ? (
+        <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words text-foreground">{note}</p>
+      ) : (
+        <p className="text-xs italic text-muted-foreground">No written note attached to this order.</p>
+      )}
+      {snap.emergency_episode_id && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          <span className="px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50 text-amber-800 text-[9px] font-bold uppercase tracking-wide">
+            Emergency — authorized before billing
+          </span>
+          {String(snap.status ?? '').toLowerCase() === 'billed' && (
+            <span className="px-1.5 py-0.5 rounded border border-indigo-300 bg-indigo-50 text-indigo-800 text-[9px] font-bold uppercase tracking-wide">
+              Finalized & billed
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PipelineChips({ group }: { group: LinkedOrderGroup }) {
+  const kind = kindForOrderRow(group.parent);
+  const fin = orderFinances(group);
+  const comp = orderCompletions(group);
+  const snap = group.parent?.data ?? {};
+  const snapStatus = String(snap.status ?? '');
+  const emergency = kind === 'emergency_med' || kind === 'emergency_lab';
+  const steps: { label: string; done: boolean }[] = emergency
+    ? [
+        { label: 'Authorized', done: true },
+        ...(kind === 'emergency_med'
+          ? [{ label: 'Provided', done: snap.administered_now || snapStatus === 'dispensed' || snapStatus === 'fulfilled' || comp.dispensed }]
+          : []),
+        { label: 'Billed', done: fin.billed },
+        { label: 'Paid', done: fin.paid },
+      ]
+    : kind === 'lab'
+    ? [
+        { label: 'Billed', done: fin.billed },
+        { label: 'Paid', done: fin.paid },
+        { label: 'Result', done: comp.hasResult },
+      ]
+    : [
+        { label: 'Billed', done: fin.billed },
+        { label: 'Paid', done: fin.paid },
+        { label: 'Dispensed', done: comp.dispensed },
+      ];
+  return (
+    <div className="flex items-center gap-1 flex-wrap">
+      {steps.map((s, i) => (
+        <span key={s.label} className="flex items-center gap-1">
+          {i > 0 && <span className="text-[9px] text-muted-foreground">→</span>}
+          <span
+            className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-wide ${
+              s.done
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                : 'border-border bg-muted/40 text-muted-foreground'
+            }`}
+          >
+            {s.done && <CheckCircle2 className="h-2.5 w-2.5" />}
+            {s.label}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function OrderCardView({
+  group, thumbs, onOpenImage, patient,
 }: {
   group: LinkedOrderGroup;
   thumbs: Record<string, string>;
-  attachmentText: Record<string, string>;
   onOpenImage: (url: string) => void;
   patient: Patient;
 }) {
   const parent = group.parent;
-  const orderType = parent.subkind === 'emergency_episode'
-    ? 'Emergency medication + laboratory episode'
-    : parent.subkind === 'lab_request' || parent.data?.target_station === 'lab' ? 'Laboratory order' : 'Pharmacy order';
-  const source = linkedOrderRole(parent);
+  const kind = kindForOrderRow(parent);
+  const meta = ORDER_KIND_META[kind] ?? ORDER_KIND_META.treatment;
+  const Icon = ORDER_KIND_ICON[kind] ?? Stethoscope;
+  const snap = parent.data ?? {};
+  const photo = snap.photo_path;
+  const thumb = photo ? thumbs[photo] : undefined;
+  const isEpisode = String(parent.subkind) === 'emergency_episode';
+
+  // Episode groups carry the individual medication/lab authorizations inside.
+  if (isEpisode) {
+    return (
+      <EmergencyEpisodeCard
+        group={group} thumbs={thumbs} onOpenImage={onOpenImage} patient={patient}
+      />
+    );
+  }
+
   return (
-    <div className="mx-3 my-3 rounded-lg border-2 border-primary/20 bg-background overflow-hidden shadow-sm">
-      <div className="px-3 py-2 border-b border-primary/20 bg-primary/5 flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Order story</span>
-          <span className="text-xs font-bold uppercase tracking-wider">{parent.title}</span>
-          <span className="text-[10px] text-muted-foreground">{orderType} · created by {source}</span>
-        </div>
-        <span className="text-[10px] font-mono text-muted-foreground">{group.rows.length} linked event{group.rows.length === 1 ? '' : 's'}</span>
+    <div className={`rounded-xl border border-border overflow-hidden shadow-sm bg-card ${parent.isNew ? 'ring-2 ring-primary/40' : ''}`}>
+      {/* Header strip */}
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/40 flex-wrap">
+        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border border-border text-[10px] font-bold uppercase tracking-wide ${String(parent.subkind) === 'emergency_med' || String(parent.subkind) === 'emergency_lab' ? 'bg-amber-50 text-amber-800' : 'bg-primary/10 text-primary'}`}>
+          <Icon className="h-3 w-3" />
+          {meta.title}
+        </span>
+        <PipelineChips group={group} />
+        {parent.isNew && (
+          <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded bg-primary text-primary-foreground animate-pulse">New</span>
+        )}
+        <span className="ml-auto text-[9px] text-muted-foreground uppercase font-mono">
+          #{group.key.slice(-8)}
+        </span>
       </div>
+
+      {/* Mobile quick meta (role + time) so it is never lost on small screens */}
+      <div className="md:hidden px-3 py-1.5 border-b border-border/60 bg-background flex items-center gap-2 text-[10px] text-muted-foreground">
+        <Calendar className="h-3 w-3" />
+        {format(new Date(parent.at), 'dd MMM yyyy · HH:mm')}
+        <span className="ml-auto">{friendlyRole(snap.original_sender_role ?? snap.source_role ?? parent.station)}</span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-[190px_1fr_150px]">
+        {/* LEFT — what happened to this order */}
+        <div className="md:border-r border-b md:border-b-0 border-border bg-muted/10 px-3 py-2.5 space-y-3 min-w-0">
+          <BilledLane group={group} patient={patient} />
+          <PaymentLane group={group} />
+          <CompletionLane group={group} thumbs={thumbs} onOpenImage={onOpenImage} />
+        </div>
+        {/* CENTER — the order itself */}
+        <div className="px-3 py-2.5 min-w-0 border-b md:border-b-0 border-border">
+          <OrderContentBox row={parent} thumb={thumb} onOpenImage={onOpenImage} />
+          <div className="mt-2 flex items-center gap-2 flex-wrap">
+            <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wide ${String(snap.status ?? '').replace(/_/g, ' ').toLowerCase().includes('paid') ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-muted/50 text-muted-foreground border-border'}`}>
+              {snapStatusLabel(snap.status)}
+            </span>
+            {snap.target_station && (
+              <span className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">
+                → {friendlyStation(snap.target_station)}
+              </span>
+            )}
+          </div>
+        </div>
+        {/* RIGHT — who & when */}
+        <div className="px-3 py-2.5 border-l-0 md:border-l border-t md:border-t-0 border-border bg-muted/10">
+          <CardMeta row={parent} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function snapStatusLabel(status: string | null | undefined): string {
+  const s = String(status ?? '').replace(/_/g, ' ');
+  if (!s) return 'Ordered';
+  const map: Record<string, string> = {
+    'pending billing': 'Awaiting billing',
+    'awaiting payment': 'Awaiting payment',
+    paid: 'Paid',
+    fulfilled: 'Dispensed',
+    dispensed: 'Dispensed',
+    returned: 'Result returned',
+    acknowledged: 'Acknowledged',
+    rejected: 'Rejected',
+    cancelled: 'Cancelled',
+    pending: 'Pending',
+  };
+  return map[s.toLowerCase()] ?? s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function friendlyStation(station: string | null | undefined): string {
+  const s = String(station ?? '').replace(/[_-]/g, ' ');
+  const map: Record<string, string> = { pharmacy: 'Pharmacy', lab: 'Laboratory', billing: 'Billing', 'clinical team': 'Clinical Team', nurse: 'Nurse' };
+  return map[s.toLowerCase()] ?? s;
+}
+
+function EmergencyEpisodeCard({
+  group, thumbs, onOpenImage, patient,
+}: {
+  group: LinkedOrderGroup;
+  thumbs: Record<string, string>;
+  onOpenImage: (url: string) => void;
+  patient: Patient;
+}) {
+  const parent = group.parent;
+  const snap = parent.data ?? {};
+  const episodeStatus = String(snap.status ?? '');
+  const items = group.rows.filter(r =>
+    r.kind === 'snap' &&
+    (String(r.subkind) === 'rx' || String(r.subkind) === 'lab_request') &&
+    (r.id.startsWith('emergency-item-') || r.data?.emergency_episode_id || String(r.data?.order_parent_id ?? '').startsWith('order:emergency:')),
+  );
+  const episodePhase =
+    episodeStatus === 'reconciled' ? 'Finalized & billed'
+    : episodeStatus === 'finalized' ? 'Finalized — draft sent to billing'
+    : episodeStatus === 'open' ? 'Open — care in progress'
+    : episodeStatus;
+
+  return (
+    <div className={`rounded-xl border-2 border-amber-300/70 overflow-hidden shadow-sm bg-card ${parent.isNew ? 'ring-2 ring-amber-400/60' : ''}`}>
+      <div className="px-3 py-2 border-b border-amber-300/60 bg-amber-50/70 flex items-center gap-2 flex-wrap">
+        <AlertTriangle className="h-4 w-4 text-amber-700" />
+        <span className="text-[11px] font-bold uppercase tracking-widest text-amber-900">Emergency Episode</span>
+        <span className="px-1.5 py-0.5 rounded border border-amber-300 bg-amber-100 text-amber-800 text-[9px] font-bold uppercase tracking-wide">
+          {episodePhase}
+        </span>
+        <span className="ml-auto text-[10px] text-amber-800/70 flex items-center gap-1">
+          <Calendar className="h-3 w-3" />
+          {format(new Date(parent.at), 'dd MMM yyyy · HH:mm')}
+        </span>
+      </div>
+      {snap.note && snap.note !== 'Urgent care recorded before billing' && (
+        <div className="px-3 py-2 bg-amber-50/40 border-b border-amber-200/50 text-xs italic text-amber-900/80">
+          {snap.note}
+        </div>
+      )}
       <div className="divide-y divide-border">
-        {group.rows.map(row => (
-          <LedgerRowView
-            key={row.id} row={row} thumbs={thumbs} attachmentText={attachmentText}
-            onOpenImage={onOpenImage} patient={patient} nestedOrder
+        {items.length === 0 && <p className="px-3 py-3 text-xs italic text-muted-foreground">No items recorded for this episode.</p>}
+        {items.map(item => (
+          <EmergencyItemCard
+            key={item.id} item={item} episodeKey={group.key} groupRows={group.rows}
+            thumbs={thumbs} onOpenImage={onOpenImage} patient={patient}
           />
         ))}
       </div>
@@ -371,35 +936,154 @@ function LinkedOrderGroupView({
   );
 }
 
-function OrderAwareRows({
-  rows, thumbs, attachmentText, onOpenImage, patient,
+function EmergencyItemCard({
+  item, episodeKey, groupRows, thumbs, onOpenImage, patient,
 }: {
-  rows: LedgerRow[];
+  item: LedgerRow;
+  episodeKey: string;
+  groupRows: LedgerRow[];
   thumbs: Record<string, string>;
-  attachmentText: Record<string, string>;
   onOpenImage: (url: string) => void;
   patient: Patient;
 }) {
-  const { groups, standalone } = buildLinkedOrderGroups(rows);
-  const entries = [
-    ...groups.map(group => ({ at: group.parent.at, type: 'group' as const, group })),
-    ...standalone.map(row => ({ at: row.at, type: 'row' as const, row })),
-  ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+  const snap = item.data ?? {};
+  const itemId = String(snap.id ?? '');
+  const isLab = String(item.subkind) === 'lab_request' || String(snap.target_station ?? '').toLowerCase() === 'lab';
+  const invoiceRows = groupRows.filter(r => r.kind === 'invoice');
+  const myLines: any[] = [];
+  invoiceRows.forEach(inv => {
+    const items = Array.isArray(inv.data?.invoice_items) ? inv.data.invoice_items : [];
+    items.forEach((it: any) => {
+      if (it.emergency_episode_item_id && String(it.emergency_episode_item_id) === itemId) myLines.push(it);
+    });
+  });
+  const myInvoice = invoiceRows.find(inv =>
+    (Array.isArray(inv.data?.invoice_items) ? inv.data.invoice_items : [])
+      .some((it: any) => it.emergency_episode_item_id && String(it.emergency_episode_item_id) === itemId),
+  );
+  const invoicePaid = myInvoice ? Number(myInvoice.data?.paid_amount ?? 0) > 0 : false;
+  const invoiceTotal = myInvoice ? Number(myInvoice.data?.total_amount ?? 0) : 0;
+  const results = groupRows.filter(r =>
+    (String(r.subkind) === 'lab_result' || String(r.data?.order_type ?? '').toLowerCase() === 'lab_result') &&
+    (String(r.data?.order_parent_id ?? '') === episodeKey || r.id.startsWith('emergency-lab-result-')),
+  );
+  let resultText = results.map(r => r.data?.result_text ?? r.data?.note ?? '').filter(Boolean)[0] ?? null;
+  let resultPhoto = results.map(r => r.data?.photo_path ?? null).find(Boolean) ?? null;
+  // Unpack a serialised results JSON (photo results) so the text stays clean.
+  if (resultPhoto == null && resultText && String(resultText).trim().startsWith('{')) {
+    try {
+      const parsed: any = JSON.parse(resultText);
+      if (parsed && typeof parsed === 'object') {
+        resultText = String(parsed.result_text || parsed.note || '') || null;
+        resultPhoto = parsed.photo_path ?? null;
+      }
+    } catch {
+      // Not JSON — keep as-is.
+    }
+  }
+  const itemStatus = String(snap.status ?? '');
+  const provided = !!snap.administered_now || itemStatus === 'completed' || (isLab ? results.length > 0 : false);
+  const billed = myLines.length > 0 || myInvoice != null;
+  const meta = kindForOrderRow(item) === 'emergency_lab'
+    ? ORDER_KIND_META.emergency_lab : ORDER_KIND_META.emergency_med;
+  const noteParts = [
+    snap.description ? snap.description : snap.name ? snap.name : (myLines[0]?.description ?? ''),
+    snap.strength ? snap.strength : '',
+  ].filter(Boolean);
+  const detail = String(snap.note ?? '').trim();
+
   return (
-    <>
-      {entries.map(entry => entry.type === 'group' ? (
-        <LinkedOrderGroupView key={entry.group.key} group={entry.group} thumbs={thumbs} attachmentText={attachmentText} onOpenImage={onOpenImage} patient={patient} />
-      ) : (
-        <LedgerRowView
-          key={entry.row.id} row={entry.row} thumbs={thumbs} attachmentText={attachmentText}
-          onOpenImage={onOpenImage} patient={patient}
-        />
-      ))}
-    </>
+    <div className="px-3 py-2.5 flex flex-col sm:flex-row gap-3">
+      {/* Left mini-lane: status of this item */}
+      <div className="sm:w-44 shrink-0 space-y-1.5">
+        <div className="flex flex-wrap items-center gap-1">
+          <span className={`px-1.5 py-0.5 rounded-full border text-[9px] font-bold uppercase tracking-wide ${provided ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-amber-300 bg-amber-50 text-amber-800'}`}>
+            {provided ? (isLab ? 'Result ready' : 'Provided') : 'Authorized'}
+          </span>
+          {billed && (
+            <span className="px-1.5 py-0.5 rounded-full border border-indigo-300 bg-indigo-50 text-indigo-800 text-[9px] font-bold uppercase tracking-wide">Billed</span>
+          )}
+          {invoicePaid && (
+            <span className="px-1.5 py-0.5 rounded-full border border-emerald-300 bg-emerald-50 text-emerald-700 text-[9px] font-bold uppercase tracking-wide">Paid</span>
+          )}
+        </div>
+        {billed && (
+          <div className="text-[10px]">
+            {myLines.length > 0 ? (
+              <ul className="space-y-0.5">
+                {myLines.slice(0, 3).map((l, i) => (
+                  <li key={i} className="flex justify-between gap-1">
+                    <span className="truncate">{l.description}{l.quantity > 1 ? ` ×${l.quantity}` : ''}</span>
+                    <span className="font-mono font-semibold">{naira(Number(l.total ?? 0))}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="italic text-muted-foreground">Invoice issued</p>
+            )}
+            <div className="mt-0.5 pt-0.5 border-t border-border/60 flex justify-between">
+              <span className="text-[9px] uppercase font-bold text-muted-foreground">Total</span>
+              <span className="font-mono font-bold">{naira(invoiceTotal)}</span>
+            </div>
+          </div>
+        )}
+        {!billed && (
+          <p className="text-[10px] italic text-muted-foreground">
+            Emergency care given first — billing happens after the episode is finalized.
+          </p>
+        )}
+      </div>
+      {/* Center: the item itself */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm font-bold text-foreground">
+            {noteParts[0] || (isLab ? 'Laboratory test' : 'Medication')}
+          </span>
+          {noteParts[1] && <span className="text-xs font-mono text-muted-foreground">{noteParts[1]}</span>}
+          <span className={`px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wide ${isLab ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+            {isLab ? 'Lab test' : 'Medication'}
+          </span>
+          {snap.administered_now && (
+            <span className="px-1.5 py-0.5 rounded border border-sky-300 bg-sky-50 text-sky-800 text-[9px] font-bold uppercase tracking-wide">
+              Given during emergency
+            </span>
+          )}
+        </div>
+        {detail && <p className="mt-1 text-[11px] text-muted-foreground whitespace-pre-wrap">{detail}</p>}
+        {!isLab && results.length === 0 && (
+          <div className="mt-1 text-[10px] text-muted-foreground">
+            {snap.requires_pharmacy === false || snap.administered_now
+              ? 'No pharmacy re-dispense needed — already given.'
+              : String(snap.target_station ?? '') === 'pharmacy'
+              ? 'Awaiting pharmacy dispensing after payment.'
+              : ''}
+          </div>
+        )}
+        {isLab && results.length > 0 && (
+          <div className="mt-1.5">
+            <LaneLabel>Result</LaneLabel>
+            {resultPhoto ? (
+              <ResultPhotoView photoPath={resultPhoto} thumbs={thumbs} onOpenImage={onOpenImage} />
+            ) : null}
+            {resultText && (
+              <p className="text-[11px] leading-snug whitespace-pre-wrap max-h-20 overflow-y-auto rounded border border-violet-200 bg-violet-50/60 p-1.5">
+                {resultText}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+      {/* Right: staff & time of this authorization */}
+      <div className="sm:w-36 shrink-0 sm:text-right text-[10px] text-muted-foreground space-y-0.5">
+        <div className="font-mono">{format(new Date(item.at), 'dd MMM yyyy')}</div>
+        <div className="font-mono">{format(new Date(item.at), 'HH:mm')}</div>
+        <div className="capitalize font-semibold text-foreground">{friendlyRole(snap.source_role ?? item.station)}</div>
+      </div>
+    </div>
   );
 }
 
-function NarrativeLedgerRows({
+function OrderCentricRows({
   rows, thumbs, attachmentText, onOpenImage, patient,
 }: {
   rows: LedgerRow[];
@@ -408,21 +1092,49 @@ function NarrativeLedgerRows({
   onOpenImage: (url: string) => void;
   patient: Patient;
 }) {
+      void attachmentText;
+  const { groups, standalone } = useMemo(() => buildLinkedOrderGroups(rows), [rows]);
+
+  // A parent snap whose only role is carrying a photo/lab-result is simply an
+  // event, not an order with lanes. Keep those as compact event rows.
+  const eventGroups = groups.filter(g =>
+    String(g.parent.subkind) === 'lab_result' ||
+    (String(g.parent.subkind) === 'dispense' && !(g.parent.data?.note || String(g.parent.data?.ocr_text ?? '').startsWith('LINKED_'))),
+  );
+  const cardGroups = groups.filter(g => !eventGroups.includes(g));
+  const eventRows = [
+    ...standalone.filter(r => {
+      // The Emergency billing draft has no separate visual meaning once its
+      // episode card shows billing; skip it as an isolated event.
+      const s = r.data ?? {};
+      if (s.emergency_episode_id && (s.intent === 'emergency_billing_draft' || String(s.ocr_text ?? '').startsWith('EMERGENCY_EPISODE:'))) return false;
+      return true;
+    }),
+    ...eventGroups.flatMap(g => g.rows),
+  ];
+
+  const entries = [
+    ...cardGroups.map(g => ({ at: g.parent.at, type: 'card' as const, group: g })),
+    ...eventRows.map(r => ({ at: r.at, type: 'row' as const, row: r })),
+  ].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+
   return (
-    <>
-      {narrativeSections(rows).map(({ stage, rows: stageRows }) => (
-        <div key={stage.key}>
-          <div className="px-4 py-2 border-b border-border bg-muted/30 flex items-center gap-2">
-            <span className="h-6 w-6 shrink-0 border border-border bg-background text-[10px] font-mono font-bold text-foreground flex items-center justify-center">
-              {stage.number}
-            </span>
-            <div className="min-w-0">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-foreground">{stage.title}</div>
-              <div className="text-[10px] text-muted-foreground">{stage.description}</div>
-            </div>
-          </div>
-          <OrderAwareRows
-            rows={stageRows}
+    <div className="p-3 space-y-3">
+      {entries.length === 0 && (
+        <p className="text-center text-xs text-muted-foreground italic py-4">No events recorded yet.</p>
+      )}
+      {entries.map(entry => entry.type === 'card' ? (
+        <OrderCardView
+          key={entry.group.key}
+          group={entry.group}
+          thumbs={thumbs}
+          onOpenImage={onOpenImage}
+          patient={patient}
+        />
+      ) : (
+        <div key={entry.row.id} className="rounded-lg border border-border/70 overflow-hidden bg-background shadow-sm">
+          <LedgerRowView
+            row={entry.row}
             thumbs={thumbs}
             attachmentText={attachmentText}
             onOpenImage={onOpenImage}
@@ -430,8 +1142,12 @@ function NarrativeLedgerRows({
           />
         </div>
       ))}
-    </>
+    </div>
   );
+}
+
+function NarrativeLedgerRows(props: Parameters<typeof OrderCentricRows>[0]) {
+  return <OrderCentricRows {...props} />;
 }
 
 // ---------- component ----------
@@ -453,6 +1169,9 @@ export function PatientLedgerCard({
   const [lightbox, setLightbox] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [stationFilter, setStationFilter] = useState<Set<string>>(new Set());
+  // Bumped once staff display names finish preloading so Date/Staff lanes can
+  // re-render with real names instead of waiting for the next poll cycle.
+  const [, setStaffTick] = useState(0);
 
 
   const age = patient.date_of_birth
@@ -939,6 +1658,11 @@ export function PatientLedgerCard({
       console.error('Patient ledger card load failed', error);
       setLoadError(error?.message || 'The patient ledger could not be loaded. Please retry.');
       setLoading(false);
+    });
+    // Preload staff display names so the Date/Staff lanes can show who created
+    // each order. Unreadable roles silently fall back to the event's own label.
+    void preloadStaffNames().then(() => {
+      if (active) setStaffTick(tick => tick + 1);
     });
     return () => { active = false; };
   }, [load]);

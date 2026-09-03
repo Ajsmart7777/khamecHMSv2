@@ -16,7 +16,6 @@ RETURNS text
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
 AS $$
   SELECT CASE
     WHEN EXISTS (

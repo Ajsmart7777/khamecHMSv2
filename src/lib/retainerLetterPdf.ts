@@ -89,7 +89,6 @@ function letterBody(data: RetainerLetterData) {
 
   return `
   <div class="doc">
-    <div class="watermark">${isReceipt ? 'PAID' : 'DUE'}</div>
 
     <header class="hero">
       <div class="brand">
@@ -220,38 +219,36 @@ const CSS = `
   }
   .hero {
     display: flex; justify-content: space-between; align-items: flex-start;
-    padding-bottom: 18px;
-    border-bottom: 3px double #0f3c64;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #16324f;
   }
   .brand { display: flex; gap: 14px; align-items: center; }
   .brand .mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
-  .brand .mark:has(img) { background: #fff !important; border: 1px solid #e5e7eb; padding: 4px; }
   .brand .mark {
-    width: 56px; height: 56px;
-    background: linear-gradient(135deg,#0f3c64,#1e5a8f);
-    color: #fff;
+    width: 52px; height: 52px; flex: 0 0 auto;
+    background: #fff;
+    color: #16324f;
     display: flex; align-items: center; justify-content: center;
-    font-weight: 800; font-size: 18px; letter-spacing: 1px;
-    border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(15,60,100,0.15);
+    font-weight: 700; font-size: 13px; letter-spacing: .5px;
+    border: 1px solid #d5dbe2; border-radius: 50%;
   }
-  .brand h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.3px; color: #0f3c64; }
-  .brand .sub { font-size: 11px; color: #6b7280; margin-top: 2px; }
-  .brand .sub.small { font-size: 10px; }
-  .stamp { text-align: right; padding-left: 14px; border-left: 3px solid; }
-  .stamp-paid { border-left-color: #16a34a; }
-  .stamp-due { border-left-color: #b8860b; }
+  .brand h1 { font-size: 20px; font-weight: 700; letter-spacing: 0; color: #16324f; }
+  .brand .sub { font-size: 10px; color: #6b7280; margin-top: 3px; }
+  .brand .sub.small { font-size: 9.5px; }
+  .stamp { text-align: right; padding-left: 14px; border-left: 3px solid #16324f; }
+  .stamp-paid { border-left-color: #16324f; }
+  .stamp-due { border-left-color: #16324f; }
   .stamp-label {
-    display: block; font-size: 9px; letter-spacing: 3px; text-transform: uppercase;
+    display: block; font-size: 8.5px; letter-spacing: 2px; text-transform: uppercase;
     color: #6b7280; font-weight: 700;
   }
   .stamp-title {
-    display: block; font-size: 18px; font-weight: 700; color: #0f3c64;
-    margin-top: 3px; letter-spacing: 1px;
+    display: block; font-size: 17px; font-weight: 700; color: #16324f;
+    margin-top: 3px; letter-spacing: 0;
   }
   .stamp-num {
     display: block; font-family: 'Courier New', monospace;
-    font-size: 11px; color: #444; margin-top: 4px;
+    font-size: 10px; color: #444; margin-top: 4px;
   }
 
   .letter-head {
@@ -269,13 +266,13 @@ const CSS = `
 
   .subject {
     display: flex; gap: 12px; align-items: center;
-    margin-top: 20px; padding: 12px 14px;
-    background: #f8fafc; border-left: 4px solid #b8860b; border-radius: 4px;
+    margin-top: 18px; padding: 9px 12px;
+    background: #f8fafc; border-left: 3px solid #16324f;
   }
   .subj-badge {
-    background: #b8860b; color: #fff;
-    padding: 4px 10px; border-radius: 4px;
-    font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    background: #16324f; color: #fff;
+    padding: 3px 10px;
+    font-size: 10px; font-weight: 700; letter-spacing: 1px;
   }
   .subj-title { font-size: 13px; font-weight: 700; color: #0f172a; }
   .subj-sub { font-size: 10.5px; color: #475569; margin-top: 2px; }
@@ -287,9 +284,9 @@ const CSS = `
   .items { margin-top: 18px; }
   .items table { width: 100%; border-collapse: collapse; font-size: 11px; }
   .items thead th {
-    background: #0f3c64; color: #fff;
-    text-align: left; padding: 9px 10px;
-    font-size: 10px; letter-spacing: 1px; text-transform: uppercase; font-weight: 600;
+    background: #16324f; color: #fff;
+    text-align: left; padding: 7px 10px;
+    font-size: 9px; letter-spacing: .5px; text-transform: uppercase; font-weight: 600;
   }
   .items thead th.num { text-align: right; }
   .items thead th.center, .items thead th.idx { text-align: center; }
@@ -322,7 +319,7 @@ const CSS = `
     font-size: 14px; font-weight: 700;
   }
   .totals-inner .grand-paid { border-top-color: #16a34a; color: #166534; }
-  .totals-inner .grand-due  { border-top-color: #b8860b; color: #713f12; }
+  .totals-inner .grand-due  { border-top-color: #16324f; color: #111827; }
   .in-words {
     margin-top: 10px; padding-top: 8px;
     border-top: 1px dashed #cbd5e1;

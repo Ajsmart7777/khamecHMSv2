@@ -170,7 +170,6 @@ function letterHtml(data: CorporateCoveringLetterData) {
 
   return `
     <div class="doc">
-      <div class="watermark">${status === 'BALANCE DUE' ? 'DUE' : status === 'CREDIT BALANCE' ? 'CREDIT' : 'SETTLED'}</div>
       <header class="hero">
         <div class="brand">
           <div class="mark">${HOSPITAL_LOGO_URL ? `<img src="${HOSPITAL_LOGO_URL}" alt="Khadija Medical Center logo" onerror="this.remove();this.parentNode.textContent='KMC'" />` : 'KMC'}</div>
@@ -279,35 +278,34 @@ const CSS = `
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Helvetica Neue', Arial, sans-serif; color: #1e293b; background: #fff; }
   .doc { position: relative; width: 794px; min-height: 1123px; padding: 46px 54px 40px; overflow: hidden; background: #fff; }
-  .watermark { position: absolute; right: -42px; top: 370px; color: rgba(15,60,100,.04); transform: rotate(-20deg); font-size: 150px; font-weight: 900; letter-spacing: 12px; pointer-events: none; }
-  .hero { display: flex; justify-content: space-between; gap: 20px; padding-bottom: 18px; border-bottom: 3px double #0f3c64; }
+  .hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding-bottom: 16px; border-bottom: 2px solid #16324f; }
   .brand { display: flex; align-items: center; gap: 13px; }
-  .mark { display: flex; width: 54px; height: 54px; border-radius: 8px; align-items: center; justify-content: center; background: #0f3c64; color: #fff; font-weight: 800; letter-spacing: 1px; overflow: hidden; }
-  .mark img { display: block; width: 100%; height: 100%; padding: 3px; object-fit: contain; background: #fff; }
-  h1 { color: #0f3c64; font-size: 20px; letter-spacing: -.3px; }
-  .sub { margin-top: 2px; color: #64748b; font-size: 10.5px; }
-  .stamp { min-width: 152px; padding-left: 13px; border-left: 3px solid #b8860b; text-align: right; }
-  .stamp-label, .label { display: block; color: #64748b; font-size: 9px; font-weight: 700; letter-spacing: 1.8px; text-transform: uppercase; }
-  .stamp-title { display: block; margin-top: 2px; color: #0f3c64; font-size: 17px; font-weight: 700; }
-  .stamp-num { display: block; margin-top: 5px; color: #475569; font-family: 'Courier New', monospace; font-size: 10px; }
+  .mark { display: flex; width: 52px; height: 52px; flex: 0 0 auto; border: 1px solid #d5dbe2; border-radius: 50%; align-items: center; justify-content: center; background: #fff; color: #16324f; font-weight: 700; font-size: 13px; letter-spacing: .5px; overflow: hidden; }
+  .mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  h1 { color: #16324f; font-size: 20px; font-weight: 700; letter-spacing: 0; }
+  .sub { margin-top: 3px; color: #5b6673; font-size: 10px; }
+  .stamp { min-width: 168px; padding-left: 14px; border-left: 3px solid #16324f; text-align: right; }
+  .stamp-label, .label { display: block; color: #7a8491; font-size: 8.5px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; }
+  .stamp-title { display: block; margin-top: 3px; color: #16324f; font-size: 16px; font-weight: 700; }
+  .stamp-num { display: block; margin-top: 5px; color: #475569; font-family: 'Courier New', monospace; font-size: 9.5px; }
   .address-grid { display: grid; grid-template-columns: 1fr 1.45fr; gap: 22px; margin-top: 20px; }
   .period-label { margin-top: 14px; }
   .date { margin-top: 4px; color: #0f172a; font-size: 12px; font-weight: 600; }
-  .address { padding-left: 16px; border-left: 3px solid #0f3c64; }
+  .address { padding-left: 16px; border-left: 3px solid #16324f; }
   .address .company { margin-top: 4px; color: #0f172a; font-size: 14px; font-weight: 700; }
   .address p { margin-top: 2px; font-size: 10.5px; }
   .dim { color: #64748b; }
-  .subject { display: flex; gap: 12px; align-items: center; margin-top: 20px; padding: 11px 13px; border-left: 4px solid #b8860b; border-radius: 3px; background: #f8fafc; }
-  .subject > span { padding: 4px 8px; border-radius: 3px; background: #b8860b; color: #fff; font-size: 10px; font-weight: 700; }
+  .subject { display: flex; gap: 12px; align-items: center; margin-top: 18px; padding: 9px 12px; border-left: 3px solid #16324f; background: #f8fafc; }
+  .subject > span { padding: 3px 8px; background: #16324f; color: #fff; font-size: 9.5px; font-weight: 700; letter-spacing: .5px; }
   .subject strong { color: #0f172a; font-size: 12px; }
   .subject p { margin-top: 2px; color: #64748b; font-size: 10px; }
   .intro, .closing { margin-top: 17px; font-size: 11px; line-height: 1.55; }
   .intro p + p, .closing p + p { margin-top: 7px; }
-  section > h2 { display: flex; align-items: center; gap: 7px; margin-top: 20px; color: #0f3c64; font-size: 12.5px; }
+  section > h2 { display: flex; align-items: center; gap: 7px; margin-top: 18px; color: #16324f; font-size: 12px; }
   h2 span { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 50%; background: #0f3c64; color: #fff; font-size: 10px; }
   .section-note { margin: 5px 0 8px; color: #64748b; font-size: 10px; line-height: 1.4; }
   table { position: relative; z-index: 1; width: 100%; border-collapse: collapse; font-size: 10px; }
-  th { padding: 8px 8px; background: #0f3c64; color: #fff; font-size: 8.8px; letter-spacing: .5px; text-align: left; text-transform: uppercase; }
+  th { padding: 7px 8px; background: #16324f; color: #fff; font-size: 8.5px; letter-spacing: .5px; text-align: left; text-transform: uppercase; }
   th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
   td { padding: 6px 8px; border-bottom: 1px solid #e8eef5; vertical-align: top; }
   td.center, th.center { text-align: center; }
@@ -322,7 +320,7 @@ const CSS = `
   .summary-box div { display: flex; justify-content: space-between; gap: 20px; padding: 8px 11px; border-top: 1px solid #e8eef5; font-size: 11px; }
   .summary-box div:first-child { border-top: 0; }
   .summary-box strong { font-family: 'Courier New', monospace; }
-  .summary-box .result { background: #fff7ed; border-top: 2px solid #b8860b; color: #7c2d12; font-size: 12px; font-weight: 700; }
+  .summary-box .result { background: #f1f5f9; border-top: 2px solid #16324f; color: #111827; font-size: 12px; font-weight: 700; }
   .summary-box .result.paid { background: #f0fdf4; border-top-color: #16a34a; color: #166534; }
   .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; margin-top: 38px; }
   .signatures .line { margin-bottom: 6px; border-top: 1px solid #0f172a; }

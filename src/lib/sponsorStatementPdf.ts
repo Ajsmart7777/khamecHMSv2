@@ -7,6 +7,10 @@ import {
   addSponsorServiceBreakdown,
   breakdownSponsorInvoice,
   emptySponsorServiceBreakdown,
+  SPONSOR_EXAM_COLUMN_KEY,
+  SPONSOR_EXAM_TABLE_COLUMNS,
+  sponsorExamColumnAmount,
+  sponsorExamColumnLabel,
   type SponsorServiceBreakdown,
 } from '@/lib/sponsorStatementCategories';
 
@@ -60,8 +64,8 @@ async function fetchItems(statementId: string): Promise<SponsorStatementReportIt
     patientIds.length ? supabase.from('patients').select('id, first_name, last_name, card_number, physical_card_number').in('id', patientIds) : Promise.resolve({ data: [] as any[] }),
     invoiceIds.length ? supabase.from('invoices').select('id, invoice_number, total_amount').in('id', invoiceIds) : Promise.resolve({ data: [] as any[] }),
   ]);
-  const patientById = new Map((patients || []).map((patient: any) => [String(patient.id), patient]));
-  const invoiceById = new Map((invoices || []).map((invoice: any) => [String(invoice.id), invoice]));
+  const patientById = new Map<string, any>((patients || []).map((patient: any) => [String(patient.id), patient]));
+  const invoiceById = new Map<string, any>((invoices || []).map((invoice: any) => [String(invoice.id), invoice]));
   const { data: invoiceItems } = invoiceIds.length
     ? await supabase.from('invoice_items').select('invoice_id,description,category,total').in('invoice_id', invoiceIds)
     : { data: [] };
@@ -109,21 +113,19 @@ function statementHtml(statement: SponsorStatement, items: SponsorStatementRepor
   items.forEach(it => { (grouped[it.patient_id] ||= []).push(it); });
   const totalBreakdown = emptySponsorServiceBreakdown();
 
-  const rows = Object.entries(grouped).map(([, list]) => {
+  const rows = Object.entries(grouped).map(([, list], index) => {
     const p = list[0].patient;
     const breakdown = emptySponsorServiceBreakdown();
     list.forEach(item => addSponsorServiceBreakdown(breakdown, item.service_breakdown));
     addSponsorServiceBreakdown(totalBreakdown, breakdown);
     const invoiceRefs = list.map(item => item.invoice?.invoice_number).filter(Boolean).join(', ');
     const subtotal = list.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const cells = SPONSOR_EXAM_TABLE_COLUMNS.map(key => `<td class="num">${categoryCell(key === SPONSOR_EXAM_COLUMN_KEY ? sponsorExamColumnAmount(breakdown) : breakdown[key])}</td>`).join('');
     return `<tr class="row">
+      <td class="sn">${index + 1}</td>
       <td><strong>${p?.first_name ?? ''} ${p?.last_name ?? ''}</strong><br><span class="detail">${invoiceRefs || 'Registered service'}</span></td>
       <td class="mono" title="System Patient ID: ${p?.card_number ?? '—'}">${p?.physical_card_number || p?.card_number || '—'}</td>
-      <td class="num">${categoryCell(breakdown.medication)}</td>
-      <td class="num">${categoryCell(breakdown.lab_test)}</td>
-      <td class="num">${categoryCell(breakdown.delivery)}</td>
-      <td class="num">${categoryCell(breakdown.bed)}</td>
-      <td class="num">${categoryCell(breakdown.others)}</td>
+      ${cells}
       <td class="num total-cell">${subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
     </tr>`;
   }).join('');
@@ -131,20 +133,18 @@ function statementHtml(statement: SponsorStatement, items: SponsorStatementRepor
   const manualRows = manualItems.map(item => {
     const breakdown = breakdownSponsorInvoice([{ description: item.service_description, total: item.amount }], item.amount);
     addSponsorServiceBreakdown(totalBreakdown, breakdown);
+    const cells = SPONSOR_EXAM_TABLE_COLUMNS.map(key => `<td class="num">${categoryCell(key === SPONSOR_EXAM_COLUMN_KEY ? sponsorExamColumnAmount(breakdown) : breakdown[key])}</td>`).join('');
     return `<tr class="manual-row">
+      <td class="sn">—</td>
       <td><strong>${item.patient_name}</strong><br><span class="detail">${item.service_description}</span></td>
       <td class="mono">WALK-IN</td>
-      <td class="num">${categoryCell(breakdown.medication)}</td>
-      <td class="num">${categoryCell(breakdown.lab_test)}</td>
-      <td class="num">${categoryCell(breakdown.delivery)}</td>
-      <td class="num">${categoryCell(breakdown.bed)}</td>
-      <td class="num">${categoryCell(breakdown.others)}</td>
+      ${cells}
       <td class="num total-cell">${Number(item.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
     </tr>`;
   }).join('');
 
   const empty = items.length === 0 && manualItems.length === 0
-    ? `<tr><td colspan="8" class="empty">No billable invoices or walk-in paper services in this period.</td></tr>`
+    ? `<tr><td colspan="13" class="empty">No billable invoices or walk-in paper services in this period.</td></tr>`
     : '';
 
   return `
@@ -200,13 +200,10 @@ function statementHtml(statement: SponsorStatement, items: SponsorStatementRepor
       <table>
         <thead>
           <tr>
+            <th class="sn">S/N</th>
             <th>Name</th>
             <th>Card #</th>
-            <th class="num">Medication (₦)</th>
-            <th class="num">Lab Test (₦)</th>
-            <th class="num">Delivery (₦)</th>
-            <th class="num">Bed (₦)</th>
-            <th class="num">Others (₦)</th>
+            ${SPONSOR_EXAM_TABLE_COLUMNS.map(key => `<th class="num">${sponsorExamColumnLabel(key)} (₦)</th>`).join('')}
             <th class="num">Total (₦)</th>
           </tr>
         </thead>
@@ -215,12 +212,8 @@ function statementHtml(statement: SponsorStatement, items: SponsorStatementRepor
           ${manualRows}
           ${empty}
           <tr class="grand">
-            <td colspan="2">Grand Total</td>
-            <td class="num">${categoryCell(totalBreakdown.medication)}</td>
-            <td class="num">${categoryCell(totalBreakdown.lab_test)}</td>
-            <td class="num">${categoryCell(totalBreakdown.delivery)}</td>
-            <td class="num">${categoryCell(totalBreakdown.bed)}</td>
-            <td class="num">${categoryCell(totalBreakdown.others)}</td>
+            <td colspan="3">Grand Total</td>
+            ${SPONSOR_EXAM_TABLE_COLUMNS.map(key => `<td class="num">${categoryCell(key === SPONSOR_EXAM_COLUMN_KEY ? sponsorExamColumnAmount(totalBreakdown) : totalBreakdown[key])}</td>`).join('')}
             <td class="num">${money(statement.total_amount)}</td>
           </tr>
         </tbody>
@@ -363,10 +356,13 @@ const CSS = `
     text-align: left; padding: 7px 5px;
     font-size: 8px; letter-spacing: .7px; text-transform: uppercase; font-weight: 600;
   }
-  .items thead th:first-child { width: 22%; }
-  .items thead th:nth-child(2) { width: 12%; }
+  .items thead th.sn, .items td.sn { width: 4%; text-align: center; color: #64748b; }
+  .items thead th:first-child { width: 4%; }
+  .items thead th:nth-child(2) { width: 18%; }
+  .items thead th:nth-child(3) { width: 10%; }
   .items thead th.num { text-align: right; }
-  .items td { padding: 7px 5px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
+  .items td { padding: 7px 4px; border-bottom: 1px solid #eef2f7; vertical-align: top; }
+  .items td.sn { font-size: 8.5px; }
   .items td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .items td.mono { font-family: 'Courier New', monospace; font-size: 8.5px; color: #334155; }
   .items td.total-cell { font-weight: 700; color: #0f3c64; }
@@ -417,7 +413,7 @@ const CSS = `
   }
 `;
 
-async function renderPage(statement: SponsorStatement, items: SponsorStatementItem[], manualItems: CorporateManualStatementItem[]): Promise<HTMLCanvasElement> {
+async function renderPage(statement: SponsorStatement, items: SponsorStatementReportItem[], manualItems: CorporateManualStatementItem[]): Promise<HTMLCanvasElement> {
   const host = document.createElement('div');
   host.style.cssText = 'position:fixed;left:-99999px;top:0;';
   host.innerHTML = `<style>${CSS}</style>${statementHtml(statement, items, manualItems)}`;

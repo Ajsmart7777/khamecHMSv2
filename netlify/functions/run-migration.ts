@@ -443,6 +443,15 @@ export const handler: Handler = async (event) => {
           CREATE POLICY "Authenticated staff can delete manual patient records"
             ON public.corporate_manual_patient_records FOR DELETE TO authenticated USING (true);
         `,
+        'sponsor_month_end_manual_columns': `
+          ALTER TABLE public.corporate_manual_patient_records ADD COLUMN IF NOT EXISTS consultation NUMERIC NOT NULL DEFAULT 0;
+          ALTER TABLE public.corporate_manual_patient_records ADD COLUMN IF NOT EXISTS drugs_dressing NUMERIC NOT NULL DEFAULT 0;
+          ALTER TABLE public.corporate_manual_patient_records ADD COLUMN IF NOT EXISTS blood_iv_fluid NUMERIC NOT NULL DEFAULT 0;
+          ALTER TABLE public.corporate_manual_patient_records ADD COLUMN IF NOT EXISTS surgery NUMERIC NOT NULL DEFAULT 0;
+          ALTER TABLE public.corporate_manual_patient_records ADD COLUMN IF NOT EXISTS xray NUMERIC NOT NULL DEFAULT 0;
+          ALTER TABLE public.corporate_manual_patient_records ADD COLUMN IF NOT EXISTS delivery NUMERIC NOT NULL DEFAULT 0;
+          ALTER TABLE public.corporate_manual_service_rows ADD COLUMN IF NOT EXISTS service_category TEXT NOT NULL DEFAULT 'others';
+        `,
       };
 
       const sql = migrations[migrationName];

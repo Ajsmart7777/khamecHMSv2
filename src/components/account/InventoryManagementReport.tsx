@@ -64,9 +64,9 @@ export function InventoryManagementReport() {
         ? await (supabase as any).from('stock_transfers').select('id,from_location_id,to_location_id').in('id', transferIds)
         : { data: [], error: null };
       if (transferError) throw transferError;
-      const productsById = new Map((catalogRows ?? []).map((row: any) => [String(row.product_id), row]));
-      const locationsById = new Map((locationRows ?? []).map((row: any) => [String(row.id), row]));
-      const transfersById = new Map((transferRows ?? []).map((row: any) => [String(row.id), row]));
+      const productsById = new Map<string, any>((catalogRows ?? []).map((row: any) => [String(row.product_id), row]));
+      const locationsById = new Map<string, any>((locationRows ?? []).map((row: any) => [String(row.id), row]));
+      const transfersById = new Map<string, any>((transferRows ?? []).map((row: any) => [String(row.id), row]));
       const storeMovements = rows.map((row: any) => {
         const product = productsById.get(String(row.product_id));
         const transfer = row.transfer_id ? transfersById.get(String(row.transfer_id)) : null;

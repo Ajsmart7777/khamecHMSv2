@@ -20,6 +20,11 @@ import { downloadStatementPdf } from '@/lib/sponsorStatementPdf';
 import {
   buildPatientSponsorBreakdowns,
   emptySponsorServiceBreakdown,
+  SPONSOR_EXAM_COLUMN_KEY,
+  SPONSOR_EXAM_TABLE_COLUMNS,
+  SPONSOR_SERVICE_CATEGORIES,
+  sponsorExamColumnAmount,
+  sponsorExamColumnLabel,
   type SponsorServiceBreakdown,
 } from '@/lib/sponsorStatementCategories';
 import {
@@ -87,7 +92,11 @@ interface ManualPatientRecord {
   patient_name: string;
   card_number: string | null;
   visits: number;
-  medication: number;
+  consultation: number;
+  drugs_dressing: number;
+  blood_iv_fluid: number;
+  surgery: number;
+  xray: number;
   lab_test: number;
   delivery: number;
   bed: number;
@@ -99,12 +108,20 @@ interface ManualPatientForm {
   patient_name: string;
   card_number: string;
   visits: string;
-  medication: string;
+  consultation: string;
+  drugs_dressing: string;
+  blood_iv_fluid: string;
+  surgery: string;
+  xray: string;
   lab_test: string;
   delivery: string;
   bed: string;
   others: string;
   notes: string;
+}
+
+function manualPatientRecordTotal(row: Pick<ManualPatientRecord, keyof SponsorServiceBreakdown | 'visits'>) {
+  return SPONSOR_SERVICE_CATEGORIES.reduce((sum, category) => sum + (Number(row[category]) || 0), 0);
 }
 
 function isoDateToday() {
@@ -122,7 +139,21 @@ function emptySettlementForm(): RetainerSettlementForm {
 }
 
 function emptyManualPatientForm(): ManualPatientForm {
-  return { patient_name: '', card_number: '', visits: '0', medication: '0', lab_test: '0', delivery: '0', bed: '0', others: '0', notes: '' };
+  return {
+    patient_name: '',
+    card_number: '',
+    visits: '0',
+    consultation: '0',
+    drugs_dressing: '0',
+    blood_iv_fluid: '0',
+    surgery: '0',
+    xray: '0',
+    lab_test: '0',
+    delivery: '0',
+    bed: '0',
+    others: '0',
+    notes: '',
+  };
 }
 
 function money(v: number) {
@@ -230,7 +261,7 @@ export function RetainerClaimsPanel() {
       try {
         const { data: manualPatientData, error: manualPatientError } = await (supabase as any)
           .from('corporate_manual_patient_records')
-          .select('id, sponsor_id, patient_name, card_number, visits, medication, lab_test, delivery, bed, others, notes')
+          .select('id, sponsor_id, patient_name, card_number, visits, consultation, drugs_dressing, blood_iv_fluid, surgery, xray, lab_test, delivery, bed, others, notes')
           .eq('period_year', year)
           .eq('period_month', month)
           .order('patient_name', { ascending: true });
@@ -244,7 +275,11 @@ export function RetainerClaimsPanel() {
             patient_name: row.patient_name,
             card_number: row.card_number,
             visits: Number(row.visits) || 0,
-            medication: Number(row.medication) || 0,
+            consultation: Number(row.consultation) || 0,
+            drugs_dressing: Number(row.drugs_dressing) || 0,
+            blood_iv_fluid: Number(row.blood_iv_fluid) || 0,
+            surgery: Number(row.surgery) || 0,
+            xray: Number(row.xray) || 0,
             lab_test: Number(row.lab_test) || 0,
             delivery: Number(row.delivery) || 0,
             bed: Number(row.bed) || 0,
@@ -313,9 +348,7 @@ export function RetainerClaimsPanel() {
         const inv = invoices[p.id] || [];
         return sum + inv.reduce((s, i) => s + i.total_amount, 0);
       }, 0);
-      const manualPatientTotal = (manualPatientRecords[r.id] || []).reduce((sum, row) => {
-        return sum + row.medication + row.lab_test + row.delivery + row.bed + row.others;
-      }, 0);
+      const manualPatientTotal = (manualPatientRecords[r.id] || []).reduce((sum, row) => sum + manualPatientRecordTotal(row), 0);
       billed += monthTotal + manualPatientTotal;
       deposit += Math.max(0, r.balance);
       const stmt = statementBySponsor[r.id];
@@ -423,7 +456,11 @@ export function RetainerClaimsPanel() {
           patient_name: row.patient_name,
           card_number: row.card_number || '',
           visits: String(row.visits),
-          medication: String(row.medication),
+          consultation: String(row.consultation),
+          drugs_dressing: String(row.drugs_dressing),
+          blood_iv_fluid: String(row.blood_iv_fluid),
+          surgery: String(row.surgery),
+          xray: String(row.xray),
           lab_test: String(row.lab_test),
           delivery: String(row.delivery),
           bed: String(row.bed),
@@ -439,12 +476,10 @@ export function RetainerClaimsPanel() {
       toast({ title: 'Patient name is required', variant: 'destructive' });
       return;
     }
-    const medication = Number(manualPatientForm.medication) || 0;
-    const labTest = Number(manualPatientForm.lab_test) || 0;
-    const delivery = Number(manualPatientForm.delivery) || 0;
-    const bed = Number(manualPatientForm.bed) || 0;
-    const others = Number(manualPatientForm.others) || 0;
-    const total = medication + labTest + delivery + bed + others;
+    const serviceAmounts = Object.fromEntries(
+      SPONSOR_SERVICE_CATEGORIES.map(category => [category, Number(manualPatientForm[category]) || 0]),
+    ) as unknown as SponsorServiceBreakdown;
+    const total = manualPatientRecordTotal({ ...serviceAmounts, visits: 0 } as ManualPatientRecord);
     if (total <= 0) {
       toast({ title: 'At least one service amount is required', description: 'Enter an amount for at least one service category.', variant: 'destructive' });
       return;
@@ -459,11 +494,7 @@ export function RetainerClaimsPanel() {
         patient_name: manualPatientForm.patient_name.trim(),
         card_number: manualPatientForm.card_number.trim() || null,
         visits: Number(manualPatientForm.visits) || 0,
-        medication,
-        lab_test: labTest,
-        delivery,
-        bed,
-        others,
+        ...serviceAmounts,
         notes: manualPatientForm.notes.trim() || null,
       };
       const request = editingManualPatient
@@ -527,8 +558,8 @@ export function RetainerClaimsPanel() {
       ]);
       if (patientsError) throw patientsError;
       if (invoicesError) throw invoicesError;
-      const patientById = new Map((patients || []).map((patient: any) => [String(patient.id), patient]));
-      const invoiceById = new Map((invoices || []).map((invoice: any) => [String(invoice.id), invoice]));
+      const patientById = new Map<string, any>((patients || []).map((patient: any) => [String(patient.id), patient]));
+      const invoiceById = new Map<string, any>((invoices || []).map((invoice: any) => [String(invoice.id), invoice]));
 
       const raw = reconciliation as unknown as {
         sponsor: CorporateCoveringLetterData['sponsor'];
@@ -738,65 +769,66 @@ export function RetainerClaimsPanel() {
                     {/* Patient list */}
                     <div className="border rounded overflow-x-auto">
                       <div className="flex items-center justify-between gap-3 border-b px-3 py-2 bg-muted/30"><div><p className="text-sm font-medium">Patient service records</p><p className="text-xs text-muted-foreground">Registered patients and manually added service records for this retainer account.</p></div>{!locked && <Button size="sm" variant="ghost" onClick={() => openManualPatientDialog(r.id)}><Plus className="h-3.5 w-3.5 mr-1" /> Add patient record</Button>}</div>
-                      <table className="w-full text-sm">
+                      <table className="w-full text-xs sm:text-sm min-w-[900px]">
                         <thead className="bg-muted/50 text-[10px] uppercase text-muted-foreground">
                           <tr>
-                            <th className="text-left px-3 py-2">Name</th>
-                            <th className="text-left px-3 py-2">Card #</th>
-                            <th className="text-center px-3 py-2">Visits</th>
-                            <th className="text-right px-3 py-2">Medication</th>
-                            <th className="text-right px-3 py-2">Lab Test</th>
-                            <th className="text-right px-3 py-2">Delivery</th>
-                            <th className="text-right px-3 py-2">Bed</th>
-                            <th className="text-right px-3 py-2">Others</th>
-                            <th className="text-right px-3 py-2">Total</th>
-                            <th className="w-20 px-3 py-2"></th>
+                            <th className="text-left px-2 py-2">S/N</th>
+                            <th className="text-left px-2 py-2">Name</th>
+                            <th className="text-left px-2 py-2">Card #</th>
+                            <th className="text-center px-2 py-2">Visits</th>
+                            {SPONSOR_EXAM_TABLE_COLUMNS.map(key => (
+                              <th key={key} className="text-right px-2 py-2">{sponsorExamColumnLabel(key)}</th>
+                            ))}
+                            <th className="text-right px-2 py-2">Total</th>
+                            <th className="w-20 px-2 py-2"></th>
                           </tr>
                         </thead>
                         <tbody>
                           {pats.length === 0 && (manualPatientRecords[r.id] || []).length === 0 ? (
-                            <tr><td className="px-3 py-4 text-center text-muted-foreground" colSpan={10}>No patients under this retainer.</td></tr>
+                            <tr><td className="px-3 py-4 text-center text-muted-foreground" colSpan={13}>No patients under this retainer.</td></tr>
                           ) : null}
-                          {pats.map(p => {
+                          {pats.map((p, index) => {
                             const invs = invoices[p.id] || [];
                             const sub = invs.reduce((s, i) => s + i.total_amount, 0);
                             const breakdown = serviceBreakdowns[p.id] || emptySponsorServiceBreakdown();
                             const vc = (visitCounts[r.id] || {})[p.id] || 0;
                             return (
                               <tr key={p.id} className="border-t">
-                                <td className="px-3 py-2">{p.first_name} {p.last_name || ''}<div className="text-[10px] text-muted-foreground font-mono">{invs.length ? invs.map(i => i.invoice_number).join(', ') : 'No invoice'}</div></td>
-                                <td className="px-3 py-2 font-mono text-xs text-muted-foreground"><span title={`System Patient ID: ${p.card_number || '—'}`}>{p.physical_card_number || p.card_number || '—'}</span></td>
-                                <td className="px-3 py-2 text-center">{vc || <span className="text-muted-foreground">0</span>}</td>
-                                <td className="px-3 py-2 text-right">{money(breakdown.medication)}</td>
-                                <td className="px-3 py-2 text-right">{money(breakdown.lab_test)}</td>
-                                <td className="px-3 py-2 text-right">{money(breakdown.delivery)}</td>
-                                <td className="px-3 py-2 text-right">{money(breakdown.bed)}</td>
-                                <td className="px-3 py-2 text-right">{money(breakdown.others)}</td>
-                                <td className="px-3 py-2 text-right font-medium">{sub > 0 ? money(sub) : <span className="text-muted-foreground">0.00</span>}</td>
+                                <td className="px-2 py-2 text-muted-foreground">{index + 1}</td>
+                                <td className="px-2 py-2">{p.first_name} {p.last_name || ''}<div className="text-[10px] text-muted-foreground font-mono">{invs.length ? invs.map(i => i.invoice_number).join(', ') : 'No invoice'}</div></td>
+                                <td className="px-2 py-2 font-mono text-xs text-muted-foreground"><span title={`System Patient ID: ${p.card_number || '—'}`}>{p.physical_card_number || p.card_number || '—'}</span></td>
+                                <td className="px-2 py-2 text-center">{vc || <span className="text-muted-foreground">0</span>}</td>
+                                {SPONSOR_EXAM_TABLE_COLUMNS.map(key => (
+                                  <td key={key} className="px-2 py-2 text-right whitespace-nowrap">{money(key === SPONSOR_EXAM_COLUMN_KEY ? sponsorExamColumnAmount(breakdown) : breakdown[key])}</td>
+                                ))}
+                                <td className="px-2 py-2 text-right font-medium">{sub > 0 ? money(sub) : <span className="text-muted-foreground">0.00</span>}</td>
                                 <td></td>
                               </tr>
                             );
                           })}
-                          {(manualPatientRecords[r.id] || []).map(row => {
-                            const rowTotal = row.medication + row.lab_test + row.delivery + row.bed + row.others;
-                            return (
-                              <tr key={row.id} className="border-t">
-                                <td className="px-3 py-2">{row.patient_name}{row.notes && <p className="text-[10px] text-muted-foreground mt-0.5">{row.notes}</p>}</td>
-                                <td className="px-3 py-2 font-mono text-xs text-muted-foreground">{row.card_number || '—'}</td>
-                                <td className="px-3 py-2 text-center">{row.visits || <span className="text-muted-foreground">0</span>}</td>
-                                <td className="px-3 py-2 text-right">{money(row.medication)}</td>
-                                <td className="px-3 py-2 text-right">{money(row.lab_test)}</td>
-                                <td className="px-3 py-2 text-right">{money(row.delivery)}</td>
-                                <td className="px-3 py-2 text-right">{money(row.bed)}</td>
-                                <td className="px-3 py-2 text-right">{money(row.others)}</td>
-                                <td className="px-3 py-2 text-right font-medium">{money(rowTotal)}</td>
-                                <td className="px-3 py-2 text-right">{!locked && <div className="inline-flex gap-1"><Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openManualPatientDialog(r.id, row)}><Pencil className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => void deleteManualPatientRecord(row)} disabled={busy === row.id}><Trash2 className="h-3.5 w-3.5" /></Button></div>}</td>
-                              </tr>
-                            );
-                          })}
+                          {(manualPatientRecords[r.id] || []).map((row, index) => (
+                            <tr key={row.id} className="border-t">
+                              <td className="px-2 py-2 text-muted-foreground">{pats.length + index + 1}</td>
+                              <td className="px-2 py-2">{row.patient_name}{row.notes && <p className="text-[10px] text-muted-foreground mt-0.5">{row.notes}</p>}</td>
+                              <td className="px-2 py-2 font-mono text-xs text-muted-foreground">{row.card_number || '—'}</td>
+                              <td className="px-2 py-2 text-center">{row.visits || <span className="text-muted-foreground">0</span>}</td>
+                              {SPONSOR_EXAM_TABLE_COLUMNS.map(key => (
+                                <td key={key} className="px-2 py-2 text-right whitespace-nowrap">{money(key === SPONSOR_EXAM_COLUMN_KEY ? sponsorExamColumnAmount(row) : row[key])}</td>
+                              ))}
+                              <td className="px-2 py-2 text-right font-medium">{money(manualPatientRecordTotal(row))}</td>
+                              <td className="px-2 py-2 text-right">{!locked && <div className="inline-flex gap-1"><Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openManualPatientDialog(r.id, row)}><Pencil className="h-3.5 w-3.5" /></Button><Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => void deleteManualPatientRecord(row)} disabled={busy === row.id}><Trash2 className="h-3.5 w-3.5" /></Button></div>}</td>
+                            </tr>
+                          ))}
                           <tr className="border-t bg-muted/30 font-semibold">
-                            <td className="px-3 py-2" colSpan={8}>Month total</td>
-                            <td className="px-3 py-2 text-right">₦{money(monthTotal + (manualPatientRecords[r.id] || []).reduce((sum, row) => sum + row.medication + row.lab_test + row.delivery + row.bed + row.others, 0))}</td>
+                            <td className="px-2 py-2" colSpan={4}>Month total</td>
+                            {SPONSOR_EXAM_TABLE_COLUMNS.map(key => {
+                              const columnTotal = pats.reduce((sum, p) => {
+                                const b = serviceBreakdowns[p.id] || emptySponsorServiceBreakdown();
+                                return sum + (key === SPONSOR_EXAM_COLUMN_KEY ? sponsorExamColumnAmount(b) : b[key]);
+                              }, 0) + (manualPatientRecords[r.id] || []).reduce((sum, row) => sum + (key === SPONSOR_EXAM_COLUMN_KEY ? sponsorExamColumnAmount(row) : row[key] || 0), 0);
+                              return <td key={key} className="px-2 py-2 text-right whitespace-nowrap">{money(columnTotal)}</td>;
+                            })}
+                            <td className="px-2 py-2 text-right">₦{money(monthTotal + (manualPatientRecords[r.id] || []).reduce((sum, row) => sum + manualPatientRecordTotal(row), 0))}</td>
                             <td></td>
                           </tr>
                         </tbody>
@@ -841,7 +873,57 @@ export function RetainerClaimsPanel() {
       </Dialog>
 
       <Dialog open={!!manualPatientDialog} onOpenChange={open => !open && setManualPatientDialog(null)}>
-        <DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>{editingManualPatient ? 'Edit patient service record' : 'Add patient service record'}</DialogTitle><DialogDescription>{accounts.find(a => a.id === manualPatientDialog)?.company_name || 'Retainer account'} · {MONTHS[month - 1]} {year}. Enter the service charges for this patient manually.</DialogDescription></DialogHeader><div className="grid grid-cols-1 sm:grid-cols-3 gap-3"><div className="sm:col-span-2 space-y-1.5"><label className="text-sm font-medium">Patient name</label><Input value={manualPatientForm.patient_name} onChange={event => setManualPatientForm(form => ({ ...form, patient_name: event.target.value }))} placeholder="Full patient name" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Card number</label><Input value={manualPatientForm.card_number} onChange={event => setManualPatientForm(form => ({ ...form, card_number: event.target.value }))} placeholder="Patient card number" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Visits</label><Input type="number" min="0" value={manualPatientForm.visits} onChange={event => setManualPatientForm(form => ({ ...form, visits: event.target.value }))} placeholder="0" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Medication (₦)</label><Input type="number" min="0" step="0.01" value={manualPatientForm.medication} onChange={event => setManualPatientForm(form => ({ ...form, medication: event.target.value }))} placeholder="0.00" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Lab Test (₦)</label><Input type="number" min="0" step="0.01" value={manualPatientForm.lab_test} onChange={event => setManualPatientForm(form => ({ ...form, lab_test: event.target.value }))} placeholder="0.00" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Delivery (₦)</label><Input type="number" min="0" step="0.01" value={manualPatientForm.delivery} onChange={event => setManualPatientForm(form => ({ ...form, delivery: event.target.value }))} placeholder="0.00" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Bed (₦)</label><Input type="number" min="0" step="0.01" value={manualPatientForm.bed} onChange={event => setManualPatientForm(form => ({ ...form, bed: event.target.value }))} placeholder="0.00" /></div><div className="space-y-1.5"><label className="text-sm font-medium">Others (₦)</label><Input type="number" min="0" step="0.01" value={manualPatientForm.others} onChange={event => setManualPatientForm(form => ({ ...form, others: event.target.value }))} placeholder="0.00" /></div><div className="sm:col-span-3 space-y-1.5"><label className="text-sm font-medium">Total</label><div className="text-lg font-semibold">₦{money((Number(manualPatientForm.medication) || 0) + (Number(manualPatientForm.lab_test) || 0) + (Number(manualPatientForm.delivery) || 0) + (Number(manualPatientForm.bed) || 0) + (Number(manualPatientForm.others) || 0))}</div></div><div className="sm:col-span-3 space-y-1.5"><label className="text-sm font-medium">Notes (optional)</label><Textarea value={manualPatientForm.notes} onChange={event => setManualPatientForm(form => ({ ...form, notes: event.target.value }))} placeholder="Any additional notes about this patient's services" rows={2} /></div></div><DialogFooter><Button variant="outline" onClick={() => setManualPatientDialog(null)}>Cancel</Button><Button onClick={() => void saveManualPatientRecord()} disabled={busy === manualPatientDialog}>{busy === manualPatientDialog && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{editingManualPatient ? 'Save changes' : 'Add patient record'}</Button></DialogFooter></DialogContent>
+        <DialogContent className="max-w-[calc(100vw-1rem)] sm:max-w-3xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editingManualPatient ? 'Edit patient service record' : 'Add patient service record'}</DialogTitle>
+            <DialogDescription>
+              {accounts.find(a => a.id === manualPatientDialog)?.company_name || 'Retainer account'} · {MONTHS[month - 1]} {year}. Enter the service charges for this patient manually.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2 space-y-1.5">
+              <label className="text-sm font-medium">Patient name</label>
+              <Input value={manualPatientForm.patient_name} onChange={event => setManualPatientForm(form => ({ ...form, patient_name: event.target.value }))} placeholder="Full patient name" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Card number</label>
+              <Input value={manualPatientForm.card_number} onChange={event => setManualPatientForm(form => ({ ...form, card_number: event.target.value }))} placeholder="Card number" />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Visits</label>
+              <Input type="number" min="0" inputMode="numeric" value={manualPatientForm.visits} onChange={event => setManualPatientForm(form => ({ ...form, visits: event.target.value }))} placeholder="0" />
+            </div>
+            {SPONSOR_SERVICE_CATEGORIES.map(category => (
+              <div key={category} className="space-y-1.5">
+                <label className="text-sm font-medium">{sponsorExamColumnLabel(category === 'consultation' ? SPONSOR_EXAM_COLUMN_KEY : category)} (₦)</label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  inputMode="decimal"
+                  value={manualPatientForm[category]}
+                  onChange={event => setManualPatientForm(form => ({ ...form, [category]: event.target.value }))}
+                  placeholder="0.00"
+                />
+              </div>
+            ))}
+            <div className="sm:col-span-3 space-y-1.5">
+              <label className="text-sm font-medium">Total</label>
+              <div className="text-lg font-semibold">₦{money(SPONSOR_SERVICE_CATEGORIES.reduce((sum, category) => sum + (Number(manualPatientForm[category]) || 0), 0))}</div>
+            </div>
+            <div className="sm:col-span-3 space-y-1.5">
+              <label className="text-sm font-medium">Notes (optional)</label>
+              <Textarea value={manualPatientForm.notes} onChange={event => setManualPatientForm(form => ({ ...form, notes: event.target.value }))} placeholder="Any additional notes about this patient's services" rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManualPatientDialog(null)}>Cancel</Button>
+            <Button onClick={() => void saveManualPatientRecord()} disabled={busy === manualPatientDialog}>
+              {busy === manualPatientDialog && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              {editingManualPatient ? 'Save changes' : 'Add patient record'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
       </Dialog>
 
       <Dialog open={!!settlementDialog} onOpenChange={open => !open && setSettlementDialog(null)}>

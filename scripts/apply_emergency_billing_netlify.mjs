@@ -54,7 +54,7 @@ function splitSql(sql) {
   return statements;
 }
 
-const [mainSql, repairSql, patientFeeSql, manualEmergencySql, clinicalLabSql, sharedClinicalConstraintSql, payrollSafetySql, payrollBatchSql, unifiedEmergencyLabSql, emergencyLabBackfillSql, emergencyLabRepairSql, emergencyCategoryBillingSql, fadimatuRepairSql, reconciliationSql, directAdmissionSql, fulfilledSnapWorkflowSql, staffFamilySalaryDeductionSql, salaryDeductionMarkerRepairSql, pharmacyDischargeAndAmountRepairSql, emergencyBillingNeverAffectsPatientFlowSql, emergencySingleInvoiceSql] = await Promise.all([
+const [mainSql, repairSql, patientFeeSql, manualEmergencySql, clinicalLabSql, sharedClinicalConstraintSql, payrollSafetySql, payrollBatchSql, unifiedEmergencyLabSql, emergencyLabBackfillSql, emergencyLabRepairSql, emergencyCategoryBillingSql, fadimatuRepairSql, reconciliationSql, directAdmissionSql, fulfilledSnapWorkflowSql, staffFamilySalaryDeductionSql, salaryDeductionMarkerRepairSql, pharmacyDischargeAndAmountRepairSql, emergencyBillingNeverAffectsPatientFlowSql, emergencySingleInvoiceSql, sponsorMonthEndManualColumnsSql] = await Promise.all([
   fs.readFile(new URL('../supabase/migrations/20260825162000_separate_emergency_billing.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260825170000_repair_emergency_billing_trigger_order.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260826090000_fix_patient_fee_role_context.sql', import.meta.url), 'utf8'),
@@ -76,6 +76,7 @@ const [mainSql, repairSql, patientFeeSql, manualEmergencySql, clinicalLabSql, sh
   fs.readFile(new URL('../supabase/migrations/20260901130000_repair_pharmacy_discharge_and_staff_deduction_amounts.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260903120000_emergency_billing_never_affects_patient_flow.sql', import.meta.url), 'utf8'),
   fs.readFile(new URL('../supabase/migrations/20260903150000_emergency_single_invoice_billing.sql', import.meta.url), 'utf8'),
+  fs.readFile(new URL('../supabase/migrations/20260905120000_sponsor_month_end_manual_columns.sql', import.meta.url), 'utf8'),
 ]);
 const mainStatements = splitSql(mainSql);
 const repairStatements = splitSql(repairSql);
@@ -98,6 +99,7 @@ const salaryDeductionMarkerRepairStatements = splitSql(salaryDeductionMarkerRepa
 const pharmacyDischargeAndAmountRepairStatements = splitSql(pharmacyDischargeAndAmountRepairSql);
 const emergencyBillingNeverAffectsPatientFlowStatements = splitSql(emergencyBillingNeverAffectsPatientFlowSql);
 const emergencySingleInvoiceStatements = splitSql(emergencySingleInvoiceSql);
+const sponsorMonthEndManualColumnsStatements = splitSql(sponsorMonthEndManualColumnsSql);
 const completeEmergency = mainStatements.find(sql => sql.includes('CREATE OR REPLACE FUNCTION public.complete_emergency_billing_draft('));
 const repairByPrefix = prefix => repairStatements.find(sql => sql.trimStart().startsWith(prefix));
 const dropSnapTrigger = repairByPrefix('DROP TRIGGER');
@@ -130,6 +132,7 @@ const migrations = [
   { version: '20260901130000_repair_pharmacy_discharge_and_staff_deduction_amounts', statements: pharmacyDischargeAndAmountRepairStatements },
   { version: '20260903120000_emergency_billing_never_affects_patient_flow', statements: emergencyBillingNeverAffectsPatientFlowStatements },
   { version: '20260903150000_emergency_single_invoice_billing', statements: emergencySingleInvoiceStatements },
+  { version: '20260905120000_sponsor_month_end_manual_columns', statements: sponsorMonthEndManualColumnsStatements },
 ];
 
 const client = new Client({ connectionString, ssl: { rejectUnauthorized: false }, connectionTimeoutMillis: 15000, statement_timeout: 300000 });

@@ -83,7 +83,7 @@ export function DailySalesReport() {
         ? await supabase.from('patients').select('id, first_name, last_name, card_number, account_type').in('id', patientIds)
         : { data: [], error: null };
       if (patientResult.error) throw patientResult.error;
-      const patientById = new Map((patientResult.data || []).map((patient: any) => [patient.id, patient]));
+      const patientById = new Map<string, any>((patientResult.data || []).map((patient: any) => [patient.id, patient]));
 
       const invRows: Row[] = (invRes.data || []).map((i: any) => {
         const patient = patientById.get(i.patient_id);

@@ -13,6 +13,7 @@ export type SnapStatus =
 export interface MatchedItem {
   pricelist_id: string;
   name: string;
+  description?: string;
   size: string | null;
   category: string;
   unit_price: number;

@@ -35,6 +35,7 @@ import { nextStationForInvoice, isEmergencyOnlyInvoice, type WorkflowRouteStatus
 import { SnapToCard } from '@/components/visit/SnapToCard';
 import { SettleDischargeDialog } from '@/components/billing/SettleDischargeDialog';
 import { BillingSnapInbox } from '@/components/billing/BillingSnapInbox';
+import { QtyInput } from '@/components/billing/QtyInput';
 import { useActiveVisit } from '@/hooks/useVisits';
 import { CheckCircle2 } from 'lucide-react';
 import { getPatientFeeStatuses, hasPaidFee, type PatientFeeStatus } from '@/lib/patientFees';
@@ -446,14 +447,8 @@ const Billing = () => {
                           onChange={(e) => updateItem(item.id, 'description', e.target.value)}
                         />
                       </div>
-                      <div className="w-full md:w-24">
-                        <Input
-                          type="number"
-                          placeholder="Qty"
-                          min="1"
-                          value={item.qty}
-                          onChange={(e) => updateItem(item.id, 'qty', parseInt(e.target.value) || 1)}
-                        />
+                      <div className="w-full md:w-auto">
+                        <QtyInput value={item.qty} onChange={(qty) => updateItem(item.id, 'qty', qty)} />
                       </div>
                       <div className="w-full md:w-32">
                         <div className="relative">

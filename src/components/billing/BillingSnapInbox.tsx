@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { toast } from 'sonner';
 import { Camera, Plus, Trash2, Send, FileText, Beaker, Pill } from 'lucide-react';
 import { SnapOcrPanel } from './SnapOcrPanel';
+import { QtyInput } from './QtyInput';
 import { highlightMatch } from '@/lib/highlightMatch';
 
 const fmt = (n: number) => `₦${n.toLocaleString()}`;
@@ -454,13 +455,7 @@ function SnapReviewDialog({ snap, onClose, onBilled, patientName }: {
                       <p className="text-sm truncate">{it.name}{it.size ? ` ${it.size}` : ''}</p>
                       <p className="text-[10px] text-muted-foreground">{it.category} · {fmt(it.unit_price)}/unit</p>
                     </div>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={it.qty}
-                      onChange={(e) => setQty(idx, parseInt(e.target.value) || 1)}
-                      className="w-16 h-8 text-xs"
-                    />
+                    <QtyInput value={it.qty} onChange={(qty) => setQty(idx, qty)} />
                     <span className="text-xs font-mono w-20 text-right">{fmt(it.unit_price * it.qty)}</span>
                     <Button size="sm" variant="ghost" onClick={() => removeItem(idx)}>
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -706,7 +701,7 @@ function EmergencyBillingDraftDialog({ snap, onClose, onBilled, patientName }: {
                       <Input value={it.name} onChange={e => updateLine(idx, { name: e.target.value, description: e.target.value, pricelist_id: '' })} disabled={busy} className="h-8 text-xs" placeholder="Billable description" />
                       <p className="text-[10px] text-muted-foreground mt-1">{it.service_category === 'lab_test' ? 'Lab Test' : it.service_category === 'medication' ? 'Medication' : (it.service_category || it.category || 'emergency')} · {it.pricelist_id ? 'Pricelist item' : 'Manual line'}</p>
                     </div>
-                    <Input type="number" min={1} value={it.qty} onChange={e => setQty(idx, Number(e.target.value) || 1)} disabled={busy} className="w-16 h-8 text-xs" />
+                    <QtyInput value={it.qty} onChange={qty => setQty(idx, qty)} disabled={busy} />
                     <Input type="number" min={0} value={it.unit_price} onChange={e => updateLine(idx, { unit_price: Math.max(0, Number(e.target.value) || 0), pricelist_id: '' })} disabled={busy} className="w-24 h-8 text-xs" />
                     <span className="text-xs font-mono w-20 text-right">{fmt(Number(it.unit_price || 0) * Math.max(1, Number(it.qty || 1)))}</span>
                     <Button size="sm" variant="ghost" onClick={() => removeItem(idx)} disabled={busy}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>

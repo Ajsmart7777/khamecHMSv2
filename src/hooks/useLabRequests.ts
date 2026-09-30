@@ -118,14 +118,20 @@ export function useLabRequests(): UseLabRequestsReturn {
         .eq('id', id);
 
       if (updateError) throw updateError;
-      
+
       // Log audit event for updates
       await labRequestAuditLogger(
         'lab_request_updated',
         id,
         { updates: JSON.parse(JSON.stringify(updates)) }
       );
-      
+
+      // Optimistic local update — realtime is a no-op stub in this adapter, so
+      // without this the UI stays stale until a manual refresh.
+      setLabRequests(prev =>
+        prev.map(req => (req.id === id ? { ...req, ...(updates as Partial<LabRequest>) } : req))
+      );
+
       return true;
     } catch (err) {
       logError('Error updating lab request', err);

@@ -34,31 +34,33 @@ export function usePrescriptions() {
   const fetchPrescriptions = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch prescriptions
-      const { data: prescriptionData, error: prescriptionError } = await supabase
-        .from('prescriptions')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Fetch prescriptions and items in parallel (previously serial: 2 round trips)
+      const [prescriptionRes, itemsRes] = await Promise.all([
+        supabase.from('prescriptions').select('*').order('created_at', { ascending: false }),
+        supabase.from('prescription_items').select('*'),
+      ]);
 
-      if (prescriptionError) {
-        logError('Error fetching prescriptions', prescriptionError);
+      if (prescriptionRes.error) {
+        logError('Error fetching prescriptions', prescriptionRes.error);
         return;
       }
 
-      // Fetch all prescription items
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('prescription_items')
-        .select('*');
-
-      if (itemsError) {
-        logError('Error fetching prescription items', itemsError);
+      if (itemsRes.error) {
+        logError('Error fetching prescription items', itemsRes.error);
         return;
       }
 
-      // Combine prescriptions with their items
-      const prescriptionsWithItems = (prescriptionData || []).map(prescription => ({
+      // Group items by prescription in one pass (was an O(n²) filter per prescription)
+      const itemsByPrescription = new Map<string, PrescriptionItem[]>();
+      for (const item of (itemsRes.data || []) as PrescriptionItem[]) {
+        const list = itemsByPrescription.get(item.prescription_id);
+        if (list) list.push(item);
+        else itemsByPrescription.set(item.prescription_id, [item]);
+      }
+
+      const prescriptionsWithItems = (prescriptionRes.data || []).map(prescription => ({
         ...prescription,
-        items: (itemsData || []).filter(item => item.prescription_id === prescription.id)
+        items: itemsByPrescription.get(prescription.id) ?? []
       }));
 
       setPrescriptions(prescriptionsWithItems);
@@ -110,7 +112,10 @@ export function usePrescriptions() {
         { status, action: 'status_change' }
       );
 
-      await fetchPrescriptions();
+      // Optimistic update instead of a full blocking refetch
+      setPrescriptions(prev =>
+        prev.map(p => (p.id === id ? { ...p, status } : p))
+      );
       return true;
     } catch (error) {
       logError('Error in updatePrescriptionStatus', error);
@@ -137,7 +142,15 @@ export function usePrescriptions() {
         { dispensed, resource_type: 'prescription_item' }
       );
 
-      await fetchPrescriptions();
+      // Optimistic update instead of a full blocking refetch
+      setPrescriptions(prev =>
+        prev.map(p => ({
+          ...p,
+          items: p.items?.map(item =>
+            item.id === itemId ? { ...item, dispensed } : item
+          )
+        }))
+      );
       return true;
     } catch (error) {
       logError('Error in markItemDispensed', error);

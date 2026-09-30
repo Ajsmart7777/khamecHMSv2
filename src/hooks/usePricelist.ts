@@ -26,6 +26,8 @@ const CACHE_TTL_MS = 30_000;
 let cachedPricelist: { at: number; items: PricelistItem[] } | null = null;
 let inFlightLoad: Promise<PricelistItem[]> | null = null;
 const listeners = new Set<PricelistListener>();
+/** Only one hook instance owns the poll interval; everyone else subscribes. */
+let pollOwner = false;
 
 function normalizeItem(row: any): PricelistItem {
   return {
@@ -100,12 +102,24 @@ export function usePricelist() {
     }).catch(() => undefined);
 
     // The Cockroach compatibility client has no server-pushed realtime events.
-    // Polling keeps separate staff tablets current; local mutations publish
-    // immediately through the shared listener set.
-    const poll = window.setInterval(() => { void refresh(); }, CACHE_TTL_MS);
+    // Only one mounted instance polls (the first to mount) and refreshes the
+    // shared cache for everyone through the listener set — every dialog that
+    // mounts its own usePricelist used to fire its own forced query every
+    // 30 seconds, multiplying load during busy clinic hours.
+    let poll: number | null = null;
+    if (!pollOwner) {
+      pollOwner = true;
+      poll = window.setInterval(() => {
+        if (cachedPricelist && Date.now() - cachedPricelist.at < CACHE_TTL_MS) return;
+        void refresh().catch(() => undefined);
+      }, CACHE_TTL_MS);
+    }
     return () => {
       listeners.delete(listener);
-      window.clearInterval(poll);
+      if (poll !== null) {
+        window.clearInterval(poll);
+        pollOwner = false;
+      }
     };
   }, [refresh]);
 

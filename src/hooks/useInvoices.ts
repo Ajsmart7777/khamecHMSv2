@@ -2,6 +2,69 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { logError } from '@/lib/errorHandler';
 
+// Shared invoice cache: every Cashier/Billing instance subscribes to one
+// fetched dataset instead of each mounting its own invoices+items query pair.
+const listeners = new Set<(items: Invoice[]) => void>();
+let cachedInvoices: Invoice[] | null = null;
+let inFlightLoad: Promise<Invoice[]> | null = null;
+let lastFetchAt = 0;
+let refreshTimer: number | null = null;
+
+function publish(items: Invoice[]) {
+  cachedInvoices = items;
+  lastFetchAt = Date.now();
+  listeners.forEach(listener => listener(items));
+}
+
+async function fetchInvoicesShared(): Promise<Invoice[]> {
+  if (inFlightLoad) return inFlightLoad;
+  inFlightLoad = (async () => {
+    // The old code fetched invoices, waited, then fetched ALL items — a serial
+    // waterfall on every mount and after every realtime blip. Both reads run
+    // in parallel now and items are grouped in memory.
+    const [invoiceRes, itemsRes] = await Promise.all([
+      (supabase as any).from('invoices').select('*').order('created_at', { ascending: false }),
+      (supabase as any).from('invoice_items').select('*'),
+    ]);
+    if (invoiceRes.error) {
+      logError('Error fetching invoices', invoiceRes.error);
+      throw invoiceRes.error;
+    }
+    if (itemsRes.error) {
+      logError('Error fetching invoice items', itemsRes.error);
+      throw itemsRes.error;
+    }
+
+    const itemsByInvoice = new Map<string, any[]>();
+    for (const item of itemsRes.data || []) {
+      const list = itemsByInvoice.get(item.invoice_id);
+      if (list) list.push(item);
+      else itemsByInvoice.set(item.invoice_id, [item]);
+    }
+    const merged = ((invoiceRes.data || []) as any[]).map(invoice => ({
+      ...invoice,
+      items: itemsByInvoice.get(invoice.id) ?? [],
+    })) as Invoice[];
+    publish(merged);
+    return merged;
+  })();
+  try {
+    return await inFlightLoad;
+  } finally {
+    inFlightLoad = null;
+  }
+}
+
+/** Debounced + rate-limited refetch for realtime blips and polling. */
+function scheduleInvoiceRefresh() {
+  if (refreshTimer !== null) return;
+  refreshTimer = window.setTimeout(() => {
+    refreshTimer = null;
+    if (Date.now() - lastFetchAt < 2_000) return;
+    void fetchInvoicesShared().catch(() => undefined);
+  }, 300);
+}
+
 export interface InvoiceItem {
   id: string;
   invoice_id: string;
@@ -35,37 +98,12 @@ export interface Invoice {
 }
 
 export function useInvoices() {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [invoices, setInvoices] = useState<Invoice[]>(() => cachedInvoices ?? []);
+  const [loading, setLoading] = useState(() => !cachedInvoices);
 
   const fetchInvoices = useCallback(async () => {
-    setLoading(true);
     try {
-      const { data: invoiceData, error: invoiceError } = await (supabase as any)
-        .from('invoices')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (invoiceError) {
-        logError('Error fetching invoices', invoiceError);
-        return;
-      }
-
-      const { data: itemsData, error: itemsError } = await (supabase as any)
-        .from('invoice_items')
-        .select('*');
-
-      if (itemsError) {
-        logError('Error fetching invoice items', itemsError);
-        return;
-      }
-
-      const invoicesWithItems = (invoiceData || []).map(invoice => ({
-        ...invoice,
-        items: (itemsData || []).filter(item => item.invoice_id === invoice.id),
-      }));
-
-      setInvoices(invoicesWithItems);
+      setInvoices(await fetchInvoicesShared());
     } catch (error) {
       logError('Error in fetchInvoices', error);
     } finally {
@@ -74,12 +112,18 @@ export function useInvoices() {
   }, []);
 
   useEffect(() => {
-    fetchInvoices();
+    const listener: (items: Invoice[]) => void = (next) => setInvoices(next);
+    listeners.add(listener);
+    void fetchInvoices();
 
+    // Realtime blips (when the deployment provides them) coalesce into one
+    // debounced refetch. Cockroach has no realtime socket, so a TTL poll also
+    // keeps separate Cashier/Billing workspaces current without a query storm.
     const channel = createRealtimeChannel('invoices-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => fetchInvoices())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_items' }, () => fetchInvoices());
-    
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, scheduleInvoiceRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invoice_items' }, scheduleInvoiceRefresh);
+
+    const poll = window.setInterval(scheduleInvoiceRefresh, 30_000);
     const subscribe = async () => {
       try {
         await channel.subscribe();
@@ -87,11 +131,13 @@ export function useInvoices() {
         logError('Invoices subscribe error', err);
       }
     };
-    
+
     const timeout = setTimeout(subscribe, 100);
 
     return () => {
       clearTimeout(timeout);
+      window.clearInterval(poll);
+      listeners.delete(listener);
       if (channel) {
         supabase.removeChannel(channel);
       }
@@ -174,9 +220,15 @@ export function useInvoices() {
 
         // The clone returns inserted rows directly; keep them available for
         // the immediate local update instead of waiting for a full refetch.
-        setInvoices(prev => [{ ...invoice, items: (createdItems || []) as InvoiceItem[] }, ...prev.filter(i => i.id !== invoice.id)]);
+        publish([
+          { ...invoice, items: (createdItems || []) as InvoiceItem[] },
+          ...(cachedInvoices ?? []).filter(i => i.id !== invoice.id),
+        ]);
       } else {
-        setInvoices(prev => [{ ...invoice, items: [] }, ...prev.filter(i => i.id !== invoice.id)]);
+        publish([
+          { ...invoice, items: [] as InvoiceItem[] },
+          ...(cachedInvoices ?? []).filter(i => i.id !== invoice.id),
+        ]);
       }
 
       return { ...invoice, items: [] };
@@ -216,10 +268,12 @@ export function useInvoices() {
         return false;
       }
 
-      // Reflect the confirmed write immediately. A later background refresh can
-      // reconcile any server-side trigger changes without delaying the action.
-      setInvoices(prev => prev.map(item => item.id === invoiceId
-        ? { ...item, paid_amount: newPaidAmount, status: newStatus, payment_method: paymentMethod, paid_at: newStatus === 'paid' ? new Date().toISOString() : null }
+      // Reflect the confirmed write immediately across every subscribed
+      // workspace. A later background refresh can reconcile any server-side
+      // trigger changes without delaying the action.
+      const paidAt = newStatus === 'paid' ? new Date().toISOString() : null;
+      publish((cachedInvoices ?? []).map(item => item.id === invoiceId
+        ? { ...item, paid_amount: newPaidAmount, status: newStatus, payment_method: paymentMethod, paid_at: paidAt }
         : item));
       return true;
     } catch (error) {

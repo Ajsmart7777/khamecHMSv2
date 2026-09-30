@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { createRealtimeChannel, supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -61,31 +61,66 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const location = useLocation();
 
+  // Full-table refetches are requested from many places at once (route change,
+  // window focus, post-mutation sync). Coalesce them into the in-flight request
+  // and rate-limit follow-ups so one user action never triggers a pile of
+  // duplicate queries — this was a major source of station lag.
+  const inFlightRefetchRef = useRef<Promise<void> | null>(null);
+  const lastCompletedAtRef = useRef(0);
+  const debounceTimerRef = useRef<number | null>(null);
+  const MIN_GAP_BETWEEN_REFETCHES_MS = 1_500;
+
   const fetchPatients = useCallback(async (options?: { background?: boolean }) => {
     const isBackgroundRefresh = options?.background === true;
-    try {
-      if (!isBackgroundRefresh) setLoading(true);
-      const { data, error: fetchError } = await supabase
-        .from('patients')
-        .select('*')
-        .order('created_at', { ascending: false });
+    if (inFlightRefetchRef.current) return inFlightRefetchRef.current;
+    if (!isBackgroundRefresh) setLoading(true);
 
-      if (fetchError) throw fetchError;
-      
-      // Type assertion since we know the structure matches
-      setPatients((data || []) as unknown as Patient[]);
-      setError(null);
-    } catch (err) {
-      logError('Error fetching patients', err);
-      setError('Failed to fetch patients');
-    } finally {
-      if (!isBackgroundRefresh) setLoading(false);
-    }
+    const promise = (async () => {
+      try {
+        const { data, error: fetchError } = await supabase
+          .from('patients')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (fetchError) throw fetchError;
+
+        setPatients((data || []) as unknown as Patient[]);
+        setError(null);
+        lastCompletedAtRef.current = Date.now();
+      } catch (err) {
+        logError('Error fetching patients', err);
+        setError('Failed to fetch patients');
+      } finally {
+        inFlightRefetchRef.current = null;
+        if (!isBackgroundRefresh) setLoading(false);
+      }
+    })();
+    inFlightRefetchRef.current = promise;
+    return promise;
   }, []);
 
+  // Callers use this after completing an action (e.g. Billing after an
+  // invoice). Default to a background sync so queues never flash a skeleton
+  // right after the user saw the success toast; pass { background: false }
+  // to force the blocking first-load behavior.
   const refreshPatients = useCallback(async (options?: { background?: boolean }) => {
-    await fetchPatients(options);
+    await fetchPatients({ background: options?.background ?? true });
   }, [fetchPatients]);
+
+  /** Coalesce sync requests: debounce 300ms, skip if data is fresh enough. */
+  const schedulePatientSync = useCallback(() => {
+    if (debounceTimerRef.current !== null) window.clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = window.setTimeout(() => {
+      debounceTimerRef.current = null;
+      if (inFlightRefetchRef.current) return;
+      if (Date.now() - lastCompletedAtRef.current < MIN_GAP_BETWEEN_REFETCHES_MS) return;
+      void fetchPatients({ background: true });
+    }, 300);
+  }, [fetchPatients]);
+
+  useEffect(() => () => {
+    if (debounceTimerRef.current !== null) window.clearTimeout(debounceTimerRef.current);
+  }, []);
 
   const addPatient = useCallback(async (patientData: Omit<Patient, 'id' | 'registered_at' | 'updated_at' | 'created_at'>): Promise<Patient | null> => {
     try {
@@ -114,11 +149,14 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
           resource_id: p.id,
         });
       }
-      
+
       toast.success('Patient registered successfully', {
         description: `${patientData.first_name} ${patientData.last_name} has been added.`
       });
-      await fetchPatients();
+      // Show the new patient immediately instead of waiting on a full-table
+      // refetch; the coalesced sync reconciles everything else.
+      setPatients((prev) => [data as unknown as Patient, ...prev.filter(p => p.id !== (data as any).id)]);
+      schedulePatientSync();
       
       return data as unknown as Patient;
     } catch (err) {
@@ -127,7 +165,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       toast.error('Failed to register patient');
       return null;
     }
-  }, [fetchPatients]);
+  }, [schedulePatientSync]);
 
   const updatePatientStatus = useCallback(async (
     patientId: string,
@@ -201,36 +239,17 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
 
       // Never assume the workflow routine's legacy patients.status mirror was
       // persisted. Cockroach compatibility routines intentionally keep that
-      // mirror non-fatal, so verify it and repair only this patient if stale.
-      const { data: persistedPatient, error: persistedReadError } = await supabase
+      // mirror non-fatal, so repair it in the SAME write that stamps last_visit
+      // instead of paying for separate read → repair → re-read → touch round
+      // trips, which made every station hand-off feel sluggish.
+      const { error: statusRepairError } = await supabase
         .from('patients')
-        .select('status')
+        .update({ status, last_visit: new Date().toISOString() })
         .eq('id', patientId)
-        .maybeSingle();
-      if (persistedReadError) throw persistedReadError;
-      if (persistedPatient?.status !== status) {
-        const { error: statusRepairError } = await supabase
-          .from('patients')
-          .update({ status, last_visit: new Date().toISOString() })
-          .eq('id', patientId);
-        if (statusRepairError) throw statusRepairError;
-        const { data: confirmedPatient, error: confirmationError } = await supabase
-          .from('patients')
-          .select('status')
-          .eq('id', patientId)
-          .maybeSingle();
-        if (confirmationError) throw confirmationError;
-        if (confirmedPatient?.status !== status) {
-          throw new Error(`Patient status did not persist as ${status}`);
-        }
-      }
-
-      // Touch last_visit for the header/timeline (non-fatal if it fails).
-      const { error: lvErr } = await supabase
-        .from('patients')
-        .update({ last_visit: new Date().toISOString() })
-        .eq('id', patientId);
-      if (lvErr) logError('Failed to update last_visit', lvErr);
+        .eq('status', current.status as PatientStatus); // guard: only when unchanged meanwhile
+      if (statusRepairError) logError('Failed to persist patient status mirror', statusRepairError);
+      // The coalesced sync below reconciles the authoritative state right
+      // after; a blocking re-read here only delayed the officer's next action.
 
       // Log status change
       patientAuditLogger('patient_status_changed', patientId, { from: current.status, new_status: status });
@@ -259,10 +278,10 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      // Refresh from the database after every successful transition. This keeps
-      // status, assigned_doctor, last_visit, and workflow-backed fields in sync
-      // when the user moves immediately to another station.
-      await fetchPatients();
+      // Sync from the database without blocking the officer's next action.
+      // This keeps status, assigned_doctor, last_visit, and workflow-backed
+      // fields in sync while the user moves immediately to another station.
+      schedulePatientSync();
 
       return true;
     } catch (err) {
@@ -271,7 +290,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       toast.error(`Failed to update status → ${status}`, { description: String((err as Error)?.message ?? err) });
       return false;
     }
-  }, [fetchPatients]);
+  }, [schedulePatientSync, fetchPatients]);
 
   const deletePatient = useCallback(async (patientId: string): Promise<boolean> => {
     try {
@@ -285,7 +304,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       patientAuditLogger('patient_deleted', patientId, { timestamp: new Date().toISOString() });
       
       toast.success('Patient deleted successfully');
-      await fetchPatients();
+      schedulePatientSync();
       return true;
     } catch (err) {
       logError('Error deleting patient', err);
@@ -300,7 +319,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       }
       return false;
     }
-  }, [fetchPatients]);
+  }, [schedulePatientSync]);
 
   const updatePatient = useCallback(async (patientId: string, updates: Partial<Patient>): Promise<boolean> => {
     try {
@@ -313,8 +332,8 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       
       // Log patient update
       patientAuditLogger('patient_updated', patientId, { updated_fields: Object.keys(updates) });
-      await fetchPatients();
-      
+      schedulePatientSync();
+
       return true;
     } catch (err) {
       logError('Error updating patient', err);
@@ -329,7 +348,7 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
       }
       return false;
     }
-  }, [fetchPatients]);
+  }, [schedulePatientSync]);
 
   const getPatientsByStatus = useCallback((statuses: PatientStatus[]): Patient[] => {
     return patients.filter(p => statuses.includes(p.status));
@@ -356,13 +375,15 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchPatients]);
 
-  // Route changes represent movement between clinic workspaces. Refresh here
-  // so each queue sees the latest persisted state even when realtime is absent.
+  // Route changes represent movement between clinic workspaces. Sync in the
+  // background (coalesced + rate-limited) so each queue sees the latest
+  // persisted state without flashing a full-screen loading skeleton or firing
+  // a duplicate query on every navigation.
   useEffect(() => {
     if (location.pathname !== '/auth') {
-      fetchPatients();
+      schedulePatientSync();
     }
-  }, [location.pathname, location.search, fetchPatients]);
+  }, [location.pathname, location.search, schedulePatientSync]);
 
   // Track the authenticated user so the realtime channel is only opened (and
   // re-opened) with a valid token. A channel subscribed while signed out is
@@ -376,16 +397,17 @@ export function PatientProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Refetch whenever the tab regains focus — safety net if a realtime event is missed.
+  // Refetch whenever the tab regains focus — safety net if a realtime event is
+  // missed. Coalesced so tab-switching storms don't hammer the database.
   useEffect(() => {
-    const onFocus = () => { if (document.visibilityState === 'visible') fetchPatients(); };
+    const onFocus = () => { if (document.visibilityState === 'visible') schedulePatientSync(); };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onFocus);
     return () => {
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onFocus);
     };
-  }, [fetchPatients]);
+  }, [schedulePatientSync]);
 
   // Real-time subscription
   useEffect(() => {

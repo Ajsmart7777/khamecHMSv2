@@ -32,22 +32,28 @@ ALTER TABLE public.corporate_manual_service_rows
 --    Direct status patches from the UI (e.g. print actions, bulk finalize) are
 --    blocked. Settlement transitions (finalized -> paid) stay allowed when
 --    payments/funding actually landed.
+--
+--    CockroachDB (<= v26.2): trigger-record fields must be read in the
+--    parenthesized composite form (NEW).col / (OLD).col. Plain NEW.col is
+--    resolved as a relation.column prefix and fails at CREATE FUNCTION with
+--    'no data source matches prefix: new in this context' (issue #114687;
+--    unparenthesized plpgsql resolution returns in v26.3).
 CREATE OR REPLACE FUNCTION public.enforce_sponsor_statement_manual_close()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-  IF TG_OP = 'UPDATE' AND NEW.status IS DISTINCT FROM OLD.status THEN
+  IF TG_OP = 'UPDATE' AND (NEW).status IS DISTINCT FROM (OLD).status THEN
     -- Draft -> finalized without an explicit close timestamp is auto
     -- finalization and is rejected. close_*_month functions always set
     -- finalized_at alongside the status change.
-    IF NEW.status = 'finalized' AND OLD.status = 'draft' AND NEW.finalized_at IS NULL THEN
+    IF (NEW).status = 'finalized' AND (OLD).status = 'draft' AND (NEW).finalized_at IS NULL THEN
       RAISE EXCEPTION 'Month-end reports are closed only by the accountant through Close & Issue; set finalized_at via close_corporate_month/close_retainer_month';
     END IF;
 
     -- Draft -> printed directly is also an unauthorized close.
-    IF NEW.status = 'printed' AND OLD.status = 'draft' AND NEW.finalized_at IS NULL THEN
+    IF (NEW).status = 'printed' AND (OLD).status = 'draft' AND (NEW).finalized_at IS NULL THEN
       RAISE EXCEPTION 'Month-end reports are issued only through Close & Issue by the accountant';
     END IF;
   END IF;
@@ -74,17 +80,17 @@ BEGIN
   IF TG_OP = 'INSERT' THEN
     SELECT s.status INTO _status
       FROM public.sponsor_statements s
-     WHERE s.sponsor_id = NEW.sponsor_id
-       AND s.period_year = NEW.period_year
-       AND s.period_month = NEW.period_month
+     WHERE s.sponsor_id = (NEW).sponsor_id
+       AND s.period_year = (NEW).period_year
+       AND s.period_month = (NEW).period_month
        AND s.status IN ('finalized','printed','paid')
      LIMIT 1;
   ELSE
     SELECT s.status INTO _status
       FROM public.sponsor_statements s
-     WHERE s.sponsor_id = OLD.sponsor_id
-       AND s.period_year = OLD.period_year
-       AND s.period_month = OLD.period_month
+     WHERE s.sponsor_id = (OLD).sponsor_id
+       AND s.period_year = (OLD).period_year
+       AND s.period_month = (OLD).period_month
        AND s.status IN ('finalized','printed','paid')
      LIMIT 1;
   END IF;

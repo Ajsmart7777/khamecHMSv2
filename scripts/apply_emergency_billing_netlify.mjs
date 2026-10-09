@@ -168,7 +168,12 @@ try {
             lastError = undefined;
             break;
           }
-          if (!ddl.test(statement) || !retryableSchemaChange.test(message) || attempt === 12) throw error;
+          if (!ddl.test(statement) || !retryableSchemaChange.test(message) || attempt === 12) {
+            // Name the failing migration/statement so a build failure is
+            // diagnosable from the deploy log alone.
+            console.error(`CRDB migration failed: ${migration.version}\nFailing statement: ${statement.slice(0, 300)}`);
+            throw error;
+          }
           await sleep(Math.min(2500, 350 + attempt * 250));
         }
       }

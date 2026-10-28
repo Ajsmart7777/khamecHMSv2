@@ -100,9 +100,43 @@ export function usePayrollPeriods() {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
       return null;
     }
-    setPeriods(prev => [data as PayrollPeriod, ...prev]);
+
+    const newPeriod = data as PayrollPeriod;
+    setPeriods(prev => [newPeriod, ...prev]);
+
+    if (previous) {
+      const { data: previousRows, error: previousRowsError } = await supabase
+        .from('payroll_entries')
+        .select('*')
+        .eq('payroll_period_id', previous.id);
+
+      if (!previousRowsError && previousRows?.length) {
+        const rowsToInsert = previousRows.map((row: Record<string, unknown>) => ({
+          payroll_period_id: newPeriod.id,
+          staff_id: row.staff_id,
+          basic_salary: Number(row.basic_salary ?? 0),
+          allowances: row.allowances ?? {},
+          gross_pay: Number(row.gross_pay ?? 0),
+          deductions: row.deductions ?? {},
+          total_deductions: Number(row.total_deductions ?? 0),
+          net_pay: Number(row.net_pay ?? 0),
+          status: 'pending',
+          payment_reference: null,
+        }));
+
+        const { error: insertError } = await supabase
+          .from('payroll_entries')
+          .insert(rowsToInsert);
+
+        if (insertError) {
+          console.error('Error cloning previous payroll entries:', insertError);
+          toast({ title: 'Warning', description: 'Period created, but previous payroll values could not be copied.', variant: 'destructive' });
+        }
+      }
+    }
+
     toast({ title: 'Success', description: 'Payroll period created.' });
-    return data as PayrollPeriod;
+    return newPeriod;
   };
 
   const updatePeriodLabels = async (id: string, labels: Record<string, string>) => {
@@ -262,7 +296,6 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
     if (!periodId || addingAllStaffRef.current) return;
     addingAllStaffRef.current = true;
 
-    // 1) Fetch active staff
     const { data: staffList, error: staffErr } = await supabase
       .from('staff')
       .select('id, salary, first_name, last_name, employee_id, designation, bank_name, account_number, payment_method')

@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 import {
   calculatePayrollTotals,
+  canonicalizePayrollValues,
   preserveNonGridDeductions,
   DEFAULT_PAYROLL_LABELS,
   type PayrollValueMap,
@@ -31,6 +32,7 @@ export interface PayrollEntry {
   net_pay: number;
   status: string;
   payment_reference: string | null;
+  // joined
   staff_name?: string;
   staff_employee_id?: string;
   staff_designation?: string;
@@ -52,68 +54,10 @@ export interface PayrollPayment {
   failure_reason: string | null;
   paid_at: string | null;
   created_at: string;
+  // joined
   staff_name?: string;
   staff_bank_name?: string;
   staff_account_number?: string;
-}
-
-function normalizePayrollRow(row: Record<string, unknown>) {
-  const basicSalary = Number(row.basic_salary ?? 0);
-  const allowances = (row.allowances ?? {}) as Record<string, number>;
-  const deductions = (row.deductions ?? {}) as PayrollValueMap;
-  const grossPay = Number(row.gross_pay ?? 0);
-  const totalDeductions = Number(row.total_deductions ?? 0);
-  const netPay = Number(row.net_pay ?? 0);
-
-  return {
-    basic_salary: basicSalary,
-    allowances,
-    gross_pay: grossPay,
-    deductions: preserveNonGridDeductions(deductions, deductions),
-    total_deductions: totalDeductions,
-    net_pay: netPay,
-  };
-}
-
-async function clonePreviousPeriodEntries(newPeriodId: string, previousPeriodId: string | null) {
-  if (!previousPeriodId) return;
-
-  const { data: previousEntries, error: previousEntriesError } = await supabase
-    .from('payroll_entries')
-    .select('*')
-    .eq('payroll_period_id', previousPeriodId);
-
-  if (previousEntriesError) {
-    console.error('Error fetching previous payroll entries to clone:', previousEntriesError);
-    return;
-  }
-
-  const rows = (previousEntries || []).map((entry: Record<string, unknown>) => {
-    const normalized = normalizePayrollRow(entry);
-    return {
-      payroll_period_id: newPeriodId,
-      staff_id: String(entry.staff_id),
-      basic_salary: normalized.basic_salary,
-      allowances: normalized.allowances,
-      gross_pay: normalized.gross_pay,
-      deductions: normalized.deductions,
-      total_deductions: normalized.total_deductions,
-      net_pay: normalized.net_pay,
-      status: 'pending',
-      payment_reference: null,
-    };
-  });
-
-  if (!rows.length) return;
-
-  const { error: insertError } = await supabase
-    .from('payroll_entries')
-    .insert(rows);
-
-  if (insertError) {
-    console.error('Error cloning previous payroll entries:', insertError);
-    toast({ title: 'Error', description: 'Could not carry forward the previous payroll values.', variant: 'destructive' });
-  }
 }
 
 export function usePayrollPeriods() {
@@ -146,7 +90,6 @@ export function usePayrollPeriods() {
     const columnLabels = previous?.column_labels && Object.keys(previous.column_labels).length > 0
       ? previous.column_labels
       : DEFAULT_PAYROLL_LABELS;
-
     const { data, error } = await supabase
       .from('payroll_periods')
       .insert({ month, year, status: 'draft', column_labels: columnLabels })
@@ -157,9 +100,6 @@ export function usePayrollPeriods() {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
       return null;
     }
-
-    await clonePreviousPeriodEntries(data.id, previous?.id ?? null);
-
     setPeriods(prev => [data as PayrollPeriod, ...prev]);
     toast({ title: 'Success', description: 'Payroll period created.' });
     return data as PayrollPeriod;
@@ -322,6 +262,7 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
     if (!periodId || addingAllStaffRef.current) return;
     addingAllStaffRef.current = true;
 
+    // 1) Fetch active staff
     const { data: staffList, error: staffErr } = await supabase
       .from('staff')
       .select('id, salary, first_name, last_name, employee_id, designation, bank_name, account_number, payment_method')
@@ -346,22 +287,21 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
     const previousPeriod = periods
       .filter(period => currentPeriod && (period.year * 100 + period.month) < (currentPeriod.year * 100 + currentPeriod.month))
       .sort((a, b) => (b.year * 100 + b.month) - (a.year * 100 + a.month))[0];
-
     const previousRows = previousPeriod
       ? await supabase
         .from('payroll_entries')
-        .select('staff_id,basic_salary,allowances,deductions,gross_pay,total_deductions,net_pay')
+        .select('staff_id,basic_salary,allowances,gross_pay,deductions,total_deductions,net_pay')
         .eq('payroll_period_id', previousPeriod.id)
         .in('staff_id', newStaff.map(staff => staff.id))
       : { data: [], error: null };
-
     if (previousRows.error) {
       addingAllStaffRef.current = false;
       toast({ title: 'Error', description: 'Could not copy the previous payroll values.', variant: 'destructive' });
       return;
     }
-
-    const previousByStaff = new Map((previousRows.data || []).map((row: Record<string, unknown>) => [String(row.staff_id), row]));
+    const previousByStaff = new Map((previousRows.data || []).map((row: Record<string, unknown>) => [
+      String(row.staff_id), row,
+    ]));
 
     const rows = newStaff.map(s => {
       const previous = previousByStaff.get(String(s.id));
@@ -373,7 +313,7 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
           basic_salary: Number(previous.basic_salary ?? 0),
           allowances: (previous.allowances ?? {}) as Record<string, number>,
           gross_pay: Number(previous.gross_pay ?? 0),
-          deductions: preserveNonGridDeductions((previous.deductions ?? {}) as PayrollValueMap, (previous.deductions ?? {}) as PayrollValueMap),
+          deductions: (previous.deductions ?? {}) as PayrollValueMap,
           total_deductions: Number(previous.total_deductions ?? 0),
           net_pay: Number(previous.net_pay ?? 0),
           status: 'pending',
@@ -459,8 +399,10 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
     return true;
   };
 
+
   return { entries, loading, addEntry, addAllStaff, updateEntry, removeEntry, refetch: fetch };
 }
+
 
 export function useMedicalDeductionDetails(staffId: string | null, month: number | null, year: number | null) {
   const [details, setDetails] = useState<any[]>([]);
@@ -505,6 +447,7 @@ export function useMedicalDeductionDetails(staffId: string | null, month: number
 
   return { details, loading, refetch: fetch };
 }
+
 
 export type PaymentProvider = 'flutterwave' | 'paystack';
 

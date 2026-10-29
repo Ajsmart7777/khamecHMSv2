@@ -27,25 +27,28 @@ export default function AccountPayroll() {
   } = usePayrollEntries(periodId, periods);
 
   useEffect(() => {
-    if (!selectedPeriod && periods.length > 0) {
-      setSelectedPeriod(periods[0]);
+    if (!periods.length) {
+      setSelectedPeriod(null);
       return;
     }
-    if (selectedPeriod) {
-      const current = periods.find(period => period.id === selectedPeriod.id);
-      if (current && current.status !== selectedPeriod.status) setSelectedPeriod(current);
-    }
-  }, [periods, selectedPeriod]);
+
+    setSelectedPeriod(prev => {
+      if (prev && periods.some(period => period.id === prev.id)) {
+        return periods.find(period => period.id === prev.id) ?? periods[0];
+      }
+      return periods[0];
+    });
+  }, [periods]);
 
   const handleLockPeriod = async (id: string) => {
     const result = await lockPeriod(id);
-    if (result) setSelectedPeriod(previous => previous && previous.id === id ? { ...previous, status: 'locked' } : previous);
+    if (result) setSelectedPeriod(previous => previous && previous.id === id ? { ...previous, status: 'locked' } : previous ?? periods.find(period => period.id === id) ?? null);
     return result;
   };
 
   const handleUnlockPeriod = async (id: string) => {
     const result = await unlockPeriod(id);
-    if (result) setSelectedPeriod(previous => previous && previous.id === id ? { ...previous, status: 'draft' } : previous);
+    if (result) setSelectedPeriod(previous => previous && previous.id === id ? { ...previous, status: 'draft' } : previous ?? periods.find(period => period.id === id) ?? null);
     return result;
   };
 
@@ -59,7 +62,6 @@ export default function AccountPayroll() {
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">Dedicated payroll workspace</p>
-          <p className="text-xs text-muted-foreground">The full grid has its own page so headings and horizontal scrolling remain easy to use.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">

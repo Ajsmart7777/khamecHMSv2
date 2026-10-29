@@ -49,12 +49,20 @@ const Account = () => {
   const periodId = selectedPeriod?.id || (periods.length > 0 ? periods[0]?.id : null);
   const { entries, loading: entriesLoading, addEntry, addAllStaff, updateEntry, removeEntry, refetch: refetchEntries } = usePayrollEntries(periodId, periods);
 
-  // Auto-select first period
-  if (!selectedPeriod && periods.length > 0) {
-    setSelectedPeriod(periods[0]);
-  }
+  useEffect(() => {
+    if (!periods.length) {
+      setSelectedPeriod(null);
+      return;
+    }
 
-  // Keep selectedPeriod in sync with periods array (fixes lock/unlock not reflecting)
+    setSelectedPeriod(prev => {
+      if (prev && periods.some(p => p.id === prev.id)) {
+        return periods.find(p => p.id === prev.id) ?? periods[0];
+      }
+      return periods[0];
+    });
+  }, [periods]);
+
   useEffect(() => {
     if (selectedPeriod) {
       const updated = periods.find(p => p.id === selectedPeriod.id);
@@ -71,8 +79,7 @@ const Account = () => {
   const handleLockPeriod = async (id: string) => {
     const result = await lockPeriod(id);
     if (result) {
-      // Immediately update selectedPeriod
-      setSelectedPeriod(prev => prev && prev.id === id ? { ...prev, status: 'locked' } : prev);
+      setSelectedPeriod(prev => prev && prev.id === id ? { ...prev, status: 'locked' } : prev ?? periods.find(p => p.id === id) ?? null);
     }
     return result;
   };
@@ -80,7 +87,7 @@ const Account = () => {
   const handleUnlockPeriod = async (id: string) => {
     const result = await unlockPeriod(id);
     if (result) {
-      setSelectedPeriod(prev => prev && prev.id === id ? { ...prev, status: 'draft' } : prev);
+      setSelectedPeriod(prev => prev && prev.id === id ? { ...prev, status: 'draft' } : prev ?? periods.find(p => p.id === id) ?? null);
     }
     return result;
   };
@@ -216,8 +223,6 @@ const Account = () => {
           <TabHeader title="Staff Family Deductions" onRefresh={() => {}} />
           <StaffFamilyDeductions />
         </TabsContent>
-
-
 
         <TabsContent value="register">
           <TabHeader title="Register Staff" onRefresh={refetchStaff} />

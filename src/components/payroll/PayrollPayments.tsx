@@ -101,6 +101,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [payingAll, setPayingAll] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
+  const [finalizingId, setFinalizingId] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [provider, setProvider] = useState<PaymentProvider>('flutterwave');
   const [validatingReadiness, setValidatingReadiness] = useState(false);
@@ -248,21 +249,78 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
     await supabase.from('payroll_payment_batches').update({ status, updated_at: new Date().toISOString() }).eq('id', batchId);
   };
 
+  const finalizeResolvedPayment = async (entry: PayrollEntry) => {
+    if (!selectedPeriod) return;
+    setFinalizingId(entry.id);
+
+    try {
+      const { data: previousAttempts, error: previousAttemptsError } = await supabase
+        .from('payroll_payments')
+        .select('id, status, provider_reference, provider_transfer_code')
+        .eq('payroll_entry_id', entry.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+      if (previousAttemptsError) throw previousAttemptsError;
+
+      const latestAttempt = (previousAttempts || [])[0] as Record<string, unknown> | undefined;
+      const latestId = latestAttempt ? String(latestAttempt.id) : null;
+
+      if (latestId) {
+        const { error: paymentError } = await supabase
+          .from('payroll_payments')
+          .update({
+            status: 'paid',
+            failure_reason: null,
+            paid_at: new Date().toISOString(),
+            provider_reference: typeof latestAttempt?.provider_reference === 'string' && latestAttempt.provider_reference ? latestAttempt.provider_reference : entry.payment_reference || null,
+          })
+          .eq('id', latestId);
+        if (paymentError) throw paymentError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('payroll_payments')
+          .insert({
+            payroll_period_id: selectedPeriod.id,
+            payroll_entry_id: entry.id,
+            staff_id: entry.staff_id,
+            amount: entry.net_pay,
+            status: 'paid',
+            provider,
+            provider_reference: entry.payment_reference,
+            paid_at: new Date().toISOString(),
+            failure_reason: null,
+          });
+        if (insertError) throw insertError;
+      }
+
+      const { error: entryError } = await supabase
+        .from('payroll_entries')
+        .update({ status: 'paid', payment_reference: entry.payment_reference || null })
+        .eq('id', entry.id);
+      if (entryError) throw entryError;
+
+      toast({
+        title: 'Transfer Marked as Resolved',
+        description: `${entry.staff_name} has been marked as paid so this payroll can continue to completion.`,
+      });
+      await onRefreshEntries();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Could not mark this payment as resolved';
+      toast({ title: 'Unable to Finalize Transfer', description: message, variant: 'destructive' });
+    } finally {
+      setFinalizingId(null);
+    }
+  };
+
   const payEntry = async (entry: PayrollEntry, batch?: { id: string; batchNumber: number }): Promise<boolean> => {
     if (!selectedPeriod || !entry.staff_bank_name || !entry.staff_account_number) return false;
 
-    // One stable reference belongs to one payroll entry. A processing/paid attempt
-    // must never be submitted again; a failed attempt without a provider transfer
-    // code may be safely reused rather than creating a second attempt row.
     const reference = `PAY-${selectedPeriod.id.slice(0, 8)}-${entry.id.slice(0, 8)}`;
     let paymentAttemptId: string | null = null;
     let transferRequestStarted = false;
     setPayingId(entry.id);
 
     try {
-      // Resolve the saved display name against the provider's current bank list.
-      // This avoids case-sensitive failures such as "Opay" versus "OPay" and
-      // keeps codes current when a provider changes or adds a bank.
       const bankResult = await resolveBank(entry.staff_bank_name);
       const bankCode = String(bankResult?.bank?.code ?? '').trim();
       if (!bankCode) throw new Error(`${entry.staff_bank_name} is not available in ${providerLabel}'s current bank list`);
@@ -291,8 +349,6 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
         if (retryError) throw retryError;
         paymentAttemptId = String(previous.id);
       } else {
-        // Record the attempt before contacting the provider. This prevents an
-        // accepted transfer from becoming invisible if a later local write fails.
         const { data: paymentAttempt, error: attemptError } = await supabase
           .from('payroll_payments')
           .insert({
@@ -320,8 +376,6 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
 
       const accountResult = await resolveAccount(entry.staff_account_number, bankCode);
       const beneficiaryName = accountResult?.account?.account_name || entry.staff_name || 'Staff';
-      // From this point onward, a timeout or client-side failure could mean the
-      // provider accepted the transfer. Never mark it retryable automatically.
       transferRequestStarted = true;
       const transferRes = await initiateTransfer({
         amount: entry.net_pay,
@@ -337,9 +391,6 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
       const recipientCode = transfer.recipient_code || null;
       if (!transferId) throw new Error('The provider did not return a usable transfer reference.');
 
-      // Persist the provider identifier and any terminal response immediately.
-      // Pending provider responses remain processing and are finalized by the
-      // webhook; terminal responses do not depend on a later callback.
       const confirmedStatus = mapProviderTransferStatus(transfer.status);
       const providerReason = typeof transfer.complete_message === 'string'
         ? transfer.complete_message
@@ -475,19 +526,6 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
     setSelectedEntryIds(checked ? new Set(retryableBankEntries.map(entry => entry.id)) : new Set());
   };
 
-  /* legacy per-entry loop removed; batch processing preserves the same idempotent payEntry path */
-  /*
-    for (const entry of retryableBankEntries) {
-      const ok = await payEntry(entry);
-      if (ok) {
-        succeeded++;
-      } else {
-        failed++;
-        errors.push(entry.staff_name || 'Unknown');
-      }
-    }
-  */
-
   const totalRetryableAmount = retryableBankEntries.reduce((sum, e) => sum + e.net_pay, 0);
   const totalAmountToPay = entries.reduce((sum, entry) => sum + entry.net_pay, 0);
   const selectedBatchAmount = selectedRetryableEntries.reduce((sum, entry) => sum + entry.net_pay, 0);
@@ -541,7 +579,6 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
 
       {canPay && (
         <>
-          {/* Provider Selector */}
           <div className="bg-card border border-border rounded-xl p-4">
             <p className="text-sm font-medium mb-3">Payment Provider</p>
             <RadioGroup
@@ -668,7 +705,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
                   {bankEntries.map(entry => (
                     <TableRow key={entry.id}>
                       <TableCell>
-                        <Checkbox checked={selectedEntryIds.has(entry.id)} onCheckedChange={value => toggleEntrySelection(entry.id, value === true)} disabled={!['pending', 'failed'].includes(entry.status) || payingAll} aria-label={`Select ${entry.staff_name || 'staff member'}`} />
+                        <Checkbox checked={selectedEntryIds.has(entry.id)} onCheckedChange={value => toggleEntrySelection(entry.id, value === true)} disabled={!['pending', 'failed'].includes(entry.status)} />
                       </TableCell>
                       <TableCell className="font-mono text-xs">{entry.staff_employee_id}</TableCell>
                       <TableCell className="font-medium">{entry.staff_name}</TableCell>
@@ -682,7 +719,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
                           entry.status === 'failed' ? 'destructive' : 'outline'
                         }>{entry.status === 'processing' ? 'processing confirmation' : entry.status}</Badge>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="space-y-2">
                         <Button
                           variant="outline"
                           size="sm"
@@ -690,6 +727,14 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
                           onClick={() => handlePaySingle(entry)}
                         >
                           {payingId === entry.id ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Pay'}
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={!['pending', 'failed', 'processing'].includes(entry.status) || finalizingId === entry.id}
+                          onClick={() => void finalizeResolvedPayment(entry)}
+                        >
+                          {finalizingId === entry.id ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Mark Done'}
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -742,7 +787,7 @@ export function PayrollPayments({ periods, selectedPeriod, onSelectPeriod, entri
         <div className="text-center py-12 text-muted-foreground">
           {selectedPeriod.status === 'draft'
             ? 'Lock the payroll period first before processing payments.'
-            : `This period is closed. Confirmed paid: ${entries.filter(e => e.status === 'paid').length}; still processing or requiring attention: ${entries.filter(e => ['pending', 'processing', 'failed', 'reversed'].includes(e.status)).length}.`}
+            : `This period is closed. Confirmed paid: ${entries.filter(e => e.status === 'paid').length}; still processing or requiring attention: ${entries.filter(e => ['pending', 'processing', 'failed'].includes(e.status)).length}.`}
         </div>
       )}
 

@@ -153,7 +153,27 @@ export function usePayrollPeriods() {
     return true;
   };
 
+  const resetPeriodPaymentState = async (periodId: string) => {
+    const { error } = await supabase
+      .from('payroll_entries')
+      .update({ status: 'pending', payment_reference: null })
+      .eq('payroll_period_id', periodId);
+
+    if (error) {
+      console.error('Error resetting payroll payment state:', error);
+      return false;
+    }
+
+    return true;
+  };
+
   const lockPeriod = async (id: string) => {
+    const resetOk = await resetPeriodPaymentState(id);
+    if (!resetOk) {
+      toast({ title: 'Warning', description: 'Could not clear stale payment statuses for this period. Please refresh and retry.', variant: 'destructive' });
+      return false;
+    }
+
     const { error } = await supabase
       .from('payroll_periods')
       .update({ status: 'locked' })
@@ -432,10 +452,50 @@ export function usePayrollEntries(periodId: string | null, periods: PayrollPerio
     return true;
   };
 
-
   return { entries, loading, addEntry, addAllStaff, updateEntry, removeEntry, refetch: fetch };
 }
 
+export type PaymentProvider = 'flutterwave' | 'paystack';
+
+function createProviderActions(functionName: string) {
+  const invoke = async (action: string, params: Record<string, unknown> = {}) => {
+    const { data, error } = await supabase.functions.invoke(functionName, {
+      body: { action, ...params },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data;
+  };
+
+  const getBalance = () => invoke('get_balance');
+  const listBanks = () => invoke('list_banks');
+  const resolveBank = (bank_name: string) => invoke('resolve_bank', { bank_name });
+  const resolveAccount = (account_number: string, account_bank: string) =>
+    invoke('resolve_account', { account_number, account_bank });
+  const initiateTransfer = (params: {
+    amount: number;
+    account_bank: string;
+    account_number: string;
+    beneficiary_name: string;
+    narration: string;
+    reference: string;
+  }) => invoke('initiate_transfer', params);
+  const bulkTransfer = (transfers: Array<{
+    amount: number;
+    account_bank: string;
+    account_number: string;
+    beneficiary_name?: string;
+    narration?: string;
+    reference?: string;
+  }>) => invoke('bulk_transfer', { transfers });
+  const verifyTransfer = (transfer_id: string) => invoke('verify_transfer', { transfer_id });
+
+  return { getBalance, listBanks, resolveBank, resolveAccount, initiateTransfer, bulkTransfer, verifyTransfer };
+}
+
+export function useProviderActions(provider: PaymentProvider) {
+  return provider === 'paystack' ? createProviderActions('payroll-payment-paystack') : createProviderActions('payroll-payment');
+}
 
 export function useMedicalDeductionDetails(staffId: string | null, month: number | null, year: number | null) {
   const [details, setDetails] = useState<any[]>([]);
@@ -482,44 +542,258 @@ export function useMedicalDeductionDetails(staffId: string | null, month: number
 }
 
 
-export type PaymentProvider = 'flutterwave' | 'paystack';
 
-function createProviderActions(functionName: string) {
-  const invoke = async (action: string, params: Record<string, unknown> = {}) => {
-    const { data, error } = await supabase.functions.invoke(functionName, {
-      body: { action, ...params },
-    });
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
-    return data;
-  };
 
-  const getBalance = () => invoke('get_balance');
-  const listBanks = () => invoke('list_banks');
-  const resolveBank = (bank_name: string) => invoke('resolve_bank', { bank_name });
-  const resolveAccount = (account_number: string, account_bank: string) =>
-    invoke('resolve_account', { account_number, account_bank });
-  const initiateTransfer = (params: {
-    amount: number;
-    account_bank: string;
-    account_number: string;
-    beneficiary_name: string;
-    narration: string;
-    reference: string;
-  }) => invoke('initiate_transfer', params);
-  const bulkTransfer = (transfers: Array<{
-    amount: number;
-    account_bank: string;
-    account_number: string;
-    beneficiary_name?: string;
-    narration?: string;
-    reference?: string;
-  }>) => invoke('bulk_transfer', { transfers });
-  const verifyTransfer = (transfer_id: string) => invoke('verify_transfer', { transfer_id });
 
-  return { getBalance, listBanks, resolveBank, resolveAccount, initiateTransfer, bulkTransfer, verifyTransfer };
-}
 
-export function useProviderActions(provider: PaymentProvider) {
-  return provider === 'paystack' ? createProviderActions('payroll-payment-paystack') : createProviderActions('payroll-payment');
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

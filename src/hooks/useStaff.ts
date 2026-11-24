@@ -167,17 +167,20 @@ export function useStaff() {
 
   const deleteStaff = async (id: string): Promise<boolean> => {
     const target = staff.find((member) => member.id === id);
-    if (!target || target.status === 'deleted') return false;
-    const confirmed = window.confirm(`Deactivate ${target.firstName} ${target.lastName}? Linked Staff and Staff Family patients will be preserved and placed in Reception migration queue.`);
+    if (!target) return false;
+    const confirmed = window.confirm(
+      `Delete ${target.firstName} ${target.lastName} permanently?\n\n` +
+      'This deletes the staff record, their linked Staff and Staff Family patient account(s) with all of their visits, invoices, lab results and other history, and their login role. This cannot be undone.'
+    );
     if (!confirmed) return false;
 
-    const { data, error: deleteError } = await supabase.rpc('deactivate_staff_for_migration', {
+    const { data, error: deleteError } = await supabase.rpc('purge_staff_member', {
       _staff_id: id,
-      _reason: 'Staff account deactivated by administrator',
+      _reason: 'Staff account deleted from Register Staff',
     });
 
     if (deleteError) {
-      console.error('Error deactivating staff:', deleteError);
+      console.error('Error deleting staff:', deleteError);
       toast({
         title: "Error",
         description: deleteError.message,
@@ -189,10 +192,10 @@ export function useStaff() {
     const result = (data && typeof data === 'object' && 'data' in data ? (data as { data: Record<string, unknown> }).data : data) as Record<string, unknown> | null;
     const staffPatients = Number(result?.staff_patient_count ?? 0);
     const familyPatients = Number(result?.family_patient_count ?? 0);
-    setStaff(prev => prev.map(s => s.id === id ? { ...s, status: 'deleted' } : s));
+    setStaff(prev => prev.filter(s => s.id !== id));
     toast({
-      title: "Staff deactivated safely",
-      description: `${staffPatients + familyPatients} linked patient record(s) now require Reception migration. Historical data was preserved.`,
+      title: "Staff deleted",
+      description: `${target.firstName} ${target.lastName} and ${staffPatients + familyPatients} linked patient record(s) were deleted permanently.`,
     });
     window.dispatchEvent(new CustomEvent('staff-data-changed'));
     return true;

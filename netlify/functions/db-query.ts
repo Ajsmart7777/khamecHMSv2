@@ -247,6 +247,7 @@ export const handler: Handler = async (event) => {
         check_archive_eligibility: ['uuid[]'],
         confirm_archive_download: ['text'],
         deactivate_staff_for_migration: ['uuid', 'text'],
+        purge_staff_member: ['uuid', 'text'],
         convert_staff_linked_patient_to_normal: ['uuid'],
         start_emergency_episode: ['uuid', 'uuid', 'uuid', 'text'],
         record_emergency_medication: ['uuid', 'uuid', 'text', 'text', 'text', 'int8', 'numeric', 'boolean', 'text'],

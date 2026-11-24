@@ -498,7 +498,7 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                       <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">{s.qualification || '—'}</TableCell>
                       <TableCell>
                         <Badge variant={s.status === 'active' ? 'success' : 'warning'}>
-                          {s.status === 'deleted' ? 'Deleted / preserved' : s.status}
+                          {s.status === 'deleted' ? 'Deactivated (delete to remove)' : s.status}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -506,10 +506,9 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                           variant="ghost"
                           size="icon"
                           onClick={() => onDeleteStaff(s.id)}
-                          disabled={s.status === 'deleted'}
-                          title={s.status === 'deleted' ? 'Staff already deactivated' : 'Deactivate staff safely'}
-                          aria-label={s.status === 'deleted' ? 'Staff already deactivated' : 'Deactivate staff safely'}
-                          className="text-destructive hover:text-destructive disabled:opacity-40"
+                          title={s.status === 'deleted' ? 'Delete this deactivated staff record permanently' : 'Delete staff and everything linked to them'}
+                          aria-label={s.status === 'deleted' ? 'Delete this deactivated staff record permanently' : 'Delete staff and everything linked to them'}
+                          className="text-destructive hover:text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

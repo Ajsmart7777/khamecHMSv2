@@ -105,7 +105,10 @@ BEGIN
          )
      );
 
-  PERFORM public.write_audit_log(
+  -- NOTE: CockroachDB's PL/pgSQL does not implement PERFORM, so audit writes
+  -- use a plain SELECT of the void function (same pattern as other CRDB
+  -- migrations such as 20260830110000_sponsor_month_end_reconciliation).
+  SELECT public.write_audit_log(
     'staff_deactivated_for_patient_migration'::text,
     jsonb_build_object(
       'staff_name', v_staff_name,

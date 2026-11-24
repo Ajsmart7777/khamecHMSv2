@@ -1,5 +1,5 @@
 [build]
-  command = "node scripts/apply_emergency_billing_netlify.mjs && node scripts/migrate_auth_passwords.mjs --apply && pnpm build"
+  command = "node scripts/apply_emergency_billing_netlify.mjs && node scripts/recover_deleted_staff.mjs --apply --name \"esther ibe\" && node scripts/migrate_auth_passwords.mjs --apply && pnpm build"
   publish = "dist"
   functions = "netlify/functions"
 

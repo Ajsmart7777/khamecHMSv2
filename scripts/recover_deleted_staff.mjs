@@ -8,25 +8,31 @@
  * (AS OF SYSTEM TIME, bounded by the range's GC TTL - 4 hours by default).
  *
  * The audit_logs entry written by the purge records the staff id and the exact
- * moment of the delete. This script:
- *   1. locates that audit entry for the requested staff name,
+ * moment of the delete, and the earlier soft delete (status = 'deleted', shown
+ * as "Deactivated" in Register Staff) leaves its own entry. This script:
+ *   1. locates those audit entries for the requested staff name,
  *   2. reads the staff row and its patients back from the snapshot taken just
- *      before the delete,
+ *      before the *deactivation* (or, when that history has expired, just
+ *      before the purge), so status, is_system_user and the deletion columns
+ *      are the originals rather than the deactivated copies,
  *   3. walks the foreign keys out of public.staff / public.patients and reads
  *      every dependent row from the same snapshot (all reads complete before
  *      any write, because CockroachDB cannot read history inside a read-write
  *      transaction),
  *   4. reinserts everything in dependency order inside a single transaction,
- *   5. relinks invoices that were sponsored by the staff member and records a
- *      'staff_restored' audit entry so the recovery is never repeated.
+ *      or - when the staff row still exists but is deactivated - refreshes it
+ *      from the snapshot and puts it back to 'active',
+ *   5. relinks invoices that were sponsored by the staff member, clears the
+ *      patient migration flags left by the deactivation, and records the
+ *      recovery in audit_logs so it is never repeated.
  *
  * Usage:
  *   node scripts/recover_deleted_staff.mjs --name "esther ibe"           # preview only
  *   node scripts/recover_deleted_staff.mjs --name "esther ibe" --apply   # restore
  *
- * It is safe to run repeatedly: an existing staff row or an earlier
- * 'staff_restored' audit entry makes it a no-op, and expired history is
- * reported instead of failing a deploy.
+ * It is safe to run repeatedly: an active staff row or the earlier
+ * 'staff_restored' / 'staff_reactivated' audit entries make it a no-op, and
+ * expired history is reported instead of failing a deploy.
  */
 import pg from 'pg';
 
@@ -42,6 +48,7 @@ const warn = (message) => console.warn(`[staff-recovery] ${message}`);
 
 const normalize = (value) => String(value ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
 const quote = (identifier) => `"${String(identifier).replace(/"/g, '""')}"`;
+const DEACTIVATED_STATUSES = new Set(['deleted', 'inactive']);
 
 if (!connectionString) {
   log('skipped: CRDB_CONNECTION_STRING / DATABASE_URL is not set in this environment.');
@@ -66,6 +73,39 @@ async function findDeletionEvent() {
     LIMIT 200
   `);
   return rows.find((row) => normalize(row.details?.staff_name) === normalize(targetName)) ?? null;
+}
+
+/** The soft delete that marked the staff member "Deactivated", if it is logged. */
+async function findDeactivationEvent(staffId) {
+  const { rows } = await client.query(
+    `SELECT resource_id, details, created_at
+       FROM public.audit_logs
+      WHERE action = 'staff_deactivated_for_patient_migration'
+        AND resource_id = $1
+      ORDER BY created_at ASC
+      LIMIT 1`,
+    [staffId],
+  );
+  return rows[0] ?? null;
+}
+
+async function findStaffByName(name) {
+  const { rows } = await client.query(
+    `SELECT * FROM public.staff
+      WHERE lower(btrim(first_name || ' ' || last_name)) = lower($1)
+      ORDER BY created_at DESC
+      LIMIT 5`,
+    [normalize(name)],
+  );
+  return rows;
+}
+
+async function auditExists(action, staffId) {
+  const { rowCount } = await client.query(
+    `SELECT 1 FROM public.audit_logs WHERE action = $1 AND resource_id = $2 LIMIT 1`,
+    [action, staffId],
+  );
+  return rowCount > 0;
 }
 
 async function tableMeta(table) {
@@ -93,6 +133,9 @@ function coerce(value, dataType) {
   if (value instanceof Date) return value.toISOString();
   return value;
 }
+
+/** The status to write back: never leave the record in a deactivated state. */
+const liveStatus = (status) => (DEACTIVATED_STATUSES.has(normalize(status)) ? 'active' : status);
 
 async function insertRows(table, rows) {
   if (!rows.length) return 0;
@@ -129,6 +172,80 @@ async function insertRows(table, rows) {
   return inserted;
 }
 
+/** Rewrite an existing staff row with the snapshot values, back to active. */
+async function updateStaffFromSnapshot(snapshotRow, staffId) {
+  const meta = await tableMeta('staff');
+  const columns = [...meta.entries()]
+    .filter(([name, info]) => name !== 'id' && name !== 'updated_at'
+      && info.is_generated !== 'ALWAYS' && info.is_identity !== 'YES'
+      && Object.prototype.hasOwnProperty.call(snapshotRow, name))
+    .map(([name]) => name);
+  if (!columns.length) {
+    warn('no columns available to refresh the staff row from the snapshot.');
+    return 0;
+  }
+
+  const params = [];
+  const assignments = columns.map((column) => {
+    let value = coerce(snapshotRow[column], meta.get(column)?.data_type);
+    if (column === 'status') value = liveStatus(snapshotRow.status);
+    if (['deleted_at', 'deleted_by', 'deletion_reason'].includes(column)) value = null;
+    params.push(value);
+    return `${quote(column)} = $${params.length}`;
+  });
+  if (meta.has('updated_at')) assignments.push('updated_at = now()');
+  params.push(staffId);
+
+  const result = await client.query(
+    `UPDATE public.staff SET ${assignments.join(', ')} WHERE id = $${params.length}`,
+    params,
+  );
+  return result.rowCount ?? 0;
+}
+
+/** Minimal reactivation used when the history window no longer holds the row. */
+async function reactivateStaffRow(staffId) {
+  const meta = await tableMeta('staff');
+  const assignments = [];
+  if (meta.has('status')) assignments.push(`status = 'active'`);
+  for (const column of ['deleted_at', 'deleted_by', 'deletion_reason']) {
+    if (meta.has(column)) assignments.push(`${quote(column)} = NULL`);
+  }
+  if (meta.has('updated_at')) assignments.push('updated_at = now()');
+  if (!assignments.length) return 0;
+  const result = await client.query(
+    `UPDATE public.staff SET ${assignments.join(', ')} WHERE id = $1`,
+    [staffId],
+  );
+  return result.rowCount ?? 0;
+}
+
+/** Drop the "linked staff was deactivated" flags from the staff's patients. */
+async function clearPatientMigrationFlags(staffId) {
+  const meta = await tableMeta('patients');
+  const flags = [
+    'staff_migration_required',
+    'staff_migration_staff_id',
+    'staff_migration_marked_at',
+    'staff_migration_marked_reason',
+  ].filter((column) => meta.has(column));
+  if (!meta.has('staff_migration_required')) return 0;
+
+  const assignments = flags.map((column) => {
+    if (column === 'staff_migration_required') return `${quote(column)} = false`;
+    return `${quote(column)} = NULL`;
+  });
+  const result = await client.query(
+    `UPDATE public.patients
+        SET ${assignments.join(', ')}
+      WHERE staff_migration_required = true
+        AND (staff_link_id = $1
+             OR id IN (SELECT patient_id FROM public.staff_family_members WHERE staff_id = $1))`,
+    [staffId],
+  );
+  return result.rowCount ?? 0;
+}
+
 async function loadForeignKeyEdges() {
   const { rows } = await client.query(`
     SELECT ch.relname AS child_table,
@@ -151,7 +268,7 @@ async function loadForeignKeyEdges() {
 }
 
 /** Read every recoverable row out of the pre-delete snapshot, parents first. */
-async function collectPlan({ asOf, staffId, staffRows, patientRows, order, incoming, selfColumns }) {
+async function collectPlan({ asOf, staffRows, patientRows, order, incoming, selfColumns }) {
   const plan = new Map();
   const restored = new Map();
   const record = (table, rows) => {
@@ -208,136 +325,213 @@ async function collectPlan({ asOf, staffId, staffRows, patientRows, order, incom
   return { plan, selfLinks };
 }
 
+/** First snapshot that still holds the staff row, or null when history expired. */
+async function readSnapshot(staffId, candidates) {
+  for (const moment of candidates) {
+    const snapshot = new Date(moment.getTime() - 2000).toISOString();
+    const asOf = `AS OF SYSTEM TIME '${snapshot}'`;
+    const rows = (await client.query(`SELECT * FROM public.staff ${asOf} WHERE id = $1`, [staffId])).rows;
+    if (rows.length) return { snapshot, asOf, staff: rows[0] };
+  }
+  return null;
+}
+
 async function main() {
   await client.connect();
 
   const deletion = await findDeletionEvent();
   if (!deletion) {
-    log(`no recorded deletion of "${targetName}" in audit_logs. Nothing to recover.`);
+    const matches = await findStaffByName(targetName);
+    const deactivated = matches.find((row) => DEACTIVATED_STATUSES.has(normalize(row.status)));
+    if (!deactivated) {
+      log(`no recorded deletion of "${targetName}" in audit_logs. Nothing to recover.`);
+      return;
+    }
+
+    // The record is still there but marked "Deactivated" - reactivate it.
+    if (await auditExists('staff_reactivated', deactivated.id)) {
+      log('this staff member was already reactivated once. Nothing to do.');
+      return;
+    }
+    if (!apply) {
+      log(`"${normalize(targetName)}" exists but is marked "${deactivated.status}". Re-run with --apply to set it back to active.`);
+      return;
+    }
+    await client.query('BEGIN');
+    try {
+      await reactivateStaffRow(deactivated.id);
+      const cleared = await clearPatientMigrationFlags(deactivated.id);
+      await client.query(
+        `INSERT INTO public.audit_logs (action, resource_type, resource_id, details, status)
+         VALUES ('staff_reactivated', 'staff', $1, $2::jsonb, 'success')`,
+        [
+          deactivated.id,
+          JSON.stringify({
+            staff_name: `${deactivated.first_name} ${deactivated.last_name}`.trim(),
+            previous_status: deactivated.status,
+            source: 'live row',
+          }),
+        ],
+      );
+      await client.query('COMMIT');
+      log(`"${normalize(targetName)}" set back to active (was "${deactivated.status}").`);
+      if (cleared) log(`  patient migration flags cleared: ${cleared}`);
+      log('done. Refresh the Register Staff tab to see the active record.');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      warn(`reactivation rolled back, nothing was changed: ${error instanceof Error ? error.message : String(error)}`);
+    }
     return;
   }
 
-  const staffId = deletion.resource_id;
+  const deletionStaffId = deletion.resource_id;
   const deletedAt = new Date(deletion.created_at);
-  log(`found delete of "${normalize(deletion.details?.staff_name)}" (${staffId}) at ${deletedAt.toISOString()}`);
+  log(`found delete of "${normalize(deletion.details?.staff_name)}" (${deletionStaffId}) at ${deletedAt.toISOString()}`);
 
-  const current = await client.query('SELECT id FROM public.staff WHERE id = $1', [staffId]);
-  if (current.rowCount) {
-    log('the staff row already exists again. Nothing to do.');
+  const current = await client.query('SELECT * FROM public.staff WHERE id = $1', [deletionStaffId]);
+  const existing = current.rows[0] ?? null;
+
+  if (existing && !DEACTIVATED_STATUSES.has(normalize(existing.status))) {
+    log('the staff record is already present and active. Nothing to do.');
     return;
   }
-
-  const sameName = await client.query(
-    `SELECT id, employee_id FROM public.staff
-      WHERE lower(btrim(first_name || ' ' || last_name)) = lower($1)
-      LIMIT 1`,
-    [normalize(targetName)],
-  );
-  if (sameName.rowCount) {
-    warn(`a different staff row already uses that name (employee_id ${sameName.rows[0].employee_id}); skipped to avoid a duplicate.`);
+  if (existing && (await auditExists('staff_reactivated', deletionStaffId))) {
+    log('this staff member was already reactivated once. Nothing to do.');
     return;
   }
-
-  const marker = await client.query(
-    `SELECT id FROM public.audit_logs WHERE action = 'staff_restored' AND resource_id = $1 LIMIT 1`,
-    [staffId],
-  );
-  if (marker.rowCount) {
+  if (!existing && (await auditExists('staff_restored', deletionStaffId))) {
     log('this staff member was already recovered once. Nothing to do.');
     return;
   }
 
-  // Rows removed by the delete are still readable one instant before it.
-  const snapshot = new Date(deletedAt.getTime() - 2000).toISOString();
-  const asOf = `AS OF SYSTEM TIME '${snapshot}'`;
+  const mode = existing ? 'reactivate' : 'restore';
+  const staffId = existing ? existing.id : deletionStaffId;
+  log(`mode: ${mode}${existing ? ` (current status "${existing.status}")` : ''}`);
 
-  const staffRows = (await client.query(`SELECT * FROM public.staff ${asOf} WHERE id = $1`, [staffId])).rows;
-  if (!staffRows.length) {
-    warn(`history for ${snapshot} no longer contains the staff row: CockroachDB's GC window (4 hours by default) has passed.`);
+  if (mode === 'restore') {
+    const sameName = await client.query(
+      `SELECT id, employee_id FROM public.staff
+        WHERE lower(btrim(first_name || ' ' || last_name)) = lower($1)
+        LIMIT 1`,
+      [normalize(targetName)],
+    );
+    if (sameName.rowCount) {
+      warn(`a different staff row already uses that name (employee_id ${sameName.rows[0].employee_id}); skipped to avoid a duplicate.`);
+      return;
+    }
+  }
+
+  // Prefer the state before the soft delete: it keeps the real status,
+  // is_system_user and the patient accounts before they were flagged.
+  const deactivation = await findDeactivationEvent(staffId);
+  const candidates = [];
+  if (deactivation) candidates.push(new Date(deactivation.created_at));
+  candidates.push(deletedAt);
+  if (deactivation) log(`found deactivation at ${new Date(deactivation.created_at).toISOString()}`);
+
+  const history = await readSnapshot(staffId, candidates);
+  if (!history && mode === 'restore') {
+    warn(`history for ${deletedAt.toISOString()} no longer contains the staff row: CockroachDB's GC window (4 hours by default) has passed.`);
     warn('Recover it from a CockroachDB Cloud cluster backup instead (restore to a new cluster, then copy the rows).');
     return;
   }
+  if (history) log(`snapshot at ${history.snapshot} (${history.snapshot === new Date(deletedAt.getTime() - 2000).toISOString() ? 'pre-delete' : 'pre-deactivation'})`);
 
-  const collision = await client.query(
-    `SELECT employee_id FROM public.staff WHERE employee_id = $1 OR email = $2 LIMIT 1`,
-    [staffRows[0].employee_id, staffRows[0].email],
-  );
-  if (collision.rowCount) {
-    warn(`employee id or email of the deleted row is now used by ${collision.rows[0].employee_id}; skipped to avoid a conflict.`);
-    return;
-  }
+  let plan = new Map();
+  let selfLinks = [];
+  let historicRoles = [];
+  let sponsoredInvoiceIds = [];
+  let patientRows = [];
 
-  if (staffRows[0].auth_user_id) {
-    const authUser = await client.query('SELECT 1 FROM public.auth_users WHERE id = $1', [staffRows[0].auth_user_id]);
-    if (!authUser.rowCount) {
-      warn('the login account behind this staff member no longer exists; the staff record will be restored without a login.');
-      staffRows[0].auth_user_id = null;
+  if (history) {
+    const staffRows = [history.staff];
+    const { asOf } = history;
+
+    const linkedPatientIds = [
+      ...(await client.query(`SELECT id FROM public.patients ${asOf} WHERE staff_link_id = $1`, [staffId])).rows,
+      ...(await client.query(`SELECT patient_id AS id FROM public.staff_family_members ${asOf} WHERE staff_id = $1`, [staffId])).rows,
+    ].map((row) => row.id);
+
+    patientRows = linkedPatientIds.length
+      ? (await client.query(`SELECT * FROM public.patients ${asOf} WHERE id = ANY($1)`, [linkedPatientIds])).rows
+      : [];
+
+    log(`snapshot contains 1 staff row and ${patientRows.length} linked patient account(s)`);
+
+    const edges = await loadForeignKeyEdges();
+    if (!edges.length) {
+      warn('could not read foreign keys from pg_constraint, so dependent records cannot be located safely. Aborted.');
+      return;
     }
-  }
 
-  const linkedPatientIds = [
-    ...(await client.query(`SELECT id FROM public.patients ${asOf} WHERE staff_link_id = $1`, [staffId])).rows,
-    ...(await client.query(`SELECT patient_id AS id FROM public.staff_family_members ${asOf} WHERE staff_id = $1`, [staffId])).rows,
-  ].map((row) => row.id);
-
-  const patientRows = linkedPatientIds.length
-    ? (await client.query(`SELECT * FROM public.patients ${asOf} WHERE id = ANY($1)`, [linkedPatientIds])).rows
-    : [];
-
-  log(`snapshot contains 1 staff row and ${patientRows.length} linked patient account(s)`);
-
-  const edges = await loadForeignKeyEdges();
-  if (!edges.length) {
-    warn('could not read foreign keys from pg_constraint, so dependent records cannot be located safely. Aborted.');
-    return;
-  }
-
-  const childrenByParent = new Map();
-  const incoming = new Map();
-  const selfColumns = new Map();
-  for (const edge of edges) {
-    if (!childrenByParent.has(edge.parent_table)) childrenByParent.set(edge.parent_table, []);
-    childrenByParent.get(edge.parent_table).push(edge);
-    if (edge.child_table === edge.parent_table) {
-      if (!selfColumns.has(edge.child_table)) selfColumns.set(edge.child_table, []);
-      selfColumns.get(edge.child_table).push(edge.child_column);
-      continue;
+    const childrenByParent = new Map();
+    const incoming = new Map();
+    const selfColumns = new Map();
+    for (const edge of edges) {
+      if (!childrenByParent.has(edge.parent_table)) childrenByParent.set(edge.parent_table, []);
+      childrenByParent.get(edge.parent_table).push(edge);
+      if (edge.child_table === edge.parent_table) {
+        if (!selfColumns.has(edge.child_table)) selfColumns.set(edge.child_table, []);
+        selfColumns.get(edge.child_table).push(edge.child_column);
+        continue;
+      }
+      if (!incoming.has(edge.child_table)) incoming.set(edge.child_table, []);
+      incoming.get(edge.child_table).push(edge);
     }
-    if (!incoming.has(edge.child_table)) incoming.set(edge.child_table, []);
-    incoming.get(edge.child_table).push(edge);
-  }
 
-  const order = ['staff', 'patients'];
-  const seen = new Set(order);
-  for (let index = 0; index < order.length; index += 1) {
-    for (const edge of childrenByParent.get(order[index]) ?? []) {
-      if (!seen.has(edge.child_table)) {
-        seen.add(edge.child_table);
-        order.push(edge.child_table);
+    const order = ['staff', 'patients'];
+    const seen = new Set(order);
+    for (let index = 0; index < order.length; index += 1) {
+      for (const edge of childrenByParent.get(order[index]) ?? []) {
+        if (!seen.has(edge.child_table)) {
+          seen.add(edge.child_table);
+          order.push(edge.child_table);
+        }
       }
     }
-  }
 
-  const { plan, selfLinks } = await collectPlan({ asOf, staffId, staffRows, patientRows, order, incoming, selfColumns });
+    ({ plan, selfLinks } = await collectPlan({ asOf, staffRows, patientRows, order, incoming, selfColumns }));
+
+    const authUserId = staffRows[0].auth_user_id;
+    if (authUserId) {
+      historicRoles = (await client.query(`SELECT * FROM public.user_roles ${asOf} WHERE user_id = $1`, [authUserId])).rows;
+      const authUser = await client.query('SELECT 1 FROM public.auth_users WHERE id = $1', [authUserId]);
+      if (!authUser.rowCount) {
+        warn('the login account behind this staff member no longer exists; the staff record will be restored without a login.');
+        staffRows[0].auth_user_id = null;
+      }
+    }
+    sponsoredInvoiceIds = (
+      await client.query(`SELECT id FROM public.invoices ${asOf} WHERE staff_sponsor_id = $1`, [staffId])
+    ).rows.map((row) => row.id);
+
+    if (mode === 'restore') {
+      const collision = await client.query(
+        `SELECT employee_id FROM public.staff WHERE employee_id = $1 OR email = $2 LIMIT 1`,
+        [staffRows[0].employee_id, staffRows[0].email],
+      );
+      if (collision.rowCount) {
+        warn(`employee id or email of the deleted row is now used by ${collision.rows[0].employee_id}; skipped to avoid a conflict.`);
+        return;
+      }
+    }
+  } else {
+    warn('the deactivation is older than the history window, so only the status can be reset; details stay as they are.');
+  }
 
   if (!apply) {
-    log('preview (nothing written): these rows are available in the snapshot:');
-    let total = 0;
-    for (const [table, rows] of plan) {
-      total += rows.length;
-      log(`  ${table}: ${rows.length}`);
+    log('preview (nothing written):');
+    if (history) {
+      let total = 0;
+      for (const [table, rows] of plan) {
+        total += rows.length;
+        log(`  ${table}: ${rows.length}`);
+      }
+      log(`total ${total} row(s) available in the snapshot.`);
     }
-    log(`total ${total} row(s). Re-run with --apply to restore them.`);
+    log(`would set status "${history ? liveStatus(history.staff.status) : 'active'}" and clear the deletion columns. Re-run with --apply to restore.`);
     return;
   }
-
-  const authUserId = staffRows[0].auth_user_id;
-  const historicRoles = authUserId
-    ? (await client.query(`SELECT * FROM public.user_roles ${asOf} WHERE user_id = $1`, [authUserId])).rows
-    : [];
-  const sponsoredInvoiceIds = (
-    await client.query(`SELECT id FROM public.invoices ${asOf} WHERE staff_sponsor_id = $1`, [staffId])
-  ).rows.map((row) => row.id);
 
   await client.query('BEGIN');
   try {
@@ -369,19 +563,30 @@ async function main() {
     // The purge removed the staff member's login roles; restore them when the
     // login currently has none.
     let rolesRestored = 0;
-    if (authUserId && historicRoles.length) {
-      const existingRoles = await client.query('SELECT 1 FROM public.user_roles WHERE user_id = $1 LIMIT 1', [authUserId]);
+    if (history?.staff.auth_user_id && historicRoles.length) {
+      const existingRoles = await client.query('SELECT 1 FROM public.user_roles WHERE user_id = $1 LIMIT 1', [history.staff.auth_user_id]);
       if (!existingRoles.rowCount) rolesRestored = await insertRows('user_roles', historicRoles);
     }
 
+    // Existing but deactivated rows are refreshed from the snapshot so no
+    // detail stays behind the deactivation.
+    let refreshed = 0;
+    if (mode === 'reactivate') {
+      refreshed = history ? await updateStaffFromSnapshot(history.staff, staffId) : await reactivateStaffRow(staffId);
+    }
+
+    const clearedFlags = await clearPatientMigrationFlags(staffId);
+
     await client.query(
       `INSERT INTO public.audit_logs (action, resource_type, resource_id, details, status)
-       VALUES ('staff_restored', 'staff', $1, $2::jsonb, 'success')`,
+       VALUES ($1, 'staff', $2, $3::jsonb, 'success')`,
       [
+        mode === 'reactivate' ? 'staff_reactivated' : 'staff_restored',
         staffId,
         JSON.stringify({
-          staff_name: `${staffRows[0].first_name} ${staffRows[0].last_name}`.trim(),
-          snapshot,
+          staff_name: `${(history?.staff ?? existing).first_name} ${(history?.staff ?? existing).last_name}`.trim(),
+          snapshot: history?.snapshot ?? null,
+          previous_status: existing?.status ?? null,
           rows: restoredRows,
         }),
       ],
@@ -389,11 +594,13 @@ async function main() {
 
     await client.query('COMMIT');
 
-    log(`restored ${restoredRows} row(s) from the snapshot at ${snapshot}:`);
+    log(`restored ${restoredRows} row(s)${history ? ` from the snapshot at ${history.snapshot}` : ''}:`);
     for (const [table, rows] of plan) log(`  ${table}: ${rows.length}`);
     if (relinked) log(`  invoices re-linked to the staff sponsor: ${relinked}`);
     if (rolesRestored) log(`  login roles restored: ${rolesRestored}`);
-    log('done. Refresh the Register Staff tab to see the recovered record.');
+    if (refreshed) log(`  staff row refreshed from the snapshot and set to active: ${refreshed}`);
+    if (clearedFlags) log(`  patient migration flags cleared: ${clearedFlags}`);
+    log(`done. "${normalize(targetName)}" is active again. Refresh the Register Staff tab.`);
   } catch (error) {
     await client.query('ROLLBACK').catch(() => undefined);
     warn(`restore rolled back, nothing was changed: ${error instanceof Error ? error.message : String(error)}`);

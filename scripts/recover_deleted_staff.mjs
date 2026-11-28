@@ -325,15 +325,61 @@ async function collectPlan({ asOf, staffRows, patientRows, order, incoming, self
   return { plan, selfLinks };
 }
 
+/**
+ * CockroachDB refuses AS OF SYSTEM TIME older than the range's GC window
+ * ("batch timestamp ... must be after replica GC threshold"). When the table
+ * itself postdates the requested time it answers "relation does not exist"
+ * instead. Both mean the same thing here: no usable snapshot.
+ */
+const HISTORY_EXPIRED = /gc threshold|batch timestamp|must be after|garbage|does not exist/i;
+
 /** First snapshot that still holds the staff row, or null when history expired. */
 async function readSnapshot(staffId, candidates) {
   for (const moment of candidates) {
     const snapshot = new Date(moment.getTime() - 2000).toISOString();
     const asOf = `AS OF SYSTEM TIME '${snapshot}'`;
-    const rows = (await client.query(`SELECT * FROM public.staff ${asOf} WHERE id = $1`, [staffId])).rows;
+    let rows;
+    try {
+      rows = (await client.query(`SELECT * FROM public.staff ${asOf} WHERE id = $1`, [staffId])).rows;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      // Expired history is expected days later and must not abort the run - the
+      // live row can still be reactivated below.
+      if (!HISTORY_EXPIRED.test(message)) throw error;
+      warn(`history at ${snapshot} is no longer available: ${message}`);
+      continue;
+    }
     if (rows.length) return { snapshot, asOf, staff: rows[0] };
   }
   return null;
+}
+
+/**
+ * The deleted-staff guard (public.prevent_deleted_staff_reactivation) raises
+ * STAFF_DELETED on any update that moves a deleted row to another status.
+ * reactivate_staff_member() opens it with a transactional row in
+ * staff_reactivation_grants, so the script uses the same marker. Databases that
+ * predate that migration simply have no guard to bypass.
+ */
+async function allowReactivation(staffId) {
+  try {
+    await client.query(
+      'INSERT INTO public.staff_reactivation_grants (staff_id) VALUES ($1) ON CONFLICT DO NOTHING',
+      [staffId],
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/does not exist|undefined_table|42P01/i.test(message)) throw error;
+    warn('staff_reactivation_grants is not present yet; continuing without opening the deleted-staff guard.');
+  }
+}
+
+async function closeReactivation(staffId) {
+  try {
+    await client.query('DELETE FROM public.staff_reactivation_grants WHERE staff_id = $1', [staffId]);
+  } catch {
+    // The table may not exist on this database; nothing to release.
+  }
 }
 
 async function main() {
@@ -359,7 +405,9 @@ async function main() {
     }
     await client.query('BEGIN');
     try {
+      await allowReactivation(deactivated.id);
       await reactivateStaffRow(deactivated.id);
+      await closeReactivation(deactivated.id);
       const cleared = await clearPatientMigrationFlags(deactivated.id);
       await client.query(
         `INSERT INTO public.audit_logs (action, resource_type, resource_id, details, status)
@@ -572,7 +620,9 @@ async function main() {
     // detail stays behind the deactivation.
     let refreshed = 0;
     if (mode === 'reactivate') {
+      await allowReactivation(staffId);
       refreshed = history ? await updateStaffFromSnapshot(history.staff, staffId) : await reactivateStaffRow(staffId);
+      await closeReactivation(staffId);
     }
 
     const clearedFlags = await clearPatientMigrationFlags(staffId);
@@ -598,7 +648,11 @@ async function main() {
     for (const [table, rows] of plan) log(`  ${table}: ${rows.length}`);
     if (relinked) log(`  invoices re-linked to the staff sponsor: ${relinked}`);
     if (rolesRestored) log(`  login roles restored: ${rolesRestored}`);
-    if (refreshed) log(`  staff row refreshed from the snapshot and set to active: ${refreshed}`);
+    if (refreshed) {
+      log(history
+        ? `  staff row refreshed from the snapshot and set to active: ${refreshed}`
+        : `  staff row set back to active, saved details kept: ${refreshed}`);
+    }
     if (clearedFlags) log(`  patient migration flags cleared: ${clearedFlags}`);
     log(`done. "${normalize(targetName)}" is active again. Refresh the Register Staff tab.`);
   } catch (error) {

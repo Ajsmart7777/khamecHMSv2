@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { UserPlus, Loader2, RefreshCw, Search, Trash2, KeyRound, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { UserPlus, Loader2, RefreshCw, Search, Trash2, KeyRound, ShieldCheck, CheckCircle2, RotateCcw } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Staff, UserRole } from '@/types/hms';
 import { supabase } from '@/integrations/supabase/client';
@@ -18,6 +18,7 @@ interface Props {
   loading: boolean;
   onAddStaff: (staff: Omit<Staff, 'id'>) => Promise<boolean>;
   onDeleteStaff: (id: string) => Promise<boolean>;
+  onReactivateStaff: (id: string) => Promise<boolean>;
   onRefetch: () => void;
 }
 
@@ -87,7 +88,7 @@ interface FlutterwaveBank {
   name: string;
 }
 
-export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaff, onRefetch }: Props) {
+export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaff, onReactivateStaff, onRefetch }: Props) {
   const [search, setSearch] = useState('');
   const [bankSearch, setBankSearch] = useState('');
   const [banks, setBanks] = useState<FlutterwaveBank[]>([]);
@@ -483,7 +484,7 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                     <TableHead>Role</TableHead>
                     <TableHead className="hidden lg:table-cell">Qualification</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="w-16">Actions</TableHead>
+                    <TableHead className="w-24">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -498,10 +499,22 @@ export function StaffRegistrationForm({ staff, loading, onAddStaff, onDeleteStaf
                       <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">{s.qualification || '—'}</TableCell>
                       <TableCell>
                         <Badge variant={s.status === 'active' ? 'success' : 'warning'}>
-                          {s.status === 'deleted' ? 'Deactivated (delete to remove)' : s.status}
+                          {s.status === 'deleted' ? 'Deactivated' : s.status}
                         </Badge>
                       </TableCell>
                       <TableCell>
+                        {s.status === 'deleted' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => onReactivateStaff(s.id)}
+                            title="Reactivate this staff record with its saved details"
+                            aria-label="Reactivate this staff record with its saved details"
+                            className="text-success hover:text-success"
+                          >
+                            <RotateCcw className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"

@@ -41,7 +41,7 @@ function TabHeader({ title, onRefresh }: { title: string; onRefresh: () => void 
 }
 
 const Account = () => {
-  const { staff, loading: staffLoading, addStaff, updateStaff, deleteStaff, importStaff, refetch: refetchStaff } = useStaff();
+  const { staff, loading: staffLoading, addStaff, updateStaff, deleteStaff, reactivateStaff, importStaff, refetch: refetchStaff } = useStaff();
   const { periods, loading: periodsLoading, createPeriod, updatePeriodLabels, lockPeriod, unlockPeriod, markPaid, refetch: refetchPeriods } = usePayrollPeriods();
   const { refetch: refetchCorporate } = useCorporateAccounts();
   const [selectedPeriod, setSelectedPeriod] = useState<PayrollPeriod | null>(null);
@@ -226,7 +226,7 @@ const Account = () => {
 
         <TabsContent value="register">
           <TabHeader title="Register Staff" onRefresh={refetchStaff} />
-          <StaffRegistrationForm staff={staff} loading={staffLoading} onAddStaff={addStaff} onDeleteStaff={deleteStaff} onRefetch={refetchStaff} />
+          <StaffRegistrationForm staff={staff} loading={staffLoading} onAddStaff={addStaff} onDeleteStaff={deleteStaff} onReactivateStaff={reactivateStaff} onRefetch={refetchStaff} />
         </TabsContent>
 
         <TabsContent value="history">

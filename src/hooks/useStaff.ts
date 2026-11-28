@@ -201,6 +201,40 @@ export function useStaff() {
     return true;
   };
 
+  const reactivateStaff = async (id: string): Promise<boolean> => {
+    const target = staff.find((member) => member.id === id);
+    if (!target) return false;
+    const confirmed = window.confirm(
+      `Reactivate ${target.firstName} ${target.lastName}?\n\n` +
+      'The record keeps all of its saved details and returns to the active staff list and payroll.'
+    );
+    if (!confirmed) return false;
+
+    const { data, error: reactivateError } = await supabase.rpc('reactivate_staff_member', {
+      _staff_id: id,
+      _reason: 'Reactivated from Register Staff',
+    });
+
+    if (reactivateError) {
+      console.error('Error reactivating staff:', reactivateError);
+      toast({
+        title: "Error",
+        description: reactivateError.message,
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    const result = (data && typeof data === 'object' && 'data' in data ? (data as { data: Record<string, unknown> }).data : data) as Record<string, unknown> | null;
+    setStaff(prev => prev.map(s => s.id === id ? { ...s, status: 'active' as const } : s));
+    toast({
+      title: "Staff reactivated",
+      description: `${target.firstName} ${target.lastName} is active again and appears in payroll.`,
+    });
+    window.dispatchEvent(new CustomEvent('staff-data-changed'));
+    return true;
+  };
+
   const importStaff = async (staffList: Omit<Staff, 'id'>[]): Promise<number> => {
     const dbRecords = staffList.map(mapStaffToDb);
     
@@ -231,6 +265,7 @@ export function useStaff() {
     addStaff,
     updateStaff,
     deleteStaff,
+    reactivateStaff,
     importStaff,
     refetch: fetchStaff,
   };
